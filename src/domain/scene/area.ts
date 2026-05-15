@@ -99,6 +99,22 @@ export function isPlaceableArea(areaType: AreaType): boolean {
   return areaType === 'main' || areaType === 'outer';
 }
 
+export function isMainAreaBoundaryCell(
+  coordinate: GridCoordinate,
+  dimensions: SceneDimensions = defaultSceneDimensions,
+): boolean {
+  if (calculateAreaType(coordinate, dimensions) !== 'main') {
+    return false;
+  }
+
+  return (
+    coordinate.x === dimensions.outerPadding ||
+    coordinate.y === dimensions.outerPadding ||
+    coordinate.x === dimensions.outerPadding + dimensions.sceneSize.width - 1 ||
+    coordinate.y === dimensions.outerPadding + dimensions.sceneSize.height - 1
+  );
+}
+
 export function createCanvasCells(dimensions: SceneDimensions = defaultSceneDimensions): CanvasCell[] {
   assertSceneDimensions(dimensions);
 

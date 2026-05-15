@@ -222,10 +222,15 @@ button:disabled {
     var(--color-main-area);
 }
 
+.scene-cell--main-boundary {
+  box-shadow: inset 0 0 0 3px rgba(143, 126, 103, 0.7);
+}
+
 .scene-cell--outer {
   background:
     linear-gradient(90deg, rgba(37, 111, 104, 0.18) 0 5px, transparent 5px),
     var(--color-outer-area);
+  border: 1px dashed rgba(37, 111, 104, 0.35);
 }
 
 .scene-cell:focus-visible {
@@ -245,6 +250,22 @@ button:disabled {
   color: var(--ink-muted);
   font-size: 9px;
   text-transform: uppercase;
+}
+
+.cell-placeable {
+  position: absolute;
+  left: 4px;
+  bottom: 3px;
+  color: rgba(36, 33, 28, 0.58);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+@media (max-width: 420px) {
+  .cell-placeable {
+    display: none;
+  }
 }
 
 .level-list,

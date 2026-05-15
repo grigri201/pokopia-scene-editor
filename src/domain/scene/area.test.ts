@@ -6,6 +6,7 @@ import {
   createCanvasCells,
   defaultSceneDimensions,
   getAreaType,
+  isMainAreaBoundaryCell,
   isPlaceableArea,
 } from './area';
 
@@ -49,6 +50,15 @@ describe('scene canvas area rules', () => {
   it('marks both MVP areas as placeable', () => {
     expect(isPlaceableArea('main')).toBe(true);
     expect(isPlaceableArea('outer')).toBe(true);
+  });
+
+  it('detects the visible 5x5 main-area boundary cells', () => {
+    const boundaryCells = createCanvasCells().filter((cell) => isMainAreaBoundaryCell(cell));
+
+    expect(boundaryCells).toHaveLength(16);
+    expect(isMainAreaBoundaryCell({ x: 1, y: 1 })).toBe(true);
+    expect(isMainAreaBoundaryCell({ x: 3, y: 3 })).toBe(false);
+    expect(isMainAreaBoundaryCell({ x: 0, y: 3 })).toBe(false);
   });
 
   it('rejects inconsistent scene and canvas dimensions', () => {
