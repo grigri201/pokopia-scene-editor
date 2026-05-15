@@ -4,6 +4,7 @@ import {
   moveCoordinate,
   saveScene,
   sceneReducer,
+  selectAsset,
   selectCoordinate,
   selectPokemon,
   updateSceneName,
@@ -106,6 +107,38 @@ describe('scene reducer selection rules', () => {
     expect(saved.workspaceState.saveStatus).toBe('saved');
     expect(saved.workspaceState.saveError).toBeNull();
     expect(saved.metadata.lastSavedAt).toBe('2026-05-16T08:02:00.000Z');
+  });
+
+  it('selects the current placement asset through guarded scene workspace state', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+    const selected = selectAsset(scene, 'garden-plant', 'edit', '2026-05-16T08:00:00.000Z');
+    const reduced = sceneReducer(scene, {
+      type: 'select-asset',
+      assetId: 'wooden-floor',
+      interactionMode: 'edit',
+      now: '2026-05-16T08:01:00.000Z',
+    });
+
+    expect(selected.workspaceState.selectedAssetId).toBe('garden-plant');
+    expect(selected.tileInstances).toEqual([]);
+    expect(selected.workspaceState.saveStatus).toBe('dirty');
+    expect(reduced.workspaceState.selectedAssetId).toBe('wooden-floor');
+    expect(reduced.workspaceState.saveStatus).toBe('dirty');
+  });
+
+  it('guards selected asset writes in read-only mode and rejects unknown assets', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+
+    expect(selectAsset(scene, 'garden-plant', 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
+    expect(() => selectAsset(scene, 'missing-asset', 'edit', '2026-05-16T08:00:00.000Z')).toThrow(
+      RangeError,
+    );
   });
 
   it('tracks save failure and clears the failure on the next scene edit', () => {

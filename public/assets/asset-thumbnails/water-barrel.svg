@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Water barrel">
+  <rect width="64" height="64" rx="10" fill="#d8edf2"/>
+  <path d="M20 15h24l5 8v27l-5 5H20l-5-5V23z" fill="#6aa8c0" stroke="#315d73" stroke-width="4"/>
+  <path d="M16 27h32M16 45h32M28 16v38M38 16v38" stroke="#315d73" stroke-width="3"/>
+  <path d="M24 28c8-7 15-7 21 0" fill="none" stroke="#c7f5ff" stroke-width="3" stroke-linecap="round"/>
+</svg>

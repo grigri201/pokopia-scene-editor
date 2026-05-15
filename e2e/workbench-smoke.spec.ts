@@ -17,6 +17,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   expect(shellThemeBefore.pokemonAccent).toBe('#7d4a74');
   await expect(page.getByRole('complementary', { name: 'Building level panel' })).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
+  await expect(page.getByLabel('Asset result count')).toHaveText('06 / 06');
+  await expect(page.getByLabel('Current placement asset')).toContainText('None');
+  await expect(page.locator('[data-asset-id="wooden-floor"] .asset-thumb')).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Preview inspector' })).toBeVisible();
   await expect(page.getByLabel('Current building level')).toHaveText('Current L0');
   await expect(page.getByTestId('building-level-row')).toHaveCount(3);
@@ -74,10 +77,25 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Save status')).toHaveText('Dirty');
   await page.getByRole('button', { name: 'Save scene' }).click();
   await expect(page.getByLabel('Save status')).toHaveText('Saved');
+  const sceneBeforeDetail = await readSceneSnapshot(page);
+  await page.getByRole('button', { name: 'View Garden Plant details' }).click();
+  await expect(page.getByLabel('Garden Plant asset detail')).toContainText('garden-plant');
+  await expect(page.getByAltText('Garden plant thumbnail')).toBeVisible();
+  expect(await readSceneSnapshot(page)).toEqual(sceneBeforeDetail);
+  await page.getByRole('button', { name: /Garden Plant.*No\. 014/ }).click();
+  await expect(page.getByLabel('Current placement asset')).toContainText('Garden Plant');
+  await expect(page.getByLabel('Current placement asset')).toContainText('Ready to place');
+  await expect(page.getByLabel('Garden Plant asset detail')).toContainText('Default skill: leaf');
+  const assetScene = await readSceneSnapshot(page);
+  expect(assetScene.workspaceState.selectedAssetId).toBe('garden-plant');
+  expect(assetScene.workspaceState.saveStatus).toBe('dirty');
+  await page.getByRole('button', { name: 'Save scene' }).click();
+  await expect(page.getByLabel('Save status')).toHaveText('Saved');
 
   const beforeSearchBox = await page.getByTestId('scene-canvas').boundingBox();
   const beforeSearchCellBox = await page.getByTestId('scene-cell').first().boundingBox();
   await page.getByLabel('Search assets').fill('plant');
+  await expect(page.getByLabel('Asset result count')).toHaveText('01 / 06');
   const afterSearchBox = await page.getByTestId('scene-canvas').boundingBox();
   const afterSearchCellBox = await page.getByTestId('scene-cell').first().boundingBox();
   expect(Math.abs((beforeSearchBox?.width ?? 0) - (afterSearchBox?.width ?? 0))).toBeLessThanOrEqual(
@@ -151,7 +169,7 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
       buttons.every((button) => button.scrollWidth <= button.clientWidth),
     ),
   ).toBe(true);
-  await expect(page.getByRole('button', { name: 'Wooden Floor' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Wooden Floor.*No\. 001/ })).toBeEnabled();
   await expect(page.getByTestId('scene-cell')).toHaveCount(49);
   await expect(page.getByLabel('Cell 0,0, outer area, level-0, read-only')).toBeVisible();
   await expect(page.locator('[data-placeable="true"]')).toHaveCount(49);
@@ -160,6 +178,15 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   const sceneBefore = await readSceneSnapshot(page);
   expect(sceneBefore.workspaceState.saveStatus).toBe('saved');
   expect(sceneBefore.workspaceState.selectedCoordinate).toBeNull();
+  expect(sceneBefore.workspaceState.selectedAssetId).toBeNull();
+  await page.getByRole('button', { name: 'View Wooden Floor details' }).click();
+  await expect(page.getByLabel('Wooden Floor asset detail')).toContainText('wooden-floor');
+  expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
+  await page.getByRole('button', { name: /Wooden Floor.*No\. 001/ }).click();
+  await expect(page.getByLabel('Current placement asset')).toContainText('Wooden Floor');
+  await expect(page.getByLabel('Current placement asset')).toContainText('View only details');
+  await expect(page.getByLabel('Wooden Floor asset detail')).toContainText('No. 001');
+  expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
   await page.locator('[data-coordinate="2,3"]').click();
   await expect(page.getByLabel('Selected coordinate')).toHaveText('2,3');
   await expect(page.getByLabel('Selected area')).toHaveText('main');
@@ -199,6 +226,7 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
 interface SceneSnapshot {
   workspaceState: {
     selectedCoordinate: { x: number; y: number } | null;
+    selectedAssetId: string | null;
     saveStatus: string;
   };
   tileInstances: unknown[];

@@ -5,7 +5,7 @@ import {
   type GridCoordinate,
   type SceneDocument,
 } from '../domain/scene';
-import { assertKnownPokemonKey, type PokemonKey } from '../domain/assets';
+import { assertKnownAssetId, assertKnownPokemonKey, type PokemonKey } from '../domain/assets';
 import type { InteractionMode } from './interaction-mode';
 
 export type SceneAction =
@@ -27,6 +27,12 @@ export type SceneAction =
       now: string;
     }
   | {
+      type: 'select-asset';
+      assetId: string;
+      interactionMode: InteractionMode;
+      now: string;
+    }
+  | {
       type: 'save-scene';
       interactionMode: InteractionMode;
       now: string;
@@ -42,6 +48,8 @@ export function sceneReducer(scene: SceneDocument, action: SceneAction): SceneDo
       return updateSceneName(scene, action.sceneName, action.interactionMode, action.now);
     case 'select-pokemon':
       return selectPokemon(scene, action.pokemonKey, action.interactionMode, action.now);
+    case 'select-asset':
+      return selectAsset(scene, action.assetId, action.interactionMode, action.now);
     case 'save-scene':
       return saveScene(scene, action.interactionMode, action.now, action.result, action.errorMessage);
   }
@@ -116,6 +124,33 @@ export function selectPokemon(
     {
       ...scene,
       selectedPokemonKey: pokemonKey,
+    },
+    now,
+  );
+}
+
+export function selectAsset(
+  scene: SceneDocument,
+  assetId: string,
+  interactionMode: InteractionMode,
+  now: string,
+): SceneDocument {
+  if (interactionMode === 'readOnly') {
+    return scene;
+  }
+
+  assertKnownAssetId(assetId);
+  if (assetId === scene.workspaceState.selectedAssetId) {
+    return scene;
+  }
+
+  return markSceneDirty(
+    {
+      ...scene,
+      workspaceState: {
+        ...scene.workspaceState,
+        selectedAssetId: assetId,
+      },
     },
     now,
   );

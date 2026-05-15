@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Outer wall">
+  <rect width="64" height="64" rx="10" fill="#e7d9bf"/>
+  <path d="M10 18h44v34H10z" fill="#b8a083" stroke="#6f5a43" stroke-width="4"/>
+  <path d="M10 29h44M10 40h44M24 18v11M40 29v11M24 40v12" stroke="#6f5a43" stroke-width="3"/>
+</svg>

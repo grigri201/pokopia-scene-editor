@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
-import type { PokemonKey } from '../../domain/assets';
+import { getAssetById, type PokemonKey } from '../../domain/assets';
 import { AssetPicker } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
 import { PokemonSceneControls } from '../pokemon-scene-controls/PokemonSceneControls';
@@ -29,6 +29,7 @@ export function AppShell() {
   const pendingSelectionMeasureRef = useRef<string | null>(null);
   const selectionMeasureCounterRef = useRef(0);
   const [readOnlySelectedCoordinate, setReadOnlySelectedCoordinate] = useState<GridCoordinate | null>(null);
+  const [readOnlyViewedAssetId, setReadOnlyViewedAssetId] = useState<string | null>(null);
   const [hoveredCoordinate, setHoveredCoordinate] = useState<GridCoordinate | null>(null);
   const [focusedCoordinate, setFocusedCoordinate] = useState<GridCoordinate | null>(null);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(() =>
@@ -36,6 +37,7 @@ export function AppShell() {
   );
   const isReadOnly = interactionMode === 'readOnly';
   const buildingLevelContexts = getBuildingLevelContexts(scene);
+  const currentBuildingLevel = buildingLevelContexts.find((level) => level.current);
   const canvasCells = getCanvasCellContexts(scene);
   const targetCoordinate = hoveredCoordinate ?? focusedCoordinate;
   const selectedCoordinate = isReadOnly
@@ -43,6 +45,7 @@ export function AppShell() {
     : scene.workspaceState.selectedCoordinate;
   const selectedContext = selectedCoordinate ? getCellContext(scene, selectedCoordinate) : null;
   const targetContext = targetCoordinate ? getCellContext(scene, targetCoordinate) : null;
+  const selectedAssetId = isReadOnly ? readOnlyViewedAssetId : scene.workspaceState.selectedAssetId;
   const pokemonThemeStyle = toPokemonThemeStyle(getPokemonTheme(scene.selectedPokemonKey));
 
   useEffect(() => {
@@ -70,11 +73,13 @@ export function AppShell() {
   useEffect(() => {
     if (isReadOnly) {
       setReadOnlySelectedCoordinate(scene.workspaceState.selectedCoordinate);
+      setReadOnlyViewedAssetId(scene.workspaceState.selectedAssetId);
       return;
     }
 
     setReadOnlySelectedCoordinate(null);
-  }, [isReadOnly, scene.workspaceState.selectedCoordinate]);
+    setReadOnlyViewedAssetId(null);
+  }, [isReadOnly, scene.workspaceState.selectedAssetId, scene.workspaceState.selectedCoordinate]);
 
   useEffect(() => {
     const measureId = pendingSelectionMeasureRef.current;
@@ -138,6 +143,20 @@ export function AppShell() {
     });
   };
 
+  const selectAsset = (assetId: string) => {
+    if (isReadOnly) {
+      setReadOnlyViewedAssetId(getAssetById(assetId)?.assetId ?? null);
+      return;
+    }
+
+    dispatch({
+      type: 'select-asset',
+      assetId,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+  };
+
   return (
     <main
       className="app-shell"
@@ -182,7 +201,13 @@ export function AppShell() {
             onFocusCoordinate={setFocusedCoordinate}
           />
         </section>
-        <AssetPicker readOnly={isReadOnly} />
+        <AssetPicker
+          readOnly={isReadOnly}
+          selectedAssetId={selectedAssetId}
+          selectedPokemonKey={scene.selectedPokemonKey}
+          currentBuildingLevelName={currentBuildingLevel?.name ?? 'No building layer'}
+          onAssetSelect={selectAsset}
+        />
       </section>
     </main>
   );

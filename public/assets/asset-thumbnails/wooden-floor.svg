@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Wooden floor">
+  <rect width="64" height="64" rx="10" fill="#c7925b"/>
+  <path d="M8 18h48M8 33h48M8 48h48M22 8v50M43 8v50" stroke="#7c5230" stroke-width="4" stroke-linecap="round"/>
+  <path d="M12 26c10-5 18-5 28 0M28 41c8-4 14-4 23 0" fill="none" stroke="#f0c38c" stroke-width="3" stroke-linecap="round"/>
+</svg>
