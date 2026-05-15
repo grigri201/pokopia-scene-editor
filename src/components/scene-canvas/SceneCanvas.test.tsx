@@ -14,6 +14,7 @@ const defaultProps = {
   selectedCoordinate: null,
   targetCoordinate: null,
   onSelectCoordinate: () => undefined,
+  onViewCoordinate: () => undefined,
   onHoverCoordinate: () => undefined,
   onFocusCoordinate: () => undefined,
 };
@@ -116,6 +117,30 @@ describe('SceneCanvas', () => {
     expect(onSelectCoordinate).toHaveBeenCalledWith({ x: 2, y: 3 });
     expect(onSelectCoordinate.mock.calls[0][0]).not.toHaveProperty('id');
     expect(onSelectCoordinate.mock.calls[0][0]).not.toHaveProperty('areaType');
+  });
+
+  it('allows read-only view selection but blocks edit shortcut keys', () => {
+    const onSelectCoordinate = vi.fn();
+    const onViewCoordinate = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly
+        onSelectCoordinate={onSelectCoordinate}
+        onViewCoordinate={onViewCoordinate}
+      />,
+    );
+
+    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, read-only');
+    fireEvent.click(cell);
+    fireEvent.keyDown(cell, { key: 'Enter' });
+    fireEvent.keyDown(cell, { key: 'Delete' });
+    fireEvent.keyDown(cell, { key: 's', metaKey: true });
+
+    expect(onSelectCoordinate).not.toHaveBeenCalled();
+    expect(onViewCoordinate).toHaveBeenCalledTimes(2);
+    expect(onViewCoordinate).toHaveBeenNthCalledWith(1, { x: 2, y: 3 });
+    expect(onViewCoordinate).toHaveBeenNthCalledWith(2, { x: 2, y: 3 });
   });
 
   it('keeps focus target separate from hover target', () => {

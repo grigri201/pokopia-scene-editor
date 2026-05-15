@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 test('renders the Open Design workbench as the first screen', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
@@ -127,4 +127,63 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('Cell 0,0, outer area, level-0, read-only')).toBeVisible();
   await expect(page.locator('[data-placeable="true"]')).toHaveCount(49);
   await expect(page.locator('[data-editable="false"]')).toHaveCount(49);
+
+  const sceneBefore = await readSceneSnapshot(page);
+  expect(sceneBefore.workspaceState.saveStatus).toBe('saved');
+  expect(sceneBefore.workspaceState.selectedCoordinate).toBeNull();
+  await page.locator('[data-coordinate="2,3"]').click();
+  await expect(page.getByLabel('Selected coordinate')).toHaveText('2,3');
+  await expect(page.getByLabel('Selected area')).toHaveText('main');
+  await expect(page.getByLabel('Selected layer')).toHaveText('0 层');
+  expect(
+    await page.locator('.selection-card').evaluateAll((cards) =>
+      cards.every((card) => card.scrollWidth <= card.clientWidth),
+    ),
+  ).toBe(true);
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByLabel('Selected coordinate')).toHaveText('3,3');
+  await page.keyboard.press('Delete');
+  await page.keyboard.press('ControlOrMeta+S');
+  await expect(page.getByLabel('Save status')).toHaveText('Read-only');
+  const sceneAfter = await readSceneSnapshot(page);
+  expect(sceneAfter).toEqual(sceneBefore);
+  expect(sceneAfter.workspaceState.saveStatus).toBe('saved');
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect(page.getByLabel('Interaction mode')).toHaveText('Desktop edit mode');
+  await page.locator('[data-coordinate="4,4"]').click();
+  await expect(page.getByLabel('Selected coordinate')).toHaveText('4,4');
+  const desktopScene = await readSceneSnapshot(page);
+  expect(desktopScene.workspaceState.selectedCoordinate).toEqual({ x: 4, y: 4 });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile read-only mode');
+  await expect(page.getByLabel('Selected coordinate')).toHaveText('4,4');
 });
+
+interface SceneSnapshot {
+  workspaceState: {
+    selectedCoordinate: { x: number; y: number } | null;
+    saveStatus: string;
+  };
+  tileInstances: unknown[];
+  buildingLevels: unknown[];
+}
+
+async function readSceneSnapshot(page: Page): Promise<SceneSnapshot> {
+  const snapshotText = await page.evaluate(() => {
+    const testWindow = window as unknown as { __pokopiaSceneSnapshot?: () => string };
+    if (!testWindow.__pokopiaSceneSnapshot) {
+      throw new Error('Missing scene snapshot helper.');
+    }
+
+    return testWindow.__pokopiaSceneSnapshot();
+  });
+  expect(snapshotText).not.toBe('');
+  const snapshot = JSON.parse(snapshotText) as SceneSnapshot;
+  expect(snapshot.workspaceState).toBeTruthy();
+  expect(Array.isArray(snapshot.tileInstances)).toBe(true);
+  expect(Array.isArray(snapshot.buildingLevels)).toBe(true);
+
+  return snapshot;
+}

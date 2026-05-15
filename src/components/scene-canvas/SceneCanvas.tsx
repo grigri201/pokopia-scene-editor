@@ -9,6 +9,7 @@ interface SceneCanvasProps {
   selectedCoordinate: GridCoordinate | null;
   targetCoordinate: GridCoordinate | null;
   onSelectCoordinate: (coordinate: GridCoordinate) => void;
+  onViewCoordinate: (coordinate: GridCoordinate) => void;
   onHoverCoordinate: (coordinate: GridCoordinate | null) => void;
   onFocusCoordinate: (coordinate: GridCoordinate | null) => void;
 }
@@ -20,6 +21,7 @@ export function SceneCanvas({
   selectedCoordinate,
   targetCoordinate,
   onSelectCoordinate,
+  onViewCoordinate,
   onHoverCoordinate,
   onFocusCoordinate,
 }: SceneCanvasProps) {
@@ -69,12 +71,16 @@ export function SceneCanvas({
                 aria-label={`Cell ${coordinate.x},${coordinate.y}, ${cell.areaType} area, ${cell.buildingLevel.id}, ${stateLabel}${
                   selected ? ', selected' : ''
                 }`}
-                onClick={() => onSelectCoordinate(toGridCoordinate(coordinate))}
+                onClick={() =>
+                  handleCellPointerSelect(readOnly, coordinate, onSelectCoordinate, onViewCoordinate)
+                }
                 onFocus={() => onFocusCoordinate(toGridCoordinate(coordinate))}
                 onBlur={() => onFocusCoordinate(null)}
                 onMouseEnter={() => onHoverCoordinate(toGridCoordinate(coordinate))}
                 onMouseLeave={() => onHoverCoordinate(null)}
-                onKeyDown={(event) => handleCellKeyDown(event, coordinate, onSelectCoordinate)}
+                onKeyDown={(event) =>
+                  handleCellKeyDown(event, coordinate, readOnly, onSelectCoordinate, onViewCoordinate)
+                }
                 data-testid="scene-cell"
                 data-coordinate={`${coordinate.x},${coordinate.y}`}
                 data-area={cell.areaType}
@@ -103,8 +109,15 @@ export function SceneCanvas({
 function handleCellKeyDown(
   event: KeyboardEvent<HTMLButtonElement>,
   coordinate: GridCoordinate,
+  readOnly: boolean,
   onSelectCoordinate: (coordinate: GridCoordinate) => void,
+  onViewCoordinate: (coordinate: GridCoordinate) => void,
 ): void {
+  if (readOnly && isBlockedReadOnlyEditKey(event)) {
+    event.preventDefault();
+    return;
+  }
+
   const directionByKey = {
     ArrowUp: 'up',
     ArrowDown: 'down',
@@ -114,7 +127,7 @@ function handleCellKeyDown(
 
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
-    onSelectCoordinate(toGridCoordinate(coordinate));
+    dispatchCoordinate(readOnly, coordinate, onSelectCoordinate, onViewCoordinate);
     return;
   }
 
@@ -126,7 +139,7 @@ function handleCellKeyDown(
   event.preventDefault();
   const nextCoordinate = moveCoordinate(coordinate, direction);
   const grid = event.currentTarget.closest('[role="grid"]');
-  onSelectCoordinate(nextCoordinate);
+  dispatchCoordinate(readOnly, nextCoordinate, onSelectCoordinate, onViewCoordinate);
   requestAnimationFrame(() => {
     grid
       ?.querySelector<HTMLButtonElement>(`[data-coordinate="${nextCoordinate.x},${nextCoordinate.y}"]`)
@@ -136,6 +149,30 @@ function handleCellKeyDown(
 
 function coordinatesEqual(left: GridCoordinate | null, right: GridCoordinate): boolean {
   return left?.x === right.x && left.y === right.y;
+}
+
+function handleCellPointerSelect(
+  readOnly: boolean,
+  coordinate: GridCoordinate,
+  onSelectCoordinate: (coordinate: GridCoordinate) => void,
+  onViewCoordinate: (coordinate: GridCoordinate) => void,
+): void {
+  dispatchCoordinate(readOnly, coordinate, onSelectCoordinate, onViewCoordinate);
+}
+
+function dispatchCoordinate(
+  readOnly: boolean,
+  coordinate: GridCoordinate,
+  onSelectCoordinate: (coordinate: GridCoordinate) => void,
+  onViewCoordinate: (coordinate: GridCoordinate) => void,
+): void {
+  const nextCoordinate = toGridCoordinate(coordinate);
+  if (readOnly) {
+    onViewCoordinate(nextCoordinate);
+    return;
+  }
+
+  onSelectCoordinate(nextCoordinate);
 }
 
 function toGridCoordinate(coordinate: GridCoordinate): GridCoordinate {
@@ -160,4 +197,14 @@ function getCellStateLabel(buildingLevel: BuildingLevel, placeable: boolean, rea
   }
 
   return placeable ? 'placeable' : 'not placeable';
+}
+
+function isBlockedReadOnlyEditKey(event: KeyboardEvent<HTMLButtonElement>): boolean {
+  const normalizedKey = event.key.toLowerCase();
+
+  return (
+    normalizedKey === 'delete' ||
+    normalizedKey === 'backspace' ||
+    ((event.metaKey || event.ctrlKey) && normalizedKey === 's')
+  );
 }

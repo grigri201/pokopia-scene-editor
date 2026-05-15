@@ -10,7 +10,6 @@ import {
   getBuildingLevelContexts,
   getCanvasCellContexts,
   getCellContext,
-  getSelectedCellContext,
   type GridCoordinate,
 } from '../../domain/scene';
 import { getInteractionMode, sceneReducer, type InteractionMode } from '../../state';
@@ -27,6 +26,7 @@ export function AppShell() {
   );
   const pendingSelectionMeasureRef = useRef<string | null>(null);
   const selectionMeasureCounterRef = useRef(0);
+  const [readOnlySelectedCoordinate, setReadOnlySelectedCoordinate] = useState<GridCoordinate | null>(null);
   const [hoveredCoordinate, setHoveredCoordinate] = useState<GridCoordinate | null>(null);
   const [focusedCoordinate, setFocusedCoordinate] = useState<GridCoordinate | null>(null);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(() =>
@@ -36,9 +36,11 @@ export function AppShell() {
   const buildingLevelContexts = getBuildingLevelContexts(scene);
   const canvasCells = getCanvasCellContexts(scene);
   const targetCoordinate = hoveredCoordinate ?? focusedCoordinate;
-  const selectedContext = getSelectedCellContext(scene);
+  const selectedCoordinate = isReadOnly
+    ? readOnlySelectedCoordinate
+    : scene.workspaceState.selectedCoordinate;
+  const selectedContext = selectedCoordinate ? getCellContext(scene, selectedCoordinate) : null;
   const targetContext = targetCoordinate ? getCellContext(scene, targetCoordinate) : null;
-  const selectedCoordinate = scene.workspaceState.selectedCoordinate;
 
   useEffect(() => {
     const updateInteractionMode = () => {
@@ -48,6 +50,28 @@ export function AppShell() {
     window.addEventListener('resize', updateInteractionMode);
     return () => window.removeEventListener('resize', updateInteractionMode);
   }, []);
+
+  useEffect(() => {
+    if (!isLocalPreviewHost(window.location.hostname)) {
+      return undefined;
+    }
+
+    const testWindow = window as unknown as { __pokopiaSceneSnapshot?: () => string };
+    testWindow.__pokopiaSceneSnapshot = () => JSON.stringify(scene);
+
+    return () => {
+      delete testWindow.__pokopiaSceneSnapshot;
+    };
+  }, [scene]);
+
+  useEffect(() => {
+    if (isReadOnly) {
+      setReadOnlySelectedCoordinate(scene.workspaceState.selectedCoordinate);
+      return;
+    }
+
+    setReadOnlySelectedCoordinate(null);
+  }, [isReadOnly, scene.workspaceState.selectedCoordinate]);
 
   useEffect(() => {
     const measureId = pendingSelectionMeasureRef.current;
@@ -71,9 +95,18 @@ export function AppShell() {
   }, [selectedCoordinate?.x, selectedCoordinate?.y]);
 
   const selectCoordinate = (coordinate: GridCoordinate) => {
+    const nextCoordinate = { x: coordinate.x, y: coordinate.y };
     pendingSelectionMeasureRef.current = markSelectionStart(selectionMeasureCounterRef.current);
     selectionMeasureCounterRef.current += 1;
-    dispatch({ type: 'select-coordinate', coordinate });
+
+    dispatch({ type: 'select-coordinate', coordinate: nextCoordinate, interactionMode });
+  };
+
+  const viewCoordinate = (coordinate: GridCoordinate) => {
+    const nextCoordinate = { x: coordinate.x, y: coordinate.y };
+    pendingSelectionMeasureRef.current = markSelectionStart(selectionMeasureCounterRef.current);
+    selectionMeasureCounterRef.current += 1;
+    setReadOnlySelectedCoordinate(nextCoordinate);
   };
 
   return (
@@ -102,6 +135,7 @@ export function AppShell() {
             selectedCoordinate={selectedCoordinate}
             targetCoordinate={targetCoordinate}
             onSelectCoordinate={selectCoordinate}
+            onViewCoordinate={viewCoordinate}
             onHoverCoordinate={setHoveredCoordinate}
             onFocusCoordinate={setFocusedCoordinate}
           />
@@ -134,4 +168,8 @@ function markSelectionVisible(measureId: string): void {
   performance.measure('scene-selection-duration', startMark, visibleMark);
   performance.clearMarks(startMark);
   performance.clearMarks(visibleMark);
+}
+
+function isLocalPreviewHost(hostname: string): boolean {
+  return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]';
 }

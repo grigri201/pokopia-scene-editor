@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultSceneDocument, createTileInstance } from '../domain/scene';
-import { moveCoordinate, selectCoordinate } from './scene-reducer';
+import { moveCoordinate, sceneReducer, selectCoordinate } from './scene-reducer';
 
 describe('scene reducer selection rules', () => {
   it('selects a coordinate without dirtying scene content', () => {
@@ -17,7 +17,7 @@ describe('scene reducer selection rules', () => {
       }),
     ];
     const sceneWithTile = { ...scene, tileInstances };
-    const selected = selectCoordinate(sceneWithTile, { x: 3, y: 4 });
+    const selected = selectCoordinate(sceneWithTile, { x: 3, y: 4 }, 'edit');
 
     expect(selected.workspaceState.selectedCoordinate).toEqual({ x: 3, y: 4 });
     expect(selected.workspaceState.saveStatus).toBe('saved');
@@ -31,9 +31,39 @@ describe('scene reducer selection rules', () => {
       now: '2026-05-16T07:00:00.000Z',
     });
     const richCoordinate = { x: 2, y: 3, id: '2-3', areaType: 'main' };
-    const selected = selectCoordinate(scene, richCoordinate);
+    const selected = selectCoordinate(scene, richCoordinate, 'edit');
 
     expect(selected.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 3 });
+  });
+
+  it('guards scene selection writes in read-only mode', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+    const tileInstances = [
+      createTileInstance({
+        instanceId: 'tile-1',
+        assetId: 'wooden-floor',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+      }),
+    ];
+    const sceneWithTile = { ...scene, tileInstances };
+
+    const selected = selectCoordinate(sceneWithTile, { x: 3, y: 4 }, 'readOnly');
+    const reduced = sceneReducer(sceneWithTile, {
+      type: 'select-coordinate',
+      coordinate: { x: 4, y: 4 },
+      interactionMode: 'readOnly',
+    });
+
+    expect(selected).toBe(sceneWithTile);
+    expect(reduced).toBe(sceneWithTile);
+    expect(sceneWithTile.workspaceState.selectedCoordinate).toBeNull();
+    expect(sceneWithTile.workspaceState.saveStatus).toBe('saved');
+    expect(sceneWithTile.tileInstances).toBe(tileInstances);
+    expect(sceneWithTile.buildingLevels).toBe(scene.buildingLevels);
   });
 
   it('rejects invalid selected coordinates', () => {
@@ -42,7 +72,8 @@ describe('scene reducer selection rules', () => {
       now: '2026-05-16T07:00:00.000Z',
     });
 
-    expect(() => selectCoordinate(scene, { x: 7, y: 0 })).toThrow(RangeError);
+    expect(() => selectCoordinate(scene, { x: 7, y: 0 }, 'edit')).toThrow(RangeError);
+    expect(selectCoordinate(scene, { x: 7, y: 0 }, 'readOnly')).toBe(scene);
   });
 
   it('moves a keyboard coordinate within canvas bounds', () => {
