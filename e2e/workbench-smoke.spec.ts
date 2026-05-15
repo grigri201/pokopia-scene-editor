@@ -1,11 +1,20 @@
 import { expect, test, type Page } from '@playwright/test';
 
 test('renders the Open Design workbench as the first screen', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
 
   await expect(page.getByLabel('Pokopia scene editor workbench')).toBeVisible();
+  expect(await getShellTransitionDuration(page)).toBe('0s');
   await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
+  await expect(page.getByLabel('Current Pokemon')).toHaveValue('ditto');
+  await expect(page.getByLabel('Scene Name')).toHaveValue('Ditto 5x5 布景草稿');
+  await expect(page.getByLabel('Save status')).toHaveText('Saved');
+  const shellThemeBefore = await getShellTheme(page);
+  const semanticColorsBefore = await getSemanticColors(page);
+  expect(shellThemeBefore.pokemonBackground).toBe('#e6d1df');
+  expect(shellThemeBefore.pokemonAccent).toBe('#7d4a74');
   await expect(page.getByRole('complementary', { name: 'Building level panel' })).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Preview inspector' })).toBeVisible();
@@ -46,6 +55,25 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
   ).toBe(true);
+
+  await page.getByLabel('Current Pokemon').fill('eevee');
+  await expect(page.getByLabel('Current Pokemon')).toHaveValue('eevee');
+  await expect(page.getByLabel('Save status')).toHaveText('Dirty');
+  expect(await getShellTheme(page)).toMatchObject({
+    pokemonBackground: '#d8c3a4',
+    pokemonAccent: '#855f37',
+  });
+  expect(await getSemanticColors(page)).toEqual(semanticColorsBefore);
+  await page.getByLabel('Scene Name').fill('Garden 5x5 Layout');
+  await expect(page.getByLabel('Save status')).toHaveText('Dirty');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile read-only mode');
+  await expect(page.getByLabel('Save status')).toHaveText('Read-only · Dirty');
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect(page.getByLabel('Interaction mode')).toHaveText('Desktop edit mode');
+  await expect(page.getByLabel('Save status')).toHaveText('Dirty');
+  await page.getByRole('button', { name: 'Save scene' }).click();
+  await expect(page.getByLabel('Save status')).toHaveText('Saved');
 
   const beforeSearchBox = await page.getByTestId('scene-canvas').boundingBox();
   const beforeSearchCellBox = await page.getByTestId('scene-cell').first().boundingBox();
@@ -102,9 +130,10 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await page.goto('/');
 
   await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile read-only mode');
-  await expect(page.getByLabel('Save status')).toHaveText('Read-only');
+  await expect(page.getByLabel('Save status')).toHaveText('Read-only · Saved');
   await expect(page.getByLabel('Current Pokemon')).toBeDisabled();
   await expect(page.getByLabel('Scene Name')).toHaveAttribute('readonly', '');
+  await expect(page.getByRole('button', { name: 'Toggle grid' })).toBeDisabled();
   await expect(page.getByLabel('Current building level')).toHaveText('Current L0');
   await expect(page.getByTestId('building-level-row')).toHaveCount(3);
   await expect(page.getByLabel('L2, 2 层, 0 instances, visible, unlocked')).toBeVisible();
@@ -144,7 +173,13 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('Selected coordinate')).toHaveText('3,3');
   await page.keyboard.press('Delete');
   await page.keyboard.press('ControlOrMeta+S');
-  await expect(page.getByLabel('Save status')).toHaveText('Read-only');
+  await page.getByRole('button', { name: 'Save scene' }).evaluate((button) => {
+    (button as HTMLButtonElement).click();
+  });
+  await page.getByRole('button', { name: 'Toggle grid' }).evaluate((button) => {
+    (button as HTMLButtonElement).click();
+  });
+  await expect(page.getByLabel('Save status')).toHaveText('Read-only · Saved');
   const sceneAfter = await readSceneSnapshot(page);
   expect(sceneAfter).toEqual(sceneBefore);
   expect(sceneAfter.workspaceState.saveStatus).toBe('saved');
@@ -186,4 +221,48 @@ async function readSceneSnapshot(page: Page): Promise<SceneSnapshot> {
   expect(Array.isArray(snapshot.buildingLevels)).toBe(true);
 
   return snapshot;
+}
+
+async function getShellTheme(page: Page): Promise<{
+  pokemonBackground: string;
+  pokemonBackgroundInk: string;
+  pokemonAccent: string;
+}> {
+  return page.getByLabel('Pokopia scene editor workbench').evaluate((element) => {
+    const styles = getComputedStyle(element);
+    return {
+      pokemonBackground: styles.getPropertyValue('--pokemon-background').trim(),
+      pokemonBackgroundInk: styles.getPropertyValue('--pokemon-background-ink').trim(),
+      pokemonAccent: styles.getPropertyValue('--pokemon-accent').trim(),
+    };
+  });
+}
+
+async function getShellTransitionDuration(page: Page): Promise<string> {
+  return page.getByLabel('Pokopia scene editor workbench').evaluate((element) =>
+    getComputedStyle(element).transitionDuration,
+  );
+}
+
+async function getSemanticColors(page: Page): Promise<{
+  mainArea: string;
+  outerArea: string;
+  selectedCell: string;
+  hoverCell: string;
+  lockedLayer: string;
+  skillMarker: string;
+  error: string;
+}> {
+  return page.getByLabel('Pokopia scene editor workbench').evaluate((element) => {
+    const styles = getComputedStyle(element);
+    return {
+      mainArea: styles.getPropertyValue('--color-main-area').trim(),
+      outerArea: styles.getPropertyValue('--color-outer-area').trim(),
+      selectedCell: styles.getPropertyValue('--color-selected-cell').trim(),
+      hoverCell: styles.getPropertyValue('--color-hover-cell').trim(),
+      lockedLayer: styles.getPropertyValue('--color-locked-layer').trim(),
+      skillMarker: styles.getPropertyValue('--color-skill-marker').trim(),
+      error: styles.getPropertyValue('--color-error').trim(),
+    };
+  });
 }

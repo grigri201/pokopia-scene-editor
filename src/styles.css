@@ -10,8 +10,10 @@
   --color-main-area: #f9f5e8;
   --color-outer-area: #e8f0e1;
   --color-selected-cell: #256f68;
+  --color-hover-cell: #579d8f;
   --color-locked-layer: #77716a;
   --color-skill-marker: #b54a32;
+  --color-error: #b3261e;
   --pokemon-background: #e6d1df;
   --pokemon-background-ink: #261e25;
   --pokemon-accent: #7d4a74;
@@ -48,9 +50,13 @@ button:disabled {
 .app-shell {
   min-height: 100vh;
   padding: 16px;
+  color: var(--pokemon-background-ink);
   background:
     linear-gradient(120deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0)),
     var(--pokemon-background);
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
 }
 
 .scene-controls {
@@ -93,6 +99,19 @@ button:disabled {
   background: #fffefb;
 }
 
+.scene-controls input[aria-invalid="true"] {
+  border-color: var(--color-error);
+  outline-color: var(--color-error);
+}
+
+.field-error {
+  max-width: 220px;
+  color: var(--color-error);
+  font-size: 11px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
 .scene-controls button,
 .filter-row button {
   min-height: 34px;
@@ -101,6 +120,11 @@ button:disabled {
   padding: 0 10px;
   background: #fffefb;
   color: var(--ink);
+}
+
+.scene-controls button:not(:disabled) {
+  border-color: rgba(37, 111, 104, 0.45);
+  color: #164c46;
 }
 
 .save-state,
@@ -257,8 +281,8 @@ button:disabled {
 
 .scene-cell--targeted:not(.scene-cell--selected) {
   box-shadow:
-    inset 0 0 0 2px rgba(37, 111, 104, 0.55),
-    0 0 0 2px rgba(37, 111, 104, 0.1);
+    inset 0 0 0 2px var(--color-hover-cell),
+    0 0 0 2px color-mix(in srgb, var(--color-hover-cell) 28%, transparent);
 }
 
 .cell-coordinate {
@@ -279,7 +303,7 @@ button:disabled {
   position: absolute;
   left: 4px;
   bottom: 3px;
-  color: rgba(36, 33, 28, 0.58);
+  color: var(--color-skill-marker);
   font-size: 9px;
   font-weight: 800;
   text-transform: uppercase;
@@ -308,10 +332,9 @@ button:disabled {
   align-items: center;
   gap: 8px;
   min-height: 40px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: #fffefb;
+  border-block-start: 1px solid var(--line);
+  padding: 8px 0;
+  background: transparent;
   color: var(--ink);
   overflow: hidden;
 }
@@ -442,7 +465,7 @@ button:disabled {
   gap: 6px;
 }
 
-.level-state-tags span {
+.level-state-tag {
   max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -452,6 +475,12 @@ button:disabled {
   font-size: 11px;
   font-weight: 800;
   overflow-wrap: anywhere;
+}
+
+.level-state-tag--locked,
+.level-state-tag--hidden {
+  border-color: color-mix(in srgb, var(--color-locked-layer) 42%, var(--line));
+  color: var(--color-locked-layer);
 }
 
 .level-actions {
@@ -510,10 +539,9 @@ button:disabled {
   display: grid;
   gap: 8px;
   min-height: 112px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px;
-  background: #fffefb;
+  border-block-start: 1px solid var(--line);
+  padding: 10px 0 0;
+  background: transparent;
 }
 
 .preview-tile span {
@@ -577,5 +605,11 @@ button:disabled {
 
   .scene-canvas {
     width: min(100%, 620px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell {
+    transition: none;
   }
 }

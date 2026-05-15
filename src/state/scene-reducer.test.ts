@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultSceneDocument, createTileInstance } from '../domain/scene';
-import { moveCoordinate, sceneReducer, selectCoordinate } from './scene-reducer';
+import {
+  moveCoordinate,
+  saveScene,
+  sceneReducer,
+  selectCoordinate,
+  selectPokemon,
+  updateSceneName,
+} from './scene-reducer';
 
 describe('scene reducer selection rules', () => {
   it('selects a coordinate without dirtying scene content', () => {
@@ -80,5 +87,67 @@ describe('scene reducer selection rules', () => {
     expect(moveCoordinate({ x: 3, y: 3 }, 'right')).toEqual({ x: 4, y: 3 });
     expect(moveCoordinate({ x: 0, y: 0 }, 'left')).toEqual({ x: 0, y: 0 });
     expect(moveCoordinate({ x: 6, y: 6 }, 'down')).toEqual({ x: 6, y: 6 });
+  });
+
+  it('marks scene controls dirty and saved through guarded commands', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+    const renamed = updateSceneName(scene, 'Garden 5x5 Layout', 'edit', '2026-05-16T08:00:00.000Z');
+    const themed = selectPokemon(renamed, 'eevee', 'edit', '2026-05-16T08:01:00.000Z');
+    const saved = saveScene(themed, 'edit', '2026-05-16T08:02:00.000Z');
+
+    expect(renamed.sceneName).toBe('Garden 5x5 Layout');
+    expect(renamed.workspaceState.saveStatus).toBe('dirty');
+    expect(renamed.workspaceState.saveError).toBeNull();
+    expect(themed.selectedPokemonKey).toBe('eevee');
+    expect(themed.workspaceState.saveStatus).toBe('dirty');
+    expect(saved.workspaceState.saveStatus).toBe('saved');
+    expect(saved.workspaceState.saveError).toBeNull();
+    expect(saved.metadata.lastSavedAt).toBe('2026-05-16T08:02:00.000Z');
+  });
+
+  it('tracks save failure and clears the failure on the next scene edit', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+    const failed = saveScene(
+      scene,
+      'edit',
+      '2026-05-16T08:00:00.000Z',
+      'failure',
+      'Local storage unavailable.',
+    );
+    const recovered = selectPokemon(failed, 'pikachu', 'edit', '2026-05-16T08:01:00.000Z');
+
+    expect(failed.workspaceState.saveStatus).toBe('saveError');
+    expect(failed.workspaceState.saveError).toBe('Local storage unavailable.');
+    expect(failed.metadata.lastSavedAt).toBe('2026-05-16T07:00:00.000Z');
+    expect(recovered.workspaceState.saveStatus).toBe('dirty');
+    expect(recovered.workspaceState.saveError).toBeNull();
+  });
+
+  it('rejects scene names that do not label the 5x5 scene size', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+
+    expect(() => updateSceneName(scene, 'Garden layout', 'edit', '2026-05-16T08:00:00.000Z')).toThrow(
+      RangeError,
+    );
+  });
+
+  it('blocks scene control writes in read-only mode', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+
+    expect(updateSceneName(scene, 'Blocked 5x5 Layout', 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
+    expect(selectPokemon(scene, 'pikachu', 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
+    expect(saveScene(scene, 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
   });
 });

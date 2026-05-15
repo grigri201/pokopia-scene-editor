@@ -34,6 +34,7 @@ describe('default scene document', () => {
       selectedAssetId: null,
       selectedCoordinate: null,
       saveStatus: 'saved',
+      saveError: null,
     });
     expect(scene.metadata).toEqual({
       createdAt: now,

@@ -53,6 +53,7 @@ export function createDefaultSceneDocument(
       selectedAssetId: null,
       selectedCoordinate: options.selectedCoordinate ?? null,
       saveStatus: 'saved',
+      saveError: null,
     },
     metadata: {
       createdAt: now,
@@ -71,14 +72,18 @@ export function getDefaultSceneDimensions() {
   };
 }
 
-function createSceneId(): string {
-  return `scene-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+export function sceneNameLabelsSceneSize(sceneName: string): boolean {
+  return /5\s*[x×]\s*5/i.test(sceneName.trim());
 }
 
-function assertSceneNameLabelsSceneSize(sceneName: string): void {
-  if (!/5\s*[x×]\s*5/i.test(sceneName)) {
+export function assertSceneNameLabelsSceneSize(sceneName: string): void {
+  if (!sceneNameLabelsSceneSize(sceneName)) {
     throw new RangeError('Scene name must label the scene as 5x5.');
   }
+}
+
+function createSceneId(): string {
+  return `scene-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function assertIsoDateTime(value: string): void {

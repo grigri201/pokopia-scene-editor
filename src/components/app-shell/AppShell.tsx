@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
+import type { PokemonKey } from '../../domain/assets';
 import { AssetPicker } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
 import { PokemonSceneControls } from '../pokemon-scene-controls/PokemonSceneControls';
@@ -13,6 +14,7 @@ import {
   type GridCoordinate,
 } from '../../domain/scene';
 import { getInteractionMode, sceneReducer, type InteractionMode } from '../../state';
+import { getPokemonTheme, toPokemonThemeStyle } from '../../theme';
 
 export function AppShell() {
   const [scene, dispatch] = useReducer(
@@ -41,6 +43,7 @@ export function AppShell() {
     : scene.workspaceState.selectedCoordinate;
   const selectedContext = selectedCoordinate ? getCellContext(scene, selectedCoordinate) : null;
   const targetContext = targetCoordinate ? getCellContext(scene, targetCoordinate) : null;
+  const pokemonThemeStyle = toPokemonThemeStyle(getPokemonTheme(scene.selectedPokemonKey));
 
   useEffect(() => {
     const updateInteractionMode = () => {
@@ -109,9 +112,48 @@ export function AppShell() {
     setReadOnlySelectedCoordinate(nextCoordinate);
   };
 
+  const updatePokemon = (pokemonKey: PokemonKey) => {
+    dispatch({
+      type: 'select-pokemon',
+      pokemonKey,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+  };
+
+  const updateSceneName = (sceneName: string) => {
+    dispatch({
+      type: 'update-scene-name',
+      sceneName,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+  };
+
+  const saveScene = () => {
+    dispatch({
+      type: 'save-scene',
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+  };
+
   return (
-    <main className="app-shell" aria-label="Pokopia scene editor workbench">
-      <PokemonSceneControls readOnly={isReadOnly} />
+    <main
+      className="app-shell"
+      aria-label="Pokopia scene editor workbench"
+      style={pokemonThemeStyle}
+    >
+      <PokemonSceneControls
+        readOnly={isReadOnly}
+        selectedPokemonKey={scene.selectedPokemonKey}
+        sceneName={scene.sceneName}
+        saveStatus={scene.workspaceState.saveStatus}
+        saveError={scene.workspaceState.saveError}
+        onPokemonChange={updatePokemon}
+        onSceneNameChange={updateSceneName}
+        onSave={saveScene}
+      />
       <section className="workbench-grid" aria-label="Open Design editing workbench">
         <div className="workbench-left">
           <BuildingLevelPanel levels={buildingLevelContexts} readOnly={isReadOnly} />
@@ -172,4 +214,8 @@ function markSelectionVisible(measureId: string): void {
 
 function isLocalPreviewHost(hostname: string): boolean {
   return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]';
+}
+
+function getCurrentIsoTimestamp(): string {
+  return new Date().toISOString();
 }

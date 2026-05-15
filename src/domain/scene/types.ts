@@ -2,7 +2,7 @@ import type { AreaType, GridCoordinate, GridSize } from './area';
 import type { PokemonKey } from '../assets';
 
 export type SceneSchemaVersion = 1;
-export type SaveStatus = 'dirty' | 'saved';
+export type SaveStatus = 'dirty' | 'saved' | 'saveError';
 export type RotationDegrees = 0 | 90 | 180 | 270;
 
 export interface SceneMetadata {
@@ -25,6 +25,7 @@ export interface WorkspaceState {
   selectedAssetId: string | null;
   selectedCoordinate: GridCoordinate | null;
   saveStatus: SaveStatus;
+  saveError: string | null;
 }
 
 export interface TileInstance {

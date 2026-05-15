@@ -45,8 +45,12 @@ export function BuildingLevelPanel({ levels, readOnly }: BuildingLevelPanelProps
               {level.current ? 'Current' : 'Standby'}
             </span>
             <div className="level-state-tags" aria-label={`${level.name} layer state`}>
-              <span>{level.visible ? 'Visible' : 'Hidden'}</span>
-              <span>{level.locked ? 'Locked' : 'Unlocked'}</span>
+              <span className={level.visible ? 'level-state-tag' : 'level-state-tag level-state-tag--hidden'}>
+                {level.visible ? 'Visible' : 'Hidden'}
+              </span>
+              <span className={level.locked ? 'level-state-tag level-state-tag--locked' : 'level-state-tag'}>
+                {level.locked ? 'Locked' : 'Unlocked'}
+              </span>
             </div>
             <div className="level-actions" aria-label={`${level.name} layer actions`}>
               <button
