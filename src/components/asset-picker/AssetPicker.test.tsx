@@ -93,6 +93,75 @@ describe('AssetPicker', () => {
     fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'plant' } });
     expect(screen.getByLabelText('Asset result count')).toHaveTextContent('01 / 06');
     expect(screen.getByRole('button', { name: /Garden Plant.*No\. 014/ })).toBeVisible();
+
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'garden-plant' } });
+    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('01 / 06');
+    expect(screen.getByRole('button', { name: /Garden Plant.*No\. 014/ })).toBeVisible();
+  });
+
+  it('combines category, area, and skill filters with a clear action', () => {
+    render(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId={null}
+        selectedPokemonKey="pikachu"
+        currentBuildingLevelName="0 层"
+        onAssetSelect={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('group', { name: 'Asset category filters' })).toBeVisible();
+    expect(screen.getByRole('group', { name: 'Asset area filters' })).toBeVisible();
+    expect(screen.getByRole('group', { name: 'Asset filters' })).toBeVisible();
+
+    fireEvent.click(within(screen.getByRole('group', { name: 'Asset category filters' })).getByRole('button', { name: 'Wall' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Asset area filters' })).getByRole('button', { name: 'Outer' }));
+    fireEvent.change(screen.getByLabelText('Skill filter'), { target: { value: 'soil' } });
+
+    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('01 / 06');
+    expect(screen.getByRole('button', { name: /Roof Tile.*No\. 068/ })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /Outer Wall.*No\. 027/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('06 / 06');
+  });
+
+  it('shows an empty state with recovery actions for unmatched filters', () => {
+    render(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId={null}
+        selectedPokemonKey="ditto"
+        currentBuildingLevelName="0 层"
+        onAssetSelect={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'missing' } });
+
+    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('00 / 06');
+    expect(screen.getByLabelText('No matching assets')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Show all' }));
+    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('06 / 06');
+  });
+
+  it('offers a favorite-specific empty-state recovery action', () => {
+    render(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId={null}
+        selectedPokemonKey="ditto"
+        currentBuildingLevelName="0 层"
+        onAssetSelect={() => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show favorite assets' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Utility' }));
+
+    expect(screen.getByLabelText('No matching assets')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Disable favorite' }));
+    expect(screen.getByRole('button', { name: /Water Barrel.*No\. 052/ })).toBeVisible();
   });
 
   it('keeps read-only asset cards usable for detail viewing', () => {
@@ -112,6 +181,8 @@ describe('AssetPicker', () => {
     expect(within(picker).getByRole('button', { name: /Wooden Floor.*No\. 001/ })).toBeEnabled();
     expect(screen.getByLabelText('Current placement asset')).toHaveTextContent('View only');
     fireEvent.click(screen.getByRole('button', { name: /Outer Wall.*No\. 027/ }));
-    expect(onAssetSelect).toHaveBeenCalledWith('outer-wall');
+    expect(onAssetSelect).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Current placement asset')).toHaveTextContent('Wooden Floor');
+    expect(screen.getByLabelText('Outer Wall asset detail')).toHaveTextContent('outer-wall');
   });
 });

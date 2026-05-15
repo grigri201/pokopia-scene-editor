@@ -21,6 +21,7 @@ describe('asset catalog', () => {
       expect(asset.thumbnailUrl).toMatch(/^\/assets\/asset-thumbnails\/.+\.svg$/);
       expect(asset.thumbnailAlt).toContain('thumbnail');
       expect(typeof asset.defaultRequiresSkill).toBe('boolean');
+      expect(typeof asset.skillCandidate).toBe('boolean');
       expect(typeof asset.rotatable).toBe('boolean');
       expect(typeof asset.stackable).toBe('boolean');
       expect(typeof asset.dyeable).toBe('boolean');

@@ -94,8 +94,12 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
 
   const beforeSearchBox = await page.getByTestId('scene-canvas').boundingBox();
   const beforeSearchCellBox = await page.getByTestId('scene-cell').first().boundingBox();
+  const sceneBeforeFilters = await readSceneSnapshot(page);
+  await page.evaluate(() => performance.mark('asset-filter-start'));
   await page.getByLabel('Search assets').fill('plant');
   await expect(page.getByLabel('Asset result count')).toHaveText('01 / 06');
+  const assetFilterDuration = await measureSinceMark(page, 'asset-filter-start', 'asset-filter-duration');
+  expect(assetFilterDuration).toBeLessThanOrEqual(200);
   const afterSearchBox = await page.getByTestId('scene-canvas').boundingBox();
   const afterSearchCellBox = await page.getByTestId('scene-cell').first().boundingBox();
   expect(Math.abs((beforeSearchBox?.width ?? 0) - (afterSearchBox?.width ?? 0))).toBeLessThanOrEqual(
@@ -113,6 +117,23 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
   ).toBe(true);
+  await page.evaluate(() => performance.mark('asset-combined-filter-start'));
+  await page.getByRole('button', { name: 'Plant', exact: true }).click();
+  await page.getByRole('button', { name: 'Show favorite assets' }).click();
+  await page.getByLabel('Skill filter').selectOption('leaf');
+  await expect(page.getByLabel('Asset result count')).toHaveText('01 / 06');
+  const assetCombinedFilterDuration = await measureSinceMark(
+    page,
+    'asset-combined-filter-start',
+    'asset-combined-filter-duration',
+  );
+  expect(assetCombinedFilterDuration).toBeLessThanOrEqual(200);
+  await page.getByLabel('Search assets').fill('missing asset');
+  await expect(page.getByLabel('Asset result count')).toHaveText('00 / 06');
+  await expect(page.getByLabel('No matching assets')).toBeVisible();
+  await page.getByRole('button', { name: 'Show all' }).click();
+  await expect(page.getByLabel('Asset result count')).toHaveText('06 / 06');
+  expect(await readSceneSnapshot(page)).toEqual(sceneBeforeFilters);
 
   await page.locator('[data-coordinate="2,3"]').click();
   await expect(page.locator('[data-coordinate="2,3"]')).toHaveAttribute('data-selected', 'true');
@@ -183,9 +204,17 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('Wooden Floor asset detail')).toContainText('wooden-floor');
   expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
   await page.getByRole('button', { name: /Wooden Floor.*No\. 001/ }).click();
-  await expect(page.getByLabel('Current placement asset')).toContainText('Wooden Floor');
-  await expect(page.getByLabel('Current placement asset')).toContainText('View only details');
+  await expect(page.getByLabel('Current placement asset')).toContainText('None');
   await expect(page.getByLabel('Wooden Floor asset detail')).toContainText('No. 001');
+  expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
+  await page.getByLabel('Search assets').fill('wall');
+  await expect(page.getByLabel('Asset result count')).toHaveText('02 / 06');
+  await page.getByRole('button', { name: 'Wall', exact: true }).click();
+  await page.getByRole('button', { name: 'Outer', exact: true }).click();
+  await page.getByLabel('Skill filter').selectOption('water');
+  await expect(page.getByLabel('No matching assets')).toBeVisible();
+  await page.getByRole('button', { name: 'Show all' }).click();
+  await expect(page.getByLabel('Asset result count')).toHaveText('06 / 06');
   expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
   await page.locator('[data-coordinate="2,3"]').click();
   await expect(page.getByLabel('Selected coordinate')).toHaveText('2,3');
@@ -249,6 +278,22 @@ async function readSceneSnapshot(page: Page): Promise<SceneSnapshot> {
   expect(Array.isArray(snapshot.buildingLevels)).toBe(true);
 
   return snapshot;
+}
+
+async function measureSinceMark(page: Page, startMark: string, measureName: string): Promise<number> {
+  return page.evaluate(
+    ([start, measure]) => {
+      performance.mark(`${measure}-end`);
+      performance.clearMeasures(measure);
+      performance.measure(measure, start, `${measure}-end`);
+      const duration = performance.getEntriesByName(measure).at(-1)?.duration ?? Number.POSITIVE_INFINITY;
+      performance.clearMarks(start);
+      performance.clearMarks(`${measure}-end`);
+
+      return duration;
+    },
+    [startMark, measureName],
+  );
 }
 
 async function getShellTheme(page: Page): Promise<{

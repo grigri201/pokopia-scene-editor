@@ -14,6 +14,7 @@ export interface AssetDefinition {
   favoritePokemonKeys: readonly PokemonKey[];
   defaultRequiresSkill: boolean;
   defaultSkillType: AssetSkillType;
+  skillCandidate: boolean;
   rotatable: boolean;
   stackable: boolean;
   dyeable: boolean;
@@ -45,6 +46,7 @@ export const assetCatalog: readonly AssetDefinition[] = [
     favoritePokemonKeys: ['eevee'],
     defaultRequiresSkill: false,
     defaultSkillType: null,
+    skillCandidate: false,
     rotatable: false,
     stackable: false,
     dyeable: true,
@@ -61,6 +63,7 @@ export const assetCatalog: readonly AssetDefinition[] = [
     favoritePokemonKeys: ['ditto', 'eevee'],
     defaultRequiresSkill: true,
     defaultSkillType: 'leaf',
+    skillCandidate: true,
     rotatable: false,
     stackable: true,
     dyeable: false,
@@ -77,6 +80,7 @@ export const assetCatalog: readonly AssetDefinition[] = [
     favoritePokemonKeys: ['pikachu'],
     defaultRequiresSkill: false,
     defaultSkillType: null,
+    skillCandidate: false,
     rotatable: true,
     stackable: false,
     dyeable: true,
@@ -93,6 +97,7 @@ export const assetCatalog: readonly AssetDefinition[] = [
     favoritePokemonKeys: ['ditto'],
     defaultRequiresSkill: false,
     defaultSkillType: null,
+    skillCandidate: true,
     rotatable: true,
     stackable: true,
     dyeable: false,
@@ -109,6 +114,7 @@ export const assetCatalog: readonly AssetDefinition[] = [
     favoritePokemonKeys: ['pikachu'],
     defaultRequiresSkill: true,
     defaultSkillType: 'water',
+    skillCandidate: true,
     rotatable: true,
     stackable: false,
     dyeable: false,
@@ -125,6 +131,7 @@ export const assetCatalog: readonly AssetDefinition[] = [
     favoritePokemonKeys: ['eevee', 'pikachu'],
     defaultRequiresSkill: true,
     defaultSkillType: 'soil',
+    skillCandidate: true,
     rotatable: true,
     stackable: true,
     dyeable: true,

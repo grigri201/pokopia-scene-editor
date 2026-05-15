@@ -518,7 +518,38 @@ button:disabled {
 
 .filter-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.filter-row legend {
+  width: 100%;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.asset-filter-field {
+  display: grid;
+  gap: 4px;
+  min-width: 140px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.asset-filter-field select {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 8px;
+  color: var(--ink);
+  background: #fffefb;
 }
 
 .current-asset,
@@ -598,6 +629,7 @@ button:disabled {
 
 .asset-row__meta,
 .asset-skill-state,
+.asset-candidate-state,
 .asset-favorite-state {
   color: var(--ink-muted);
   font-size: 11px;
@@ -620,7 +652,8 @@ button:disabled {
   font-weight: 800;
 }
 
-.asset-skill-state {
+.asset-skill-state,
+.asset-candidate-state {
   grid-column: 2;
   color: var(--color-skill-marker);
   font-weight: 800;
@@ -675,6 +708,59 @@ button:disabled {
 
 .asset-detail dt {
   color: var(--ink-muted);
+  font-weight: 800;
+}
+
+.asset-limit-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.asset-limit-note button {
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 8px;
+  color: var(--ink-muted);
+  background: #fffefb;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.asset-empty-state {
+  display: grid;
+  gap: 8px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.asset-empty-state span {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.asset-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.asset-empty-actions button {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 8px;
+  color: var(--ink-muted);
+  background: #fffefb;
+  font-size: 11px;
   font-weight: 800;
 }
 
