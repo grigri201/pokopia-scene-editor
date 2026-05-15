@@ -1,0 +1,56 @@
+import type { AreaType, GridCoordinate, GridSize } from './area';
+import type { PokemonKey } from '../assets';
+
+export type SceneSchemaVersion = 1;
+export type SaveStatus = 'dirty' | 'saved';
+export type RotationDegrees = 0 | 90 | 180 | 270;
+
+export interface SceneMetadata {
+  createdAt: string;
+  updatedAt: string;
+  lastSavedAt: string | null;
+  lastAutosavedAt: string | null;
+}
+
+export interface BuildingLevel {
+  id: string;
+  levelNumber: number;
+  name: string;
+  visible: boolean;
+  locked: boolean;
+}
+
+export interface WorkspaceState {
+  currentBuildingLevelId: string;
+  selectedAssetId: string | null;
+  selectedCoordinate: GridCoordinate | null;
+  saveStatus: SaveStatus;
+}
+
+export interface TileInstance {
+  instanceId: string;
+  assetId: string;
+  coordinate: GridCoordinate;
+  areaType: AreaType;
+  buildingLevelId: string;
+  rotationDegrees: RotationDegrees;
+  dyeColor: string | null;
+  requiresSkill: boolean;
+  skillType: string | null;
+  skillNote: string;
+  note: string;
+}
+
+export interface SceneDocument {
+  schemaVersion: SceneSchemaVersion;
+  sceneId: string;
+  sceneName: string;
+  selectedPokemonKey: PokemonKey;
+  sceneSize: GridSize;
+  canvasSize: GridSize;
+  outerPadding: number;
+  buildingLevels: BuildingLevel[];
+  tileInstances: TileInstance[];
+  workspaceState: WorkspaceState;
+  metadata: SceneMetadata;
+}

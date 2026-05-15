@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { canvasSize, createCanvasCells, getAreaType } from './area';
+import {
+  calculateAreaType,
+  assertSceneDimensions,
+  canvasSize,
+  createCanvasCells,
+  defaultSceneDimensions,
+  getAreaType,
+  isPlaceableArea,
+} from './area';
 
 describe('scene canvas area rules', () => {
   it('creates a fixed 7x7 canvas', () => {
@@ -19,5 +27,63 @@ describe('scene canvas area rules', () => {
   it('rejects coordinates outside the 7x7 canvas', () => {
     expect(() => getAreaType({ x: -1, y: 0 })).toThrow(RangeError);
     expect(() => getAreaType({ x: 7, y: 0 })).toThrow(RangeError);
+    expect(() => getAreaType({ x: 0, y: -1 })).toThrow(RangeError);
+    expect(() => getAreaType({ x: 0, y: 7 })).toThrow(RangeError);
+    expect(() => getAreaType({ x: 1.5, y: 1 })).toThrow(RangeError);
+  });
+
+  it('derives area type from scene dimensions instead of component state', () => {
+    expect(calculateAreaType({ x: 0, y: 0 }, defaultSceneDimensions)).toBe('outer');
+    expect(calculateAreaType({ x: 3, y: 3 }, defaultSceneDimensions)).toBe('main');
+  });
+
+  it('creates every 0-based coordinate inside the 7x7 range', () => {
+    const cells = createCanvasCells();
+
+    expect(Math.min(...cells.map((cell) => cell.x))).toBe(0);
+    expect(Math.max(...cells.map((cell) => cell.x))).toBe(6);
+    expect(Math.min(...cells.map((cell) => cell.y))).toBe(0);
+    expect(Math.max(...cells.map((cell) => cell.y))).toBe(6);
+  });
+
+  it('marks both MVP areas as placeable', () => {
+    expect(isPlaceableArea('main')).toBe(true);
+    expect(isPlaceableArea('outer')).toBe(true);
+  });
+
+  it('rejects inconsistent scene and canvas dimensions', () => {
+    expect(() =>
+      assertSceneDimensions({
+        sceneSize: { width: 5, height: 5 },
+        canvasSize: { width: 6, height: 7 },
+        outerPadding: 1,
+      }),
+    ).toThrow(RangeError);
+  });
+
+  it('rejects non-positive, fractional, and infinite dimensions before generating cells', () => {
+    expect(() =>
+      createCanvasCells({
+        sceneSize: { width: 0, height: 5 },
+        canvasSize: { width: 2, height: 7 },
+        outerPadding: 1,
+      }),
+    ).toThrow(RangeError);
+
+    expect(() =>
+      assertSceneDimensions({
+        sceneSize: { width: 5.5, height: 5 },
+        canvasSize: { width: 7.5, height: 7 },
+        outerPadding: 1,
+      }),
+    ).toThrow(RangeError);
+
+    expect(() =>
+      assertSceneDimensions({
+        sceneSize: { width: Number.POSITIVE_INFINITY, height: 5 },
+        canvasSize: { width: 7, height: 7 },
+        outerPadding: 1,
+      }),
+    ).toThrow(RangeError);
   });
 });

@@ -7,3 +7,5 @@ export const assetCatalogBoundary: AssetCatalogBoundary = {
   source: 'pokopia-image-sources',
   status: 'reserved-for-epic-2',
 };
+
+export * from './pokemon';
