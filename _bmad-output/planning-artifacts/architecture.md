@@ -38,37 +38,38 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 我已审阅 `pokopia-scene-editor` 的 PRD、PRD 验证报告、UX 设计规格、UX 方向稿和原始需求文档。
 
-当前发现 55 条 Functional Requirements，主要分为：
+当前发现 64 条 Functional Requirements，主要分为：
 
 - Scene & Canvas Model：固定 7x7 实际编辑画布、中心 5x5 主体区、外围 1 圈装饰区、0-based 坐标和区域识别。
-- Asset Placement & Editing：素材选择、放置、删除、替换、移动、跨建筑层移动、朝向、备注和同层叠放规则。
-- Building Level Management：默认 0/1/2 建筑层，层号递增，创建、删除、重命名、复制、隐藏、显示、锁定、解锁和当前编辑层。
-- Asset Catalog & Selection：素材列表、缩略图、名称、分类、标签、适用区域、搜索、筛选、技能条件和素材详情。
-- Ditto Skill Marking：放置前默认技能状态、放置后实例级技能标记、技能类型、技能备注，以及画布/预览标识。
-- Preview：俯视图、正视图、完整 7x7 展示、主体边界、当前层/全部可见层、网格和技能标记开关。
-- Properties, Save & Export：属性面板、保存、导出、重新打开、导入/恢复校验和字段级错误提示。
+- Open Design Workbench Context：顶部 Pokemon/场景名/保存状态、右侧浮动素材栏、中央 7x7 画布、左侧建筑层面板和左下双预览检查器。
+- Asset Placement & Editing：素材选择、放置、删除、替换、移动、跨建筑层移动、朝向、染色、备注和同层叠放规则。
+- Building Level Management：默认 0/1/2 建筑层，层号递增，数据按 0 层到 n 层组织，UI 按 L2/L1/L0 这类高层到低层顺序展示，支持创建、删除、重命名、复制、隐藏、显示、锁定、解锁和当前编辑层。
+- Asset Catalog & Selection：素材列表、缩略图、名称、分类、标签、适用区域、官方 `No.` 素材 ID、Pokemon 喜好、搜索、筛选、技能条件和素材详情。
+- Ditto Skill / Instance Visual State：放置前默认技能状态、放置后实例级技能标记、`树叶`/`耕地`/`储水` 技能词表、一字技能标签、可染色状态、非默认旋转标记，以及画布/预览标识。
+- Preview：左下 Preview Inspector 同屏展示俯视图和正视图、完整 7x7 展示、主体边界、当前层/全部可见层、网格和技能标记开关。
+- Properties, Save & Recovery：上下文/检查器字段、保存/自动保存、重新打开、恢复校验、SceneDocument 序列化和字段级错误提示；显式 JSON 导出/导入 UI 后置。
 
-另有 26 条 Non-Functional Requirements，核心架构约束包括：
+另有 28 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
 - 预览切换需要在 300ms 内完成首个可见更新；素材搜索筛选 1000 个素材以内需要在 200ms 内返回可见结果。
-- 画布、属性面板、建筑层列表、预览和导出结果必须从同一场景数据源派生。
-- 保存/导出/导入/重新打开必须通过往返恢复测试，恢复后建筑层数量、素材实例数量和技能标记数量必须一致。
-- JSON 导入必须作为数据处理，用户自定义名称、备注和技能说明必须按安全文本渲染，不得作为 HTML 或脚本执行。
+- 画布、上下文/检查器字段、建筑层列表、预览和序列化结果必须从同一场景数据源派生。
+- 保存/序列化/恢复/重新打开必须通过往返恢复测试，恢复后建筑层数量、素材实例数量、染色数量和技能标记数量必须一致。
+- 恢复数据或未来导入 JSON 必须作为数据处理，用户自定义名称、备注和技能说明必须按安全文本渲染，不得作为 HTML 或脚本执行。
 - 基础可访问性目标是 WCAG 2.2 AA，关键状态不能只依赖颜色表达。
-- 1280px 及以上使用完整三栏编辑工作台，768px 以下进入只读预览/检查模式，不允许任何场景写操作。
+- 1280px 及以上使用完整 Open Design 浮动工作台，768px 以下进入 Mobile View-only Mode，不允许任何场景写操作。
 
-UX 规格确认了 Direction A：Decor Dex Workbench。架构上应支持一个桌面优先的单页工作台：左侧素材栏、中央 7x7 画布、右侧实例检查器、顶部高频工具栏，以及画布附近的建筑层/预览控制。动态宝可梦主题只影响背景和少量强调色，不允许覆盖主体区、外围区、选中格、技能标记、锁定层和错误状态等语义状态色。
+Open Design UI 确认了新的工作台形态。架构上应支持一个桌面优先的单页工作台：顶部左侧 Pokemon/场景名/保存状态，右侧浮动 Asset Picker，中央 7x7 画布，左侧 Building Level Panel，左下 Preview Inspector 同时展示正视图和俯视图。动态 Pokemon 主题只影响外层 shell 和少量强调色，不允许覆盖主体区、外围区、当前层、选中格、技能标记、锁定层、隐藏、警告和错误状态等语义状态色。
 
 关键架构结论：
 
-- MVP 应采用客户端优先架构，先完成本地场景编辑、保存、导出、导入和恢复闭环；账号、云同步、协作、公开方案库和分享链接不进入 MVP。
-- Scene document 必须是编辑数据的单一事实来源。画布、属性面板、建筑层列表、预览和导出校验不得维护互相分叉的业务状态。
+- MVP 应采用客户端优先架构，先完成本地场景编辑、保存/自动保存、序列化和恢复闭环；显式 JSON 导出/导入 UI、账号、云同步、协作、公开方案库和分享链接不进入 MVP。
+- Scene document 必须是编辑数据的单一事实来源。画布、上下文/检查器字段、建筑层列表、预览和保存/恢复校验不得维护互相分叉的业务状态。
 - 所有会修改 scene document 的行为都应经过统一 command 层，便于撤销/重做、dirty state、只读模式、校验和自动化测试。
 - `<768px` 的只读边界不能只靠隐藏按钮实现；command 层、canvas pointer handler 和 keyboard handler 都必须检查 `interactionMode`。
-- 建筑层、素材实例和导入导出 schema 是最重要的领域模型边界，应优先稳定。
+- 建筑层、素材实例、染色/朝向/技能状态和保存/恢复 schema 是最重要的领域模型边界，应优先稳定。
 - 正视图在 MVP 中应是结构化高度关系预览，不做真实游戏视角和复杂遮挡模拟。
-- 素材库在 MVP 中可以使用静态/本地数据源，但数据结构必须支持后续批量导入、模板、更多技能类型和更大画布扩展。
+- 素材库在 MVP 中可以使用静态/本地数据源，但数据结构必须支持官方素材 ID、Pokemon 喜好、可染色性、后续批量导入、模板、更多技能类型和更大画布扩展。
 
 项目复杂度判断：低到中等。没有后端、账号、实时协作、监管合规或复杂基础设施，但编辑状态一致性、结构化数据可复现、只读模式权限边界、可访问性和素材列表性能需要明确架构约束。
 
@@ -91,7 +92,7 @@ UX 规格确认了 Direction A：Decor Dex Workbench。架构上应支持一个�
 
 **Vite + React + TypeScript (`react-ts`)**
 
-适合作为默认方案。它提供快速开发服务器、生产构建、React 组件模型和 TypeScript 类型检查，同时保持客户端 SPA 架构简单。适合实现三栏工作台、画布组件、建筑层列表、实例检查器、预览切换、command 层、撤销/重做和只读模式权限边界。
+适合作为默认方案。它提供快速开发服务器、生产构建、React 组件模型和 TypeScript 类型检查，同时保持客户端 SPA 架构简单。适合实现 Open Design 浮动工作台、画布组件、建筑层列表、选中检查器、双预览检查器、command 层、撤销/重做和只读模式权限边界。
 
 **Vite + Vanilla TypeScript (`vanilla-ts`)**
 
@@ -123,11 +124,11 @@ npm create vite@latest . -- --template react-ts --no-interactive
 
 **Language & Runtime**
 
-使用 TypeScript 与 React JSX。TypeScript 用于锁定 scene document、asset catalog、building level、tile instance、command payload 和 import/export schema 的类型边界。
+使用 TypeScript 与 React JSX。TypeScript 用于锁定 scene document、asset catalog、building level、tile instance、command payload 和 save/recovery schema 的类型边界。
 
 **UI Framework**
 
-使用 React 构建编辑器组件树。核心组件应围绕 UX 规格拆分为 Dynamic Pokemon Theme Shell、Scene Canvas、Asset Picker、Building Level Panel、Instance Inspector、Preview Switcher 和 Import Export Validator。
+使用 React 构建编辑器组件树。核心组件应围绕 Open Design UI 拆分为 Dynamic Pokemon Theme Shell、Pokemon Scene Controls、Scene Canvas、Asset Picker、Building Level Panel、Selection Inspector、Preview Inspector 和 Recovery Validator。
 
 **Build Tooling**
 
@@ -142,8 +143,8 @@ starter 默认 CSS 即可作为基础。MVP 应优先使用自有设计 tokens �
 starter 不默认包含完整测试栈。后续实施应补充：
 
 - Vitest：领域模型、command reducer、schema validation、area calculation、level ordering 和 read-only command guard 的单元测试。
-- React Testing Library：组件状态、可访问名称、属性面板和素材筛选行为测试。
-- Playwright：桌面编辑闭环、390x844 只读边界、浏览器矩阵、导入导出往返恢复和安全文本渲染测试。
+- React Testing Library：组件状态、可访问名称、上下文/检查器字段和素材筛选行为测试。
+- Playwright：桌面编辑闭环、390x844 只读边界、浏览器矩阵、save/recovery roundtrip 和安全文本渲染测试。
 
 **Code Organization**
 
@@ -151,9 +152,9 @@ starter 不默认包含完整测试栈。后续实施应补充：
 
 - `src/domain/scene/`：scene document 类型、area 计算、building level 规则、tile instance 规则。
 - `src/domain/assets/`：asset catalog 类型、搜索筛选和适用区域规则。
-- `src/state/`：scene state、command dispatch、undo/redo、dirty state、interactionMode。
-- `src/components/`：Scene Canvas、Asset Picker、Building Level Panel、Instance Inspector、Preview Switcher。
-- `src/io/`：import/export、schema validation、safe text handling。
+- `src/state/`：scene state、command dispatch、undo/redo、dirty state、autosave state、interactionMode。
+- `src/components/`：Scene Canvas、Asset Picker、Building Level Panel、Selection Inspector、Preview Inspector、Pokemon Scene Controls、Recovery Validator。
+- `src/io/`：scene storage、scene serialization、schema validation、safe text handling。
 - `src/theme/`：动态宝可梦主题 tokens 和语义色 tokens。
 - `src/tests/` 或 colocated tests：领域规则、组件行为和 command guard 测试。
 
@@ -168,22 +169,22 @@ Vite 提供快速 dev server、HMR、TypeScript/JSX 支持和静态构建。第�
 **Critical Decisions (Block Implementation)**
 
 - MVP 采用客户端优先静态 Web App，不引入数据库、认证、后端 API 或服务端运行时。
-- `SceneDocument` 是唯一业务事实来源；画布、属性面板、建筑层列表、预览和导出校验必须从同一个 scene state 派生。
+- `SceneDocument` 是唯一业务事实来源；画布、上下文/检查器字段、建筑层列表、预览和保存/恢复校验必须从同一个 scene state 派生。
 - 所有会修改 `SceneDocument` 的行为必须经过 typed command layer，不能由组件直接改写深层 scene object。
 - `<768px` 进入只读模式；只读限制必须在 command layer、canvas pointer handler 和 keyboard handler 三处生效。
-- 导入 JSON 必须通过 runtime schema validation，失败时不得覆盖当前 scene。
+- 恢复数据或未来导入 JSON 必须通过 runtime schema validation，失败时不得覆盖当前 scene。
 
 **Important Decisions (Shape Architecture)**
 
-- 领域类型使用 TypeScript 定义，导入/导出 schema 使用 Zod 4.x。
+- 领域类型使用 TypeScript 定义，保存/恢复 schema 使用 Zod 4.x。
 - MVP 状态管理使用 React `useReducer` + command dispatcher + undo/redo history，不默认引入 Redux 或 Zustand。
-- 文件保存/导出使用 Browser File API 与 Blob download；导入使用 file input / drag-and-drop 后解析为普通数据。
+- MVP 保存/自动保存使用浏览器本地存储适配层和 SceneDocument 序列化；显式 JSON 文件导出/导入 UI 延后到 Post-MVP，但自动保存和后续显式导出必须共享同一个 SceneDocument v1 payload。
 - 测试栈采用 Vitest、React Testing Library 和 Playwright。
 - 部署目标是静态站点托管，CI 至少包含 typecheck、unit tests、build 和 Playwright smoke。
 
 **Deferred Decisions (Post-MVP)**
 
-- 数据库、账号、云同步、分享链接、公开方案库、协作编辑和版本历史全部延后到 Post-MVP。
+- 显式 JSON 导出/导入 UI、数据库、账号、云同步、分享链接、公开方案库、协作编辑和版本历史全部延后到 Post-MVP。
 - Zustand 或其他外部状态库延后。只有当 React reducer + context/selectors 在实际实现中出现明确订阅性能或组件边界问题时再引入。
 - 复杂正视图遮挡、真实游戏视角模拟和更大画布尺寸延后。
 - 多环境后端配置、API rate limiting、server monitoring 和服务端日志延后。
@@ -203,23 +204,30 @@ Vite 提供快速 dev server、HMR、TypeScript/JSX 支持和静态构建。第�
 
 ### Data Architecture
 
-**Decision: MVP uses local in-memory scene state plus JSON import/export, not a database.**
+**Decision: MVP uses local in-memory scene state plus SceneDocument save/recovery, not a database.**
 
 `SceneDocument` 是核心数据模型，包含：
 
 - `schemaVersion`
 - `sceneId`
 - `sceneName`
+- `selectedPokemonKey`，使用 Decor Dex 现有 Pokemon key
 - `sceneSize`
 - `canvasSize`
 - `outerPadding`
 - `buildingLevels`
-- `tiles` / tile instances
-- metadata such as `createdAt` and `updatedAt`
+- `tileInstances`
+- `workspaceState.currentBuildingLevelId`
+- `workspaceState.selectedAssetId`
+- `workspaceState.selectedCoordinate`
+- `workspaceState.saveStatus`
+- `rotationDegrees` on tile instances, constrained to `0 | 90 | 180 | 270`
+- `dyeColor` on tile instances, explicitly `null` when unset
+- metadata such as `createdAt`, `updatedAt`, `lastSavedAt` and `lastAutosavedAt`
 
-`SceneDocument` 应表达 PRD 中的固定 MVP 规则：`sceneSize = 5x5`、`canvasSize = 7x7`、`outerPadding = 1`。未来扩展更大画布或可配置外围圈数时，通过 schema version 和 migration path 引入，不在 MVP 中开放可变配置。
+`SceneDocument` 应表达 PRD 中的固定 MVP 规则：`sceneSize = 5x5`、`canvasSize = 7x7`、`outerPadding = 1`。MVP 只接受当前 SceneDocument v1 的完整字段集合，缺失必需字段必须失败。
 
-**Decision: Area type is derived, then persisted for export integrity.**
+**Decision: Area type is derived, then persisted for serialization integrity.**
 
 坐标的权威判断来自 `x/y + sceneSize + outerPadding` 的纯函数：
 
@@ -227,11 +235,11 @@ Vite 提供快速 dev server、HMR、TypeScript/JSX 支持和静态构建。第�
 - `x = 0`、`x = 6`、`y = 0` 或 `y = 6` 时为 `outer`
 - 其他格子为 `main`
 
-导出数据可保留 `areaType` 字段，但导入时必须重新计算并比对。如果传入 `areaType` 与坐标不一致，导入校验失败或明确报告字段不一致，不能静默接受。
+序列化数据可保留 `areaType` 字段，但恢复时必须重新计算并比对。如果传入 `areaType` 与坐标不一致，恢复校验失败或明确报告字段不一致，不能静默接受。
 
 **Decision: Runtime validation uses Zod 4.x.**
 
-TypeScript 类型只覆盖编译期；导入 JSON 是不可信输入，必须通过 Zod schema parse。校验错误需要转换成面向用户的错误结构，至少包含：
+TypeScript 类型只覆盖编译期；恢复数据或未来导入 JSON 是不可信输入，必须通过 Zod schema parse。校验错误需要转换成面向用户的错误结构，至少包含：
 
 - `fieldPath`
 - `expected`
@@ -239,15 +247,15 @@ TypeScript 类型只覆盖编译期；导入 JSON 是不可信输入，必须通
 - `reason`
 - `recoveryAction`
 
-导入失败不得覆盖当前 scene，不得创建 partial scene，不得修改 dirty state。
+恢复失败不得覆盖当前 scene，不得创建 partial scene，不得修改 dirty state。
 
-**Decision: Schema migration is versioned but minimal in MVP.**
+**Decision: SceneDocument v1 is a strict current schema, not a compatibility layer.**
 
-MVP schema 初始版本为 `1`。导入流程应先读取 `schemaVersion`：
+MVP schema 固定为 `1`。恢复流程应先读取 `schemaVersion`：
 
 - `schemaVersion === 1`：按当前 schema 校验。
 - 缺失或未知版本：显示明确错误。
-- 后续版本迁移必须是显式函数，例如 `migrateSceneDocument(input): Result<SceneDocument, ImportError[]>`。
+- 当前 MVP 不接受旧字段名、缺省字段或隐式迁移。后续如果产品决定引入新的 schema，应先更新 PRD、Architecture、Epics 和测试，再定义新的当前 schema。
 
 ### Authentication & Security
 
@@ -255,13 +263,13 @@ MVP schema 初始版本为 `1`。导入流程应先读取 `schemaVersion`：
 
 产品范围不包含账号、权限、云同步、协作编辑、公开方案库或分享链接。因此 MVP 不引入 auth provider、session、JWT、OAuth、RBAC 或用户表。
 
-**Decision: Imported content is data only.**
+**Decision: Recovered or imported content is data only.**
 
-导入 JSON 中的素材名称、场景名称、备注和技能说明必须作为纯文本保存和展示。实现中禁止把导入字段传入 `dangerouslySetInnerHTML` 或任何 HTML parser。包含 `<script>`、事件处理属性、`<img onerror>` 等字符串时，UI 只能把它们作为普通文本显示。
+恢复数据或未来导入 JSON 中的素材名称、场景名称、备注和技能说明必须作为纯文本保存和展示。实现中禁止把这些字段传入 `dangerouslySetInnerHTML` 或任何 HTML parser。包含 `<script>`、事件处理属性、`<img onerror>` 等字符串时，UI 只能把它们作为普通文本显示。
 
 **Decision: Destructive commands require explicit confirmation at command boundary.**
 
-删除非空建筑层、导入替换当前 scene、批量清空等破坏性操作必须提供确认流程。确认内容至少包含受影响对象名称、素材实例数量和操作后果。
+删除非空建筑层、恢复替换当前 scene、批量清空等破坏性操作必须提供确认流程。确认内容至少包含受影响对象名称、素材实例数量和操作后果。
 
 ### API & Communication Patterns
 
@@ -270,13 +278,14 @@ MVP schema 初始版本为 `1`。导入流程应先读取 `schemaVersion`：
 核心数据流全部发生在浏览器内：
 
 - scene create/edit：内存 state
-- save/export：serialize `SceneDocument` to JSON and Blob download
-- reopen/import：read local JSON file, parse, validate, then replace state only after success
+- save/autosave：serialize `SceneDocument` through local scene storage; payload identical to future explicit export
+- reopen/recover：read saved SceneDocument data, parse, validate, then replace state only after success
+- local UI preferences：persist asset search/filter/favorite-only and preview display options to a separate localStorage namespace, outside `SceneDocument`
 - asset catalog：MVP 使用 repo-local static data 或 bundled JSON/TS data
 
 **Decision: Internal operations use typed Result objects.**
 
-导入、导出、command execution、validation 和 destructive confirmation should return typed results rather than throwing for expected user errors:
+保存、恢复、command execution、validation 和 destructive confirmation should return typed results rather than throwing for expected user errors:
 
 - `ok: true, value`
 - `ok: false, errors`
@@ -292,11 +301,12 @@ MVP schema 初始版本为 `1`。导入流程应先读取 `schemaVersion`：
 - Scene Canvas reads scene + current view state
 - Asset Picker reads asset catalog + selected asset state
 - Building Level Panel reads building levels + current level
-- Instance Inspector reads selected instance derived from scene
-- Preview Switcher derives preview from scene and view options
-- Import Export Validator reads schema validation result
+- Selection Inspector reads selected instance derived from scene
+- Preview Inspector derives front/top previews from scene and view options
+- Pokemon Scene Controls read selected Pokemon, scene name and dirty/saved state
+- Recovery Validator reads schema validation result
 
-组件可以拥有 local UI state，例如 hover cell、focused control、panel open state、search input text、zoom/pan 或 modal open state；但不能复制 `SceneDocument` 的业务字段作为独立 truth。
+组件可以拥有 local UI state，例如 hover cell、focused control、panel open state、search input text、filter controls、favorite-only、preview display options、zoom/pan 或 modal open state；这些 UI 偏好可以保存到 localStorage，但不能复制 `SceneDocument` 的业务字段作为独立 truth，也不能进入自动保存/导出 payload。
 
 **Decision: State management uses React reducer and typed command layer.**
 
@@ -314,12 +324,13 @@ MVP 使用：
 - `MOVE_TILE`
 - `UPDATE_TILE_SKILL`
 - `UPDATE_TILE_ROTATION`
+- `UPDATE_TILE_DYE`
 - `CREATE_LEVEL`
 - `DELETE_LEVEL`
 - `RENAME_LEVEL`
 - `SET_LEVEL_VISIBILITY`
 - `SET_LEVEL_LOCKED`
-- `IMPORT_SCENE`
+- `RECOVER_SCENE`
 
 command layer 必须统一检查：
 
@@ -343,7 +354,7 @@ MVP 是单页工作台，不引入 React Router。未来如果加入方案库、
 type InteractionMode = "edit" | "readOnly";
 ```
 
-`<768px` 时进入 `readOnly`。只读模式允许改变查看状态，例如选中格子、当前建筑层、预览模式、缩放和平移；禁止改变 scene document、实例列表、建筑层、技能标记、dirty flag 和 undo/redo history。
+`<768px` 时进入 `readOnly`。只读模式允许改变查看状态，例如选中格子、当前查看建筑层、预览模式、缩放和平移；禁止改变 scene document、实例列表、建筑层、染色、技能标记、dirty flag、autosave state 和 undo/redo history。
 
 ### Infrastructure & Deployment
 
@@ -368,7 +379,7 @@ Playwright 必须覆盖：
 
 - 1280x720 或以上桌面编辑闭环
 - 390x844 mobile read-only guard
-- import/export roundtrip
+- save/recovery roundtrip
 - dangerous text rendered as text
 - no control overlap in key responsive viewports
 
@@ -377,18 +388,18 @@ Playwright 必须覆盖：
 **Implementation Sequence**
 
 1. Initialize Vite React TypeScript starter and scripts.
-2. Define domain types and Zod schema for `SceneDocument`, `BuildingLevel`, `TileInstance`, `AssetDefinition` and import errors.
+2. Define domain types and Zod schema for `SceneDocument`, `BuildingLevel`, `TileInstance`, `AssetDefinition` and recovery errors.
 3. Implement pure domain functions: area calculation, level ordering, stackability, selected instance lookup and serialization.
 4. Implement command layer with `interactionMode`, locked-level checks, undo/redo and dirty state.
-5. Build Scene Canvas, Asset Picker, Building Level Panel and Instance Inspector against the command layer.
-6. Add Preview Switcher and basic front-view derived from level order.
-7. Add import/export validator and safe text rendering.
+5. Build Scene Canvas, Asset Picker, Building Level Panel and Selection Inspector against the command layer.
+6. Add Preview Inspector with top-view and basic front-view derived from level order.
+7. Add Recovery Validator, scene storage/serializer and safe text rendering.
 8. Add responsive read-only mode and Playwright coverage.
 
 **Cross-Component Dependencies**
 
 - Scene Canvas and Preview depend on the same scene selectors; they must not duplicate render ordering rules.
-- Instance Inspector and command layer must share field validation rules; inspector validation cannot differ from import validation.
+- Selection Inspector and command layer must share field validation rules; inspector validation cannot differ from recovery validation.
 - Asset Picker and placement commands must share area compatibility and skill default handling.
 - Building Level Panel and command layer must share deletion, visibility, lock and current-level rules.
 - Mobile UI, canvas handlers and keyboard shortcuts all depend on the same `interactionMode` guard.
@@ -397,7 +408,7 @@ Playwright 必须覆盖：
 
 ### Pattern Categories Defined
 
-本项目最容易出现 AI agent 实现分叉的地方包括：命名、文件组织、scene state 写入路径、command payload、导入错误格式、selector 派生规则、mobile 只读边界、测试位置和用户文本安全渲染。
+本项目最容易出现 AI agent 实现分叉的地方包括：命名、文件组织、scene state 写入路径、command payload、恢复错误格式、selector 派生规则、mobile 只读边界、测试位置和用户文本安全渲染。
 
 这些规则的目标不是限制具体实现细节，而是确保不同 agents 在不同 story 中写出的代码可以直接组合。
 
@@ -409,22 +420,23 @@ MVP 没有数据库，因此不定义表名、列名、外键或索引命名规�
 
 **API Naming Conventions**
 
-MVP 没有后端 API，因此不定义 REST endpoint、GraphQL schema 或 server route。浏览器内导入导出函数使用 `camelCase` 命名，例如：
+MVP 没有后端 API，因此不定义 REST endpoint、GraphQL schema 或 server route。浏览器内保存/恢复函数使用 `camelCase` 命名，例如：
 
-- `exportSceneToJson`
-- `parseSceneJson`
+- `serializeSceneDocument`
+- `parseSceneDocument`
 - `validateSceneDocument`
-- `downloadSceneJson`
+- `saveSceneDraft`
+- `recoverSceneDraft`
 
 后续若引入 API，必须先更新 architecture，而不是在 implementation story 中临时发明接口。
 
 **Code Naming Conventions**
 
-- 文件和目录使用 `kebab-case`：`scene-canvas.tsx`、`building-level-panel.tsx`、`import-export-validator.ts`。
+- 文件和目录使用 `kebab-case`：`scene-canvas.tsx`、`building-level-panel.tsx`、`recovery-validator.ts`。
 - React 组件使用 `PascalCase`：`SceneCanvas`、`AssetPicker`、`BuildingLevelPanel`。
-- TypeScript 类型、interface 和 schema-derived 类型使用 `PascalCase`：`SceneDocument`、`TileInstance`、`ImportError`。
+- TypeScript 类型、interface 和 schema-derived 类型使用 `PascalCase`：`SceneDocument`、`TileInstance`、`RecoveryError`。
 - 函数、变量、selector 和 hook 使用 `camelCase`：`calculateAreaType`、`selectVisibleLevels`、`useInteractionMode`。
-- command type 使用全大写 snake case：`PLACE_TILE`、`DELETE_LEVEL`、`IMPORT_SCENE`。
+- command type 使用全大写 snake case：`PLACE_TILE`、`DELETE_LEVEL`、`RECOVER_SCENE`。
 - JSON 字段使用 `camelCase`，与 PRD 示例保持一致：`sceneId`、`sceneSize`、`buildingLevels`、`requiresSkill`。
 - 枚举值和 union literal 使用 lower camel 或 lower words：`main`、`outer`、`front`、`right`、`readOnly`。
 
@@ -436,9 +448,9 @@ MVP 没有后端 API，因此不定义 REST endpoint、GraphQL schema 或 server
 
 - `src/domain/scene/`：scene document 类型、area 计算、level ordering、tile instance 规则。
 - `src/domain/assets/`：asset catalog 类型、搜索筛选、适用区域和默认技能规则。
-- `src/state/`：scene reducer、command dispatcher、undo/redo、dirty state、interaction mode。
+- `src/state/`：scene reducer、command dispatcher、undo/redo、dirty state、autosave state、interaction mode。
 - `src/components/`：React UI 组件。
-- `src/io/`：JSON parse、Zod schema、import/export、safe text handling。
+- `src/io/`：JSON parse、Zod schema、scene storage、serialization/recovery、safe text handling。
 - `src/theme/`：动态宝可梦主题 tokens、语义色 tokens 和 theme helpers。
 - `src/test/`：测试工具、fixtures、render helpers。
 - `e2e/`：Playwright specs。
@@ -471,16 +483,19 @@ type Result<T, E> =
 - JSON 字段使用 `camelCase`。
 - 日期使用 ISO 8601 string。
 - Boolean 使用 `true` / `false`。
-- 缺失可选备注字段在 normalized scene 中使用空字符串，导入 schema 可以接受缺失后 normalize。
+- 备注字段必须显式存在；未填写时使用空字符串。恢复 schema 不接受缺失字段并静默补齐。
 - `areaType` 只允许 `main | outer`。
-- `rotation` 只允许 `front | right | back | left`。
-- `skillType` 在未设置时使用 `null`，`skillNote` 使用空字符串。
+- `rotationDegrees` 只允许 `0 | 90 | 180 | 270`；默认 0 度必须显式保存为 `0`，但 UI 不显示额外旋转标记。
+- `dyeColor` 未设置时必须显式使用 `null`；支持染色且已选择颜色的实例必须保留可恢复颜色值。
+- `skillType` 在未设置时使用 `null`，已设置时只允许 `树叶`、`耕地`、`储水`；`skillNote` 使用空字符串。
+- `selectedAssetId`、`selectedCoordinate`、`dyeColor`、`skillType` 这类可空字段必须以显式 `null` 表达空状态，不允许缺失字段。
+- `workspaceState.saveStatus` 只允许 `dirty | saved`；保存、自动保存和未来显式导出成功后写出的 payload 应反映当前持久化状态。
 - `schemaVersion` 必须存在，MVP 使用 `1`。
 
-Import error 统一结构：
+Recovery error 统一结构：
 
 ```ts
-type ImportError = {
+type RecoveryError = {
   fieldPath: string;
   expected: string;
   actual: string;
@@ -516,7 +531,7 @@ MVP 不引入全局 event bus。组件通信走 React props/context + command di
 
 **Error Handling Patterns**
 
-- 导入失败：展示错误摘要和字段级列表，不覆盖当前 scene，不改变 dirty state。
+- 恢复失败：展示错误摘要和字段级列表，不覆盖当前 scene，不改变 dirty state。
 - command 被拒绝：返回 typed command error，例如 `READ_ONLY_VIEWPORT`、`LEVEL_LOCKED`、`OUT_OF_BOUNDS`、`STACKING_NOT_ALLOWED`。
 - 用户可修复错误展示 recovery action。
 - programmer error 可以 throw，并由 React error boundary 或测试暴露。
@@ -525,7 +540,7 @@ MVP 不引入全局 event bus。组件通信走 React props/context + command di
 **Loading State Patterns**
 
 - MVP 大多数操作是本地同步，不应伪造长期 loading。
-- 文件读取、JSON parse、导入校验和 Playwright-facing async flows 可以有 explicit status：
+- 本地读取、JSON parse、恢复校验和 Playwright-facing async flows 可以有 explicit status：
   - `idle`
   - `reading`
   - `validating`
@@ -538,14 +553,14 @@ MVP 不引入全局 event bus。组件通信走 React props/context + command di
 - `interactionMode` 是权限边界，不是样式变量。
 - `<768px` 必须进入 `readOnly`。
 - read-only 允许 selection、preview mode、current visible level、zoom/pan 和查看详情。
-- read-only 禁止 place、move、delete、rotate、skill toggle、level mutate、import replace、save dirty changes、undo/redo mutation。
+- read-only 禁止 place、move、delete、rotate、dye, skill toggle、level mutate、recover replace、save dirty changes、autosave、undo/redo mutation。
 - command layer、canvas pointer handler 和 keyboard handler 都必须检查只读边界。
 
 **Safe Text Rendering Patterns**
 
-- 导入 JSON 的 `sceneName`、`assetName`、`note`、`skillNote` 等字段只能作为文本渲染。
+- 恢复数据或未来导入 JSON 的 `sceneName`、`assetName`、`note`、`skillNote` 等字段只能作为文本渲染。
 - 禁止 `dangerouslySetInnerHTML`。
-- 禁止把导入字段传给 HTML parser。
+- 禁止把恢复字段传给 HTML parser。
 - 测试 fixture 必须覆盖 `<script>`、`<img onerror>` 和普通尖括号文本。
 
 ### Enforcement Guidelines
@@ -553,12 +568,12 @@ MVP 不引入全局 event bus。组件通信走 React props/context + command di
 **All AI Agents MUST**
 
 - 不直接 mutate `SceneDocument`；所有业务写操作走 command layer。
-- 不在组件中重复 area、level ordering、preview ordering 或 import validation 规则；使用 domain helpers / selectors。
+- 不在组件中重复 area、level ordering、preview ordering 或 recovery validation 规则；使用 domain helpers / selectors。
 - 不引入数据库、后端 API、auth、routing 或外部状态库，除非 architecture 先更新。
 - 不把用户文本作为 HTML 渲染。
 - 不绕过 mobile read-only command guard。
 - 新增 command 时同时新增 domain/unit tests。
-- 新增导入字段时同时更新 TypeScript type、Zod schema、normalizer、fixture 和 roundtrip test。
+- 新增恢复字段时同时更新 TypeScript type、Zod schema、serializer/parser、fixture 和 roundtrip test。
 
 **Pattern Enforcement**
 
@@ -588,7 +603,7 @@ const areaType = calculateAreaType({ x, y }, scene.sceneSize, scene.outerPadding
 ```
 
 ```ts
-type ImportStatus = "idle" | "reading" | "validating" | "success" | "error";
+type RecoveryStatus = "idle" | "reading" | "validating" | "success" | "error";
 ```
 
 **Anti-Patterns**
@@ -656,15 +671,18 @@ pokopia-scene-editor/
 │   │   ├── scene-commands.test.ts
 │   │   ├── scene-reducer.ts
 │   │   ├── scene-reducer.test.ts
+│   │   ├── scene-storage-state.ts
 │   │   ├── command-errors.ts
 │   │   └── interaction-mode.ts
 │   ├── io/
 │   │   ├── scene-schema.ts
 │   │   ├── scene-schema.test.ts
-│   │   ├── import-scene.ts
-│   │   ├── import-scene.test.ts
-│   │   ├── export-scene.ts
-│   │   ├── export-scene.test.ts
+│   │   ├── scene-serializer.ts
+│   │   ├── scene-serializer.test.ts
+│   │   ├── scene-storage.ts
+│   │   ├── scene-storage.test.ts
+│   │   ├── recover-scene.ts
+│   │   ├── recover-scene.test.ts
 │   │   └── safe-text.ts
 │   ├── theme/
 │   │   ├── theme-tokens.ts
@@ -682,15 +700,18 @@ pokopia-scene-editor/
 │   │   ├── building-level-panel/
 │   │   │   ├── building-level-panel.tsx
 │   │   │   └── building-level-panel.test.tsx
-│   │   ├── instance-inspector/
-│   │   │   ├── instance-inspector.tsx
-│   │   │   └── instance-inspector.test.tsx
-│   │   ├── preview-switcher/
-│   │   │   ├── preview-switcher.tsx
-│   │   │   └── preview-switcher.test.tsx
-│   │   └── import-export-validator/
-│   │       ├── import-export-validator.tsx
-│   │       └── import-export-validator.test.tsx
+│   │   ├── selection-inspector/
+│   │   │   ├── selection-inspector.tsx
+│   │   │   └── selection-inspector.test.tsx
+│   │   ├── preview-inspector/
+│   │   │   ├── preview-inspector.tsx
+│   │   │   └── preview-inspector.test.tsx
+│   │   ├── pokemon-scene-controls/
+│   │   │   ├── pokemon-scene-controls.tsx
+│   │   │   └── pokemon-scene-controls.test.tsx
+│   │   └── recovery-validator/
+│   │       ├── recovery-validator.tsx
+│   │       └── recovery-validator.test.tsx
 │   └── test/
 │       ├── fixtures/
 │       │   ├── scene-valid.ts
@@ -700,7 +721,7 @@ pokopia-scene-editor/
 ├── e2e/
 │   ├── desktop-edit-flow.spec.ts
 │   ├── mobile-readonly.spec.ts
-│   ├── import-export-roundtrip.spec.ts
+│   ├── save-recovery-roundtrip.spec.ts
 │   └── unsafe-text.spec.ts
 ├── public/
 │   └── assets/
@@ -719,7 +740,7 @@ pokopia-scene-editor/
 
 **API Boundaries**
 
-MVP 没有后端 API。所有 scene create/edit/save/import/export 操作都在浏览器内完成。任何 story 不得新增 server route、server action、database client、auth middleware 或 remote API contract，除非 architecture 先更新。
+MVP 没有后端 API。所有 scene create/edit/save/recover/serialize 操作都在浏览器内完成。任何 story 不得新增 server route、server action、database client、auth middleware 或 remote API contract，除非 architecture 先更新。
 
 **Component Boundaries**
 
@@ -727,13 +748,14 @@ React components 负责 UI rendering、local UI state 和 dispatching commands�
 
 组件边界：
 
-- `app-shell/`：工作台 layout、top toolbar、interaction mode wiring。
+- `app-shell/`：Open Design 工作台 layout、interaction mode wiring。
+- `pokemon-scene-controls/`：顶部 Pokemon 选择、场景 `Name`、dirty/saved 状态和保存入口。
 - `scene-canvas/`：7x7 canvas rendering、hover/selection UI、pointer/keyboard handler，但写操作必须 dispatch command。
-- `asset-picker/`：素材搜索、筛选、选中素材和本次放置默认技能状态。
-- `building-level-panel/`：建筑层列表、当前层、可见/锁定状态、创建/删除/复制/重命名 command entry。
-- `instance-inspector/`：选中实例字段展示和字段 edit command entry。
-- `preview-switcher/`：俯视图/正视图、当前层/全部可见层、网格/边界/技能标记显示选项。
-- `import-export-validator/`：导入、导出、校验错误摘要和 recovery action。
+- `asset-picker/`：右侧浮动素材搜索、分类/喜好/区域/技能筛选、选中素材和本次放置默认技能状态。
+- `building-level-panel/`：左侧建筑层列表、当前层、可见/锁定状态、创建/删除/复制/重命名 command entry；视觉顺序高层到低层，数据顺序仍为 0 层到 n 层。
+- `selection-inspector/`：选中实例字段展示和字段 edit command entry。
+- `preview-inspector/`：左下正视图/俯视图、当前层/全部可见层、网格/边界/技能标记显示选项。
+- `recovery-validator/`：保存/恢复校验错误摘要和 recovery action。
 
 **Service Boundaries**
 
@@ -743,7 +765,7 @@ MVP 不使用 service/repository/database layer。跨组件业务操作统一集
 
 - `src/domain/*` 定义业务规则和 selector。
 - `src/state/*` 是唯一 scene write boundary。
-- `src/io/*` 是 JSON import/export 和 schema validation boundary。
+- `src/io/*` 是 JSON serialization、local scene storage、recovery 和 schema validation boundary。
 - `src/components/*` 只消费 state、selectors、command dispatcher 和 view options。
 - `src/theme/*` 只处理视觉 tokens，不参与 scene business rules。
 
@@ -752,13 +774,14 @@ MVP 不使用 service/repository/database layer。跨组件业务操作统一集
 **Feature Mapping**
 
 - FR1-FR7 Scene & Canvas Model：`src/domain/scene/types.ts`、`area.ts`、`selectors.ts`、`components/scene-canvas/`。
-- FR8-FR18 Asset Placement & Editing：`src/domain/scene/tiles.ts`、`src/state/scene-commands.ts`、`components/scene-canvas/`、`components/instance-inspector/`。
+- FR8-FR18 Asset Placement & Editing：`src/domain/scene/tiles.ts`、`src/state/scene-commands.ts`、`components/scene-canvas/`、`components/selection-inspector/`。
 - FR19-FR27 Building Level Management：`src/domain/scene/levels.ts`、`src/state/scene-commands.ts`、`components/building-level-panel/`。
-- FR28-FR35 Asset Catalog & Selection：`src/domain/assets/types.ts`、`catalog.ts`、`filters.ts`、`components/asset-picker/`。
-- FR36-FR40 Ditto Skill Marking：`src/state/scene-commands.ts`、`src/domain/scene/tiles.ts`、`components/instance-inspector/`、`components/scene-canvas/`。
-- FR41-FR47 Preview：`src/domain/scene/selectors.ts`、`components/preview-switcher/`、`components/scene-canvas/`。
-- FR48-FR49 Properties：`components/instance-inspector/`、`src/domain/scene/selectors.ts`、`src/state/scene-commands.ts`。
-- FR50-FR55 Save & Export：`src/io/scene-schema.ts`、`import-scene.ts`、`export-scene.ts`、`components/import-export-validator/`。
+- FR28-FR35 and FR59 Asset Catalog & Selection：`src/domain/assets/types.ts`、`catalog.ts`、`filters.ts`、`components/asset-picker/`。
+- FR36-FR40 and FR60-FR62 Ditto Skill / Instance Visual State：`src/state/scene-commands.ts`、`src/domain/scene/tiles.ts`、`components/selection-inspector/`、`components/scene-canvas/`。
+- FR41-FR47 and FR63 Preview：`src/domain/scene/selectors.ts`、`components/preview-inspector/`、`components/scene-canvas/`。
+- FR48-FR49 Properties：`components/selection-inspector/`、`src/domain/scene/selectors.ts`、`src/state/scene-commands.ts`。
+- FR50-FR55 Save & Recovery：`src/io/scene-schema.ts`、`scene-serializer.ts`、`scene-storage.ts`、`recover-scene.ts`、`components/recovery-validator/`。
+- FR56-FR58 Open Design Workbench Context：`components/app-shell/`、`components/pokemon-scene-controls/`、`src/theme/`、`src/state/scene-state.ts`。
 
 **Cross-Cutting Concerns**
 
@@ -778,14 +801,16 @@ UI components communicate through props/context and dispatch typed commands. Bus
 component event -> command dispatcher -> command guard -> domain helper -> reducer/history -> scene state -> selectors -> UI
 ```
 
-View-only state such as hover cell, selected panel tab, zoom/pan, preview mode and current viewed level can live in React state, but must not mutate `SceneDocument`.
+View-only state such as hover cell, selected panel tab, zoom/pan, asset search/filter/favorite-only, preview mode and current viewed level can live in React state and may be persisted in a separate localStorage UI-preferences namespace, but must not mutate `SceneDocument` and must not appear in autosave/export payloads.
 
 **External Integrations**
 
 MVP has no external service integrations. Browser APIs used:
 
-- File input / drag-and-drop for import.
-- Blob URL / download for export.
+- localStorage or equivalent local scene storage adapter for MVP save/autosave and reopen.
+- localStorage UI-preferences namespace for asset search/filter/favorite-only and preview display options; this namespace is explicitly outside SceneDocument.
+- File input / drag-and-drop for future explicit import, outside current MVP UI.
+- Blob URL / download for future explicit export, outside current MVP UI.
 - `matchMedia` or resize observation for interaction mode, routed through a shared `interaction-mode` helper.
 
 **Data Flow**
@@ -793,7 +818,7 @@ MVP has no external service integrations. Browser APIs used:
 ```text
 Asset catalog + SceneDocument
         -> selectors
-        -> Scene Canvas / Inspector / Level Panel / Preview
+        -> Scene Canvas / Selection Inspector / Level Panel / Preview Inspector
 
 User command
         -> executeSceneCommand
@@ -801,17 +826,26 @@ User command
         -> updated SceneDocument
         -> derived UI refresh
 
-Import JSON
-        -> parseSceneJson
+Saved SceneDocument data
+        -> parseSceneDocument
         -> Zod schema validation
-        -> normalization and area consistency check
-        -> IMPORT_SCENE command
+        -> required-field validation and area consistency check
+        -> RECOVER_SCENE command
         -> state replacement only after success
 
-Export JSON
+Save / autosave
         -> validate current SceneDocument
         -> serialize
-        -> Blob download
+        -> local scene storage
+
+Future explicit export
+        -> validate current SceneDocument
+        -> same serialize function
+        -> same JSON-compatible payload as autosave
+
+UI preference change
+        -> localStorage UI-preferences namespace
+        -> no SceneDocument mutation
 ```
 
 ### File Organization Patterns
@@ -833,7 +867,7 @@ Allowed dependency direction:
 ```text
 components -> state -> domain
 components -> theme
-components -> io only for user-triggered import/export UI
+components -> io only for save/recovery UI
 state -> domain
 state -> io types/results where needed
 io -> domain
@@ -847,7 +881,7 @@ domain -> no React, no DOM, no components
 - Component tests colocate with component files.
 - Shared fixtures live in `src/test/fixtures/`.
 - Playwright tests live in `e2e/`.
-- New domain rule, command, schema field or import error requires tests in the same story.
+- New domain rule, command, schema field or recovery error requires tests in the same story.
 
 **Asset Organization**
 
@@ -873,9 +907,9 @@ Deployment serves `dist/` as static files. Runtime behavior must not require Nod
 
 **Decision Compatibility**
 
-All major decisions work together without conflict. Vite + React + TypeScript supports the chosen single-page editor shape. Zod provides runtime validation for imported JSON while TypeScript covers compile-time domain contracts. Vitest, React Testing Library and Playwright align with the selected Vite/React stack. Static deployment fits the explicit MVP boundary of no backend API, no auth, no database and no server runtime.
+All major decisions work together without conflict. Vite + React + TypeScript supports the chosen single-page editor shape. Zod provides runtime validation for recovered SceneDocument data while TypeScript covers compile-time domain contracts. Vitest, React Testing Library and Playwright align with the selected Vite/React stack. Static deployment fits the explicit MVP boundary of no backend API, no auth, no database and no server runtime.
 
-The deferred decisions are also coherent: database, auth, routing, external state libraries, sharing, collaboration and complex front-view rendering are all outside MVP and do not block the current static editor architecture.
+The deferred decisions are also coherent: explicit JSON import/export UI, database, auth, routing, external state libraries, sharing, collaboration and complex front-view rendering are all outside MVP and do not block the current static editor architecture.
 
 **Pattern Consistency**
 
@@ -883,13 +917,13 @@ Implementation patterns support the architecture decisions:
 
 - `camelCase` JSON fields match the PRD data examples.
 - command type names are consistent with a typed reducer/command layer.
-- Result-style errors align with import validation and command rejection.
-- safe text rendering rules directly support the security decision that imported content is data only.
+- Result-style errors align with recovery validation and command rejection.
+- safe text rendering rules directly support the security decision that recovered or imported content is data only.
 - mobile read-only rules align with `interactionMode` as an architecture boundary rather than CSS-only behavior.
 
 **Structure Alignment**
 
-The project structure supports the required boundaries. Domain modules are isolated from React and DOM concerns. State modules own write paths. IO modules own schema validation and import/export. Components only render state and dispatch commands. E2E tests cover desktop editing, mobile read-only behavior, import/export roundtrip and unsafe text.
+The project structure supports the required boundaries. Domain modules are isolated from React and DOM concerns. State modules own write paths. IO modules own schema validation, serialization, storage and recovery. Components only render state and dispatch commands. E2E tests cover desktop editing, mobile read-only behavior, save/recovery roundtrip and unsafe text.
 
 ### Requirements Coverage Validation ✅
 
@@ -898,23 +932,24 @@ The project structure supports the required boundaries. Domain modules are isola
 All PRD feature groups have architectural support:
 
 - Scene & Canvas Model maps to `src/domain/scene/area.ts`, `types.ts`, `selectors.ts` and `components/scene-canvas/`.
-- Asset Placement & Editing maps to `src/domain/scene/tiles.ts`, `src/state/scene-commands.ts`, `components/scene-canvas/` and `components/instance-inspector/`.
+- Open Design Workbench Context maps to `components/app-shell/`, `components/pokemon-scene-controls/`, theme tokens and interaction mode state.
+- Asset Placement & Editing maps to `src/domain/scene/tiles.ts`, `src/state/scene-commands.ts`, `components/scene-canvas/` and `components/selection-inspector/`.
 - Building Level Management maps to `src/domain/scene/levels.ts`, command handling and `components/building-level-panel/`.
 - Asset Catalog & Selection maps to `src/domain/assets/` and `components/asset-picker/`.
-- Ditto Skill Marking maps to tile commands, instance inspector, scene canvas badges and preview selectors.
-- Preview maps to shared selectors and `components/preview-switcher/`.
-- Properties, Save & Export maps to instance inspector, IO schema, import/export modules and validator UI.
+- Ditto Skill / Instance Visual State maps to tile commands, selection inspector, scene canvas badges, dye controls and preview selectors.
+- Preview maps to shared selectors and `components/preview-inspector/`.
+- Properties, Save & Recovery maps to selection inspector, IO schema, serializer/storage/recovery modules and validator UI.
 
 **Functional Requirements Coverage**
 
-FR1-FR55 are architecturally supported. The architecture gives each functional area an owning module and prevents duplicated business rules through domain helpers/selectors and command-layer write boundaries.
+FR1-FR64 are architecturally supported. The architecture gives each functional area an owning module and prevents duplicated business rules through domain helpers/selectors and command-layer write boundaries.
 
 **Non-Functional Requirements Coverage**
 
 NFR coverage is sufficient for implementation:
 
 - Performance: fixed 7x7 canvas, pure selectors, local state, static asset deployment and optional asset-list pagination/virtualization path support the required response targets.
-- Reliability and data integrity: single source of truth, Zod schema validation, schemaVersion, command layer and roundtrip Playwright tests support save/export/import consistency.
+- Reliability and data integrity: single source of truth, Zod schema validation, strict schemaVersion, command layer, identical autosave/export payloads and roundtrip Playwright tests support save/recovery consistency.
 - Usability and accessibility: component boundaries, semantic state tokens, accessible-name tests and Playwright responsive checks support the UX/NFR requirements.
 - Compatibility and responsive behavior: Vite static build plus Playwright desktop/mobile coverage supports the browser and viewport matrix.
 - Security and data safety: no backend/auth surface, safe text rendering and JSON-as-data validation address the security NFRs.
@@ -947,7 +982,7 @@ None blocking. The architecture intentionally defers backend, auth, routing, ext
 
 - CI details for real Edge and Safari coverage can be refined during release planning. Playwright Chromium/Firefox/WebKit and manual browser acceptance are enough for architecture readiness.
 - Asset catalog source format can be refined during implementation once real素材 data is available. The architecture already reserves `src/domain/assets/` and `public/assets/` / `src/assets/` boundaries.
-- Future schema migrations beyond version `1` can be designed when a second schema version exists.
+- A future incompatible schema can be designed only after PRD, Architecture, Epics and tests are updated together; MVP intentionally supports only the current v1 payload.
 
 ### Validation Issues Addressed
 
@@ -993,14 +1028,14 @@ No blocking validation issues were found. Minor future refinements were classifi
 
 - Strong single-source-of-truth boundary for scene state.
 - Clear command layer that supports undo/redo, validation, dirty state and mobile read-only guard.
-- Explicit import/export schema and safe text rendering strategy.
+- Explicit save/recovery schema and safe text rendering strategy.
 - Component boundaries match the selected UX direction.
-- Requirements-to-structure mapping is complete for FR1-FR55.
+- Requirements-to-structure mapping is complete for FR1-FR64.
 - Testing responsibilities are defined at unit, component and E2E levels.
 
 **Areas for Future Enhancement**
 
-- Add schema migration details when schema version `2` is needed.
+- Revisit schema evolution only when a future product decision requires a new current schema; do not add compatibility behavior in MVP.
 - Revisit Zustand or another store only if real implementation profiling shows React reducer/context is insufficient.
 - Add routing only when方案库, templates, public share pages or docs pages become product scope.
 - Expand deployment and browser coverage details during release planning.
@@ -1014,7 +1049,7 @@ No blocking validation issues were found. Minor future refinements were classifi
 - Respect project structure and module dependency direction.
 - Do not introduce backend, auth, database, routing or external state libraries unless architecture is updated first.
 - Route all scene writes through the command layer.
-- Use Zod validation for imported JSON and preserve safe text rendering.
+- Use Zod validation for recovered or future imported JSON and preserve safe text rendering.
 - Maintain tests with every new domain rule, command, schema field and UI boundary.
 
 **First Implementation Priority**
