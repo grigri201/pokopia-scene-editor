@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from 'react';
-import type { CanvasCellContext, GridCoordinate, GridSize } from '../../domain/scene';
+import type { BuildingLevel, CanvasCellContext, GridCoordinate, GridSize } from '../../domain/scene';
 import { moveCoordinate } from '../../state';
 
 interface SceneCanvasProps {
@@ -45,8 +45,8 @@ export function SceneCanvas({
           {row.map((cell) => {
             const coordinate = cell.coordinate;
             const placeable = cell.placeable;
-            const editable = placeable && !readOnly;
-            const stateLabel = readOnly ? 'read-only' : placeable ? 'placeable' : 'not placeable';
+            const editable = isCellEditable(cell.buildingLevel, placeable, readOnly);
+            const stateLabel = getCellStateLabel(cell.buildingLevel, placeable, readOnly);
             const selected = coordinatesEqual(selectedCoordinate, coordinate);
             const targeted = coordinatesEqual(targetCoordinate, coordinate);
 
@@ -140,4 +140,24 @@ function coordinatesEqual(left: GridCoordinate | null, right: GridCoordinate): b
 
 function toGridCoordinate(coordinate: GridCoordinate): GridCoordinate {
   return { x: coordinate.x, y: coordinate.y };
+}
+
+function isCellEditable(buildingLevel: BuildingLevel, placeable: boolean, readOnly: boolean): boolean {
+  return placeable && !readOnly && buildingLevel.visible && !buildingLevel.locked;
+}
+
+function getCellStateLabel(buildingLevel: BuildingLevel, placeable: boolean, readOnly: boolean): string {
+  if (readOnly) {
+    return 'read-only';
+  }
+
+  if (!buildingLevel.visible) {
+    return 'hidden layer';
+  }
+
+  if (buildingLevel.locked) {
+    return 'locked layer';
+  }
+
+  return placeable ? 'placeable' : 'not placeable';
 }

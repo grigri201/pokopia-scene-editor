@@ -349,7 +349,6 @@ button:disabled {
 .level-row,
 .asset-row {
   display: grid;
-  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 10px;
   min-height: 48px;
@@ -361,20 +360,100 @@ button:disabled {
   text-align: left;
 }
 
+.level-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "code summary badge"
+    "code state state"
+    "actions actions actions";
+}
+
+.asset-row {
+  grid-template-columns: auto 1fr auto;
+}
+
 .level-row--current {
   border-color: var(--color-selected-cell);
   box-shadow: inset 4px 0 0 var(--color-selected-cell);
 }
 
-.level-row span {
+.level-code {
+  grid-area: code;
   color: var(--pokemon-accent);
   font-weight: 900;
+}
+
+.level-summary {
+  grid-area: summary;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .level-row em {
   color: var(--ink-muted);
   font-size: 12px;
   font-style: normal;
+}
+
+.level-badge {
+  grid-area: badge;
+  justify-self: end;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--ink-muted);
+  background: var(--surface);
+  font-size: 11px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.level-badge--current {
+  border-color: rgba(37, 111, 104, 0.45);
+  color: #164c46;
+  background: rgba(232, 246, 239, 0.86);
+}
+
+.level-state-tags {
+  grid-area: state;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.level-state-tags span {
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--ink-muted);
+  background: var(--surface);
+  font-size: 11px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.level-actions {
+  grid-area: actions;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.level-actions button {
+  min-width: 0;
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 6px;
+  color: var(--ink-muted);
+  background: var(--surface);
+  font-size: 11px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .asset-picker {

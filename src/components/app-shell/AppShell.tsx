@@ -7,6 +7,7 @@ import { SceneCanvas } from '../scene-canvas/SceneCanvas';
 import { SelectionInspector } from '../selection-inspector/SelectionInspector';
 import {
   createDefaultSceneDocument,
+  getBuildingLevelContexts,
   getCanvasCellContexts,
   getCellContext,
   getSelectedCellContext,
@@ -32,6 +33,7 @@ export function AppShell() {
     getInteractionMode(window.innerWidth),
   );
   const isReadOnly = interactionMode === 'readOnly';
+  const buildingLevelContexts = getBuildingLevelContexts(scene);
   const canvasCells = getCanvasCellContexts(scene);
   const targetCoordinate = hoveredCoordinate ?? focusedCoordinate;
   const selectedContext = getSelectedCellContext(scene);
@@ -79,7 +81,7 @@ export function AppShell() {
       <PokemonSceneControls readOnly={isReadOnly} />
       <section className="workbench-grid" aria-label="Open Design editing workbench">
         <div className="workbench-left">
-          <BuildingLevelPanel />
+          <BuildingLevelPanel levels={buildingLevelContexts} readOnly={isReadOnly} />
           <PreviewInspector />
         </div>
         <section className="canvas-stage" aria-label="7x7 scene canvas workspace">

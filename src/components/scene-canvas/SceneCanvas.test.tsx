@@ -64,6 +64,43 @@ describe('SceneCanvas', () => {
     expect(cells.every((cell) => !cell.hasAttribute('aria-disabled'))).toBe(true);
   });
 
+  it('marks cells as non-editable when the current layer is hidden or locked', () => {
+    const hiddenScene = {
+      ...scene,
+      buildingLevels: scene.buildingLevels.map((level) =>
+        level.id === scene.workspaceState.currentBuildingLevelId ? { ...level, visible: false } : level,
+      ),
+    };
+    const lockedScene = {
+      ...scene,
+      buildingLevels: scene.buildingLevels.map((level) =>
+        level.id === scene.workspaceState.currentBuildingLevelId ? { ...level, locked: true } : level,
+      ),
+    };
+
+    const { rerender } = render(
+      <SceneCanvas
+        {...defaultProps}
+        cells={getCanvasCellContexts(hiddenScene)}
+        readOnly={false}
+      />,
+    );
+
+    expect(screen.getByLabelText('Cell 0,0, outer area, level-0, hidden layer')).toBeVisible();
+    expect(screen.getAllByTestId('scene-cell').every((cell) => cell.dataset.editable === 'false')).toBe(true);
+
+    rerender(
+      <SceneCanvas
+        {...defaultProps}
+        cells={getCanvasCellContexts(lockedScene)}
+        readOnly={false}
+      />,
+    );
+
+    expect(screen.getByLabelText('Cell 0,0, outer area, level-0, locked layer')).toBeVisible();
+    expect(screen.getAllByTestId('scene-cell').every((cell) => cell.dataset.editable === 'false')).toBe(true);
+  });
+
   it('emits plain grid coordinates at the UI boundary', () => {
     const onSelectCoordinate = vi.fn();
     render(

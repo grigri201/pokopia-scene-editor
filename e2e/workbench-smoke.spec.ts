@@ -9,6 +9,13 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByRole('complementary', { name: 'Building level panel' })).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Preview inspector' })).toBeVisible();
+  await expect(page.getByLabel('Current building level')).toHaveText('Current L0');
+  await expect(page.getByTestId('building-level-row')).toHaveCount(3);
+  await expect(page.getByTestId('building-level-row').nth(0)).toHaveAttribute('data-display-id', 'L2');
+  await expect(page.getByTestId('building-level-row').nth(1)).toHaveAttribute('data-display-id', 'L1');
+  await expect(page.getByTestId('building-level-row').nth(2)).toHaveAttribute('data-display-id', 'L0');
+  await expect(page.getByTestId('building-level-row').nth(2)).toHaveAttribute('data-current', 'true');
+  await expect(page.getByLabel('L0, 0 层, 0 instances, visible, unlocked, current editing layer')).toBeVisible();
   await expect(page.getByTestId('scene-cell')).toHaveCount(49);
   await expect(page.getByLabel('Cell 0,0, outer area, level-0, placeable')).toBeVisible();
   await expect(page.getByLabel('Cell 1,1, main area, level-0, placeable')).toBeVisible();
@@ -98,6 +105,23 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('Save status')).toHaveText('Read-only');
   await expect(page.getByLabel('Current Pokemon')).toBeDisabled();
   await expect(page.getByLabel('Scene Name')).toHaveAttribute('readonly', '');
+  await expect(page.getByLabel('Current building level')).toHaveText('Current L0');
+  await expect(page.getByTestId('building-level-row')).toHaveCount(3);
+  await expect(page.getByLabel('L2, 2 层, 0 instances, visible, unlocked')).toBeVisible();
+  await expect(page.getByLabel('L0, 0 层, 0 instances, visible, unlocked, current editing layer')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(
+    true,
+  );
+  expect(
+    await page.getByTestId('building-level-row').evaluateAll((rows) =>
+      rows.every((row) => row.scrollWidth <= row.clientWidth),
+    ),
+  ).toBe(true);
+  expect(
+    await page.locator('.level-actions button').evaluateAll((buttons) =>
+      buttons.every((button) => button.scrollWidth <= button.clientWidth),
+    ),
+  ).toBe(true);
   await expect(page.getByRole('button', { name: 'Wooden Floor' })).toBeDisabled();
   await expect(page.getByTestId('scene-cell')).toHaveCount(49);
   await expect(page.getByLabel('Cell 0,0, outer area, level-0, read-only')).toBeVisible();
