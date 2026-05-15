@@ -10,8 +10,8 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Preview inspector' })).toBeVisible();
   await expect(page.getByTestId('scene-cell')).toHaveCount(49);
-  await expect(page.getByLabel('Cell 0,0, outer area, layer 0, placeable')).toBeVisible();
-  await expect(page.getByLabel('Cell 1,1, main area, layer 0, placeable')).toBeVisible();
+  await expect(page.getByLabel('Cell 0,0, outer area, level-0, placeable')).toBeVisible();
+  await expect(page.getByLabel('Cell 1,1, main area, level-0, placeable')).toBeVisible();
   await expect(page.locator('[data-area="main"]')).toHaveCount(25);
   await expect(page.locator('[data-area="outer"]')).toHaveCount(24);
   await expect(page.locator('[data-main-boundary="true"]')).toHaveCount(16);
@@ -60,6 +60,34 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
   ).toBe(true);
+
+  await page.locator('[data-coordinate="2,3"]').click();
+  await expect(page.locator('[data-coordinate="2,3"]')).toHaveAttribute('data-selected', 'true');
+  await expect(page.getByLabel('Selected coordinate')).toHaveText('2,3');
+  await expect(page.getByLabel('Selected area')).toHaveText('main');
+  await expect(page.getByLabel('Selected layer')).toHaveText('0 层');
+  await expect(page.getByLabel('Selected occupancy')).toHaveText('Empty cell');
+
+  await page.locator('[data-coordinate="0,0"]').hover();
+  await expect(page.getByLabel('Target coordinate')).toHaveText('0,0');
+  await expect(page.getByLabel('Target area')).toHaveText('outer');
+  await expect(page.getByLabel('Target placeable')).toHaveText('Placeable');
+
+  await page.locator('[data-coordinate="4,4"]').focus();
+  await page.mouse.move(10, 10);
+  await expect(page.getByLabel('Target coordinate')).toHaveText('4,4');
+
+  await page.evaluate(() => performance.clearMeasures('scene-selection-duration'));
+  await page.locator('[data-coordinate="2,3"]').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByLabel('Selected coordinate')).toHaveText('3,3');
+  await expect(page.locator('[data-coordinate="3,3"]')).toBeFocused();
+  await page.waitForFunction(() => performance.getEntriesByName('scene-selection-duration').length > 0);
+  const selectionDuration = await page.evaluate(() => {
+    const entries = performance.getEntriesByName('scene-selection-duration');
+    return entries.at(-1)?.duration ?? Number.POSITIVE_INFINITY;
+  });
+  expect(selectionDuration).toBeLessThanOrEqual(100);
 });
 
 test('switches scaffold controls to read-only below the mobile breakpoint', async ({ page }) => {
@@ -72,7 +100,7 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('Scene Name')).toHaveAttribute('readonly', '');
   await expect(page.getByRole('button', { name: 'Wooden Floor' })).toBeDisabled();
   await expect(page.getByTestId('scene-cell')).toHaveCount(49);
-  await expect(page.getByLabel('Cell 0,0, outer area, layer 0, read-only')).toBeVisible();
+  await expect(page.getByLabel('Cell 0,0, outer area, level-0, read-only')).toBeVisible();
   await expect(page.locator('[data-placeable="true"]')).toHaveCount(49);
   await expect(page.locator('[data-editable="false"]')).toHaveCount(49);
 });

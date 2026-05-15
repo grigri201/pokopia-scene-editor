@@ -176,7 +176,7 @@ button:disabled {
 
 .canvas-stage {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
   min-width: 0;
   padding: 16px;
 }
@@ -238,6 +238,29 @@ button:disabled {
   outline-offset: -4px;
 }
 
+.scene-cell--selected {
+  outline: 3px solid var(--color-selected-cell);
+  outline-offset: -5px;
+}
+
+.scene-cell--selected::after {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--color-selected-cell);
+  content: "";
+}
+
+.scene-cell--targeted:not(.scene-cell--selected) {
+  box-shadow:
+    inset 0 0 0 2px rgba(37, 111, 104, 0.55),
+    0 0 0 2px rgba(37, 111, 104, 0.1);
+}
+
 .cell-coordinate {
   font-size: clamp(10px, 1.4vw, 13px);
   font-weight: 800;
@@ -260,6 +283,55 @@ button:disabled {
   font-size: 9px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.cell-selected-cue {
+  position: absolute;
+  left: 4px;
+  top: 3px;
+  color: var(--color-selected-cell);
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.selection-inspector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.selection-card {
+  display: grid;
+  grid-template-columns: auto auto auto auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fffefb;
+  color: var(--ink);
+  overflow: hidden;
+}
+
+.selection-card span {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.selection-card strong {
+  font-size: 16px;
+}
+
+.selection-card em {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-style: normal;
+  white-space: nowrap;
 }
 
 @media (max-width: 420px) {

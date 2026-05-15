@@ -1,5 +1,5 @@
 # generated: 2026-05-16T06:01:02+0800
-# last_updated: 2026-05-16T06:01:02+0800
+# last_updated: 2026-05-16T07:10:00+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -34,7 +34,7 @@
 # - Dev moves story to 'review', then code-review triages findings before done.
 
 generated: 2026-05-16T06:01:02+0800
-last_updated: 2026-05-16T06:52:00+0800
+last_updated: 2026-05-16T07:10:00+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -45,7 +45,7 @@ development_status:
   1-1-vite-react-typescript-starter: done
   1-2-scene-canvas-domain-model: done
   1-3-fixed-seven-by-seven-canvas: done
-  1-4-grid-selection-context: backlog
+  1-4-grid-selection-context: done
   1-5-building-layer-context: backlog
   1-6-mobile-readonly-boundary: backlog
   1-7-pokemon-scene-controls-theme: backlog

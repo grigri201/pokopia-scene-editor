@@ -1,16 +1,42 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { AssetPicker } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
 import { PokemonSceneControls } from '../pokemon-scene-controls/PokemonSceneControls';
 import { PreviewInspector } from '../preview-inspector/PreviewInspector';
 import { SceneCanvas } from '../scene-canvas/SceneCanvas';
-import { getInteractionMode, type InteractionMode } from '../../state';
+import { SelectionInspector } from '../selection-inspector/SelectionInspector';
+import {
+  createDefaultSceneDocument,
+  getCanvasCellContexts,
+  getCellContext,
+  getSelectedCellContext,
+  type GridCoordinate,
+} from '../../domain/scene';
+import { getInteractionMode, sceneReducer, type InteractionMode } from '../../state';
 
 export function AppShell() {
+  const [scene, dispatch] = useReducer(
+    sceneReducer,
+    undefined,
+    () =>
+      createDefaultSceneDocument({
+        sceneId: 'scene-default',
+        now: '2026-05-16T07:00:00.000Z',
+      }),
+  );
+  const pendingSelectionMeasureRef = useRef<string | null>(null);
+  const selectionMeasureCounterRef = useRef(0);
+  const [hoveredCoordinate, setHoveredCoordinate] = useState<GridCoordinate | null>(null);
+  const [focusedCoordinate, setFocusedCoordinate] = useState<GridCoordinate | null>(null);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(() =>
     getInteractionMode(window.innerWidth),
   );
   const isReadOnly = interactionMode === 'readOnly';
+  const canvasCells = getCanvasCellContexts(scene);
+  const targetCoordinate = hoveredCoordinate ?? focusedCoordinate;
+  const selectedContext = getSelectedCellContext(scene);
+  const targetContext = targetCoordinate ? getCellContext(scene, targetCoordinate) : null;
+  const selectedCoordinate = scene.workspaceState.selectedCoordinate;
 
   useEffect(() => {
     const updateInteractionMode = () => {
@@ -20,6 +46,33 @@ export function AppShell() {
     window.addEventListener('resize', updateInteractionMode);
     return () => window.removeEventListener('resize', updateInteractionMode);
   }, []);
+
+  useEffect(() => {
+    const measureId = pendingSelectionMeasureRef.current;
+
+    if (!measureId || !selectedCoordinate) {
+      return;
+    }
+
+    pendingSelectionMeasureRef.current = null;
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => markSelectionVisible(measureId));
+    });
+
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      if (secondFrame) {
+        cancelAnimationFrame(secondFrame);
+      }
+    };
+  }, [selectedCoordinate?.x, selectedCoordinate?.y]);
+
+  const selectCoordinate = (coordinate: GridCoordinate) => {
+    pendingSelectionMeasureRef.current = markSelectionStart(selectionMeasureCounterRef.current);
+    selectionMeasureCounterRef.current += 1;
+    dispatch({ type: 'select-coordinate', coordinate });
+  };
 
   return (
     <main className="app-shell" aria-label="Pokopia scene editor workbench">
@@ -39,10 +92,44 @@ export function AppShell() {
               {isReadOnly ? 'Mobile read-only mode' : 'Desktop edit mode'}
             </span>
           </div>
-          <SceneCanvas readOnly={isReadOnly} />
+          <SelectionInspector selectedContext={selectedContext} targetContext={targetContext} />
+          <SceneCanvas
+            canvasSize={scene.canvasSize}
+            cells={canvasCells}
+            readOnly={isReadOnly}
+            selectedCoordinate={selectedCoordinate}
+            targetCoordinate={targetCoordinate}
+            onSelectCoordinate={selectCoordinate}
+            onHoverCoordinate={setHoveredCoordinate}
+            onFocusCoordinate={setFocusedCoordinate}
+          />
         </section>
         <AssetPicker readOnly={isReadOnly} />
       </section>
     </main>
   );
+}
+
+function markSelectionStart(counter: number): string {
+  const measureId = `scene-selection-${counter}`;
+  performance.mark(`${measureId}-start`);
+
+  return measureId;
+}
+
+function markSelectionVisible(measureId: string): void {
+  const startMark = `${measureId}-start`;
+  const visibleMark = `${measureId}-visible`;
+
+  if (performance.getEntriesByName(startMark, 'mark').length === 0) {
+    return;
+  }
+
+  performance.mark(visibleMark);
+  performance.clearMeasures('scene-selection-duration');
+  performance.clearMeasures(`${measureId}-duration`);
+  performance.measure(`${measureId}-duration`, startMark, visibleMark);
+  performance.measure('scene-selection-duration', startMark, visibleMark);
+  performance.clearMarks(startMark);
+  performance.clearMarks(visibleMark);
 }
