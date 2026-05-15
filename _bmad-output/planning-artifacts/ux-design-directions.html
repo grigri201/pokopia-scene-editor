@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>pokopia-scene-editor · UX Design Directions</title>
+  <style>
+    :root {
+      --paper: #f5efe2;
+      --paper-soft: #fbf7ee;
+      --ink: #1c1a17;
+      --muted: #6f665d;
+      --line: rgba(28, 26, 23, .18);
+      --line-strong: rgba(28, 26, 23, .36);
+      --field: #e9b5c2;
+      --field-ink: #1c1a17;
+      --accent: #bb5a70;
+      --main-area: #fff8ea;
+      --outer-area: #e4d8c4;
+      --skill: #4d6fbb;
+      --error: #9b3b2d;
+      --shadow: 0 24px 64px rgba(32, 25, 18, .18);
+      --font-display: Georgia, "Times New Roman", serif;
+      --font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(rgba(255,255,255,.18), rgba(255,255,255,.18)), var(--field);
+      color: var(--field-ink);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.45;
+    }
+    body::before {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      content: "";
+      background-image:
+        linear-gradient(rgba(255,255,255,.18) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.12) 1px, transparent 1px),
+        radial-gradient(rgba(28,26,23,.10) 1px, transparent 1px);
+      background-size: 44px 44px, 44px 44px, 18px 18px;
+      background-position: 0 0, 0 0, 7px 9px;
+      mix-blend-mode: soft-light;
+      opacity: .54;
+    }
+    button, input, select, textarea { font: inherit; }
+    button { color: inherit; cursor: pointer; }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2, h3 { font-family: var(--font-display); font-weight: 500; line-height: 1.05; }
+    .mono {
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+    .shell { min-height: 100vh; padding: 22px; }
+    .showcase-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: end;
+      max-width: 1480px;
+      margin: 0 auto 18px;
+      padding: 18px 20px;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      background: rgba(245,239,226,.86);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+    .showcase-head h1 { font-size: clamp(2.2rem, 5vw, 5rem); max-width: 10ch; }
+    .showcase-head p { max-width: 62ch; color: var(--muted); }
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+      max-width: 700px;
+    }
+    .tab {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.36);
+      padding: 5px 10px;
+    }
+    .tab.is-active {
+      border-color: var(--ink);
+      background: var(--ink);
+      color: var(--paper);
+    }
+    .directions {
+      display: grid;
+      gap: 22px;
+      max-width: 1480px;
+      margin: 0 auto;
+    }
+    .direction {
+      display: none;
+      min-height: 760px;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+    .direction.is-active { display: grid; }
+    .direction-meta {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: end;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+      background: var(--paper-soft);
+    }
+    .direction-meta h2 { font-size: clamp(1.7rem, 3vw, 3rem); }
+    .direction-meta p { color: var(--muted); max-width: 72ch; }
+    .score-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(90px, 1fr));
+      gap: 8px;
+      min-width: 480px;
+    }
+    .score {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px;
+      background: rgba(255,255,255,.42);
+    }
+    .score strong { display: block; font-family: var(--font-display); font-size: 1.35rem; line-height: 1; }
+    .workbench {
+      display: grid;
+      min-height: 690px;
+      color: var(--ink);
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 58px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(251,247,238,.88);
+      padding: 10px 14px;
+      backdrop-filter: blur(16px);
+    }
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      min-width: 0;
+    }
+    .brand strong { font-family: var(--font-display); font-size: 1.24rem; white-space: nowrap; }
+    .brand span { color: var(--muted); white-space: nowrap; }
+    .tool-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+    .tool {
+      display: inline-grid;
+      place-items: center;
+      min-width: 36px;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(255,255,255,.36);
+      padding: 0 9px;
+    }
+    .tool.is-on { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+    .panel {
+      min-width: 0;
+      background: rgba(245,239,226,.88);
+      backdrop-filter: blur(18px);
+    }
+    .panel-head, .panel-section {
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .panel-head h3, .panel-section h3 { font-size: 1.25rem; }
+    .search {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      min-height: 38px;
+      border: 1px solid var(--line-strong);
+      background: rgba(255,255,255,.42);
+    }
+    .search input { min-width: 0; border: 0; background: transparent; padding: 8px 10px; outline: 0; }
+    .search span { padding: 9px 10px; color: var(--muted); }
+    .filter-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .filter-grid button {
+      min-height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: transparent;
+    }
+    .filter-grid button.is-on { background: var(--ink); color: var(--paper); }
+    .asset-list, .level-list, .field-list { display: grid; gap: 8px; padding: 12px 14px; }
+    .asset {
+      display: grid;
+      grid-template-columns: 42px minmax(0,1fr) auto;
+      gap: 9px;
+      align-items: center;
+      min-height: 58px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(255,255,255,.34);
+      padding: 7px;
+    }
+    .asset.is-active { box-shadow: inset 4px 0 0 var(--accent); }
+    .asset-thumb {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border: 1px dotted var(--line-strong);
+      border-radius: 6px;
+      background: rgba(255,255,255,.34);
+      font-family: var(--font-display);
+      font-size: 1.2rem;
+    }
+    .asset strong, .asset span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .asset span, .field span, .level span { color: var(--muted); font-size: .78rem; }
+    .canvas-stage {
+      min-width: 0;
+      background:
+        linear-gradient(rgba(255,255,255,.16), rgba(255,255,255,.16)),
+        var(--field);
+      color: var(--field-ink);
+      padding: 18px;
+    }
+    .pokemon-chip {
+      display: grid;
+      grid-template-columns: 56px 1fr auto;
+      align-items: center;
+      gap: 12px;
+      max-width: 420px;
+      min-height: 72px;
+      border: 1px solid currentColor;
+      border-radius: 8px;
+      background: rgba(255,255,255,.22);
+      padding: 8px 10px;
+    }
+    .portrait {
+      display: grid;
+      place-items: center;
+      width: 56px;
+      height: 56px;
+      border: 1px dotted currentColor;
+      border-radius: 6px;
+      font-family: var(--font-display);
+      font-size: 1.6rem;
+    }
+    .pokemon-chip h3 { font-size: 1.25rem; }
+    .layout-note {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .canvas-wrap {
+      display: grid;
+      place-items: center;
+      min-height: 520px;
+    }
+    .scene-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(42px, 68px));
+      grid-auto-rows: minmax(42px, 68px);
+      gap: 5px;
+      padding: 12px;
+      border: 1px solid currentColor;
+      border-radius: 8px;
+      background: rgba(255,255,255,.18);
+      box-shadow: 0 20px 54px rgba(20,15,10,.22);
+    }
+    .cell {
+      position: relative;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(28,26,23,.20);
+      border-radius: 5px;
+      background: var(--outer-area);
+      min-width: 0;
+      font-family: var(--font-mono);
+      font-size: .68rem;
+    }
+    .cell.main { background: var(--main-area); }
+    .cell.main.boundary { box-shadow: inset 0 0 0 2px rgba(28,26,23,.46); }
+    .cell.selected { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .cell.hover { border-style: dashed; background: color-mix(in oklch, var(--main-area) 66%, var(--accent)); }
+    .cell.skill::after {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 11px;
+      height: 11px;
+      border: 2px solid var(--paper);
+      border-radius: 50%;
+      background: var(--skill);
+      content: "";
+    }
+    .cell.locked { opacity: .42; }
+    .inspector {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      border-left: 1px solid var(--line);
+      background: rgba(245,239,226,.92);
+    }
+    .field {
+      display: grid;
+      grid-template-columns: 112px minmax(0, 1fr);
+      gap: 8px;
+      align-items: baseline;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 8px;
+    }
+    .field strong { overflow-wrap: anywhere; }
+    .level {
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr) auto auto;
+      gap: 8px;
+      align-items: center;
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px;
+      background: rgba(255,255,255,.32);
+    }
+    .level.is-active { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+      background: rgba(255,255,255,.30);
+    }
+    .status-strip div { padding: 9px; border-right: 1px solid var(--line); }
+    .status-strip div:last-child { border-right: 0; }
+    .mini-preview {
+      display: grid;
+      gap: 7px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      background: rgba(255,255,255,.28);
+    }
+    .front-steps { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; align-items: end; height: 96px; }
+    .bar { background: var(--accent); border-radius: 4px 4px 0 0; opacity: .72; }
+    .dir-a .workbench { grid-template-rows: auto 1fr; }
+    .dir-a .main-layout { display: grid; grid-template-columns: 320px minmax(0,1fr) 360px; min-height: 632px; }
+    .dir-b .workbench { grid-template-columns: 74px 310px minmax(0,1fr) 360px; }
+    .rail-tools { display: grid; align-content: start; gap: 10px; padding: 12px; border-right: 1px solid var(--line); background: var(--paper-soft); }
+    .rail-tools .tool { width: 48px; height: 48px; }
+    .dir-c .workbench { grid-template-rows: auto 1fr; }
+    .dir-c .main-layout { display: grid; grid-template-columns: minmax(0,1.05fr) minmax(420px,.95fr); min-height: 632px; }
+    .dir-c .split-preview { display: grid; grid-template-rows: 1fr 1fr; border-left: 1px solid var(--line); }
+    .dir-d .workbench { grid-template-rows: auto 1fr auto; }
+    .dir-d .main-layout { display: grid; grid-template-columns: 360px minmax(0,1fr) 320px; min-height: 554px; }
+    .dir-d .timeline { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 12px; border-top: 1px solid var(--line); background: var(--paper-soft); }
+    .dir-e .workbench { grid-template-rows: auto 1fr; }
+    .dir-e .main-layout { display: grid; grid-template-columns: 330px minmax(0,1fr) 330px; min-height: 632px; }
+    .palette-stack { display: grid; gap: 8px; padding: 14px; }
+    .swatch { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; gap: 8px; align-items: center; }
+    .swatch-chip { width: 38px; height: 24px; border: 1px solid var(--line); border-radius: 5px; background: var(--accent); }
+    .dir-f .workbench { grid-template-rows: auto 1fr; }
+    .dir-f .main-layout { display: grid; grid-template-columns: minmax(0,1fr) 460px; min-height: 632px; }
+    .data-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 14px; }
+    .data-tile { border: 1px solid var(--line); border-radius: 6px; background: rgba(255,255,255,.30); padding: 10px; min-height: 82px; }
+    @media (max-width: 1080px) {
+      .showcase-head, .direction-meta { grid-template-columns: 1fr; }
+      .score-row { min-width: 0; grid-template-columns: repeat(2, 1fr); }
+      .dir-a .main-layout,
+      .dir-b .workbench,
+      .dir-c .main-layout,
+      .dir-d .main-layout,
+      .dir-e .main-layout,
+      .dir-f .main-layout {
+        grid-template-columns: 1fr;
+      }
+      .rail-tools { grid-template-columns: repeat(6, 1fr); border-right: 0; border-bottom: 1px solid var(--line); }
+      .inspector, .dir-c .split-preview { border-left: 0; border-top: 1px solid var(--line); }
+      .scene-grid { grid-template-columns: repeat(7, minmax(32px, 1fr)); grid-auto-rows: minmax(32px, 1fr); width: min(100%, 560px); aspect-ratio: 1; }
+    }
+    @media (max-width: 640px) {
+      .shell { padding: 12px; }
+      .score-row, .status-strip, .data-grid { grid-template-columns: 1fr; }
+      .showcase-head { padding: 14px; }
+      .direction-meta { padding: 14px; }
+      .canvas-stage { padding: 12px; }
+      .tool-row { justify-content: flex-start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="showcase-head">
+      <div>
+        <p class="mono">Open Design Showcase · Step 9</p>
+        <h1>设计方向</h1>
+        <p>六个方向都基于 Pokopia Decor Dex 的动态宝可梦主题背景、Whimsical 式工作台布局，以及固定 7×7 多建筑层布景编辑规则。</p>
+      </div>
+      <nav class="tabs" aria-label="Design directions">
+        <button class="tab is-active" type="button" data-direction="a">A Decor Dex Workbench</button>
+        <button class="tab" type="button" data-direction="b">B Compact Tool Rail</button>
+        <button class="tab" type="button" data-direction="c">C Preview Split</button>
+        <button class="tab" type="button" data-direction="d">D Layer Ledger</button>
+        <button class="tab" type="button" data-direction="e">E Palette Studio</button>
+        <button class="tab" type="button" data-direction="f">F Data Inspector</button>
+      </nav>
+    </header>
+
+    <div class="directions">
+      <section class="direction dir-a is-active" data-od-id="direction-a" data-direction-panel="a">
+        <header class="direction-meta">
+          <div>
+            <p class="mono">Direction A · Recommended baseline</p>
+            <h2>Decor Dex Workbench</h2>
+            <p>最接近 Pokopia Decor Dex：左索引、中心舞台、右检查器。适合成为默认方向，因为它直接继承现有站点的视觉语言和三栏心智。</p>
+          </div>
+          <div class="score-row">
+            <div class="score"><strong>高</strong><span class="mono">Brand Fit</span></div>
+            <div class="score"><strong>高</strong><span class="mono">Canvas Focus</span></div>
+            <div class="score"><strong>中</strong><span class="mono">Density</span></div>
+            <div class="score"><strong>低</strong><span class="mono">Risk</span></div>
+          </div>
+        </header>
+        <div class="workbench">
+          <div class="topbar">
+            <div class="brand"><strong>Pokopia Scene Editor</strong><span class="mono">Ditto theme · unsaved</span></div>
+            <div class="tool-row">
+              <button class="tool">Save</button><button class="tool">Export</button><button class="tool">Undo</button><button class="tool">Redo</button><button class="tool is-on">Grid</button><button class="tool is-on">Skill</button>
+            </div>
+          </div>
+          <div class="main-layout">
+            <aside class="panel">
+              <div class="panel-head"><h3>素材</h3><div class="search"><input value="outer wall" aria-label="Search assets" /><span class="mono">024</span></div><div class="filter-grid"><button class="is-on">All</button><button>Outer</button><button>Skill</button></div></div>
+              <div class="asset-list">
+                <div class="asset is-active"><div class="asset-thumb">壁</div><div><strong>外立面墙体</strong><span>outer · rotatable</span></div><span class="mono">Skill</span></div>
+                <div class="asset"><div class="asset-thumb">屋</div><div><strong>屋檐边缘</strong><span>outer · level 2</span></div><span class="mono">No</span></div>
+                <div class="asset"><div class="asset-thumb">草</div><div><strong>草地地块</strong><span>main · ground</span></div><span class="mono">No</span></div>
+              </div>
+            </aside>
+            <section class="canvas-stage">
+              <div class="layout-note">
+                <div class="pokemon-chip"><div class="portrait">D</div><div><h3>Ditto Scene</h3><span class="mono">7×7 canvas · level 1</span></div><span class="mono">#E9B5C2</span></div>
+                <div class="status-strip"><div><span class="mono">Asset</span><strong>外立面墙体</strong></div><div><span class="mono">Cell</span><strong>x0 y3 · outer</strong></div><div><span class="mono">Level</span><strong>1 / 主体建筑</strong></div></div>
+              </div>
+              <div class="canvas-wrap"><div class="scene-grid" aria-label="7 by 7 scene canvas">
+                <span class="cell">0,0</span><span class="cell">1,0</span><span class="cell">2,0</span><span class="cell skill">3,0</span><span class="cell">4,0</span><span class="cell">5,0</span><span class="cell">6,0</span>
+                <span class="cell">0,1</span><span class="cell main boundary">1,1</span><span class="cell main boundary">2,1</span><span class="cell main boundary">3,1</span><span class="cell main boundary">4,1</span><span class="cell main boundary">5,1</span><span class="cell">6,1</span>
+                <span class="cell hover">0,2</span><span class="cell main boundary">1,2</span><span class="cell main">2,2</span><span class="cell main">3,2</span><span class="cell main">4,2</span><span class="cell main boundary">5,2</span><span class="cell">6,2</span>
+                <span class="cell selected skill">0,3</span><span class="cell main boundary">1,3</span><span class="cell main">2,3</span><span class="cell main skill">3,3</span><span class="cell main">4,3</span><span class="cell main boundary">5,3</span><span class="cell">6,3</span>
+                <span class="cell">0,4</span><span class="cell main boundary">1,4</span><span class="cell main">2,4</span><span class="cell main locked">3,4</span><span class="cell main">4,4</span><span class="cell main boundary">5,4</span><span class="cell">6,4</span>
+                <span class="cell">0,5</span><span class="cell main boundary">1,5</span><span class="cell main boundary">2,5</span><span class="cell main boundary">3,5</span><span class="cell main boundary">4,5</span><span class="cell main boundary">5,5</span><span class="cell">6,5</span>
+                <span class="cell">0,6</span><span class="cell">1,6</span><span class="cell">2,6</span><span class="cell">3,6</span><span class="cell">4,6</span><span class="cell">5,6</span><span class="cell">6,6</span>
+              </div></div>
+            </section>
+            <aside class="inspector"><div class="panel-head"><p class="mono">Selected instance</p><h3>外立面墙体</h3></div><div class="field-list"><div class="field"><span>坐标</span><strong>x0 y3</strong></div><div class="field"><span>区域</span><strong>外围装饰区</strong></div><div class="field"><span>建筑层</span><strong>1 层 / 主体建筑</strong></div><div class="field"><span>百变怪技能</span><strong>需要 · ditto_transform</strong></div><div class="mini-preview"><span class="mono">Front preview</span><div class="front-steps"><span class="bar" style="height:35%"></span><span class="bar" style="height:62%"></span><span class="bar" style="height:48%"></span><span class="bar" style="height:84%"></span><span class="bar" style="height:50%"></span><span class="bar" style="height:58%"></span><span class="bar" style="height:30%"></span></div></div></div></aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="direction dir-b" data-od-id="direction-b" data-direction-panel="b">
+        <header class="direction-meta">
+          <div><p class="mono">Direction B · Fast editing</p><h2>Compact Tool Rail</h2><p>把 Whimsical 的纵向工具栏转化为编辑器工具轨：左侧窄工具、第二列素材，适合高频切换放置/擦除/旋转/技能模式。</p></div>
+          <div class="score-row"><div class="score"><strong>中</strong><span class="mono">Brand Fit</span></div><div class="score"><strong>高</strong><span class="mono">Speed</span></div><div class="score"><strong>高</strong><span class="mono">Density</span></div><div class="score"><strong>中</strong><span class="mono">Risk</span></div></div>
+        </header>
+        <div class="workbench">
+          <aside class="rail-tools"><button class="tool is-on">Place</button><button class="tool">Erase</button><button class="tool">Move</button><button class="tool">Turn</button><button class="tool">Skill</button><button class="tool">View</button></aside>
+          <aside class="panel"><div class="panel-head"><h3>放置工具</h3><div class="search"><input value="roof" aria-label="Search assets" /><span class="mono">011</span></div></div><div class="asset-list"><div class="asset is-active"><div class="asset-thumb">屋</div><div><strong>斜屋顶</strong><span>level 2 · rotatable</span></div><span class="mono">2F</span></div><div class="asset"><div class="asset-thumb">栏</div><div><strong>木栅栏</strong><span>outer · stackable</span></div><span class="mono">Out</span></div></div></aside>
+          <section class="canvas-stage"><div class="layout-note"><div class="pokemon-chip"><div class="portrait">P</div><div><h3>Pikachu Yard</h3><span class="mono">active tool · place</span></div><span class="mono">#F2CF54</span></div><div class="status-strip"><div><span class="mono">Mode</span><strong>Place</strong></div><div><span class="mono">Ghost</span><strong>valid</strong></div><div><span class="mono">Layer</span><strong>2 层</strong></div></div></div><div class="canvas-wrap"><div class="scene-grid"><span class="cell"></span><span class="cell skill"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main hover"></span><span class="cell main"></span><span class="cell main"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main"></span><span class="cell main selected skill"></span><span class="cell main"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main"></span><span class="cell main"></span><span class="cell main locked"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell skill"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span></div></div></section>
+          <aside class="inspector"><div class="panel-head"><p class="mono">Context</p><h3>快捷确认</h3></div><div class="field-list"><div class="field"><span>即将放置</span><strong>斜屋顶</strong></div><div class="field"><span>目标</span><strong>x3 y3 · 主体区</strong></div><div class="field"><span>覆盖风险</span><strong>无</strong></div><div class="field"><span>快捷键</span><strong>R 旋转 · S 技能</strong></div></div></aside>
+        </div>
+      </section>
+
+      <section class="direction dir-c" data-od-id="direction-c" data-direction-panel="c">
+        <header class="direction-meta">
+          <div><p class="mono">Direction C · Preview confidence</p><h2>Preview Split</h2><p>将预览放到与画布等权的位置，适合强调“俯视图 + 正视图校验”。代价是素材与属性空间被压缩。</p></div>
+          <div class="score-row"><div class="score"><strong>高</strong><span class="mono">Preview</span></div><div class="score"><strong>中</strong><span class="mono">Editing Speed</span></div><div class="score"><strong>中</strong><span class="mono">Density</span></div><div class="score"><strong>中</strong><span class="mono">Risk</span></div></div>
+        </header>
+        <div class="workbench">
+          <div class="topbar"><div class="brand"><strong>Preview Split</strong><span class="mono">top + front always visible</span></div><div class="tool-row"><button class="tool">Asset</button><button class="tool is-on">Top</button><button class="tool is-on">Front</button><button class="tool">Export</button></div></div>
+          <div class="main-layout">
+            <section class="canvas-stage"><div class="layout-note"><div class="pokemon-chip"><div class="portrait">S</div><div><h3>Squirtle Terrace</h3><span class="mono">water palette background</span></div><span class="mono">#7094A3</span></div></div><div class="canvas-wrap"><div class="scene-grid"><span class="cell"></span><span class="cell"></span><span class="cell skill"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main"></span><span class="cell main selected"></span><span class="cell main skill"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell hover"></span><span class="cell main boundary"></span><span class="cell main"></span><span class="cell main"></span><span class="cell main"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main locked"></span><span class="cell main"></span><span class="cell main"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell skill"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span></div></div></section>
+            <aside class="split-preview"><div class="panel-section"><p class="mono">Top preview</p><h3>完整 7×7 复核</h3><div class="status-strip" style="margin-top:12px"><div><span class="mono">Grid</span><strong>On</strong></div><div><span class="mono">Boundary</span><strong>On</strong></div><div><span class="mono">Skill</span><strong>On</strong></div></div></div><div class="panel-section"><p class="mono">Front preview</p><h3>高度关系</h3><div class="front-steps" style="margin-top:12px"><span class="bar" style="height:22%"></span><span class="bar" style="height:44%"></span><span class="bar" style="height:70%"></span><span class="bar" style="height:88%"></span><span class="bar" style="height:64%"></span><span class="bar" style="height:38%"></span><span class="bar" style="height:26%"></span></div></div></aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="direction dir-d" data-od-id="direction-d" data-direction-panel="d">
+        <header class="direction-meta">
+          <div><p class="mono">Direction D · Layer clarity</p><h2>Layer Ledger</h2><p>把建筑层放在底部时间线，强化“从 0 层到 n 层”的搭建记录。适合复杂层级，但初学者可能觉得更像工程工具。</p></div>
+          <div class="score-row"><div class="score"><strong>高</strong><span class="mono">Layer Clarity</span></div><div class="score"><strong>中</strong><span class="mono">Brand Fit</span></div><div class="score"><strong>高</strong><span class="mono">Auditability</span></div><div class="score"><strong>中</strong><span class="mono">Risk</span></div></div>
+        </header>
+        <div class="workbench">
+          <div class="topbar"><div class="brand"><strong>Layer Ledger</strong><span class="mono">selected coordinate x3 y3</span></div><div class="tool-row"><button class="tool">Save</button><button class="tool">JSON</button><button class="tool is-on">All levels</button></div></div>
+          <div class="main-layout"><aside class="panel"><div class="panel-head"><h3>坐标堆叠</h3></div><div class="field-list"><div class="field"><span>0 层</span><strong>草地地块</strong></div><div class="field"><span>1 层</span><strong>木桌</strong></div><div class="field"><span>2 层</span><strong>屋顶遮挡</strong></div></div></aside><section class="canvas-stage"><div class="canvas-wrap"><div class="scene-grid"><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell skill"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main locked"></span><span class="cell main"></span><span class="cell main"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main"></span><span class="cell main selected skill"></span><span class="cell main"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main"></span><span class="cell main"></span><span class="cell main hover"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell skill"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span></div></div></section><aside class="inspector"><div class="panel-head"><h3>实例属性</h3></div><div class="field-list"><div class="field"><span>素材 ID</span><strong>asset_roof_001</strong></div><div class="field"><span>层号</span><strong>2</strong></div><div class="field"><span>状态</span><strong>visible · unlocked</strong></div></div></aside></div>
+          <div class="timeline"><div class="level"><strong>0</strong><span>地面基础</span><span class="mono">49</span><span>show</span></div><div class="level is-active"><strong>1</strong><span>主体建筑</span><span class="mono">18</span><span>edit</span></div><div class="level"><strong>2</strong><span>屋顶遮挡</span><span class="mono">9</span><span>show</span></div><div class="level"><strong>3</strong><span>外立面</span><span class="mono">7</span><span>lock</span></div><div class="level"><strong>+</strong><span>新建建筑层</span><span class="mono">next</span><span></span></div></div>
+        </div>
+      </section>
+
+      <section class="direction dir-e" data-od-id="direction-e" data-direction-panel="e">
+        <header class="direction-meta">
+          <div><p class="mono">Direction E · Dynamic theme</p><h2>Palette Studio</h2><p>最强调“背景色随选中宝可梦变化”。左侧加入宝可梦色板与主色状态，适合强化与 Decor Dex 的产品连续性。</p></div>
+          <div class="score-row"><div class="score"><strong>高</strong><span class="mono">Theme</span></div><div class="score"><strong>高</strong><span class="mono">Brand Fit</span></div><div class="score"><strong>中</strong><span class="mono">Canvas Focus</span></div><div class="score"><strong>中</strong><span class="mono">Risk</span></div></div>
+        </header>
+        <div class="workbench">
+          <div class="topbar"><div class="brand"><strong>Palette Studio</strong><span class="mono">background follows selected Pokemon</span></div><div class="tool-row"><button class="tool is-on">Ditto</button><button class="tool">Bulbasaur</button><button class="tool">Pikachu</button><button class="tool">Squirtle</button></div></div>
+          <div class="main-layout"><aside class="panel"><div class="panel-head"><h3>宝可梦主题</h3></div><div class="palette-stack"><div class="pokemon-chip"><div class="portrait">D</div><div><h3>Ditto</h3><span class="mono">dynamic theme</span></div><span class="mono">063</span></div><div class="swatch"><span class="swatch-chip"></span><strong>#E9B5C2</strong><span class="mono">primary</span></div><div class="swatch"><span class="swatch-chip" style="background:var(--paper)"></span><strong>paper</strong><span class="mono">surface</span></div><div class="swatch"><span class="swatch-chip" style="background:var(--skill)"></span><strong>skill</strong><span class="mono">semantic</span></div></div></aside><section class="canvas-stage"><div class="layout-note"><div class="status-strip"><div><span class="mono">Theme</span><strong>Ditto</strong></div><div><span class="mono">Ink</span><strong>dark</strong></div><div><span class="mono">Motion</span><strong>reduced safe</strong></div></div></div><div class="canvas-wrap"><div class="scene-grid"><span class="cell skill"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main"></span><span class="cell main selected"></span><span class="cell main"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main"></span><span class="cell main skill"></span><span class="cell main hover"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main"></span><span class="cell main"></span><span class="cell main"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell skill"></span><span class="cell"></span><span class="cell"></span></div></div></section><aside class="inspector"><div class="panel-head"><h3>主题约束</h3></div><div class="field-list"><div class="field"><span>背景主色</span><strong>来自宝可梦主色</strong></div><div class="field"><span>语义状态</span><strong>不被主题覆盖</strong></div><div class="field"><span>Fallback</span><strong>Ditto / neutral paper</strong></div></div></aside></div>
+        </div>
+      </section>
+
+      <section class="direction dir-f" data-od-id="direction-f" data-direction-panel="f">
+        <header class="direction-meta">
+          <div><p class="mono">Direction F · Data trust</p><h2>Data Inspector</h2><p>右侧强化 JSON 和字段一致性，适合排查导入/导出/复现问题。它最可信，但默认使用会显得偏工程化。</p></div>
+          <div class="score-row"><div class="score"><strong>高</strong><span class="mono">Trust</span></div><div class="score"><strong>中</strong><span class="mono">Brand Fit</span></div><div class="score"><strong>高</strong><span class="mono">Recovery</span></div><div class="score"><strong>中</strong><span class="mono">Risk</span></div></div>
+        </header>
+        <div class="workbench">
+          <div class="topbar"><div class="brand"><strong>Data Inspector</strong><span class="mono">roundtrip-ready scene state</span></div><div class="tool-row"><button class="tool">Validate</button><button class="tool is-on">No errors</button><button class="tool">Export JSON</button></div></div>
+          <div class="main-layout"><section class="canvas-stage"><div class="layout-note"><div class="pokemon-chip"><div class="portrait">B</div><div><h3>Bulbasaur Garden</h3><span class="mono">state source · scene.json</span></div><span class="mono">#72A56F</span></div></div><div class="canvas-wrap"><div class="scene-grid"><span class="cell"></span><span class="cell"></span><span class="cell skill"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main"></span><span class="cell main"></span><span class="cell main hover"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main selected skill"></span><span class="cell main"></span><span class="cell main"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main"></span><span class="cell main locked"></span><span class="cell main"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell main boundary"></span><span class="cell"></span><span class="cell"></span><span class="cell skill"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span></div></div></section><aside class="inspector"><div class="panel-head"><p class="mono">Scene state</p><h3>字段一致性</h3></div><div class="data-grid"><div class="data-tile"><span class="mono">canvasSize</span><h3>7×7</h3></div><div class="data-tile"><span class="mono">sceneSize</span><h3>5×5</h3></div><div class="data-tile"><span class="mono">levels</span><h3>3</h3></div><div class="data-tile"><span class="mono">skills</span><h3>4</h3></div></div><div class="field-list"><div class="field"><span>tileId</span><strong>tile_outer_wall_017</strong></div><div class="field"><span>field path</span><strong>buildingLevels[1].tiles[7]</strong></div><div class="field"><span>restore</span><strong>passed</strong></div><div class="field"><span>warning</span><strong>none</strong></div></div></aside></div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script>
+    const tabs = Array.from(document.querySelectorAll("[data-direction]"));
+    const panels = Array.from(document.querySelectorAll("[data-direction-panel]"));
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const target = tab.dataset.direction;
+        tabs.forEach((item) => item.classList.toggle("is-active", item === tab));
+        panels.forEach((panel) => panel.classList.toggle("is-active", panel.dataset.directionPanel === target));
+      });
+    });
+  </script>
+</body>
+</html>
