@@ -27,12 +27,20 @@ import {
   type InteractionMode,
   type SceneAction,
 } from '../../state';
+import {
+  readLatestSceneDocumentFromStorage,
+  savedSceneStorageKey,
+  serializeSceneDocument,
+  writeSceneDocumentToAllStorageSlots,
+  writeSceneDocumentToStorage,
+} from '../../io';
 import { getPokemonTheme, toPokemonThemeStyle } from '../../theme';
 
 export function AppShell() {
   const [scene, setScene] = useState(createInitialSceneDocument);
   const [undoStack, setUndoStack] = useState<SceneDocument[]>([]);
   const [redoStack, setRedoStack] = useState<SceneDocument[]>([]);
+  const autosaveReadyRef = useRef(false);
   const pendingSelectionMeasureRef = useRef<string | null>(null);
   const selectionMeasureCounterRef = useRef(0);
   const [readOnlySelectedCoordinate, setReadOnlySelectedCoordinate] = useState<GridCoordinate | null>(null);
@@ -129,6 +137,28 @@ export function AppShell() {
   }, [isReadOnly, scene.workspaceState.currentBuildingLevelId, scene.workspaceState.selectedCoordinate]);
 
   useEffect(() => {
+    if (isReadOnly || scene.workspaceState.saveStatus === 'saveError') {
+      return;
+    }
+
+    if (!autosaveReadyRef.current) {
+      autosaveReadyRef.current = true;
+      return;
+    }
+
+    const storage = getBrowserStorage();
+    if (!storage) {
+      return;
+    }
+
+    try {
+      writeSceneDocumentToStorage(storage, scene, 'autosave');
+    } catch {
+      // Autosave is best-effort; explicit Save reports storage failures in the UI.
+    }
+  }, [isReadOnly, scene]);
+
+  useEffect(() => {
     const measureId = pendingSelectionMeasureRef.current;
 
     if (!measureId || !selectedCoordinate) {
@@ -204,11 +234,44 @@ export function AppShell() {
   };
 
   const saveScene = () => {
-    dispatch({
+    if (isReadOnly) {
+      return;
+    }
+
+    const storage = getBrowserStorage();
+    const now = getCurrentIsoTimestamp();
+
+    if (!storage) {
+      dispatch({
+        type: 'save-scene',
+        interactionMode,
+        now,
+        result: 'failure',
+        errorMessage: 'Local storage unavailable.',
+      });
+      return;
+    }
+
+    const savedScene = sceneReducer(scene, {
       type: 'save-scene',
       interactionMode,
-      now: getCurrentIsoTimestamp(),
+      now,
     });
+
+    try {
+      writeSceneDocumentToAllStorageSlots(storage, savedScene);
+      setScene(savedScene);
+    } catch (error) {
+      setScene(
+        sceneReducer(scene, {
+          type: 'save-scene',
+          interactionMode,
+          now,
+          result: 'failure',
+          errorMessage: getStorageErrorMessage(error),
+        }),
+      );
+    }
   };
 
   const selectAsset = (assetId: string) => {
@@ -551,7 +614,7 @@ export function AppShell() {
 
     setUndoStack((pastScenes) => pastScenes.slice(0, -1));
     setRedoStack((futureScenes) => [scene, ...futureScenes.slice(0, 49)]);
-    setScene(previousScene);
+    setScene(reconcileHistorySceneSaveStatus(previousScene));
     setPlacementFeedback(null);
     setInstanceEditFeedback('Undo applied');
     setBuildingLayerFeedback(null);
@@ -569,7 +632,7 @@ export function AppShell() {
 
     setRedoStack((futureScenes) => futureScenes.slice(1));
     setUndoStack((pastScenes) => [...pastScenes.slice(-49), scene]);
-    setScene(nextScene);
+    setScene(reconcileHistorySceneSaveStatus(nextScene));
     setPlacementFeedback(null);
     setInstanceEditFeedback('Redo applied');
     setBuildingLayerFeedback(null);
@@ -712,18 +775,86 @@ function createInitialSceneDocument(): SceneDocument {
     sceneId: 'scene-default',
     now: '2026-05-16T07:00:00.000Z',
   });
+  const testWindow = window as unknown as { __pokopiaInitialSceneSnapshot?: SceneDocument };
 
-  if (!isLocalPreviewHost(window.location.hostname) || !navigator.webdriver) {
+  if (isLocalPreviewHost(window.location.hostname) && navigator.webdriver && testWindow.__pokopiaInitialSceneSnapshot) {
+    return testWindow.__pokopiaInitialSceneSnapshot;
+  }
+
+  const storage = getBrowserStorage();
+  if (!storage) {
     return defaultScene;
   }
 
-  const testWindow = window as unknown as { __pokopiaInitialSceneSnapshot?: SceneDocument };
+  const storedScene = readLatestSceneDocumentFromStorage(storage);
+  if (storedScene?.ok) {
+    return storedScene.scene;
+  }
 
-  return testWindow.__pokopiaInitialSceneSnapshot ?? defaultScene;
+  return defaultScene;
 }
 
 function getCurrentIsoTimestamp(): string {
   return new Date().toISOString();
+}
+
+function getBrowserStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function getStorageErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return `Local storage unavailable: ${error.message}`;
+  }
+
+  return 'Local storage unavailable.';
+}
+
+function reconcileHistorySceneSaveStatus(scene: SceneDocument): SceneDocument {
+  const storage = getBrowserStorage();
+  const savedPayload = storage?.getItem(savedSceneStorageKey);
+
+  if (!savedPayload) {
+    return scene;
+  }
+
+  const sceneAsSaved = {
+    ...scene,
+    workspaceState: {
+      ...scene.workspaceState,
+      saveStatus: 'saved' as const,
+      saveError: null,
+    },
+  };
+
+  try {
+    if (JSON.stringify(serializeSceneDocument(sceneAsSaved)) === savedPayload) {
+      return sceneAsSaved;
+    }
+  } catch {
+    return markSceneDirtyAfterHistory(scene);
+  }
+
+  return markSceneDirtyAfterHistory(scene);
+}
+
+function markSceneDirtyAfterHistory(scene: SceneDocument): SceneDocument {
+  return {
+    ...scene,
+    workspaceState: {
+      ...scene.workspaceState,
+      saveStatus: 'dirty',
+      saveError: null,
+    },
+    metadata: {
+      ...scene.metadata,
+      updatedAt: getCurrentIsoTimestamp(),
+    },
+  };
 }
 
 function createTileInstanceId(): string {
