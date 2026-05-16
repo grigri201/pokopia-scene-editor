@@ -21,6 +21,13 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Current placement asset')).toContainText('None');
   await expect(page.locator('[data-asset-id="wooden-floor"] .asset-thumb')).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Preview inspector' })).toBeVisible();
+  await expect(page.getByLabel('Dual preview inspector')).toBeVisible();
+  await expect(page.getByLabel('Top preview current layer')).toHaveText('0 层');
+  await expect(page.getByLabel('Top preview item summary')).toHaveText('0 current-layer items');
+  await expect(page.getByLabel('Front preview layer summary')).toHaveText('3 visible layers, 0 visible items');
+  const previewBox = await page.getByRole('complementary', { name: 'Preview inspector' }).boundingBox();
+  expect(previewBox).not.toBeNull();
+  expect((previewBox?.y ?? 0) + (previewBox?.height ?? 0)).toBeLessThanOrEqual(720);
   await expect(page.getByLabel('Current building level')).toHaveText('Current L0');
   await expect(page.getByTestId('building-level-row')).toHaveCount(3);
   await expect(page.getByTestId('building-level-row').nth(0)).toHaveAttribute('data-display-id', 'L2');
@@ -174,6 +181,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Selected layer')).toHaveText('0 层');
   await expect(page.getByLabel('Selected occupancy')).toHaveText('Has item');
   await expect(page.getByLabel('Selected asset', { exact: true })).toHaveText('Garden Plant');
+  await expect(page.getByLabel('Top preview item summary')).toHaveText('1 current-layer item');
+  await expect(page.getByLabel('Top preview selection summary')).toHaveText('2,3 · Garden Plant');
+  await expect(page.getByLabel('Front preview layer summary')).toHaveText('4 visible layers, 1 visible item');
   await expect(page.getByLabel('Save status')).toHaveText('Dirty');
   await page.locator('[data-coordinate="2,3"]').click();
   await expect(page.locator('[data-coordinate="2,3"]')).toHaveAttribute('data-instance-count', '2');

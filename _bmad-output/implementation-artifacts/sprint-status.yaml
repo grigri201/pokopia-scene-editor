@@ -1,5 +1,5 @@
 # generated: 2026-05-16T06:01:02+0800
-# last_updated: 2026-05-16T09:42:00+0800
+# last_updated: 2026-05-16T10:10:00+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -34,7 +34,7 @@
 # - Dev moves story to 'review', then code-review triages findings before done.
 
 generated: 2026-05-16T06:01:02+0800
-last_updated: 2026-05-16T09:42:00+0800
+last_updated: 2026-05-16T10:10:00+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -61,8 +61,8 @@ development_status:
   2-8-inspector-instance-fields: done
   2-9-ditto-skill-instances: done
   epic-2-retrospective: optional
-  epic-3: backlog
-  3-1-dual-preview-inspector: backlog
+  epic-3: in-progress
+  3-1-dual-preview-inspector: done
   3-2-top-view-preview: backlog
   3-3-layer-preview-scope: backlog
   3-4-front-view-height-preview: backlog

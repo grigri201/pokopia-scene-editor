@@ -612,7 +612,13 @@ export function AppShell() {
             onCopyLayer={copyBuildingLayer}
             onDeleteLayer={deleteBuildingLayer}
           />
-          <PreviewInspector />
+          <PreviewInspector
+            scene={scene}
+            activeBuildingLevelId={activeBuildingLevelId}
+            selectedCoordinate={selectedCoordinate}
+            selectedInstanceId={selectedInstanceId}
+            readOnly={isReadOnly}
+          />
         </div>
         <section className="canvas-stage" aria-label="7x7 scene canvas workspace">
           <div className="canvas-stage__header">

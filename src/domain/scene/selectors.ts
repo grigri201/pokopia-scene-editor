@@ -36,6 +36,18 @@ export interface BuildingLevelContext {
   current: boolean;
 }
 
+export interface PreviewLayerContext extends BuildingLevelContext {
+  heightPercent: number;
+}
+
+export interface PreviewInspectorContext {
+  activeLevel: BuildingLevel;
+  activeCells: CanvasCellContext[];
+  activeLayerInstances: TileInstance[];
+  visibleLevels: PreviewLayerContext[];
+  visibleTileInstances: TileInstance[];
+}
+
 export function getCurrentBuildingLevel(scene: SceneDocument, buildingLevelId = scene.workspaceState.currentBuildingLevelId): BuildingLevel {
   assertUniqueBuildingLevelIds(scene.buildingLevels);
 
@@ -134,6 +146,40 @@ export function getCurrentBuildingLevelContext(scene: SceneDocument): BuildingLe
   return currentLevel;
 }
 
+export function getPreviewInspectorContext(
+  scene: SceneDocument,
+  activeBuildingLevelId = scene.workspaceState.currentBuildingLevelId,
+): PreviewInspectorContext {
+  const activeLevel = getCurrentBuildingLevel(scene, activeBuildingLevelId);
+  const activeCells = getCanvasCellContexts(scene, activeBuildingLevelId);
+  const activeLayerInstances = activeLevel.visible
+    ? activeCells.flatMap((cell) => cell.tileInstances)
+    : [];
+  const visibleLevels = getVisibleBuildingLevelContexts(scene);
+  const visibleLevelIds = new Set(visibleLevels.map((level) => level.id));
+  const visibleTileInstances = scene.tileInstances.filter((instance) =>
+    visibleLevelIds.has(instance.buildingLevelId),
+  );
+
+  return {
+    activeLevel,
+    activeCells,
+    activeLayerInstances,
+    visibleLevels,
+    visibleTileInstances,
+  };
+}
+
+export function getVisibleBuildingLevelContexts(scene: SceneDocument): PreviewLayerContext[] {
+  const visibleLevels = getBuildingLevelContexts(scene).filter((level) => level.visible);
+  const maxLevelNumber = Math.max(...visibleLevels.map((level) => level.levelNumber), 0);
+
+  return visibleLevels.map((level) => ({
+    ...level,
+    heightPercent: getPreviewLevelHeightPercent(level.levelNumber, maxLevelNumber),
+  }));
+}
+
 function getSceneDimensions(scene: SceneDocument): SceneDimensions {
   return {
     sceneSize: scene.sceneSize,
@@ -144,6 +190,14 @@ function getSceneDimensions(scene: SceneDocument): SceneDimensions {
 
 function countTileInstancesForLevel(scene: SceneDocument, buildingLevelId: string): number {
   return scene.tileInstances.filter((instance) => instance.buildingLevelId === buildingLevelId).length;
+}
+
+function getPreviewLevelHeightPercent(levelNumber: number, maxLevelNumber: number): number {
+  if (maxLevelNumber <= 0) {
+    return 32;
+  }
+
+  return Math.min(100, Math.max(28, 28 + (levelNumber / maxLevelNumber) * 72));
 }
 
 function assertUniqueBuildingLevelIds(levels: readonly BuildingLevel[]): void {
