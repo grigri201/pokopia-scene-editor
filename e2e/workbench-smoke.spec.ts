@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const densePreviewAssetIds = ['wooden-floor', 'garden-plant', 'outer-wall', 'ditto-doll', 'water-barrel', 'roof-tile'];
 const densePreviewSkillTypes = ['树叶', '耕地', '储水'];
+const uiPreferencesStorageKey = 'pokopia.uiPreferences.v1';
 
 test('renders the Open Design workbench as the first screen', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -645,6 +646,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
 
 test('keeps preview controls readable and non-overlapping across guardrail viewports', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript((storageKey) => {
+    window.localStorage.removeItem(storageKey);
+  }, uiPreferencesStorageKey);
 
   for (const viewport of [
     { width: 1280, height: 720, mode: 'Desktop edit mode' },

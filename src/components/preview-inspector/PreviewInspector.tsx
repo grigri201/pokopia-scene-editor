@@ -14,14 +14,14 @@ import {
   type TileInstance,
 } from '../../domain/scene';
 import { getAssetById, getAssetSkillMarkerLabel } from '../../domain/assets';
-
-type PreviewLayerScope = 'current-layer' | 'all-visible-layers';
-
-interface PreviewDisplayOptions {
-  grid: boolean;
-  mainBoundary: boolean;
-  skillMarkers: boolean;
-}
+import {
+  getUiPreferencesStorage,
+  readUiPreferencesFromStorage,
+  writePreviewDisplayOptionsToStorage,
+  writePreviewLayerScopePreferenceToStorage,
+  type PreviewDisplayOptions,
+  type PreviewLayerScope,
+} from '../../io';
 
 interface PreviewInspectorProps {
   scene: SceneDocument;
@@ -38,15 +38,18 @@ export function PreviewInspector({
   selectedInstanceId,
   readOnly,
 }: PreviewInspectorProps) {
+  const [initialPreviewPreferences] = useState(() =>
+    readUiPreferencesFromStorage(getUiPreferencesStorage()).preview,
+  );
   const [previewCoordinate, setPreviewCoordinate] = useState<GridCoordinate | null>(selectedCoordinate);
   const [previewZoom, setPreviewZoom] = useState(1);
   const [previewPan, setPreviewPan] = useState({ x: 0, y: 0 });
-  const [previewScope, setPreviewScope] = useState<PreviewLayerScope>('current-layer');
-  const [displayOptions, setDisplayOptions] = useState<PreviewDisplayOptions>({
-    grid: true,
-    mainBoundary: true,
-    skillMarkers: true,
-  });
+  const [previewScope, setPreviewScopeState] = useState<PreviewLayerScope>(
+    initialPreviewPreferences.layerScope,
+  );
+  const [displayOptions, setDisplayOptions] = useState<PreviewDisplayOptions>(
+    initialPreviewPreferences.displayOptions,
+  );
   const previewContext = getPreviewInspectorContext(scene, activeBuildingLevelId);
   const currentLayerPreviewCells = getCurrentLayerPreviewCellContexts(scene, activeBuildingLevelId);
   const allVisiblePreviewCells = getAllVisiblePreviewCellContexts(scene);
@@ -113,11 +116,21 @@ export function PreviewInspector({
     setPreviewCoordinate(selectedCoordinate);
   }, [selectedCoordinate?.x, selectedCoordinate?.y]);
 
-  const setDisplayOption = (key: keyof PreviewDisplayOptions) => {
-    setDisplayOptions((currentOptions) => ({
-      ...currentOptions,
-      [key]: !currentOptions[key],
-    }));
+  const persistDisplayOption = (key: keyof PreviewDisplayOptions) => {
+    setDisplayOptions((currentOptions) => {
+      const updatedOptions = {
+        ...currentOptions,
+        [key]: !currentOptions[key],
+      };
+      writePreviewDisplayOptionsToStorage(getUiPreferencesStorage(), updatedOptions);
+
+      return updatedOptions;
+    });
+  };
+
+  const setPreviewLayerScope = (layerScope: PreviewLayerScope) => {
+    setPreviewScopeState(layerScope);
+    writePreviewLayerScopePreferenceToStorage(getUiPreferencesStorage(), layerScope);
   };
 
   return (
@@ -132,7 +145,7 @@ export function PreviewInspector({
             type="button"
             aria-label="Show preview grid"
             aria-pressed={displayOptions.grid}
-            onClick={() => setDisplayOption('grid')}
+            onClick={() => persistDisplayOption('grid')}
           >
             网格
           </button>
@@ -141,7 +154,7 @@ export function PreviewInspector({
             aria-label="Show preview main boundary"
             aria-pressed={displayOptions.mainBoundary}
             title="显示主体边界"
-            onClick={() => setDisplayOption('mainBoundary')}
+            onClick={() => persistDisplayOption('mainBoundary')}
           >
             边界
           </button>
@@ -150,7 +163,7 @@ export function PreviewInspector({
             aria-label="Show preview skill markers"
             aria-pressed={displayOptions.skillMarkers}
             title="显示技能标记"
-            onClick={() => setDisplayOption('skillMarkers')}
+            onClick={() => persistDisplayOption('skillMarkers')}
           >
             技能
           </button>
@@ -163,7 +176,7 @@ export function PreviewInspector({
               aria-label="Preview current layer"
               aria-pressed={previewScope === 'current-layer'}
               title="预览当前层"
-              onClick={() => setPreviewScope('current-layer')}
+              onClick={() => setPreviewLayerScope('current-layer')}
             >
               当前
             </button>
@@ -172,7 +185,7 @@ export function PreviewInspector({
               aria-label="Preview all visible layers"
               aria-pressed={previewScope === 'all-visible-layers'}
               title="预览全部可见层"
-              onClick={() => setPreviewScope('all-visible-layers')}
+              onClick={() => setPreviewLayerScope('all-visible-layers')}
             >
               全部
             </button>

@@ -21,6 +21,11 @@ import {
   type AssetSkillFilter,
   type PokemonKey,
 } from '../../domain/assets';
+import {
+  getUiPreferencesStorage,
+  readUiPreferencesFromStorage,
+  writeAssetFilterPreferencesToStorage,
+} from '../../io';
 
 interface AssetPickerProps {
   readOnly: boolean;
@@ -42,7 +47,9 @@ export function AssetPicker({
   onAssetSelect,
 }: AssetPickerProps) {
   const assetPickerId = useId();
-  const [filters, setFilters] = useState<AssetFilterState>(defaultAssetFilters);
+  const [filters, setFilters] = useState<AssetFilterState>(
+    () => readUiPreferencesFromStorage(getUiPreferencesStorage()).assetFilters,
+  );
   const [renderLimit, setRenderLimit] = useState(assetRenderLimit);
   const [viewedAssetId, setViewedAssetId] = useState<string | null>(selectedAssetId);
   const selectedAsset = getAssetById(selectedAssetId);
@@ -88,10 +95,16 @@ export function AssetPicker({
   };
 
   const updateFilters = (nextFilters: Partial<AssetFilterState>) => {
-    setFilters((currentFilters) => ({ ...currentFilters, ...nextFilters }));
+    setFilters((currentFilters) => {
+      const updatedFilters = { ...currentFilters, ...nextFilters };
+      writeAssetFilterPreferencesToStorage(getUiPreferencesStorage(), updatedFilters);
+
+      return updatedFilters;
+    });
   };
 
   const resetFilters = () => {
+    writeAssetFilterPreferencesToStorage(getUiPreferencesStorage(), defaultAssetFilters);
     setFilters(defaultAssetFilters);
   };
 

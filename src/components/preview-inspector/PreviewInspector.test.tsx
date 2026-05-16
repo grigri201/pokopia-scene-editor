@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createDefaultSceneDocument, createTileInstance } from '../../domain/scene';
+import { readUiPreferencesFromStorage } from '../../io';
 import { PreviewInspector } from './PreviewInspector';
 
 const scene = {
@@ -28,6 +29,14 @@ const scene = {
 };
 
 describe('PreviewInspector', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
   it('renders top and front previews from the scene selectors', () => {
     const { container } = render(
       <PreviewInspector
@@ -215,6 +224,53 @@ describe('PreviewInspector', () => {
     expect(frontLevel).toHaveAttribute('data-front-layer-skill-count', '1');
     expect(frontLevel).toHaveAttribute('data-front-layer-skill-visible', 'false');
     expect(JSON.stringify(scene)).toBe(snapshotBefore);
+  });
+
+  it('persists and restores preview display options and layer scope', () => {
+    const { container, unmount } = render(
+      <PreviewInspector
+        scene={scene}
+        activeBuildingLevelId="level-0"
+        selectedCoordinate={{ x: 2, y: 3 }}
+        selectedInstanceId="tile-preview"
+        readOnly={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show preview grid' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show preview main boundary' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show preview skill markers' }));
+
+    expect(readUiPreferencesFromStorage(window.localStorage).preview).toEqual({
+      displayOptions: {
+        grid: false,
+        mainBoundary: false,
+        skillMarkers: false,
+      },
+      layerScope: 'all-visible-layers',
+    });
+    expect(container.querySelector('.mini-grid')).toHaveAttribute('data-preview-grid-visible', 'false');
+    expect(screen.getByRole('button', { name: 'Preview all visible layers' })).toHaveAttribute('aria-pressed', 'true');
+
+    unmount();
+    const restored = render(
+      <PreviewInspector
+        scene={scene}
+        activeBuildingLevelId="level-0"
+        selectedCoordinate={{ x: 2, y: 3 }}
+        selectedInstanceId="tile-preview"
+        readOnly={false}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Preview all visible layers' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Show preview grid' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Show preview main boundary' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Show preview skill markers' })).toHaveAttribute('aria-pressed', 'false');
+    expect(restored.container.querySelector('.mini-grid')).toHaveAttribute('data-preview-grid-visible', 'false');
+    expect(restored.container.querySelector('.front-structure')).toHaveAttribute('data-front-skill-markers-visible', 'false');
+    expect(screen.getByLabelText('Top preview scope')).toHaveTextContent('All visible layers preview');
   });
 
   it('excludes hidden-layer instances from visible preview summaries', () => {

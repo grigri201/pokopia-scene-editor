@@ -5,6 +5,7 @@ import {
   autosavedSceneStorageKey,
   savedSceneStorageKey,
   serializeSceneDocument,
+  uiPreferencesStorageKey,
   writeSceneDocumentToStorage,
 } from '../../io';
 import {
@@ -90,6 +91,39 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     expect(screen.getByLabelText(/Cell 2,3, main area, level-0, placeable, selected/)).toBeVisible();
+  });
+
+  it('stores UI preferences separately without dirtying or polluting saved SceneDocument payloads', async () => {
+    render(<AppShell />);
+
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'roof' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Show favorite assets' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show preview grid' }));
+
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).not.toBeNull();
+    expect(screen.getByLabelText('Save status')).toHaveTextContent('Saved');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Payload Isolation 5x5 Layout' } });
+    await waitFor(() => expect(screen.getByLabelText('Save status')).toHaveTextContent('Dirty'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save scene' }));
+
+    await waitFor(() => {
+      const rawSavedPayload = window.localStorage.getItem(savedSceneStorageKey);
+      expect(rawSavedPayload).not.toBeNull();
+      expect(JSON.parse(rawSavedPayload ?? '{}')).toMatchObject({
+        sceneName: 'Payload Isolation 5x5 Layout',
+        workspaceState: {
+          saveStatus: 'saved',
+        },
+      });
+      expect(rawSavedPayload).not.toContain('assetFilters');
+      expect(rawSavedPayload).not.toContain('displayOptions');
+      expect(rawSavedPayload).not.toContain('layerScope');
+      expect(rawSavedPayload).not.toContain('favoriteOnly');
+    });
   });
 
   it('does not create an extra undo step for saving', async () => {

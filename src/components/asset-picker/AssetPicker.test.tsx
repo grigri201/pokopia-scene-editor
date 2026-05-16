@@ -1,8 +1,17 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readUiPreferencesFromStorage } from '../../io';
 import { AssetPicker } from './AssetPicker';
 
 describe('AssetPicker', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
   it('renders catalog metadata and selected placement context', () => {
     render(
       <AssetPicker
@@ -169,6 +178,57 @@ describe('AssetPicker', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
     expect(screen.getByLabelText('Asset result count')).toHaveTextContent('06 / 06');
+  });
+
+  it('persists and restores asset filter UI preferences without scene state', () => {
+    const { unmount } = render(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId={null}
+        selectedPokemonKey="eevee"
+        currentBuildingLevelName="0 层"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
+        onAssetSelect={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'roof' } });
+    fireEvent.click(within(screen.getByRole('group', { name: 'Asset category filters' })).getByRole('button', { name: 'Wall' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Asset area filters' })).getByRole('button', { name: 'Outer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show favorite assets' }));
+    fireEvent.change(screen.getByLabelText('Skill filter'), { target: { value: '耕地' } });
+
+    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('01 / 06');
+    expect(readUiPreferencesFromStorage(window.localStorage).assetFilters).toEqual({
+      query: 'roof',
+      category: 'wall',
+      area: 'outer',
+      favoriteOnly: true,
+      skill: '耕地',
+    });
+
+    unmount();
+    render(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId={null}
+        selectedPokemonKey="eevee"
+        currentBuildingLevelName="0 层"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
+        onAssetSelect={() => undefined}
+      />,
+    );
+
+    expect(screen.getByLabelText('Search assets')).toHaveValue('roof');
+    expect(within(screen.getByRole('group', { name: 'Asset category filters' })).getByRole('button', { name: 'Wall' }))
+      .toHaveAttribute('aria-pressed', 'true');
+    expect(within(screen.getByRole('group', { name: 'Asset area filters' })).getByRole('button', { name: 'Outer' }))
+      .toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Show favorite assets' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('Skill filter')).toHaveValue('耕地');
+    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('01 / 06');
   });
 
   it('shows an empty state with recovery actions for unmatched filters', () => {
