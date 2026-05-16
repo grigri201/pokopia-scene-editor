@@ -58,6 +58,8 @@ export function SceneCanvas({
             const topAssetLabel = topInstance ? getInstanceDisplayLabel(topInstance.assetId) : null;
             const stackCount = cell.tileInstances.length;
             const hasSkillInstance = cell.tileInstances.some((instance) => instance.requiresSkill);
+            const rotationLabel = topInstance?.rotationDegrees ? `${topInstance.rotationDegrees} deg` : null;
+            const dyeColor = topInstance?.dyeColor ?? null;
 
             return (
               <button
@@ -77,7 +79,9 @@ export function SceneCanvas({
                 aria-current={selected ? 'location' : undefined}
                 aria-label={`Cell ${coordinate.x},${coordinate.y}, ${cell.areaType} area, ${cell.buildingLevel.id}, ${stateLabel}${
                   topAssetLabel ? `, ${topAssetLabel}` : ''
-                }${stackCount > 1 ? `, ${stackCount} stacked items` : ''}${hasSkillInstance ? ', skill required' : ''}${
+                }${stackCount > 1 ? `, ${stackCount} stacked items` : ''}${
+                  rotationLabel ? `, rotated ${rotationLabel}` : ''
+                }${dyeColor ? `, dyed ${dyeColor}` : ''}${hasSkillInstance ? ', skill required' : ''}${
                   selected ? ', selected' : ''
                 }`}
                 onClick={() =>
@@ -114,6 +118,8 @@ export function SceneCanvas({
                 data-has-instance={Boolean(topInstance)}
                 data-instance-count={stackCount}
                 data-requires-skill={hasSkillInstance}
+                data-rotation={topInstance?.rotationDegrees ?? 0}
+                data-dye-color={dyeColor ?? ''}
                 key={cell.id}
               >
                 <span className="cell-coordinate">
@@ -123,6 +129,14 @@ export function SceneCanvas({
                 <span className="cell-placeable">{readOnly ? 'view' : 'place'}</span>
                 {topAssetLabel ? <span className="cell-asset-label">{topAssetLabel}</span> : null}
                 {stackCount > 1 ? <span className="cell-stack-count">{stackCount}x</span> : null}
+                {rotationLabel ? <span className="cell-rotation-marker">{rotationLabel}</span> : null}
+                {dyeColor ? (
+                  <span
+                    className="cell-dye-marker"
+                    aria-label={`Dye ${dyeColor}`}
+                    style={{ backgroundColor: dyeColor }}
+                  />
+                ) : null}
                 {hasSkillInstance ? <span className="cell-skill-marker">skill</span> : null}
                 {selected ? <span className="cell-selected-cue">selected</span> : null}
               </button>

@@ -199,6 +199,49 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
       expect.objectContaining({ assetId: 'wooden-floor', coordinate: { x: 3, y: 3 } }),
     ]),
   );
+
+  await page.getByLabel('Search assets').fill('roof-tile');
+  await page.getByRole('button', { name: /Roof Tile.*No\. 068/ }).click();
+  await page.locator('[data-coordinate="4,4"]').click();
+  await expect(page.getByLabel('Selected instance', { exact: true })).toHaveText('Roof Tile');
+  await page.getByLabel('Instance rotation', { exact: true }).selectOption('90');
+  await expect(page.locator('[data-coordinate="4,4"]')).toHaveAttribute('data-rotation', '90');
+  await expect(page.locator('[data-coordinate="4,4"]')).toContainText('90 deg');
+  await page.getByLabel('Instance dye color', { exact: true }).fill('#bb6bd9');
+  await expect(page.locator('[data-coordinate="4,4"]')).toHaveAttribute('data-dye-color', '#bb6bd9');
+  await page.getByLabel('Instance note', { exact: true }).fill('<script>alert(1)</script><img src=x onerror=alert(1)>');
+  await page.getByRole('button', { name: 'Save note' }).click();
+  await expect(page.getByLabel('Selected instance note')).toHaveText('<script>alert(1)</script><img src=x onerror=alert(1)>');
+  expect(
+    await page.locator('.instance-editor').evaluate((editor) => editor.scrollWidth <= editor.clientWidth),
+  ).toBe(true);
+  await page.getByLabel('Move instance X').fill('5');
+  await page.getByLabel('Move instance Y').fill('4');
+  await page.getByRole('button', { name: 'Move' }).click();
+  await expect(page.getByLabel('Selected coordinate')).toHaveText('5,4');
+  await expect(page.locator('[data-coordinate="5,4"]')).toContainText('Roof Tile');
+  const editedScene = await readSceneSnapshot(page);
+  expect(editedScene.tileInstances).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        assetId: 'roof-tile',
+        coordinate: { x: 5, y: 4 },
+        rotationDegrees: 90,
+        dyeColor: '#bb6bd9',
+        note: '<script>alert(1)</script><img src=x onerror=alert(1)>',
+      }),
+    ]),
+  );
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('Delete the selected asset instance');
+    await dialog.accept();
+  });
+  await page.getByRole('button', { name: 'Delete' }).click();
+  await expect(page.locator('[data-coordinate="5,4"]')).not.toContainText('Roof Tile');
+  const deletedScene = await readSceneSnapshot(page);
+  expect(deletedScene.tileInstances.some((instance) => (instance as { assetId?: string }).assetId === 'roof-tile')).toBe(
+    false,
+  );
 });
 
 test('switches scaffold controls to read-only below the mobile breakpoint', async ({ page }) => {
@@ -286,13 +329,30 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   expect(desktopScene.workspaceState.selectedCoordinate).toEqual({ x: 4, y: 4 });
   await page.getByRole('button', { name: /Garden Plant.*No\. 014/ }).click();
   await expect(page.getByLabel('Current placement asset')).toContainText('Garden Plant');
+  await page.locator('[data-coordinate="4,4"]').click();
+  await expect(page.getByLabel('Selected instance', { exact: true })).toHaveText('Garden Plant');
   const selectedAssetDesktopScene = await readSceneSnapshot(page);
   expect(selectedAssetDesktopScene.workspaceState.selectedAssetId).toBe('garden-plant');
   expect(selectedAssetDesktopScene.workspaceState.selectedCoordinate).toEqual({ x: 4, y: 4 });
+  expect(selectedAssetDesktopScene.tileInstances).toHaveLength(1);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile read-only mode');
   await expect(page.getByLabel('Selected coordinate')).toHaveText('4,4');
+  await expect(page.getByLabel('Selected instance', { exact: true })).toHaveText('Garden Plant');
+  await expect(page.getByRole('button', { name: 'Delete' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Move' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Save note' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Delete' }).evaluate((button) => {
+    (button as HTMLButtonElement).click();
+  });
+  await page.getByRole('button', { name: 'Move' }).evaluate((button) => {
+    (button as HTMLButtonElement).click();
+  });
+  await page.getByRole('button', { name: 'Save note' }).evaluate((button) => {
+    (button as HTMLButtonElement).click();
+  });
+  expect(await readSceneSnapshot(page)).toEqual(selectedAssetDesktopScene);
   await page.locator('[data-coordinate="2,3"]').click();
   await expect(page.getByLabel('Selected coordinate')).toHaveText('2,3');
   await page.locator('[data-coordinate="2,3"]').focus();

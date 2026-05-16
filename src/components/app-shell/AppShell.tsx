@@ -14,10 +14,12 @@ import {
   type GridCoordinate,
 } from '../../domain/scene';
 import {
+  editAssetInstance,
   getAssetPlacementPreview,
   getInteractionMode,
   placeSelectedAsset,
   sceneReducer,
+  type AssetInstanceEditResult,
   type AssetPlacementPreview,
   type InteractionMode,
   type SceneAction,
@@ -38,18 +40,27 @@ export function AppShell() {
   const [focusedCoordinate, setFocusedCoordinate] = useState<GridCoordinate | null>(null);
   const [placementRequiresSkill, setPlacementRequiresSkill] = useState(false);
   const [placementFeedback, setPlacementFeedback] = useState<AssetPlacementPreview | null>(null);
+  const [instanceEditFeedback, setInstanceEditFeedback] = useState<string | null>(null);
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(() =>
     getInteractionMode(window.innerWidth),
   );
   const isReadOnly = interactionMode === 'readOnly';
   const buildingLevelContexts = getBuildingLevelContexts(scene);
   const currentBuildingLevel = buildingLevelContexts.find((level) => level.current);
+  const currentLayerInstances = currentBuildingLevel
+    ? scene.tileInstances.filter((instance) => instance.buildingLevelId === currentBuildingLevel.id)
+    : [];
   const canvasCells = getCanvasCellContexts(scene);
   const targetCoordinate = hoveredCoordinate ?? focusedCoordinate;
   const selectedCoordinate = isReadOnly
     ? readOnlySelectedCoordinate
     : scene.workspaceState.selectedCoordinate;
   const selectedContext = selectedCoordinate ? getCellContext(scene, selectedCoordinate) : null;
+  const selectedInstance =
+    selectedContext?.tileInstances.find((instance) => instance.instanceId === selectedInstanceId) ??
+    selectedContext?.tileInstances.at(-1) ??
+    null;
   const targetContext = targetCoordinate ? getCellContext(scene, targetCoordinate) : null;
   const selectedAssetId = scene.workspaceState.selectedAssetId;
   const targetPlacementPreview = targetCoordinate
@@ -112,11 +123,25 @@ export function AppShell() {
     };
   }, [selectedCoordinate?.x, selectedCoordinate?.y]);
 
+  useEffect(() => {
+    if (!selectedContext?.tileInstances.length) {
+      setSelectedInstanceId(null);
+      return;
+    }
+
+    if (selectedInstanceId && selectedContext.tileInstances.some((instance) => instance.instanceId === selectedInstanceId)) {
+      return;
+    }
+
+    setSelectedInstanceId(selectedContext.tileInstances.at(-1)?.instanceId ?? null);
+  }, [selectedContext, selectedInstanceId]);
+
   const selectCoordinate = (coordinate: GridCoordinate) => {
     const nextCoordinate = { x: coordinate.x, y: coordinate.y };
     pendingSelectionMeasureRef.current = markSelectionStart(selectionMeasureCounterRef.current);
     selectionMeasureCounterRef.current += 1;
     setFocusedCoordinate(nextCoordinate);
+    setInstanceEditFeedback(null);
 
     if (scene.workspaceState.selectedAssetId) {
       placeCurrentAsset(nextCoordinate);
@@ -130,6 +155,7 @@ export function AppShell() {
     const nextCoordinate = { x: coordinate.x, y: coordinate.y };
     pendingSelectionMeasureRef.current = markSelectionStart(selectionMeasureCounterRef.current);
     selectionMeasureCounterRef.current += 1;
+    setInstanceEditFeedback(null);
     setReadOnlySelectedCoordinate(nextCoordinate);
   };
 
@@ -222,6 +248,102 @@ export function AppShell() {
     setPlacementFeedback(result.preview);
   };
 
+  const handleInstanceEditResult = (result: AssetInstanceEditResult) => {
+    if (result.ok) {
+      setScene(result.scene);
+      setSelectedInstanceId(result.instance?.instanceId ?? null);
+      setInstanceEditFeedback(result.message);
+      setPlacementFeedback(null);
+      return;
+    }
+
+    setInstanceEditFeedback(`${result.message}. ${result.repairHint}`);
+  };
+
+  const deleteInstance = (instanceId: string) => {
+    if (isReadOnly) {
+      return;
+    }
+
+    const confirmed = window.confirm('Delete the selected asset instance?');
+    if (!confirmed) {
+      return;
+    }
+
+    handleInstanceEditResult(
+      editAssetInstance(scene, {
+        type: 'delete',
+          instanceId,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
+  const moveInstance = (instanceId: string, coordinate: GridCoordinate) => {
+    if (isReadOnly) {
+      return;
+    }
+
+    handleInstanceEditResult(
+      editAssetInstance(scene, {
+        type: 'move',
+        instanceId,
+        coordinate,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
+  const rotateInstance = (instanceId: string, rotationDegrees: 0 | 90 | 180 | 270) => {
+    if (isReadOnly) {
+      return;
+    }
+
+    handleInstanceEditResult(
+      editAssetInstance(scene, {
+        type: 'rotate',
+        instanceId,
+        rotationDegrees,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
+  const dyeInstance = (instanceId: string, dyeColor: string | null) => {
+    if (isReadOnly) {
+      return;
+    }
+
+    handleInstanceEditResult(
+      editAssetInstance(scene, {
+        type: 'dye',
+        instanceId,
+        dyeColor,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
+  const saveInstanceNote = (instanceId: string, note: string) => {
+    if (isReadOnly) {
+      return;
+    }
+
+    handleInstanceEditResult(
+      editAssetInstance(scene, {
+        type: 'note',
+        instanceId,
+        note,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
   return (
     <main
       className="app-shell"
@@ -255,8 +377,25 @@ export function AppShell() {
           </div>
           <SelectionInspector
             selectedContext={selectedContext}
+            selectedInstance={selectedInstance}
+            selectedInstanceId={selectedInstanceId}
             targetContext={targetContext}
             targetPlacement={targetPlacementPreview}
+            canvasSize={scene.canvasSize}
+            sceneDimensions={{
+              sceneSize: scene.sceneSize,
+              canvasSize: scene.canvasSize,
+              outerPadding: scene.outerPadding,
+            }}
+            currentLayerInstances={currentLayerInstances}
+            readOnly={isReadOnly}
+            editFeedback={instanceEditFeedback}
+            onSelectedInstanceChange={setSelectedInstanceId}
+            onDeleteInstance={deleteInstance}
+            onMoveInstance={moveInstance}
+            onRotateInstance={rotateInstance}
+            onDyeInstance={dyeInstance}
+            onSaveInstanceNote={saveInstanceNote}
           />
           <SceneCanvas
             canvasSize={scene.canvasSize}

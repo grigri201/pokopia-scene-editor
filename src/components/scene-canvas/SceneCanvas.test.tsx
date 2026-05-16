@@ -235,6 +235,8 @@ describe('SceneCanvas', () => {
           assetId: 'roof-tile',
           coordinate: { x: 2, y: 3 },
           buildingLevelId: 'level-0',
+          rotationDegrees: 90,
+          dyeColor: '#56ccf2',
           requiresSkill: true,
           skillType: 'soil',
         }),
@@ -256,11 +258,15 @@ describe('SceneCanvas', () => {
     );
 
     const stackedCell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, Roof Tile, 2 stacked items, skill required',
+      'Cell 2,3, main area, level-0, placeable, Roof Tile, 2 stacked items, rotated 90 deg, dyed #56ccf2, skill required',
     );
     expect(stackedCell).toHaveAttribute('data-instance-count', '2');
+    expect(stackedCell).toHaveAttribute('data-rotation', '90');
+    expect(stackedCell).toHaveAttribute('data-dye-color', '#56ccf2');
     expect(stackedCell).toHaveTextContent('Roof Tile');
     expect(stackedCell).toHaveTextContent('2x');
+    expect(stackedCell).toHaveTextContent('90 deg');
+    expect(screen.getByLabelText('Dye #56ccf2')).toBeVisible();
 
     expect(screen.getByLabelText('Cell 4,4, main area, level-0, placeable, Unknown asset: missing-asset')).toBeVisible();
   });

@@ -349,11 +349,93 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.cell-rotation-marker {
+  position: absolute;
+  top: 16px;
+  left: 4px;
+  border-radius: 999px 999px 999px 4px;
+  padding: 1px 4px;
+  color: #fffefb;
+  background: var(--color-selected-cell);
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.cell-dye-marker {
+  position: absolute;
+  top: 18px;
+  right: 5px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fffefb;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(39, 31, 23, 0.35);
+}
+
 .selection-inspector {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin-bottom: 14px;
+}
+
+.instance-editor {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.instance-editor em {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.instance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+.instance-actions label,
+.instance-picker,
+.instance-note-field {
+  display: inline-grid;
+  gap: 4px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.instance-actions input,
+.instance-actions select,
+.instance-picker select,
+.instance-note-field textarea {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 6px;
+  color: var(--ink);
+  background: #fffefb;
+}
+
+.instance-actions input[type="number"] {
+  width: 56px;
+}
+
+.instance-actions input[type="color"] {
+  width: 44px;
+  padding: 2px;
+}
+
+.instance-note-field {
+  grid-column: 1 / -1;
+}
+
+.instance-note-field textarea {
+  min-height: 56px;
+  resize: vertical;
 }
 
 .selection-card {
@@ -398,6 +480,12 @@ button:disabled {
   .selection-card {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     min-height: 92px;
+  }
+
+  .instance-editor,
+  .instance-actions,
+  .instance-note-field {
+    grid-column: auto;
   }
 
   .selection-card em {
