@@ -5,7 +5,13 @@ import {
   type SceneDocument,
   type TileInstance,
 } from '../domain/scene';
-import { canAssetRequirePlacementSkill, getAssetById, type AssetSkillType } from '../domain/assets';
+import {
+  canAssetRequirePlacementSkill,
+  getAssetById,
+  isAssetSkillType,
+  toAssetSkillType,
+  type AssetSkillType,
+} from '../domain/assets';
 import type { InteractionMode } from './interaction-mode';
 
 export type InstanceEditFailureReason =
@@ -203,7 +209,7 @@ function changeInstanceAsset(
     rotationDegrees: nextAsset.rotatable ? current.rotationDegrees : 0,
     dyeColor: nextAsset.dyeable ? current.dyeColor : null,
     requiresSkill: nextRequiresSkill,
-    skillType: nextRequiresSkill ? current.skillType ?? nextAsset.defaultSkillType : null,
+    skillType: nextRequiresSkill ? toAssetSkillType(current.skillType) ?? nextAsset.defaultSkillType : null,
     skillNote: nextRequiresSkill ? current.skillNote : '',
   }));
 }
@@ -347,7 +353,7 @@ function updateSkill(
   }
 
   if (!isValidSkillType(skillType)) {
-    return failure('invalid-skill-type', 'Invalid skill type', 'Choose leaf, soil, water, or no skill type.');
+    return failure('invalid-skill-type', 'Invalid skill type', 'Choose 树叶, 耕地, 储水, or no skill type.');
   }
 
   if (!canAssetRequirePlacementSkill(asset)) {
@@ -427,7 +433,7 @@ function getTargetAreaType(
 }
 
 function isValidSkillType(value: AssetSkillType): value is AssetSkillType {
-  return value === null || value === 'leaf' || value === 'soil' || value === 'water';
+  return value === null || isAssetSkillType(value);
 }
 
 function instancesEqual(left: TileInstance, right: TileInstance): boolean {

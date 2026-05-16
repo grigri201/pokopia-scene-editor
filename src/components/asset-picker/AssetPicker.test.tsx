@@ -23,7 +23,7 @@ describe('AssetPicker', () => {
       'true',
     );
     expect(screen.getByLabelText('Garden Plant asset detail')).toHaveTextContent('garden-plant');
-    expect(screen.getByLabelText('Garden Plant asset detail')).toHaveTextContent('Default skill: leaf');
+    expect(screen.getByLabelText('Garden Plant asset detail')).toHaveTextContent('Default skill: 树叶');
     expect(within(screen.getByLabelText('Garden Plant asset detail')).getByAltText('Garden plant thumbnail')).toBeVisible();
     expect(screen.getByAltText('Garden plant thumbnail')).toBeVisible();
   });
@@ -161,7 +161,7 @@ describe('AssetPicker', () => {
 
     fireEvent.click(within(screen.getByRole('group', { name: 'Asset category filters' })).getByRole('button', { name: 'Wall' }));
     fireEvent.click(within(screen.getByRole('group', { name: 'Asset area filters' })).getByRole('button', { name: 'Outer' }));
-    fireEvent.change(screen.getByLabelText('Skill filter'), { target: { value: 'soil' } });
+    fireEvent.change(screen.getByLabelText('Skill filter'), { target: { value: '耕地' } });
 
     expect(screen.getByLabelText('Asset result count')).toHaveTextContent('01 / 06');
     expect(screen.getByRole('button', { name: /Roof Tile.*No\. 068/ })).toBeVisible();

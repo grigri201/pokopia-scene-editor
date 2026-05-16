@@ -5,6 +5,7 @@ import {
   assetMatchesPokemonFavorite,
   areaLabels,
   assetRenderLimit,
+  assetSkillTypes,
   canAssetRequirePlacementSkill,
   defaultAssetFilters,
   filterAssetCatalog,
@@ -489,9 +490,7 @@ const skillFilterOptions: readonly { value: AssetSkillFilter; label: string }[] 
   { value: 'all', label: 'All skills' },
   { value: 'requires-skill', label: 'Default skill' },
   { value: 'skill-candidate', label: 'Skill candidate' },
-  { value: 'leaf', label: 'Leaf' },
-  { value: 'water', label: 'Water' },
-  { value: 'soil', label: 'Soil' },
+  ...assetSkillTypes.map((skillType) => ({ value: skillType, label: skillType })),
 ];
 
 function getAssetRowIds(assetPickerId: string, assetId: string) {

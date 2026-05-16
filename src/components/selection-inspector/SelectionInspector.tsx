@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { assetCatalog, canAssetRequirePlacementSkill, getAssetById, type AssetSkillType } from '../../domain/assets';
+import {
+  assetCatalog,
+  assetSkillTypes,
+  canAssetRequirePlacementSkill,
+  getAssetById,
+  getAssetSkillMarkerLabel,
+  isAssetSkillType,
+  toAssetSkillType,
+  type AssetSkillType,
+} from '../../domain/assets';
 import {
   type BuildingLevel,
   calculateAreaType,
@@ -259,7 +268,7 @@ function InstanceEditor({
     }
 
     setRequiresSkill(instance.requiresSkill);
-    setSkillType(instance.skillType as AssetSkillType);
+    setSkillType(toAssetSkillType(instance.skillType));
     setSkillNote(instance.skillNote);
   }, [instance?.instanceId, instance?.requiresSkill, instance?.skillType, instance?.skillNote]);
 
@@ -305,9 +314,9 @@ function InstanceEditor({
       <em aria-label="Selected instance rotation">{instance.rotationDegrees} deg</em>
       <em aria-label="Selected instance dye">{instance.dyeColor ?? 'No dye'}</em>
       <em aria-label="Selected instance skill marker">
-        {instance.requiresSkill ? 'Skill required' : 'No skill required'}
+        {instance.requiresSkill ? `Skill ${getAssetSkillMarkerLabel(instance.skillType)}` : 'No skill required'}
       </em>
-      <em aria-label="Selected instance skill type">{instance.skillType ?? 'No skill type'}</em>
+      <em aria-label="Selected instance skill type">{formatInstanceSkillType(instance.skillType)}</em>
       <em aria-label="Selected instance skill note">{instance.skillNote || 'No skill note'}</em>
       <em aria-label="Selected instance note">{instance.note || 'No note'}</em>
       {disabledReason ? <em aria-label="Instance edit state">{disabledReason}</em> : null}
@@ -454,9 +463,11 @@ function InstanceEditor({
             onChange={(event) => setSkillType(toAssetSkillType(event.target.value))}
           >
             <option value="">None</option>
-            <option value="leaf">leaf</option>
-            <option value="soil">soil</option>
-            <option value="water">water</option>
+            {assetSkillTypes.map((candidate) => (
+              <option value={candidate} key={candidate}>
+                {candidate}
+              </option>
+            ))}
           </select>
         </label>
       </div>
@@ -496,12 +507,16 @@ function getBuildingLevelName(levels: readonly BuildingLevel[], buildingLevelId:
   return levels.find((level) => level.id === buildingLevelId)?.name ?? buildingLevelId;
 }
 
-function toAssetSkillType(value: string): AssetSkillType {
-  return value === 'leaf' || value === 'soil' || value === 'water' ? value : null;
+function isSupportedAssetSkillType(value: AssetSkillType): value is AssetSkillType {
+  return value === null || isAssetSkillType(value);
 }
 
-function isSupportedAssetSkillType(value: AssetSkillType): value is AssetSkillType {
-  return value === null || value === 'leaf' || value === 'soil' || value === 'water';
+function formatInstanceSkillType(value: string | null): string {
+  if (!value) {
+    return 'No skill type';
+  }
+
+  return toAssetSkillType(value) ?? `Unsupported skill type: ${value}`;
 }
 
 function parseMoveCoordinate(xValue: string, yValue: string, canvasSize: GridSize): GridCoordinate | null {

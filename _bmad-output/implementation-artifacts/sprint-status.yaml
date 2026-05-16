@@ -1,5 +1,5 @@
 # generated: 2026-05-16T06:01:02+0800
-# last_updated: 2026-05-16T09:11:45+0800
+# last_updated: 2026-05-16T09:42:00+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -34,7 +34,7 @@
 # - Dev moves story to 'review', then code-review triages findings before done.
 
 generated: 2026-05-16T06:01:02+0800
-last_updated: 2026-05-16T09:11:45+0800
+last_updated: 2026-05-16T09:42:00+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -50,7 +50,7 @@ development_status:
   1-6-mobile-readonly-boundary: done
   1-7-pokemon-scene-controls-theme: done
   epic-1-retrospective: optional
-  epic-2: in-progress
+  epic-2: done
   2-1-asset-browser-selection: done
   2-2-asset-search-filters: done
   2-3-place-assets-on-building-layer: done
@@ -59,7 +59,7 @@ development_status:
   2-6-copy-delete-building-layer: done
   2-7-cross-layer-placement-move: done
   2-8-inspector-instance-fields: done
-  2-9-ditto-skill-instances: backlog
+  2-9-ditto-skill-instances: done
   epic-2-retrospective: optional
   epic-3: backlog
   3-1-dual-preview-inspector: backlog

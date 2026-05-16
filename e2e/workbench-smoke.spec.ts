@@ -114,7 +114,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Current placement asset')).toContainText('Garden Plant');
   await expect(page.getByLabel('Current placement asset')).toContainText('Ready to place');
   await expect(page.getByLabel('Requires Ditto skill')).toBeChecked();
-  await expect(page.getByLabel('Garden Plant asset detail')).toContainText('Default skill: leaf');
+  await expect(page.getByLabel('Garden Plant asset detail')).toContainText('Default skill: 树叶');
   const assetScene = await readSceneSnapshot(page);
   expect(assetScene.workspaceState.selectedAssetId).toBe('garden-plant');
   expect(assetScene.workspaceState.saveStatus).toBe('dirty');
@@ -149,7 +149,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await page.evaluate(() => performance.mark('asset-combined-filter-start'));
   await page.getByRole('button', { name: 'Plant', exact: true }).click();
   await page.getByRole('button', { name: 'Show favorite assets' }).click();
-  await page.getByLabel('Skill filter').selectOption('leaf');
+  await page.getByLabel('Skill filter').selectOption('树叶');
   await expect(page.getByLabel('Asset result count')).toHaveText('01 / 06');
   const assetCombinedFilterDuration = await measureSinceMark(
     page,
@@ -296,10 +296,16 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await page.getByRole('button', { name: 'Save note' }).click();
   await expect(page.getByLabel('Selected instance note')).toHaveText('<script>alert(1)</script><img src=x onerror=alert(1)>');
   await expect(page.getByLabel('Instance requires skill')).toBeChecked();
-  await page.getByLabel('Instance skill type', { exact: true }).selectOption('water');
+  await page.getByLabel('Instance skill type', { exact: true }).selectOption('储水');
   await page.getByLabel('Instance skill note', { exact: true }).fill('<b>store water</b>');
   await page.getByRole('button', { name: 'Save skill' }).click();
-  await expect(page.getByLabel('Selected instance skill type')).toHaveText('water');
+  await expect(page.getByLabel('Selected instance skill type')).toHaveText('储水');
+  await expect(page.getByLabel('Selected instance skill note')).toHaveText('<b>store water</b>');
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByLabel('Selected instance skill type')).toHaveText('耕地');
+  await expect(page.getByLabel('Selected instance skill note')).toHaveText('No skill note');
+  await page.getByRole('button', { name: 'Redo' }).click();
+  await expect(page.getByLabel('Selected instance skill type')).toHaveText('储水');
   await expect(page.getByLabel('Selected instance skill note')).toHaveText('<b>store water</b>');
   expect(
     await page.locator('.instance-editor').evaluate((editor) => editor.scrollWidth <= editor.clientWidth),
@@ -318,7 +324,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
         rotationDegrees: 90,
         dyeColor: '#bb6bd9',
         requiresSkill: true,
-        skillType: 'water',
+        skillType: '储水',
         skillNote: '<b>store water</b>',
         note: '<script>alert(1)</script><img src=x onerror=alert(1)>',
       }),
@@ -501,7 +507,7 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('Asset result count')).toHaveText('02 / 06');
   await page.getByRole('button', { name: 'Wall', exact: true }).click();
   await page.getByRole('button', { name: 'Outer', exact: true }).click();
-  await page.getByLabel('Skill filter').selectOption('water');
+  await page.getByLabel('Skill filter').selectOption('储水');
   await expect(page.getByLabel('No matching assets')).toBeVisible();
   await page.getByRole('button', { name: 'Show all' }).click();
   await expect(page.getByLabel('Asset result count')).toHaveText('06 / 06');

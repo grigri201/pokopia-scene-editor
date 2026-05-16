@@ -192,7 +192,7 @@ describe('building layer edit command', () => {
           rotationDegrees: 90,
           dyeColor: '#bb6bd9',
           requiresSkill: true,
-          skillType: 'soil',
+          skillType: '耕地',
           skillNote: 'height',
           note: 'copy me',
         }),
@@ -227,7 +227,7 @@ describe('building layer edit command', () => {
       rotationDegrees: 90,
       dyeColor: '#bb6bd9',
       requiresSkill: true,
-      skillType: 'soil',
+      skillType: '耕地',
       skillNote: 'height',
       note: 'copy me',
     });

@@ -39,7 +39,7 @@ describe('asset instance edit command', () => {
         rotationDegrees: 90,
         dyeColor: '#56ccf2',
         requiresSkill: true,
-        skillType: 'soil',
+        skillType: '耕地',
         skillNote: 'needs height',
         note: 'keep me',
       }),
@@ -63,7 +63,7 @@ describe('asset instance edit command', () => {
       rotationDegrees: 90,
       dyeColor: '#56ccf2',
       requiresSkill: true,
-      skillType: 'soil',
+      skillType: '耕地',
       skillNote: 'needs height',
       note: 'keep me',
     });
@@ -80,7 +80,7 @@ describe('asset instance edit command', () => {
         rotationDegrees: 90,
         dyeColor: '#56ccf2',
         requiresSkill: true,
-        skillType: 'soil',
+        skillType: '耕地',
         skillNote: 'needs height',
         note: 'keep me',
       }),
@@ -106,7 +106,7 @@ describe('asset instance edit command', () => {
       rotationDegrees: 90,
       dyeColor: '#56ccf2',
       requiresSkill: true,
-      skillType: 'soil',
+      skillType: '耕地',
       skillNote: 'needs height',
       note: 'keep me',
     });
@@ -319,7 +319,7 @@ describe('asset instance edit command', () => {
         rotationDegrees: 90,
         dyeColor: '#56ccf2',
         requiresSkill: true,
-        skillType: 'soil',
+        skillType: '耕地',
         skillNote: 'keep if capable',
       }),
     ]);
@@ -342,10 +342,42 @@ describe('asset instance edit command', () => {
       rotationDegrees: 0,
       dyeColor: null,
       requiresSkill: true,
-      skillType: 'soil',
+      skillType: '耕地',
       skillNote: 'keep if capable',
     });
     expect(result.scene.workspaceState.saveStatus).toBe('dirty');
+  });
+
+  it('normalizes legacy skill values when changing to another skill-capable asset', () => {
+    const scene = createSceneWithInstances([
+      createTileInstance({
+        instanceId: 'tile-legacy-asset',
+        assetId: 'roof-tile',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+        requiresSkill: true,
+        skillType: 'leaf' as never,
+        skillNote: 'legacy value',
+      }),
+    ]);
+    const result = editAssetInstance(scene, {
+      type: 'asset',
+      instanceId: 'tile-legacy-asset',
+      assetId: 'garden-plant',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected legacy asset update success.');
+    }
+    expect(result.scene.tileInstances[0]).toMatchObject({
+      assetId: 'garden-plant',
+      requiresSkill: true,
+      skillType: '树叶',
+      skillNote: 'legacy value',
+    });
   });
 
   it('rejects invalid asset changes without mutating the scene', () => {
@@ -415,7 +447,7 @@ describe('asset instance edit command', () => {
         coordinate: { x: 3, y: 2 },
         buildingLevelId: 'level-0',
         requiresSkill: true,
-        skillType: 'soil',
+        skillType: '耕地',
         skillNote: 'unchanged',
       }),
     ]);
@@ -423,7 +455,7 @@ describe('asset instance edit command', () => {
       type: 'skill',
       instanceId: 'tile-skill',
       requiresSkill: true,
-      skillType: 'leaf',
+      skillType: '树叶',
       skillNote: '<script>alert(1)</script>',
       interactionMode: 'edit',
       now,
@@ -435,12 +467,12 @@ describe('asset instance edit command', () => {
     }
     expect(result.scene.tileInstances[0]).toMatchObject({
       requiresSkill: true,
-      skillType: 'leaf',
+      skillType: '树叶',
       skillNote: '<script>alert(1)</script>',
     });
     expect(result.scene.tileInstances[1]).toMatchObject({
       requiresSkill: true,
-      skillType: 'soil',
+      skillType: '耕地',
       skillNote: 'unchanged',
     });
   });
@@ -453,7 +485,7 @@ describe('asset instance edit command', () => {
         coordinate: { x: 2, y: 2 },
         buildingLevelId: 'level-0',
         requiresSkill: true,
-        skillType: 'soil',
+        skillType: '耕地',
         skillNote: 'clear me',
       }),
       createTileInstance({
@@ -467,7 +499,7 @@ describe('asset instance edit command', () => {
       type: 'skill',
       instanceId: 'tile-skill',
       requiresSkill: false,
-      skillType: 'soil',
+      skillType: '耕地',
       skillNote: 'ignored',
       interactionMode: 'edit',
       now,
@@ -476,7 +508,7 @@ describe('asset instance edit command', () => {
       type: 'skill',
       instanceId: 'tile-floor',
       requiresSkill: true,
-      skillType: 'leaf',
+      skillType: '树叶',
       skillNote: 'blocked',
       interactionMode: 'edit',
       now,
@@ -497,6 +529,39 @@ describe('asset instance edit command', () => {
     }
   });
 
+  it('saves a skill marker with null type and empty note when fields are cleared', () => {
+    const scene = createSceneWithInstances([
+      createTileInstance({
+        instanceId: 'tile-skill-clear-fields',
+        assetId: 'roof-tile',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+        requiresSkill: true,
+        skillType: '储水',
+        skillNote: 'clear me',
+      }),
+    ]);
+    const result = editAssetInstance(scene, {
+      type: 'skill',
+      instanceId: 'tile-skill-clear-fields',
+      requiresSkill: true,
+      skillType: null,
+      skillNote: '',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected cleared skill fields success.');
+    }
+    expect(result.scene.tileInstances[0]).toMatchObject({
+      requiresSkill: true,
+      skillType: null,
+      skillNote: '',
+    });
+  });
+
   it('allows stale skill data to be cleared without validating the stale type or asset capability', () => {
     const scene = createSceneWithInstances([
       createTileInstance({
@@ -505,7 +570,7 @@ describe('asset instance edit command', () => {
         coordinate: { x: 2, y: 2 },
         buildingLevelId: 'level-0',
         requiresSkill: true,
-        skillType: 'cut',
+        skillType: 'cut' as never,
         skillNote: 'legacy',
       }),
     ]);
@@ -540,7 +605,7 @@ describe('asset instance edit command', () => {
         rotationDegrees: 90,
         dyeColor: '#56ccf2',
         requiresSkill: true,
-        skillType: 'soil',
+        skillType: '耕地',
         skillNote: 'same',
         note: 'same note',
       }),
@@ -556,7 +621,7 @@ describe('asset instance edit command', () => {
       type: 'skill',
       instanceId: 'tile-unchanged',
       requiresSkill: true,
-      skillType: 'soil',
+      skillType: '耕地',
       skillNote: 'same',
       interactionMode: 'edit',
       now,

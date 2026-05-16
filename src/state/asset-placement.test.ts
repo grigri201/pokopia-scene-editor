@@ -32,7 +32,7 @@ describe('asset placement command', () => {
       coordinate: { x: 2, y: 2 },
       buildingLevelId: 'level-0',
       requiresSkill: true,
-      skillType: 'leaf',
+      skillType: '树叶',
     });
     expect(result.scene.workspaceState.saveStatus).toBe('dirty');
     expect(result.scene.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 2 });
@@ -252,7 +252,7 @@ describe('asset placement command', () => {
     const preview = getAssetPlacementPreview(scene, { x: 2, y: 2 }, 'edit', true);
 
     expect(preview?.message).toBe('Ready to place');
-    expect(preview?.skillLabel).toBe('Skill required: leaf');
+    expect(preview?.skillLabel).toBe('Skill required: 树叶');
     expect(preview?.overwriteLabel).toBe('No overwrite');
   });
 });

@@ -1,5 +1,5 @@
 import type { AreaType, GridCoordinate, GridSize } from './area';
-import type { PokemonKey } from '../assets';
+import type { AssetSkillType, PokemonKey } from '../assets';
 
 export type SceneSchemaVersion = 1;
 export type SaveStatus = 'dirty' | 'saved' | 'saveError';
@@ -37,7 +37,7 @@ export interface TileInstance {
   rotationDegrees: RotationDegrees;
   dyeColor: string | null;
   requiresSkill: boolean;
-  skillType: string | null;
+  skillType: AssetSkillType;
   skillNote: string;
   note: string;
 }

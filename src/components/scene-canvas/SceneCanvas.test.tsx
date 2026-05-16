@@ -200,7 +200,7 @@ describe('SceneCanvas', () => {
           coordinate: { x: 2, y: 3 },
           buildingLevelId: 'level-0',
           requiresSkill: true,
-          skillType: 'leaf',
+          skillType: '树叶',
         }),
       ],
     };
@@ -213,11 +213,14 @@ describe('SceneCanvas', () => {
       />,
     );
 
-    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable, Garden Plant, skill required');
+    const cell = screen.getByLabelText(
+      'Cell 2,3, main area, level-0, placeable, Garden Plant, 1 skill item in stack, top skill Garden Plant 树',
+    );
     expect(cell).toHaveAttribute('data-has-instance', 'true');
     expect(cell).toHaveAttribute('data-requires-skill', 'true');
+    expect(cell).toHaveAttribute('data-skill-marker-label', '树');
     expect(screen.getByText('Garden Plant')).toBeVisible();
-    expect(screen.getByText('skill')).toBeVisible();
+    expect(screen.getByLabelText('1 skill item in stack, top skill Garden Plant 树')).toHaveTextContent('树');
   });
 
   it('shows other visible layer context without marking the current layer as occupied', () => {
@@ -268,7 +271,7 @@ describe('SceneCanvas', () => {
           rotationDegrees: 90,
           dyeColor: '#56ccf2',
           requiresSkill: true,
-          skillType: 'soil',
+          skillType: '耕地',
         }),
         createTileInstance({
           instanceId: 'tile-unknown',
@@ -288,9 +291,10 @@ describe('SceneCanvas', () => {
     );
 
     const stackedCell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, Roof Tile, 2 stacked items, rotated 90 deg, dyed #56ccf2, skill required',
+      'Cell 2,3, main area, level-0, placeable, Roof Tile, 2 stacked items, rotated 90 deg, dyed #56ccf2, 1 skill item in stack, top skill Roof Tile 耕',
     );
     expect(stackedCell).toHaveAttribute('data-instance-count', '2');
+    expect(stackedCell).toHaveAttribute('data-skill-marker-label', '耕');
     expect(stackedCell).toHaveAttribute('data-rotation', '90');
     expect(stackedCell).toHaveAttribute('data-dye-color', '#56ccf2');
     expect(stackedCell).toHaveTextContent('Roof Tile');
@@ -299,6 +303,43 @@ describe('SceneCanvas', () => {
     expect(screen.getByLabelText('Dye #56ccf2')).toBeVisible();
 
     expect(screen.getByLabelText('Cell 4,4, main area, level-0, placeable, Unknown asset: missing-asset')).toBeVisible();
+  });
+
+  it('labels stack-level skill markers without assigning them to the visible top asset', () => {
+    const sceneWithMixedSkillStack = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-skill-bottom',
+          assetId: 'garden-plant',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-0',
+          requiresSkill: true,
+          skillType: '树叶',
+        }),
+        createTileInstance({
+          instanceId: 'tile-plain-top',
+          assetId: 'ditto-doll',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-0',
+          requiresSkill: false,
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        cells={getCanvasCellContexts(sceneWithMixedSkillStack)}
+        readOnly={false}
+      />,
+    );
+
+    const cell = screen.getByLabelText(
+      'Cell 2,3, main area, level-0, placeable, Ditto Doll, 2 stacked items, 1 skill item in stack, top skill Garden Plant 树',
+    );
+    expect(cell).toHaveTextContent('Ditto Doll');
+    expect(screen.getByLabelText('1 skill item in stack, top skill Garden Plant 树')).toHaveTextContent('树');
   });
 
   it('does not render instances when the current building layer is hidden', () => {
@@ -313,6 +354,9 @@ describe('SceneCanvas', () => {
           assetId: 'garden-plant',
           coordinate: { x: 2, y: 3 },
           buildingLevelId: 'level-0',
+          requiresSkill: true,
+          skillType: '树叶',
+          skillNote: 'kept while hidden',
         }),
       ],
     };
@@ -327,6 +371,12 @@ describe('SceneCanvas', () => {
 
     const cell = screen.getByLabelText('Cell 2,3, main area, level-0, hidden layer');
     expect(cell).toHaveAttribute('data-has-instance', 'false');
+    expect(cell).toHaveAttribute('data-requires-skill', 'false');
     expect(cell).not.toHaveTextContent('Garden Plant');
+    expect(hiddenScene.tileInstances[0]).toMatchObject({
+      requiresSkill: true,
+      skillType: '树叶',
+      skillNote: 'kept while hidden',
+    });
   });
 });

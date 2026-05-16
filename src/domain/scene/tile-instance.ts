@@ -1,5 +1,6 @@
 import { calculateAreaType, defaultSceneDimensions, type GridCoordinate } from './area';
 import type { RotationDegrees, TileInstance } from './types';
+import type { AssetSkillType } from '../assets';
 
 export interface CreateTileInstanceInput {
   instanceId: string;
@@ -9,7 +10,7 @@ export interface CreateTileInstanceInput {
   rotationDegrees?: RotationDegrees;
   dyeColor?: string | null;
   requiresSkill?: boolean;
-  skillType?: string | null;
+  skillType?: AssetSkillType;
   skillNote?: string;
   note?: string;
 }

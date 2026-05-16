@@ -1,5 +1,5 @@
 import type { FocusEvent, KeyboardEvent } from 'react';
-import { getAssetById } from '../../domain/assets';
+import { getAssetById, getAssetSkillMarkerLabel } from '../../domain/assets';
 import type { BuildingLevel, CanvasCellContext, GridCoordinate, GridSize } from '../../domain/scene';
 import { moveCoordinate } from '../../state';
 
@@ -59,7 +59,13 @@ export function SceneCanvas({
             const topAssetLabel = topInstance ? getInstanceDisplayLabel(topInstance.assetId) : null;
             const stackCount = visibleInstances.length;
             const otherLayerInstanceCount = cell.otherVisibleLayerInstances.length;
-            const hasSkillInstance = visibleInstances.some((instance) => instance.requiresSkill);
+            const skillInstances = visibleInstances.filter((instance) => instance.requiresSkill);
+            const topSkillInstance = skillInstances.at(-1) ?? null;
+            const hasSkillInstance = skillInstances.length > 0;
+            const skillMarkerLabel = topSkillInstance ? getAssetSkillMarkerLabel(topSkillInstance.skillType) : null;
+            const skillStackLabel = topSkillInstance
+              ? getSkillStackLabel(skillInstances.length, topSkillInstance.assetId, skillMarkerLabel)
+              : null;
             const rotationLabel = topInstance?.rotationDegrees ? `${topInstance.rotationDegrees} deg` : null;
             const dyeColor = topInstance?.dyeColor ?? null;
 
@@ -91,7 +97,9 @@ export function SceneCanvas({
                     : ''
                 }${
                   rotationLabel ? `, rotated ${rotationLabel}` : ''
-                }${dyeColor ? `, dyed ${dyeColor}` : ''}${hasSkillInstance ? ', skill required' : ''}${
+                }${dyeColor ? `, dyed ${dyeColor}` : ''}${
+                  skillStackLabel ? `, ${skillStackLabel}` : ''
+                }${
                   selected ? ', selected' : ''
                 }`}
                 onClick={() =>
@@ -129,6 +137,7 @@ export function SceneCanvas({
                 data-instance-count={stackCount}
                 data-other-layer-instance-count={otherLayerInstanceCount}
                 data-requires-skill={hasSkillInstance}
+                data-skill-marker-label={skillMarkerLabel ?? ''}
                 data-rotation={topInstance?.rotationDegrees ?? 0}
                 data-dye-color={dyeColor ?? ''}
                 key={cell.id}
@@ -158,7 +167,11 @@ export function SceneCanvas({
                     style={{ backgroundColor: dyeColor }}
                   />
                 ) : null}
-                {hasSkillInstance ? <span className="cell-skill-marker">skill</span> : null}
+                {hasSkillInstance ? (
+                  <span className="cell-skill-marker" aria-label={skillStackLabel ?? 'Skill marker'}>
+                    {skillMarkerLabel}
+                  </span>
+                ) : null}
                 {selected ? <span className="cell-selected-cue">selected</span> : null}
               </button>
             );
@@ -265,6 +278,13 @@ function toGridCoordinate(coordinate: GridCoordinate): GridCoordinate {
 
 function getInstanceDisplayLabel(assetId: string): string {
   return getAssetById(assetId)?.name ?? `Unknown asset: ${assetId}`;
+}
+
+function getSkillStackLabel(skillCount: number, assetId: string, markerLabel: string | null): string {
+  const skillItemText = `${skillCount} skill item${skillCount === 1 ? '' : 's'} in stack`;
+  const assetLabel = getInstanceDisplayLabel(assetId);
+
+  return `${skillItemText}, top skill ${assetLabel} ${markerLabel ?? '技'}`;
 }
 
 function setGridKeyboardTarget(cell: HTMLButtonElement, coordinate: GridCoordinate): void {

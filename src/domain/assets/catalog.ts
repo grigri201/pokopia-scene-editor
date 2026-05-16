@@ -2,7 +2,9 @@ import type { AreaType } from '../scene';
 import type { PokemonKey } from './pokemon';
 
 export type AssetCategory = 'floor' | 'plant' | 'wall' | 'decor' | 'utility';
-export type AssetSkillType = 'leaf' | 'water' | 'soil' | null;
+export const assetSkillTypes = ['树叶', '耕地', '储水'] as const;
+export type ConcreteAssetSkillType = (typeof assetSkillTypes)[number];
+export type AssetSkillType = ConcreteAssetSkillType | null;
 
 export interface AssetDefinition {
   assetId: string;
@@ -35,6 +37,18 @@ export const areaLabels: Record<AreaType, string> = {
   outer: 'Outer',
 };
 
+export const assetSkillMarkerLabels: Record<ConcreteAssetSkillType, string> = {
+  树叶: '树',
+  耕地: '耕',
+  储水: '水',
+};
+
+const legacyAssetSkillTypeMap: Record<string, ConcreteAssetSkillType> = {
+  leaf: '树叶',
+  soil: '耕地',
+  water: '储水',
+};
+
 export const assetCatalog: readonly AssetDefinition[] = [
   {
     assetId: 'wooden-floor',
@@ -62,7 +76,7 @@ export const assetCatalog: readonly AssetDefinition[] = [
     applicableAreas: ['main', 'outer'],
     favoritePokemonKeys: ['ditto', 'eevee'],
     defaultRequiresSkill: true,
-    defaultSkillType: 'leaf',
+    defaultSkillType: '树叶',
     skillCandidate: true,
     rotatable: false,
     stackable: true,
@@ -113,7 +127,7 @@ export const assetCatalog: readonly AssetDefinition[] = [
     applicableAreas: ['main', 'outer'],
     favoritePokemonKeys: ['pikachu'],
     defaultRequiresSkill: true,
-    defaultSkillType: 'water',
+    defaultSkillType: '储水',
     skillCandidate: true,
     rotatable: true,
     stackable: false,
@@ -130,7 +144,7 @@ export const assetCatalog: readonly AssetDefinition[] = [
     applicableAreas: ['main', 'outer'],
     favoritePokemonKeys: ['eevee', 'pikachu'],
     defaultRequiresSkill: true,
-    defaultSkillType: 'soil',
+    defaultSkillType: '耕地',
     skillCandidate: true,
     rotatable: true,
     stackable: true,
@@ -179,6 +193,24 @@ export function getAssetSkillLabel(asset: AssetDefinition): string {
   }
 
   return asset.defaultSkillType ? `Default skill: ${asset.defaultSkillType}` : 'Default skill required';
+}
+
+export function isAssetSkillType(value: string | null | undefined): value is ConcreteAssetSkillType {
+  return assetSkillTypes.includes(value as ConcreteAssetSkillType);
+}
+
+export function toAssetSkillType(value: string | null | undefined): AssetSkillType {
+  if (isAssetSkillType(value)) {
+    return value;
+  }
+
+  return value ? legacyAssetSkillTypeMap[value] ?? null : null;
+}
+
+export function getAssetSkillMarkerLabel(skillType: string | null | undefined): string {
+  const normalizedSkillType = toAssetSkillType(skillType);
+
+  return normalizedSkillType ? assetSkillMarkerLabels[normalizedSkillType] : '技';
 }
 
 export function canAssetRequirePlacementSkill(asset: AssetDefinition): boolean {

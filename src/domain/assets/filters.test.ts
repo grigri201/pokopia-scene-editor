@@ -23,7 +23,7 @@ describe('asset catalog filters', () => {
       category: 'wall',
       area: 'outer',
       favoriteOnly: true,
-      skill: 'soil',
+      skill: '耕地',
     };
 
     expect(filterAssetCatalog(assetCatalog, filters, 'pikachu').filteredAssets.map((asset) => asset.assetId)).toEqual(['roof-tile']);

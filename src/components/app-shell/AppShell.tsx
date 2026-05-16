@@ -12,6 +12,7 @@ import {
   getCanvasCellContexts,
   getCellContext,
   type GridCoordinate,
+  type SceneDocument,
 } from '../../domain/scene';
 import {
   editAssetInstance,
@@ -35,6 +36,8 @@ export function AppShell() {
       now: '2026-05-16T07:00:00.000Z',
     }),
   );
+  const [undoStack, setUndoStack] = useState<SceneDocument[]>([]);
+  const [redoStack, setRedoStack] = useState<SceneDocument[]>([]);
   const pendingSelectionMeasureRef = useRef<string | null>(null);
   const selectionMeasureCounterRef = useRef(0);
   const [readOnlySelectedCoordinate, setReadOnlySelectedCoordinate] = useState<GridCoordinate | null>(null);
@@ -75,8 +78,24 @@ export function AppShell() {
     ? getAssetPlacementPreview(scene, targetCoordinate, interactionMode, placementRequiresSkill)
     : placementFeedback;
   const pokemonThemeStyle = toPokemonThemeStyle(getPokemonTheme(scene.selectedPokemonKey));
-  const dispatch = (action: SceneAction) => {
-    setScene((currentScene) => sceneReducer(currentScene, action));
+  const commitSceneEdit = (nextScene: SceneDocument, currentScene = scene) => {
+    if (nextScene === currentScene) {
+      setScene(nextScene);
+      return;
+    }
+
+    setUndoStack((pastScenes) => [...pastScenes.slice(-49), currentScene]);
+    setRedoStack([]);
+    setScene(nextScene);
+  };
+  const dispatch = (action: SceneAction, recordHistory = false) => {
+    const nextScene = sceneReducer(scene, action);
+    if (recordHistory) {
+      commitSceneEdit(nextScene);
+      return;
+    }
+
+    setScene(nextScene);
   };
 
   useEffect(() => {
@@ -175,7 +194,7 @@ export function AppShell() {
       pokemonKey,
       interactionMode,
       now: getCurrentIsoTimestamp(),
-    });
+    }, true);
   };
 
   const updateSceneName = (sceneName: string) => {
@@ -184,7 +203,7 @@ export function AppShell() {
       sceneName,
       interactionMode,
       now: getCurrentIsoTimestamp(),
-    });
+    }, true);
   };
 
   const saveScene = () => {
@@ -208,7 +227,7 @@ export function AppShell() {
       assetId,
       interactionMode,
       now: getCurrentIsoTimestamp(),
-    });
+    }, true);
   };
 
   const placeCurrentAsset = (coordinate: GridCoordinate) => {
@@ -221,7 +240,7 @@ export function AppShell() {
     });
 
     if (result.ok) {
-      setScene(result.scene);
+      commitSceneEdit(result.scene);
       setPlacementFeedback(result.preview);
       return;
     }
@@ -246,7 +265,7 @@ export function AppShell() {
       });
 
       if (confirmedResult.ok) {
-        setScene(confirmedResult.scene);
+        commitSceneEdit(confirmedResult.scene);
         setPlacementFeedback(confirmedResult.preview);
         return;
       }
@@ -260,7 +279,7 @@ export function AppShell() {
 
   const handleInstanceEditResult = (result: AssetInstanceEditResult) => {
     if (result.ok) {
-      setScene(result.scene);
+      commitSceneEdit(result.scene);
       setSelectedInstanceId(result.instance?.instanceId ?? null);
       setInstanceEditFeedback(result.message);
       setPlacementFeedback(null);
@@ -396,7 +415,7 @@ export function AppShell() {
 
   const handleBuildingLayerResult = (result: BuildingLayerEditResult) => {
     if (result.ok) {
-      setScene(result.scene);
+      commitSceneEdit(result.scene);
       setBuildingLayerFeedback(result.message);
       setPlacementFeedback(null);
       setInstanceEditFeedback(null);
@@ -523,6 +542,42 @@ export function AppShell() {
     );
   };
 
+  const undoSceneEdit = () => {
+    if (isReadOnly || undoStack.length === 0) {
+      return;
+    }
+
+    const previousScene = undoStack.at(-1);
+    if (!previousScene) {
+      return;
+    }
+
+    setUndoStack((pastScenes) => pastScenes.slice(0, -1));
+    setRedoStack((futureScenes) => [scene, ...futureScenes.slice(0, 49)]);
+    setScene(previousScene);
+    setPlacementFeedback(null);
+    setInstanceEditFeedback('Undo applied');
+    setBuildingLayerFeedback(null);
+  };
+
+  const redoSceneEdit = () => {
+    if (isReadOnly || redoStack.length === 0) {
+      return;
+    }
+
+    const nextScene = redoStack[0];
+    if (!nextScene) {
+      return;
+    }
+
+    setRedoStack((futureScenes) => futureScenes.slice(1));
+    setUndoStack((pastScenes) => [...pastScenes.slice(-49), scene]);
+    setScene(nextScene);
+    setPlacementFeedback(null);
+    setInstanceEditFeedback('Redo applied');
+    setBuildingLayerFeedback(null);
+  };
+
   return (
     <main
       className="app-shell"
@@ -535,9 +590,13 @@ export function AppShell() {
         sceneName={scene.sceneName}
         saveStatus={scene.workspaceState.saveStatus}
         saveError={scene.workspaceState.saveError}
+        canUndo={undoStack.length > 0}
+        canRedo={redoStack.length > 0}
         onPokemonChange={updatePokemon}
         onSceneNameChange={updateSceneName}
         onSave={saveScene}
+        onUndo={undoSceneEdit}
+        onRedo={redoSceneEdit}
       />
       <section className="workbench-grid" aria-label="Open Design editing workbench">
         <div className="workbench-left">

@@ -15,9 +15,13 @@ describe('PokemonSceneControls', () => {
         sceneName="Ditto 5x5 布景草稿"
         saveStatus="dirty"
         saveError={null}
+        canUndo
+        canRedo={false}
         onPokemonChange={onPokemonChange}
         onSceneNameChange={onSceneNameChange}
         onSave={onSave}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
       />,
     );
 
@@ -40,9 +44,13 @@ describe('PokemonSceneControls', () => {
         sceneName="Ditto 5x5 布景草稿"
         saveStatus="dirty"
         saveError={null}
+        canUndo={false}
+        canRedo={false}
         onPokemonChange={onPokemonChange}
         onSceneNameChange={() => undefined}
         onSave={() => undefined}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
       />,
     );
 
@@ -67,9 +75,13 @@ describe('PokemonSceneControls', () => {
         sceneName="Ditto 5x5 布景草稿"
         saveStatus="dirty"
         saveError={null}
+        canUndo={false}
+        canRedo={false}
         onPokemonChange={() => undefined}
         onSceneNameChange={onSceneNameChange}
         onSave={onSave}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
       />,
     );
 
@@ -93,9 +105,13 @@ describe('PokemonSceneControls', () => {
         sceneName="Ditto 5x5 布景草稿"
         saveStatus="saveError"
         saveError="Local storage unavailable."
+        canUndo={false}
+        canRedo={false}
         onPokemonChange={() => undefined}
         onSceneNameChange={() => undefined}
         onSave={() => undefined}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
       />,
     );
 
@@ -112,9 +128,13 @@ describe('PokemonSceneControls', () => {
         sceneName="Ditto 5x5 布景草稿"
         saveStatus="saved"
         saveError={null}
+        canUndo
+        canRedo
         onPokemonChange={() => undefined}
         onSceneNameChange={() => undefined}
         onSave={() => undefined}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
       />,
     );
 
@@ -123,5 +143,51 @@ describe('PokemonSceneControls', () => {
     expect(screen.getByRole('button', { name: 'Save scene' })).toBeDisabled();
     expect(screen.getByLabelText('Save status')).toHaveTextContent('Read-only · Saved');
     expect(screen.getByRole('button', { name: 'Toggle grid' })).toBeDisabled();
+  });
+
+  it('enables undo and redo only when available in edit mode', () => {
+    const onUndo = vi.fn();
+    const onRedo = vi.fn();
+    const { rerender } = render(
+      <PokemonSceneControls
+        readOnly={false}
+        selectedPokemonKey="ditto"
+        sceneName="Ditto 5x5 布景草稿"
+        saveStatus="dirty"
+        saveError={null}
+        canUndo
+        canRedo={false}
+        onPokemonChange={() => undefined}
+        onSceneNameChange={() => undefined}
+        onSave={() => undefined}
+        onUndo={onUndo}
+        onRedo={onRedo}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(onUndo).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Redo' })).toBeDisabled();
+
+    rerender(
+      <PokemonSceneControls
+        readOnly={false}
+        selectedPokemonKey="ditto"
+        sceneName="Ditto 5x5 布景草稿"
+        saveStatus="dirty"
+        saveError={null}
+        canUndo={false}
+        canRedo
+        onPokemonChange={() => undefined}
+        onSceneNameChange={() => undefined}
+        onSave={() => undefined}
+        onUndo={onUndo}
+        onRedo={onRedo}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Redo' }));
+    expect(onRedo).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
   });
 });

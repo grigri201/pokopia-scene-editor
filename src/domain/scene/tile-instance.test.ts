@@ -11,7 +11,7 @@ describe('tile instance rules', () => {
       rotationDegrees: 90,
       dyeColor: '#ffffff',
       requiresSkill: true,
-      skillType: 'cut',
+      skillType: '树叶',
       skillNote: 'Needs Ditto skill',
       note: 'Outer edge test',
     });
@@ -25,7 +25,7 @@ describe('tile instance rules', () => {
       rotationDegrees: 90,
       dyeColor: '#ffffff',
       requiresSkill: true,
-      skillType: 'cut',
+      skillType: '树叶',
       skillNote: 'Needs Ditto skill',
       note: 'Outer edge test',
     });

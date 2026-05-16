@@ -113,7 +113,11 @@ describe('SelectionInspector', () => {
     fireEvent.change(screen.getByLabelText('Instance rotation'), { target: { value: '180' } });
     fireEvent.change(screen.getByLabelText('Instance dye color'), { target: { value: '#bb6bd9' } });
     fireEvent.click(screen.getByLabelText('Instance requires skill'));
-    fireEvent.change(screen.getByLabelText('Instance skill type'), { target: { value: 'leaf' } });
+    const skillOptions = Array.from(screen.getByLabelText('Instance skill type').querySelectorAll('option')).map(
+      (option) => option.value,
+    );
+    expect(skillOptions).toEqual(['', '树叶', '耕地', '储水']);
+    fireEvent.change(screen.getByLabelText('Instance skill type'), { target: { value: '树叶' } });
     fireEvent.change(screen.getByLabelText('Instance skill note'), { target: { value: '<b>skill</b>' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save skill' }));
     fireEvent.change(screen.getByLabelText('Instance note'), {
@@ -126,7 +130,7 @@ describe('SelectionInspector', () => {
     expect(onMoveInstance).toHaveBeenCalledWith('tile-edit', { x: 3, y: 4 }, 'level-0');
     expect(onRotateInstance).toHaveBeenCalledWith('tile-edit', 180);
     expect(onDyeInstance).toHaveBeenCalledWith('tile-edit', '#bb6bd9');
-    expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-edit', true, 'leaf', '<b>skill</b>');
+    expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-edit', true, '树叶', '<b>skill</b>');
     expect(onSaveInstanceNote).toHaveBeenCalledWith('tile-edit', '<img src=x onerror=alert(1)>');
     expect(onDeleteInstance).toHaveBeenCalledWith('tile-edit');
   });
@@ -163,7 +167,7 @@ describe('SelectionInspector', () => {
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
           requiresSkill: true,
-          skillType: 'cut',
+          skillType: 'cut' as never,
           skillNote: 'legacy note',
         }),
       ],
@@ -184,7 +188,42 @@ describe('SelectionInspector', () => {
     expect(screen.getByLabelText('Instance requires skill')).toBeEnabled();
     fireEvent.click(screen.getByLabelText('Instance requires skill'));
     fireEvent.click(screen.getByRole('button', { name: 'Save skill' }));
-    expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-stale-skill', false, 'cut', 'legacy note');
+    expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-stale-skill', false, null, 'legacy note');
+  });
+
+  it('maps legacy skill types to the visible Chinese value before saving', () => {
+    const onSaveInstanceSkill = vi.fn();
+    const legacyScene = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-legacy-skill',
+          assetId: 'garden-plant',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+          requiresSkill: true,
+          skillType: 'leaf' as never,
+          skillNote: 'legacy leaf',
+        }),
+      ],
+    };
+    const legacyContext = getCellContext(legacyScene, { x: 2, y: 2 });
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={legacyContext}
+        selectedInstance={legacyContext.tileInstances[0]}
+        selectedInstanceId="tile-legacy-skill"
+        readOnly={false}
+        onSaveInstanceSkill={onSaveInstanceSkill}
+      />,
+    );
+
+    expect(screen.getByLabelText('Selected instance skill type')).toHaveTextContent('树叶');
+    expect(screen.getByLabelText('Instance skill type')).toHaveValue('树叶');
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }));
+    expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-legacy-skill', true, '树叶', 'legacy leaf');
   });
 
   it('shows move preview, invalid input feedback, and unsupported capability reasons', () => {

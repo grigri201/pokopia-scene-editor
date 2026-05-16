@@ -12,9 +12,13 @@ interface PokemonSceneControlsProps {
   sceneName: string;
   saveStatus: SaveStatus;
   saveError: string | null;
+  canUndo: boolean;
+  canRedo: boolean;
   onPokemonChange: (pokemonKey: PokemonKey) => void;
   onSceneNameChange: (sceneName: string) => void;
   onSave: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
 }
 
 export function PokemonSceneControls({
@@ -23,9 +27,13 @@ export function PokemonSceneControls({
   sceneName,
   saveStatus,
   saveError,
+  canUndo,
+  canRedo,
   onPokemonChange,
   onSceneNameChange,
   onSave,
+  onUndo,
+  onRedo,
 }: PokemonSceneControlsProps) {
   const pokemonListId = useId();
   const pokemonErrorId = useId();
@@ -159,10 +167,10 @@ export function PokemonSceneControls({
         >
           Save
         </button>
-        <button type="button" aria-label="Undo" disabled>
+        <button type="button" aria-label="Undo" disabled={readOnly || !canUndo} onClick={onUndo}>
           Undo
         </button>
-        <button type="button" aria-label="Redo" disabled>
+        <button type="button" aria-label="Redo" disabled={readOnly || !canRedo} onClick={onRedo}>
           Redo
         </button>
         <button type="button" aria-label="Toggle grid" aria-pressed="true" disabled={readOnly}>
