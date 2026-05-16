@@ -1,5 +1,5 @@
 # generated: 2026-05-16T06:01:02+0800
-# last_updated: 2026-05-16T11:22:44+0800
+# last_updated: 2026-05-16T11:30:12+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -34,7 +34,7 @@
 # - Dev moves story to 'review', then code-review triages findings before done.
 
 generated: 2026-05-16T06:01:02+0800
-last_updated: 2026-05-16T11:22:44+0800
+last_updated: 2026-05-16T11:30:12+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -72,7 +72,7 @@ development_status:
   epic-4: in-progress
   4-1-scene-document-v1-contract: done
   4-2-autosave-reopen-restore: done
-  4-3-scene-document-roundtrip: backlog
+  4-3-scene-document-roundtrip: done
   4-4-restore-failure-protection: backlog
   4-5-restore-validation-ui-safe-text: backlog
   4-6-localstorage-ui-preferences: backlog

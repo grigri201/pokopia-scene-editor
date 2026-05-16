@@ -8,5 +8,6 @@ export const sceneIoBoundary: SceneIoBoundary = {
 
 export * from './scene-schema';
 export * from './scene-recovery';
+export * from './scene-roundtrip';
 export * from './scene-serializer';
 export * from './scene-storage';

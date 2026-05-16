@@ -3,6 +3,10 @@ import { calculateAreaType, type SceneDocument } from '../domain/scene';
 import { sceneDocumentV1Schema, type SceneDocumentV1 } from './scene-schema';
 
 export function serializeSceneDocument(scene: SceneDocument): SceneDocumentV1 {
+  return sceneDocumentV1Schema.parse(createSceneDocumentV1PayloadInput(scene));
+}
+
+export function createSceneDocumentV1PayloadInput(scene: SceneDocument): unknown {
   const dimensions = {
     sceneSize: scene.sceneSize,
     canvasSize: scene.canvasSize,
@@ -22,7 +26,7 @@ export function serializeSceneDocument(scene: SceneDocument): SceneDocumentV1 {
       instanceId: instance.instanceId,
       assetId: instance.assetId,
       coordinate: { ...instance.coordinate },
-      areaType: calculateAreaType(instance.coordinate, dimensions),
+      areaType: calculateSerializableAreaType(instance, dimensions),
       buildingLevelId: instance.buildingLevelId,
       rotationDegrees: instance.rotationDegrees,
       dyeColor: serializeDyeColor(instance.assetId, instance.dyeColor),
@@ -42,7 +46,7 @@ export function serializeSceneDocument(scene: SceneDocument): SceneDocumentV1 {
     metadata: { ...scene.metadata },
   };
 
-  return sceneDocumentV1Schema.parse(payload);
+  return payload;
 }
 
 export function stringifySceneDocument(scene: SceneDocument, spacing?: number): string {
@@ -61,4 +65,15 @@ function serializeDyeColor(assetId: string, dyeColor: string | null): string | n
 
 function isHexDyeColor(value: string | null): value is string {
   return /^#[0-9a-fA-F]{6}$/.test(value ?? '');
+}
+
+function calculateSerializableAreaType(
+  instance: SceneDocument['tileInstances'][number],
+  dimensions: Parameters<typeof calculateAreaType>[1],
+) {
+  try {
+    return calculateAreaType(instance.coordinate, dimensions);
+  } catch {
+    return instance.areaType;
+  }
 }
