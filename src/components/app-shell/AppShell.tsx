@@ -30,12 +30,7 @@ import {
 import { getPokemonTheme, toPokemonThemeStyle } from '../../theme';
 
 export function AppShell() {
-  const [scene, setScene] = useState(() =>
-    createDefaultSceneDocument({
-      sceneId: 'scene-default',
-      now: '2026-05-16T07:00:00.000Z',
-    }),
-  );
+  const [scene, setScene] = useState(createInitialSceneDocument);
   const [undoStack, setUndoStack] = useState<SceneDocument[]>([]);
   const [redoStack, setRedoStack] = useState<SceneDocument[]>([]);
   const pendingSelectionMeasureRef = useRef<string | null>(null);
@@ -112,7 +107,9 @@ export function AppShell() {
       return undefined;
     }
 
-    const testWindow = window as unknown as { __pokopiaSceneSnapshot?: () => string };
+    const testWindow = window as unknown as {
+      __pokopiaSceneSnapshot?: () => string;
+    };
     testWindow.__pokopiaSceneSnapshot = () => JSON.stringify(scene);
 
     return () => {
@@ -708,6 +705,21 @@ function markSelectionVisible(measureId: string): void {
 
 function isLocalPreviewHost(hostname: string): boolean {
   return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]';
+}
+
+function createInitialSceneDocument(): SceneDocument {
+  const defaultScene = createDefaultSceneDocument({
+    sceneId: 'scene-default',
+    now: '2026-05-16T07:00:00.000Z',
+  });
+
+  if (!isLocalPreviewHost(window.location.hostname) || !navigator.webdriver) {
+    return defaultScene;
+  }
+
+  const testWindow = window as unknown as { __pokopiaInitialSceneSnapshot?: SceneDocument };
+
+  return testWindow.__pokopiaInitialSceneSnapshot ?? defaultScene;
 }
 
 function getCurrentIsoTimestamp(): string {

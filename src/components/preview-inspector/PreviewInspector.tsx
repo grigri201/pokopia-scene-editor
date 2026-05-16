@@ -140,17 +140,19 @@ export function PreviewInspector({
             type="button"
             aria-label="Show preview main boundary"
             aria-pressed={displayOptions.mainBoundary}
+            title="显示主体边界"
             onClick={() => setDisplayOption('mainBoundary')}
           >
-            主体边界
+            边界
           </button>
           <button
             type="button"
             aria-label="Show preview skill markers"
             aria-pressed={displayOptions.skillMarkers}
+            title="显示技能标记"
             onClick={() => setDisplayOption('skillMarkers')}
           >
-            技能标记
+            技能
           </button>
         </div>
         <div className="preview-tile" aria-label="Top view preview">
@@ -160,17 +162,19 @@ export function PreviewInspector({
               type="button"
               aria-label="Preview current layer"
               aria-pressed={previewScope === 'current-layer'}
+              title="预览当前层"
               onClick={() => setPreviewScope('current-layer')}
             >
-              当前层
+              当前
             </button>
             <button
               type="button"
               aria-label="Preview all visible layers"
               aria-pressed={previewScope === 'all-visible-layers'}
+              title="预览全部可见层"
               onClick={() => setPreviewScope('all-visible-layers')}
             >
-              全部可见层
+              全部
             </button>
           </div>
           <div
@@ -282,10 +286,10 @@ export function PreviewInspector({
               -
             </button>
             <button type="button" aria-label="Pan preview left" onClick={() => setPreviewPan((pan) => ({ ...pan, x: Math.max(-16, pan.x - 4) }))}>
-              Left
+              &lt;
             </button>
             <button type="button" aria-label="Pan preview right" onClick={() => setPreviewPan((pan) => ({ ...pan, x: Math.min(16, pan.x + 4) }))}>
-              Right
+              &gt;
             </button>
           </div>
         </div>

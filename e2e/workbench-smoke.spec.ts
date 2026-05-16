@@ -1,4 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+
+const densePreviewAssetIds = ['wooden-floor', 'garden-plant', 'outer-wall', 'ditto-doll', 'water-barrel', 'roof-tile'];
+const densePreviewSkillTypes = ['树叶', '耕地', '储水'];
 
 test('renders the Open Design workbench as the first screen', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -30,10 +33,28 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Dual preview inspector')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Preview current layer' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'Preview all visible layers' })).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('button', { name: 'Preview all visible layers' }).focus();
+  expect(
+    await page.getByRole('button', { name: 'Preview all visible layers' }).evaluate(
+      (element) => getComputedStyle(element).outlineStyle,
+    ),
+  ).not.toBe('none');
   await expect(page.getByLabel('Top preview scope')).toHaveText('Current layer preview');
   await expect(page.getByLabel('Top preview layer summary')).toHaveText('L0 0 层 unlocked');
   await expect(page.getByLabel('Top preview item summary')).toHaveText('0 current-layer items');
   await expect(page.getByLabel('Front preview layer summary')).toHaveText('1 visible layer, 0 visible items');
+  const previewScopeDuration = await measureVisibleUpdateAfterPageClick(
+    page,
+    page.getByRole('button', { name: 'Preview all visible layers' }),
+    'preview-scope-start',
+    'preview-scope-duration',
+    { selector: '[aria-label="Top preview scope"]', text: 'All visible layers preview' },
+  );
+  await expect(page.getByLabel('Top preview scope')).toHaveText('All visible layers preview');
+  await expect(page.getByLabel('Front preview layer summary')).toHaveText('3 visible layers, 0 visible items');
+  expect(previewScopeDuration).toBeLessThanOrEqual(300);
+  await page.getByRole('button', { name: 'Preview current layer' }).click();
+  await expect(page.getByLabel('Top preview scope')).toHaveText('Current layer preview');
   await expect(frontPreview.locator('.front-structure')).toHaveAttribute('data-front-rendering', 'structure-only');
   await expect(frontPreview.locator('.front-structure')).toHaveAttribute('data-front-scroll', 'independent');
   expect(
@@ -56,11 +77,18 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByRole('button', { name: 'Show preview skill markers' })).toHaveAttribute('aria-pressed', 'true');
   await expect(topPreview.locator('.mini-grid__cells')).toHaveCSS('gap', '1px');
   expect(await frontStructure.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-  await page.getByRole('button', { name: 'Show preview grid' }).click();
+  const previewGridToggleDuration = await measureVisibleUpdateAfterPageClick(
+    page,
+    page.getByRole('button', { name: 'Show preview grid' }),
+    'preview-grid-toggle-start',
+    'preview-grid-toggle-duration',
+    { selector: '.mini-grid', attribute: 'data-preview-grid-visible', value: 'false' },
+  );
   await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveAttribute('aria-pressed', 'false');
   await expect(topPreviewSurface).toHaveAttribute('data-preview-grid-visible', 'false');
   await expect(topPreview.locator('.mini-grid__cells')).toHaveCSS('gap', '0px');
   await expect(frontStructure).toHaveAttribute('data-front-grid-visible', 'false');
+  expect(previewGridToggleDuration).toBeLessThanOrEqual(300);
   await expect(page.getByLabel('Save status')).toHaveText('Saved');
   expect(await readSceneSnapshot(page)).toEqual(sceneBeforePreviewDisplay);
   await page.getByRole('button', { name: 'Show preview grid' }).click();
@@ -258,7 +286,8 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(previewCell('2,3')).toHaveAttribute('aria-label', /Garden Plant, 1 item, skill 树/);
   await expect(topPreview.locator('.mini-grid__skill')).toBeVisible();
   const sceneBeforeSkillDisplayToggle = await readSceneSnapshot(page);
-  await page.getByRole('button', { name: 'Show preview skill markers' }).click();
+  await page.getByRole('button', { name: 'Show preview skill markers' }).focus();
+  await page.keyboard.press('Space');
   await expect(page.getByRole('button', { name: 'Show preview skill markers' })).toHaveAttribute(
     'aria-pressed',
     'false',
@@ -614,6 +643,113 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   expect(await readSceneSnapshot(page)).toEqual(lastLayerScene);
 });
 
+test('keeps preview controls readable and non-overlapping across guardrail viewports', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+
+  for (const viewport of [
+    { width: 1280, height: 720, mode: 'Desktop edit mode' },
+    { width: 1024, height: 768, mode: 'Desktop edit mode' },
+    { width: 768, height: 1024, mode: 'Desktop edit mode' },
+    { width: 390, height: 844, mode: 'Mobile read-only mode' },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/');
+
+    const previewInspector = page.getByRole('complementary', { name: 'Preview inspector' });
+    const topPreview = previewInspector.getByLabel('Top view preview');
+    const frontPreview = previewInspector.getByLabel('Front view preview');
+
+    await expect(page.getByLabel('Interaction mode')).toHaveText(viewport.mode);
+    await expect(previewInspector).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Preview all visible layers' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Show preview grid' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Show preview main boundary' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Show preview skill markers' })).toBeEnabled();
+    await expect(topPreview.locator('[data-preview-main-boundary="true"]')).toHaveCount(16);
+    await expect(topPreview.locator('.mini-grid__area').filter({ hasText: 'M' }).first()).toBeVisible();
+    await expect(frontPreview.locator('.front-structure')).toHaveAttribute('data-front-scroll', 'independent');
+
+    await expectNoHorizontalOverflow(page);
+    expect(await previewInspector.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    expect(
+      await previewInspector.locator(
+        '.preview-display-options button, .preview-scope-control button, .preview-view-controls button',
+      ).evaluateAll((buttons) =>
+        buttons.every((button) => button.scrollWidth <= button.clientWidth + 1),
+      ),
+    ).toBe(true);
+    expect(
+      await previewInspector.locator('.mini-grid__cell').evaluateAll((cells) =>
+        cells.every((cell) => cell.scrollWidth <= cell.clientWidth + 1 && cell.scrollHeight <= cell.clientHeight + 1),
+      ),
+    ).toBe(true);
+    expect(
+      await page.locator('.level-row input').evaluateAll((inputs) =>
+        inputs.every((input) => input.scrollWidth <= input.clientWidth + 1),
+      ),
+    ).toBe(true);
+
+    const sceneBefore = await readSceneSnapshot(page);
+    await page.getByRole('button', { name: 'Show preview grid' }).click();
+    await page.getByRole('button', { name: 'Show preview main boundary' }).click();
+    await page.getByRole('button', { name: 'Show preview skill markers' }).click();
+    await expect(topPreview.locator('.mini-grid')).toHaveAttribute('data-preview-grid-visible', 'false');
+    await expect(topPreview.locator('.mini-grid')).toHaveAttribute('data-preview-main-boundary-visible', 'false');
+    await expect(topPreview.locator('.mini-grid')).toHaveAttribute('data-preview-skill-markers-visible', 'false');
+    await expect(frontPreview.locator('.front-structure')).toHaveAttribute('data-front-grid-visible', 'false');
+    await expect(frontPreview.locator('.front-structure')).toHaveAttribute('data-front-main-boundary-visible', 'false');
+    await expect(frontPreview.locator('.front-structure')).toHaveAttribute('data-front-skill-markers-visible', 'false');
+    expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
+    await expectNoHorizontalOverflow(page);
+    expect(await getShellTransitionDuration(page)).toBe('0s');
+  }
+});
+
+test('updates dense preview inside the browser-visible performance budget', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.addInitScript((scene) => {
+    (window as unknown as { __pokopiaInitialSceneSnapshot?: unknown }).__pokopiaInitialSceneSnapshot = scene;
+  }, createDensePreviewSceneSnapshot());
+  await page.goto('/');
+
+  const previewInspector = page.getByRole('complementary', { name: 'Preview inspector' });
+  const topPreview = previewInspector.getByLabel('Top view preview');
+  const frontPreview = previewInspector.getByLabel('Front view preview');
+  const canvasBoxBefore = await page.getByTestId('scene-canvas').boundingBox();
+  const firstCellBoxBefore = await page.getByTestId('scene-cell').first().boundingBox();
+
+  await expect(page.getByLabel('Top preview item summary')).toHaveText('49 current-layer items');
+  await expect(page.getByLabel('Front preview layer summary')).toHaveText('1 visible layer, 49 visible items');
+  await expect(topPreview.locator('[data-preview-coordinate]')).toHaveCount(49);
+  await expect(frontPreview.locator('[data-front-layer-id="level-0"]')).toHaveAttribute(
+    'data-front-layer-skill-count',
+    '17',
+  );
+
+  const densePreviewDuration = await measureVisibleUpdateAfterPageClick(
+    page,
+    page.getByRole('button', { name: 'Preview all visible layers' }),
+    'dense-preview-scope-start',
+    'dense-preview-scope-duration',
+    { selector: '[aria-label="Top preview item summary"]', text: '490 visible items across 10 layers' },
+  );
+
+  await expect(page.getByLabel('Top preview item summary')).toHaveText('490 visible items across 10 layers');
+  await expect(page.getByLabel('Front preview layer summary')).toHaveText('10 visible layers, 490 visible items');
+  await expect(topPreview.locator('[data-preview-layer-count="10"]')).toHaveCount(49);
+  await expect(frontPreview.locator('[data-front-layer-id]')).toHaveCount(10);
+  expect(densePreviewDuration).toBeLessThanOrEqual(300);
+  await expectNoHorizontalOverflow(page);
+
+  const canvasBoxAfter = await page.getByTestId('scene-canvas').boundingBox();
+  const firstCellBoxAfter = await page.getByTestId('scene-cell').first().boundingBox();
+  expect(canvasBoxBefore).not.toBeNull();
+  expect(firstCellBoxBefore).not.toBeNull();
+  expect(Math.abs((canvasBoxBefore?.width ?? 0) - (canvasBoxAfter?.width ?? 0))).toBeLessThanOrEqual(1);
+  expect(Math.abs((firstCellBoxBefore?.width ?? 0) - (firstCellBoxAfter?.width ?? 0))).toBeLessThanOrEqual(1);
+});
+
 test('switches scaffold controls to read-only below the mobile breakpoint', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
@@ -851,6 +987,135 @@ async function measureSinceMark(page: Page, startMark: string, measureName: stri
     },
     [startMark, measureName],
   );
+}
+
+async function measureVisibleUpdateAfterPageClick(
+  page: Page,
+  locator: Locator,
+  startMark: string,
+  measureName: string,
+  expectation: VisibleUpdateExpectation,
+): Promise<number> {
+  await page.evaluate((start) => {
+    performance.clearMarks(start);
+    performance.mark(start);
+  }, startMark);
+  await expect(locator).toBeVisible();
+  await expect(locator).toBeEnabled();
+  await locator.evaluate((element) => {
+    (element as HTMLElement).click();
+  });
+
+  return page.evaluate(
+    ([start, measure, expected]) =>
+      new Promise<number>((resolve) => {
+        const isExpectedMet = (candidate: VisibleUpdateExpectation) => {
+          const element = document.querySelector(candidate.selector);
+
+          if (!element) {
+            return false;
+          }
+
+          if (typeof candidate.text === 'string') {
+            return element.textContent === candidate.text;
+          }
+
+          if (candidate.attribute) {
+            return element.getAttribute(candidate.attribute) === candidate.value;
+          }
+
+          return true;
+        };
+        const checkReady = () => {
+          if (!isExpectedMet(expected)) {
+            requestAnimationFrame(checkReady);
+            return;
+          }
+
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              performance.mark(`${measure}-visible`);
+              performance.clearMeasures(measure);
+              performance.measure(measure, start, `${measure}-visible`);
+              const duration = performance.getEntriesByName(measure).at(-1)?.duration ?? Number.POSITIVE_INFINITY;
+              performance.clearMarks(start);
+              performance.clearMarks(`${measure}-visible`);
+              resolve(duration);
+            });
+          });
+
+        };
+
+        checkReady();
+      }),
+    [startMark, measureName, expectation],
+  );
+}
+
+interface VisibleUpdateExpectation {
+  selector: string;
+  text?: string;
+  attribute?: string;
+  value?: string;
+}
+
+async function expectNoHorizontalOverflow(page: Page): Promise<void> {
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1),
+  ).toBe(true);
+}
+
+function createDensePreviewSceneSnapshot(): unknown {
+  const now = '2026-05-16T10:39:14.000Z';
+  const buildingLevels = Array.from({ length: 10 }, (_, levelNumber) => ({
+    id: `level-${levelNumber}`,
+    levelNumber,
+    name: `${levelNumber} 层`,
+    visible: true,
+    locked: false,
+  }));
+  const tileInstances = buildingLevels.flatMap((level) =>
+    Array.from({ length: 49 }, (_, index) => ({
+      instanceId: `dense-${level.levelNumber}-${index}`,
+      assetId: densePreviewAssetIds[index % densePreviewAssetIds.length],
+      coordinate: { x: index % 7, y: Math.floor(index / 7) },
+      areaType: index % 7 >= 1 && index % 7 <= 5 && Math.floor(index / 7) >= 1 && Math.floor(index / 7) <= 5
+        ? 'main'
+        : 'outer',
+      buildingLevelId: level.id,
+      rotationDegrees: 0,
+      dyeColor: null,
+      requiresSkill: index % 3 === 0,
+      skillType: densePreviewSkillTypes[index % densePreviewSkillTypes.length],
+      skillNote: '',
+      note: '',
+    })),
+  );
+
+  return {
+    schemaVersion: 1,
+    sceneId: 'scene-dense-preview',
+    sceneName: 'Dense Preview Fixture',
+    selectedPokemonKey: 'ditto',
+    sceneSize: { width: 5, height: 5 },
+    canvasSize: { width: 7, height: 7 },
+    outerPadding: 1,
+    buildingLevels,
+    tileInstances,
+    workspaceState: {
+      currentBuildingLevelId: 'level-0',
+      selectedAssetId: null,
+      selectedCoordinate: { x: 2, y: 3 },
+      saveStatus: 'saved',
+      saveError: null,
+    },
+    metadata: {
+      createdAt: now,
+      updatedAt: now,
+      lastSavedAt: now,
+      lastAutosavedAt: null,
+    },
+  };
 }
 
 async function getShellTheme(page: Page): Promise<{

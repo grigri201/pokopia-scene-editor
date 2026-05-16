@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { assetCatalog, assetSkillTypes, assertKnownAssetId } from '../assets';
 import {
   createDefaultSceneDocument,
   createTileInstance,
@@ -332,4 +333,59 @@ describe('scene selectors', () => {
     expect(allVisibleFront.map((level) => level.skillInstanceCount)).toEqual([1, 1]);
     expect(allVisibleFront.find((level) => level.id === 'level-1')?.heightPercent).toBe(64);
   });
+
+  it('derives dense top and front previews within the preview performance budget', () => {
+    const scene = createDensePreviewScene();
+    const topCells = getAllVisiblePreviewCellContexts(scene);
+    const frontLevels = getAllVisibleFrontPreviewContexts(scene);
+
+    expect(topCells).toHaveLength(49);
+    expect(topCells.flatMap((cell) => cell.tileInstances)).toHaveLength(490);
+    expect(topCells.every((cell) => cell.instanceLayerContexts.length === 10)).toBe(true);
+    expect(frontLevels).toHaveLength(10);
+    expect(frontLevels.reduce((total, level) => total + level.totalInstanceCount, 0)).toBe(490);
+    expect(frontLevels.every((level) => level.heightPercent >= 28 && level.heightPercent <= 100)).toBe(true);
+  });
 });
+
+function createDensePreviewScene() {
+  const baseScene = createDefaultSceneDocument({
+    sceneId: 'scene-dense-preview',
+    now: '2026-05-16T10:32:30.000Z',
+  });
+  const buildingLevels = Array.from({ length: 10 }, (_, levelNumber) => ({
+    id: `level-${levelNumber}`,
+    levelNumber,
+    name: `${levelNumber} 层`,
+    visible: true,
+    locked: false,
+  }));
+  const assetIds = assetCatalog.map((asset) => asset.assetId);
+  const skillTypes = assetSkillTypes;
+  const tileInstances = buildingLevels.flatMap((level) =>
+    Array.from({ length: 49 }, (_, index) => {
+      const assetId = assetIds[index % assetIds.length];
+      assertKnownAssetId(assetId);
+
+      return createTileInstance({
+        instanceId: `tile-${level.levelNumber}-${index}`,
+        assetId,
+        coordinate: { x: index % 7, y: Math.floor(index / 7) },
+        buildingLevelId: level.id,
+        requiresSkill: index % 3 === 0,
+        skillType: skillTypes[index % skillTypes.length],
+      });
+    }),
+  );
+
+  return {
+    ...baseScene,
+    buildingLevels,
+    tileInstances,
+    workspaceState: {
+      ...baseScene.workspaceState,
+      currentBuildingLevelId: 'level-0',
+      selectedCoordinate: { x: 2, y: 3 },
+    },
+  };
+}
