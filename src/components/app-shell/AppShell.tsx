@@ -28,16 +28,22 @@ import {
   type SceneAction,
 } from '../../state';
 import {
+  applyRecoveredSceneDocument,
   readLatestSceneDocumentFromStorage,
   savedSceneStorageKey,
   serializeSceneDocument,
+  type RecoveryError,
   writeSceneDocumentToAllStorageSlots,
   writeSceneDocumentToStorage,
 } from '../../io';
 import { getPokemonTheme, toPokemonThemeStyle } from '../../theme';
 
 export function AppShell() {
-  const [scene, setScene] = useState(createInitialSceneDocument);
+  const [initialSceneState] = useState(createInitialSceneState);
+  const [scene, setScene] = useState(initialSceneState.scene);
+  const [recoveryErrors, setRecoveryErrors] = useState<RecoveryError[]>(
+    initialSceneState.recoveryErrors,
+  );
   const [undoStack, setUndoStack] = useState<SceneDocument[]>([]);
   const [redoStack, setRedoStack] = useState<SceneDocument[]>([]);
   const autosaveReadyRef = useRef(false);
@@ -638,6 +644,46 @@ export function AppShell() {
     setBuildingLayerFeedback(null);
   };
 
+  const retrySceneRecovery = () => {
+    const storage = getBrowserStorage();
+    if (!storage) {
+      setRecoveryErrors([createStorageUnavailableRecoveryError()]);
+      return;
+    }
+
+    const storedScene = readLatestSceneDocumentFromStorage(storage);
+    if (!storedScene) {
+      setRecoveryErrors([]);
+      return;
+    }
+
+    if (!storedScene.ok) {
+      setRecoveryErrors(storedScene.errors);
+      return;
+    }
+
+    const appliedRecovery = applyRecoveredSceneDocument(scene, storedScene.payload, {
+      interactionMode,
+      source: 'confirmed-user',
+    });
+    if (!appliedRecovery.ok) {
+      setRecoveryErrors(appliedRecovery.errors);
+      return;
+    }
+
+    setScene(appliedRecovery.scene);
+    setUndoStack([]);
+    setRedoStack([]);
+    setRecoveryErrors([]);
+    setPlacementFeedback(null);
+    setInstanceEditFeedback('Recovered saved scene');
+    setBuildingLayerFeedback(null);
+  };
+
+  const cancelSceneRecovery = () => {
+    setRecoveryErrors([]);
+  };
+
   return (
     <main
       className="app-shell"
@@ -658,6 +704,36 @@ export function AppShell() {
         onUndo={undoSceneEdit}
         onRedo={redoSceneEdit}
       />
+      {recoveryErrors.length > 0 ? (
+        <section className="recovery-validator" role="alert" aria-label="Recovery Validator">
+          <div className="recovery-validator__header">
+            <div>
+              <p className="eyebrow">Recovery Validator</p>
+              <h2>Saved scene was rejected</h2>
+              <p>Current scene was kept unchanged. Review the invalid fields, retry, or cancel.</p>
+            </div>
+            <div className="recovery-validator__actions" aria-label="Recovery actions">
+              <button type="button" onClick={retrySceneRecovery}>
+                Retry
+              </button>
+              <button type="button" onClick={cancelSceneRecovery}>
+                Cancel
+              </button>
+            </div>
+          </div>
+          <ul className="recovery-validator__errors" aria-label="Recovery error details">
+            {recoveryErrors.map((error, index) => (
+              <li key={`${error.fieldPath}-${index}`}>
+                <strong>{error.fieldPath}</strong>
+                <span>{error.reason}</span>
+                <span>Expected: {error.expected}</span>
+                <span>Actual: {error.actual}</span>
+                <span>{error.recoveryAction}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <section className="workbench-grid" aria-label="Open Design editing workbench">
         <div className="workbench-left">
           <BuildingLevelPanel
@@ -770,28 +846,65 @@ function isLocalPreviewHost(hostname: string): boolean {
   return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]';
 }
 
-function createInitialSceneDocument(): SceneDocument {
+interface InitialSceneState {
+  scene: SceneDocument;
+  recoveryErrors: RecoveryError[];
+}
+
+function createInitialSceneState(): InitialSceneState {
   const defaultScene = createDefaultSceneDocument({
     sceneId: 'scene-default',
     now: '2026-05-16T07:00:00.000Z',
   });
+  const initialInteractionMode = getInteractionMode(window.innerWidth);
   const testWindow = window as unknown as { __pokopiaInitialSceneSnapshot?: SceneDocument };
 
   if (isLocalPreviewHost(window.location.hostname) && navigator.webdriver && testWindow.__pokopiaInitialSceneSnapshot) {
-    return testWindow.__pokopiaInitialSceneSnapshot;
+    return {
+      scene: testWindow.__pokopiaInitialSceneSnapshot,
+      recoveryErrors: [],
+    };
   }
 
   const storage = getBrowserStorage();
   if (!storage) {
-    return defaultScene;
+    return {
+      scene: defaultScene,
+      recoveryErrors: [],
+    };
   }
 
   const storedScene = readLatestSceneDocumentFromStorage(storage);
-  if (storedScene?.ok) {
-    return storedScene.scene;
+  if (storedScene?.ok && initialInteractionMode !== 'readOnly') {
+    return {
+      scene: storedScene.scene,
+      recoveryErrors: [],
+    };
   }
 
-  return defaultScene;
+  if (storedScene?.ok && initialInteractionMode === 'readOnly') {
+    const rejectedRecovery = applyRecoveredSceneDocument(defaultScene, storedScene.payload, {
+      interactionMode: 'readOnly',
+      source: 'startup',
+    });
+
+    return {
+      scene: defaultScene,
+      recoveryErrors: rejectedRecovery.ok ? [] : rejectedRecovery.errors,
+    };
+  }
+
+  if (storedScene && !storedScene.ok) {
+    return {
+      scene: defaultScene,
+      recoveryErrors: storedScene.errors,
+    };
+  }
+
+  return {
+    scene: defaultScene,
+    recoveryErrors: [],
+  };
 }
 
 function getCurrentIsoTimestamp(): string {
@@ -812,6 +925,16 @@ function getStorageErrorMessage(error: unknown): string {
   }
 
   return 'Local storage unavailable.';
+}
+
+function createStorageUnavailableRecoveryError(): RecoveryError {
+  return {
+    fieldPath: '$',
+    expected: 'browser localStorage',
+    actual: 'unavailable',
+    reason: 'Saved scene storage is unavailable.',
+    recoveryAction: 'Enable localStorage and retry recovery.',
+  };
 }
 
 function reconcileHistorySceneSaveStatus(scene: SceneDocument): SceneDocument {

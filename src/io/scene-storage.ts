@@ -91,27 +91,31 @@ export function readSceneDocumentFromStorage(
 }
 
 export function readLatestSceneDocumentFromStorage(storage: Storage): StoredSceneDocumentResult | null {
-  const results = [
-    readSceneDocumentFromStorage(storage, 'autosave'),
-    readSceneDocumentFromStorage(storage, 'saved'),
-  ].filter((result): result is StoredSceneDocumentResult => result !== null);
-
-  if (results.length === 0) {
-    return null;
+  const autosave = readSceneDocumentFromStorage(storage, 'autosave');
+  if (autosave && !autosave.ok) {
+    return autosave;
   }
 
-  const validResults = results.filter((result): result is StoredSceneDocument => result.ok);
-  if (validResults.length === 0) {
-    return results[0];
+  const saved = readSceneDocumentFromStorage(storage, 'saved');
+  if (!autosave) {
+    return saved;
   }
 
-  return validResults.sort((left, right) => getUpdatedAtMs(right.payload) - getUpdatedAtMs(left.payload))[0];
-}
+  if (!saved) {
+    return autosave;
+  }
 
-export function getSceneStorageKey(slot: SceneStorageSlot): string {
-  return slot === 'saved' ? savedSceneStorageKey : autosavedSceneStorageKey;
+  if (!saved.ok) {
+    return autosave;
+  }
+
+  return getUpdatedAtMs(saved.payload) > getUpdatedAtMs(autosave.payload) ? saved : autosave;
 }
 
 function getUpdatedAtMs(payload: SceneDocumentV1): number {
   return Date.parse(payload.metadata.updatedAt);
+}
+
+export function getSceneStorageKey(slot: SceneStorageSlot): string {
+  return slot === 'saved' ? savedSceneStorageKey : autosavedSceneStorageKey;
 }

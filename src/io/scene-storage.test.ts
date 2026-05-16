@@ -96,6 +96,33 @@ describe('scene storage', () => {
     expect(latest.scene.workspaceState.saveStatus).toBe('dirty');
   });
 
+  it('surfaces invalid autosave instead of silently falling back to saved scene', () => {
+    writeSceneDocumentToStorage(window.localStorage, createScene({ sceneName: 'Saved 5x5 scene' }), 'saved');
+    window.localStorage.setItem(
+      autosavedSceneStorageKey,
+      JSON.stringify({
+        schemaVersion: 99,
+        sceneId: 'bad-autosave',
+      }),
+    );
+
+    const latest = readLatestSceneDocumentFromStorage(window.localStorage);
+
+    expect(latest?.ok).toBe(false);
+    if (!latest || latest.ok) {
+      throw new Error('Expected invalid autosave to be reported.');
+    }
+    expect(latest.slot).toBe('autosave');
+    expect(latest.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'schemaVersion',
+          actual: '99',
+        }),
+      ]),
+    );
+  });
+
   it('returns structured failure for invalid stored JSON', () => {
     window.localStorage.setItem(savedSceneStorageKey, '{not-json');
 

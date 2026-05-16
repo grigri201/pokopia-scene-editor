@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createDefaultSceneDocument } from '../../domain/scene';
 import {
   autosavedSceneStorageKey,
   savedSceneStorageKey,
+  writeSceneDocumentToStorage,
 } from '../../io';
 import { AppShell } from './AppShell';
 
@@ -120,6 +122,89 @@ describe('AppShell scene storage integration', () => {
     expect(screen.getByLabelText('Save status')).toHaveTextContent('Read-only · Saved');
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+  });
+
+  it('shows recovery errors and keeps the current scene when startup storage is invalid', () => {
+    window.localStorage.setItem(
+      autosavedSceneStorageKey,
+      JSON.stringify({
+        schemaVersion: 99,
+        sceneId: 'bad-scene',
+      }),
+    );
+
+    render(<AppShell />);
+
+    expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
+    expect(screen.getByLabelText('Recovery error details')).toHaveTextContent('schemaVersion');
+    expect(screen.getByLabelText('Scene Name')).toHaveValue('Ditto 5x5 布景草稿');
+    expect(screen.getByLabelText('Save status')).toHaveTextContent('Saved');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByLabelText('Recovery Validator')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Scene Name')).toHaveValue('Ditto 5x5 布景草稿');
+  });
+
+  it('retries recovery and replaces the scene only after storage becomes valid', async () => {
+    window.localStorage.setItem(
+      autosavedSceneStorageKey,
+      JSON.stringify({
+        schemaVersion: 99,
+        sceneId: 'bad-scene',
+      }),
+    );
+
+    render(<AppShell />);
+    expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
+
+    writeSceneDocumentToStorage(
+      window.localStorage,
+      createDefaultSceneDocument({
+        sceneId: 'scene-retry-recovery',
+        sceneName: 'Retry 5x5 Recovery',
+        selectedPokemonKey: 'pikachu',
+        selectedCoordinate: { x: 3, y: 3 },
+        now: '2026-05-16T08:30:00.000Z',
+      }),
+      'autosave',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Recovery Validator')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Scene Name')).toHaveValue('Retry 5x5 Recovery');
+      expect(screen.getByLabelText(/Cell 3,3, main area, level-0, placeable, selected/)).toBeVisible();
+    });
+  });
+
+  it('keeps read-only startup and retry from replacing the scene', async () => {
+    setViewportWidth(390);
+    writeSceneDocumentToStorage(
+      window.localStorage,
+      createDefaultSceneDocument({
+        sceneId: 'scene-readonly-recovery',
+        sceneName: 'Blocked 5x5 Recovery',
+        selectedPokemonKey: 'pikachu',
+        now: '2026-05-16T08:30:00.000Z',
+      }),
+      'autosave',
+    );
+
+    render(<AppShell />);
+
+    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
+    expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
+    expect(screen.getByLabelText('Recovery error details')).toHaveTextContent('Read-only mode cannot replace');
+    expect(screen.getByLabelText('Scene Name')).toHaveValue('Ditto 5x5 布景草稿');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
+      expect(screen.getByLabelText('Scene Name')).toHaveValue('Ditto 5x5 布景草稿');
+      expect(screen.getByLabelText('Save status')).toHaveTextContent('Read-only · Saved');
+    });
   });
 });
 

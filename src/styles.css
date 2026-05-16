@@ -149,6 +149,61 @@ button:disabled {
   font-weight: 700;
 }
 
+.recovery-validator {
+  display: grid;
+  gap: 12px;
+  max-width: 1440px;
+  margin: 12px auto 0;
+  border: 1px solid rgba(179, 38, 30, 0.52);
+  border-radius: 8px;
+  padding: 14px;
+  background: #fffefb;
+  color: var(--ink);
+}
+
+.recovery-validator__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.recovery-validator h2,
+.recovery-validator p {
+  margin: 0;
+}
+
+.recovery-validator__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.recovery-validator__actions button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #fffefb;
+  color: var(--ink);
+}
+
+.recovery-validator__errors {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recovery-validator__errors li {
+  display: grid;
+  gap: 4px;
+  border-left: 3px solid var(--color-error);
+  padding: 8px 10px;
+  background: rgba(179, 38, 30, 0.07);
+  overflow-wrap: anywhere;
+}
+
 .workbench-grid {
   display: grid;
   grid-template-columns: minmax(180px, 230px) minmax(520px, 1fr) minmax(240px, 300px);

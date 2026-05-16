@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultSceneDocument, createTileInstance } from '../domain/scene';
 import { serializeSceneDocument } from './scene-serializer';
-import { recoverSceneDocument } from './scene-recovery';
+import { applyRecoveredSceneDocument, recoverSceneDocument } from './scene-recovery';
 
 describe('scene recovery', () => {
   it('restores a valid SceneDocument v1 payload into editable domain scene state', () => {
@@ -82,4 +82,248 @@ describe('scene recovery', () => {
       ]),
     );
   });
+
+  it('applies a valid recovered payload only after validation succeeds', () => {
+    const currentScene = createDirtyCurrentScene();
+    const recoveredScene = createDefaultSceneDocument({
+      sceneId: 'scene-valid-recovery',
+      sceneName: 'Recovered 5x5 scene',
+      selectedPokemonKey: 'pikachu',
+      selectedCoordinate: { x: 3, y: 3 },
+      now: '2026-05-16T08:10:00.000Z',
+    });
+    const payload = serializeSceneDocument(recoveredScene);
+
+    const result = applyRecoveredSceneDocument(currentScene, payload, {
+      interactionMode: 'edit',
+      source: 'confirmed-user',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected valid recovery to apply.');
+    }
+    expect(result.previousScene).toBe(currentScene);
+    expect(result.scene).toMatchObject({
+      sceneId: 'scene-valid-recovery',
+      sceneName: 'Recovered 5x5 scene',
+      selectedPokemonKey: 'pikachu',
+      workspaceState: {
+        selectedCoordinate: { x: 3, y: 3 },
+        saveStatus: 'saved',
+        saveError: null,
+      },
+    });
+  });
+
+  it('protects the current dirty scene when schemaVersion is missing or unknown', () => {
+    const currentScene = createDirtyCurrentScene();
+    const missingVersion = applyRecoveredSceneDocument(currentScene, { sceneId: 'bad-scene' }, {
+      interactionMode: 'edit',
+      source: 'confirmed-user',
+    });
+    const unknownVersion = applyRecoveredSceneDocument(currentScene, {
+      schemaVersion: 99,
+      sceneId: 'bad-scene',
+    }, {
+      interactionMode: 'edit',
+      source: 'confirmed-user',
+    });
+
+    expect(missingVersion.ok).toBe(false);
+    expect(unknownVersion.ok).toBe(false);
+    if (missingVersion.ok || unknownVersion.ok) {
+      throw new Error('Expected invalid versions to fail.');
+    }
+    expect(missingVersion.scene).toBe(currentScene);
+    expect(unknownVersion.scene).toBe(currentScene);
+    expect(currentScene.workspaceState.saveStatus).toBe('dirty');
+    expect(missingVersion.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'schemaVersion',
+          actual: 'undefined',
+        }),
+      ]),
+    );
+    expect(unknownVersion.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'schemaVersion',
+          actual: '99',
+        }),
+      ]),
+    );
+  });
+
+  it('returns field-level recovery errors for invalid payload fields without replacing scene', () => {
+    const currentScene = createDirtyCurrentScene();
+    const validPayload = serializeSceneDocument(
+      createDefaultSceneDocument({
+        sceneId: 'scene-invalid-recovery',
+        sceneName: 'Invalid 5x5 recovery',
+        now: '2026-05-16T08:10:00.000Z',
+      }),
+    );
+    const invalidPayload = {
+      ...validPayload,
+      workspaceState: {
+        ...validPayload.workspaceState,
+        saveStatus: 'saveError',
+      },
+      tileInstances: [
+        {
+          instanceId: 'tile-bad-area',
+          assetId: 'wooden-floor',
+          coordinate: { x: 0, y: 2 },
+          areaType: 'main',
+          buildingLevelId: 'level-0',
+          rotationDegrees: 45,
+          dyeColor: '#bb6bd9',
+          requiresSkill: false,
+          skillType: null,
+          skillNote: '',
+          note: '',
+        },
+        {
+          instanceId: 'tile-bad-coordinate',
+          assetId: 'garden-plant',
+          coordinate: { x: 7, y: 0 },
+          areaType: 'outer',
+          buildingLevelId: 'level-0',
+          rotationDegrees: 0,
+          dyeColor: null,
+          requiresSkill: true,
+          skillType: '树叶',
+          skillNote: '',
+          note: '',
+        },
+      ],
+    };
+
+    const result = applyRecoveredSceneDocument(currentScene, invalidPayload, {
+      interactionMode: 'edit',
+      source: 'confirmed-user',
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('Expected invalid payload to fail.');
+    }
+    expect(result.scene).toBe(currentScene);
+    expect(result.availableActions).toEqual(['retry', 'cancel', 'view-details']);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'workspaceState.saveStatus',
+          expected: 'dirty | saved',
+        }),
+        expect.objectContaining({
+          fieldPath: 'tileInstances[0].rotationDegrees',
+        }),
+        expect.objectContaining({
+          fieldPath: 'tileInstances[1].coordinate.x',
+          recoveryAction: 'Keep coordinates inside the SceneDocument v1 canvas bounds.',
+        }),
+      ]),
+    );
+  });
+
+  it('rejects areaType mismatches without replacing the current scene', () => {
+    const currentScene = createDirtyCurrentScene();
+    const validPayload = serializeSceneDocument(
+      createDefaultSceneDocument({
+        sceneId: 'scene-area-recovery',
+        sceneName: 'Area 5x5 recovery',
+        now: '2026-05-16T08:10:00.000Z',
+      }),
+    );
+    const invalidPayload = {
+      ...validPayload,
+      tileInstances: [
+        {
+          instanceId: 'tile-bad-area',
+          assetId: 'outer-wall',
+          coordinate: { x: 0, y: 2 },
+          areaType: 'main',
+          buildingLevelId: 'level-0',
+          rotationDegrees: 0,
+          dyeColor: null,
+          requiresSkill: false,
+          skillType: null,
+          skillNote: '',
+          note: '',
+        },
+      ],
+    };
+
+    const result = applyRecoveredSceneDocument(currentScene, invalidPayload, {
+      interactionMode: 'edit',
+      source: 'confirmed-user',
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('Expected invalid areaType to fail.');
+    }
+    expect(result.scene).toBe(currentScene);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'tileInstances[0].areaType',
+          recoveryAction: 'Recompute areaType from coordinate, sceneSize, and outerPadding before saving.',
+        }),
+      ]),
+    );
+  });
+
+  it('rejects recover replace in read-only mode without changing current scene', () => {
+    const currentScene = createDirtyCurrentScene();
+    const payload = serializeSceneDocument(
+      createDefaultSceneDocument({
+        sceneId: 'scene-readonly-recovery',
+        now: '2026-05-16T08:10:00.000Z',
+      }),
+    );
+
+    const result = applyRecoveredSceneDocument(currentScene, payload, {
+      interactionMode: 'readOnly',
+      source: 'confirmed-user',
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('Expected read-only recovery to fail.');
+    }
+    expect(result.scene).toBe(currentScene);
+    expect(result.availableActions).toEqual(['cancel', 'view-details']);
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        fieldPath: '$',
+        actual: 'readOnly',
+        recoveryAction: 'Use desktop edit mode to recover scene data.',
+      }),
+    ]);
+  });
 });
+
+function createDirtyCurrentScene() {
+  const scene = createDefaultSceneDocument({
+    sceneId: 'scene-current-dirty',
+    sceneName: 'Current Dirty 5x5 scene',
+    now: '2026-05-16T08:00:00.000Z',
+  });
+
+  return {
+    ...scene,
+    workspaceState: {
+      ...scene.workspaceState,
+      saveStatus: 'dirty' as const,
+      saveError: null,
+    },
+    metadata: {
+      ...scene.metadata,
+      updatedAt: '2026-05-16T08:05:00.000Z',
+    },
+  };
+}
