@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react';
 import {
   getCellContext,
+  getAllVisiblePreviewCellContexts,
+  getCurrentLayerPreviewCellContexts,
   getPreviewInspectorContext,
-  type CanvasCellContext,
+  getVisibleBuildingLevelContextsInRenderOrder,
   type GridCoordinate,
+  type PreviewCanvasCellContext,
+  type BuildingLevelContext,
   type SceneDocument,
   type TileInstance,
 } from '../../domain/scene';
 import { getAssetById, getAssetSkillMarkerLabel } from '../../domain/assets';
+
+type PreviewLayerScope = 'current-layer' | 'all-visible-layers';
 
 interface PreviewInspectorProps {
   scene: SceneDocument;
@@ -27,12 +33,27 @@ export function PreviewInspector({
   const [previewCoordinate, setPreviewCoordinate] = useState<GridCoordinate | null>(selectedCoordinate);
   const [previewZoom, setPreviewZoom] = useState(1);
   const [previewPan, setPreviewPan] = useState({ x: 0, y: 0 });
+  const [previewScope, setPreviewScope] = useState<PreviewLayerScope>('current-layer');
   const previewContext = getPreviewInspectorContext(scene, activeBuildingLevelId);
+  const currentLayerPreviewCells = getCurrentLayerPreviewCellContexts(scene, activeBuildingLevelId);
+  const allVisiblePreviewCells = getAllVisiblePreviewCellContexts(scene);
+  const visibleLevelsInRenderOrder = getVisibleBuildingLevelContextsInRenderOrder(scene);
+  const activePreviewLevel = previewContext.visibleLevels.find((level) => level.id === activeBuildingLevelId) ?? null;
+  const topPreviewCells = previewScope === 'current-layer' ? currentLayerPreviewCells : allVisiblePreviewCells;
+  const topPreviewInstances = topPreviewCells.flatMap((cell) => cell.tileInstances);
+  const frontPreviewLevels = previewScope === 'current-layer'
+    ? activePreviewLevel
+      ? [activePreviewLevel]
+      : []
+    : visibleLevelsInRenderOrder;
+  const frontPreviewInstanceCount = previewScope === 'current-layer'
+    ? previewContext.activeLayerInstances.length
+    : previewContext.visibleTileInstances.length;
   const selectedContext = selectedCoordinate && previewContext.activeLevel.visible
     ? getCellContext(scene, selectedCoordinate, activeBuildingLevelId)
     : null;
   const previewCell = previewCoordinate
-    ? previewContext.activeCells.find(
+    ? topPreviewCells.find(
         (cell) => cell.coordinate.x === previewCoordinate.x && cell.coordinate.y === previewCoordinate.y,
       ) ?? null
     : null;
@@ -40,15 +61,26 @@ export function PreviewInspector({
     selectedContext?.tileInstances.find((instance) => instance.instanceId === selectedInstanceId) ??
     selectedContext?.tileInstances.at(-1) ??
     null;
-  const previewInstance = previewCell?.buildingLevel.visible ? previewCell.tileInstances.at(-1) ?? null : null;
-  const visibleLayerCount = previewContext.visibleLevels.length;
-  const visibleInstanceCount = previewContext.visibleTileInstances.length;
-  const topViewSummary = `${previewContext.activeLayerInstances.length} current-layer item${
-    previewContext.activeLayerInstances.length === 1 ? '' : 's'
-  }`;
-  const frontViewSummary = `${visibleLayerCount} visible layer${visibleLayerCount === 1 ? '' : 's'}, ${
-    visibleInstanceCount
-  } visible item${visibleInstanceCount === 1 ? '' : 's'}`;
+  const previewInstance = previewCell?.hidden ? null : previewCell?.tileInstances.at(-1) ?? null;
+  const topViewSummary = previewScope === 'current-layer'
+    ? `${topPreviewInstances.length} current-layer item${topPreviewInstances.length === 1 ? '' : 's'}`
+    : `${topPreviewInstances.length} visible item${topPreviewInstances.length === 1 ? '' : 's'} across ${
+        visibleLevelsInRenderOrder.length
+      } layer${visibleLevelsInRenderOrder.length === 1 ? '' : 's'}`;
+  const frontViewSummary = `${frontPreviewLevels.length} visible layer${frontPreviewLevels.length === 1 ? '' : 's'}, ${
+    frontPreviewInstanceCount
+  } visible item${frontPreviewInstanceCount === 1 ? '' : 's'}`;
+  const layerSummary = previewScope === 'current-layer'
+    ? formatLevelSummary(previewContext.activeLevel)
+    : visibleLevelsInRenderOrder.length > 0
+      ? visibleLevelsInRenderOrder.map(formatLevelSummary).join(' → ')
+      : 'No visible layers';
+  const scopeSummary = previewScope === 'current-layer' ? 'Current layer preview' : 'All visible layers preview';
+  const topPreviewSurfaceLabel = `${scopeSummary}, ${layerSummary}, ${topViewSummary}`;
+  const scopeControlLabel = previewScope === 'current-layer' ? '当前层' : '全部可见层';
+  const frontPreviewMode = readOnly
+    ? `${scopeControlLabel} read-only preview`
+    : `${scopeControlLabel} derived preview`;
   const selectedSummary = selectedCoordinate
     ? previewContext.activeLevel.visible
       ? `${selectedCoordinate.x},${selectedCoordinate.y}${
@@ -57,7 +89,7 @@ export function PreviewInspector({
       : `${selectedCoordinate.x},${selectedCoordinate.y} · hidden layer`
     : 'No selection';
   const previewFocusSummary = previewCoordinate
-    ? previewCell && !previewCell.buildingLevel.visible
+    ? previewCell?.hidden
       ? `${previewCoordinate.x},${previewCoordinate.y} · hidden layer`
       : `${previewCoordinate.x},${previewCoordinate.y}${
           previewInstance ? ` · ${getInstanceLabel(previewInstance.assetId)}` : ''
@@ -77,9 +109,27 @@ export function PreviewInspector({
       <div className="preview-grid" aria-label="Dual preview inspector">
         <div className="preview-tile" aria-label="Top view preview">
           <span>Top</span>
+          <div className="preview-scope-control" role="group" aria-label="Preview layer scope">
+            <button
+              type="button"
+              aria-label="Preview current layer"
+              aria-pressed={previewScope === 'current-layer'}
+              onClick={() => setPreviewScope('current-layer')}
+            >
+              当前层
+            </button>
+            <button
+              type="button"
+              aria-label="Preview all visible layers"
+              aria-pressed={previewScope === 'all-visible-layers'}
+              onClick={() => setPreviewScope('all-visible-layers')}
+            >
+              全部可见层
+            </button>
+          </div>
           <div
             className="mini-grid"
-            aria-label={`Top preview surface ${previewContext.activeLevel.name}, ${topViewSummary}`}
+            aria-label={`Top preview surface ${topPreviewSurfaceLabel}`}
             data-zoom={previewZoom}
             data-pan-x={previewPan.x}
             data-pan-y={previewPan.y}
@@ -90,26 +140,33 @@ export function PreviewInspector({
                 transform: `translate(${previewPan.x}px, ${previewPan.y}px) scale(${previewZoom})`,
               }}
             >
-              {previewContext.activeCells.map((cell) => {
-                const visibleCellInstances = cell.buildingLevel.visible ? cell.tileInstances : [];
+              {topPreviewCells.map((cell) => {
+                const visibleCellInstances = cell.hidden ? [] : cell.tileInstances;
                 const topInstance = visibleCellInstances.at(-1) ?? null;
                 const skillInstances = visibleCellInstances.filter((instance) => instance.requiresSkill);
                 const topSkillInstance = skillInstances.at(-1) ?? null;
                 const skillMarkerLabel = topSkillInstance
                   ? getAssetSkillMarkerLabel(topSkillInstance.skillType)
                   : '';
+                const assetStackLabel = getPreviewAssetStackLabel(cell);
+                const lockedLayerCount = cell.instanceLayerContexts.filter((level) => level.locked).length;
 
                 return (
                   <button
                     type="button"
                     className="mini-grid__cell"
-                    aria-label={getPreviewCellLabel(cell)}
+                    aria-label={getPreviewCellLabel(cell, previewScope)}
                     aria-pressed={coordinatesEqual(previewCoordinate, cell.coordinate)}
+                    data-preview-scope={previewScope}
                     data-preview-coordinate={`${cell.coordinate.x},${cell.coordinate.y}`}
                     data-preview-area={cell.areaType}
                     data-preview-main-boundary={cell.mainBoundary}
                     data-preview-has-instance={visibleCellInstances.length > 0}
                     data-preview-instance-count={visibleCellInstances.length}
+                    data-preview-layer-count={cell.instanceLayerContexts.length}
+                    data-preview-layer-stack={cell.instanceLayerContexts.map((level) => level.displayId).join(',')}
+                    data-preview-locked-layer-count={lockedLayerCount}
+                    data-preview-asset-stack={assetStackLabel}
                     data-preview-asset-id={topInstance?.assetId ?? ''}
                     data-preview-instance-id={topInstance?.instanceId ?? ''}
                     data-preview-requires-skill={skillInstances.length > 0}
@@ -137,8 +194,12 @@ export function PreviewInspector({
           </div>
           <dl className="preview-summary">
             <div>
+              <dt>Scope</dt>
+              <dd aria-label="Top preview scope">{scopeSummary}</dd>
+            </div>
+            <div>
               <dt>Layer</dt>
-              <dd aria-label="Top preview current layer">{previewContext.activeLevel.name}</dd>
+              <dd aria-label="Top preview layer summary">{layerSummary}</dd>
             </div>
             <div>
               <dt>Items</dt>
@@ -177,13 +238,17 @@ export function PreviewInspector({
         <div className="preview-tile" aria-label="Front view preview">
           <span>Front</span>
           <div className="height-bars" aria-label={`Front preview ${frontViewSummary}`} role="list">
-            {previewContext.visibleLevels.map((level) => (
+            {frontPreviewLevels.map((level) => (
               <span
                 role="listitem"
                 aria-label={`${level.displayId} ${level.name}, ${level.instanceCount} item${
                   level.instanceCount === 1 ? '' : 's'
-                }, visible${level.id === activeBuildingLevelId ? ', active' : ''}`}
+                }, visible, ${level.locked ? 'locked' : 'unlocked'}${
+                  level.id === activeBuildingLevelId ? ', active' : ''
+                }`}
                 data-active={level.id === activeBuildingLevelId}
+                data-preview-layer-id={level.id}
+                data-preview-layer-locked={level.locked}
                 key={level.id}
                 style={{ height: `${level.heightPercent}%` }}
               />
@@ -192,7 +257,7 @@ export function PreviewInspector({
           <dl className="preview-summary">
             <div>
               <dt>Scope</dt>
-              <dd aria-label="Front preview scope">Visible layers</dd>
+              <dd aria-label="Front preview scope">{scopeSummary}</dd>
             </div>
             <div>
               <dt>Levels</dt>
@@ -200,7 +265,7 @@ export function PreviewInspector({
             </div>
             <div>
               <dt>Mode</dt>
-              <dd aria-label="Front preview mode">{readOnly ? 'Read-only preview' : 'Read-only derived preview'}</dd>
+              <dd aria-label="Front preview mode">{frontPreviewMode}</dd>
             </div>
           </dl>
         </div>
@@ -217,11 +282,11 @@ function getInstanceShortLabel(instance: TileInstance): string {
   return getAssetById(instance.assetId)?.name.slice(0, 1) ?? '?';
 }
 
-function getPreviewCellLabel(cell: CanvasCellContext): string {
+function getPreviewCellLabel(cell: PreviewCanvasCellContext, previewScope: PreviewLayerScope): string {
   const coordinateLabel = `Top preview cell ${cell.coordinate.x},${cell.coordinate.y}`;
   const boundarySuffix = cell.mainBoundary ? ', main boundary' : '';
 
-  if (!cell.buildingLevel.visible) {
+  if (cell.hidden) {
     return `${coordinateLabel}, ${cell.areaType}, hidden layer${boundarySuffix}`;
   }
 
@@ -230,6 +295,12 @@ function getPreviewCellLabel(cell: CanvasCellContext): string {
   const skillSuffix = topSkillInstance
     ? `, skill ${getAssetSkillMarkerLabel(topSkillInstance.skillType)}`
     : '';
+  const layerSuffix = previewScope === 'all-visible-layers' && cell.instanceLayerContexts.length > 0
+    ? `, layers ${cell.instanceLayerContexts.map(formatLevelSummary).join(' → ')}`
+    : '';
+  const assetStackSuffix = previewScope === 'all-visible-layers' && cell.tileInstances.length > 1
+    ? `, asset stack ${getPreviewAssetStackLabel(cell)}`
+    : '';
 
   return `${coordinateLabel}, ${cell.areaType}, ${
     topInstance
@@ -237,9 +308,28 @@ function getPreviewCellLabel(cell: CanvasCellContext): string {
           cell.tileInstances.length === 1 ? '' : 's'
         }`
       : 'empty'
-  }${skillSuffix}${boundarySuffix}`;
+  }${layerSuffix}${assetStackSuffix}${skillSuffix}${boundarySuffix}`;
 }
 
 function coordinatesEqual(left: GridCoordinate | null, right: GridCoordinate): boolean {
   return left?.x === right.x && left.y === right.y;
+}
+
+function formatLevelSummary(
+  level: Pick<BuildingLevelContext, 'name'> & Partial<Pick<BuildingLevelContext, 'displayId' | 'levelNumber' | 'locked'>>,
+): string {
+  const lockState = typeof level.locked === 'boolean' ? ` ${level.locked ? 'locked' : 'unlocked'}` : '';
+
+  return `${level.displayId ?? `L${level.levelNumber}`} ${level.name}${lockState}`;
+}
+
+function getPreviewAssetStackLabel(cell: PreviewCanvasCellContext): string {
+  return cell.tileInstances
+    .map((instance) => {
+      const level = cell.instanceLayerContexts.find((candidate) => candidate.id === instance.buildingLevelId);
+      const levelLabel = level ? `${level.displayId} ${level.locked ? 'locked' : 'unlocked'}` : instance.buildingLevelId;
+
+      return `${levelLabel} ${getInstanceLabel(instance.assetId)}`;
+    })
+    .join(' → ');
 }

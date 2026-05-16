@@ -35,3 +35,7 @@ export function getNextBuildingLevelNumber(levels: readonly BuildingLevel[]): nu
 export function sortBuildingLevelsForDisplay(levels: readonly BuildingLevel[]): BuildingLevel[] {
   return [...levels].sort((left, right) => right.levelNumber - left.levelNumber);
 }
+
+export function sortBuildingLevelsForRender<T extends Pick<BuildingLevel, 'levelNumber'>>(levels: readonly T[]): T[] {
+  return [...levels].sort((left, right) => left.levelNumber - right.levelNumber);
+}

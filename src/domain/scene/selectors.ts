@@ -7,7 +7,7 @@ import {
   type GridCoordinate,
   type SceneDimensions,
 } from './area';
-import { sortBuildingLevelsForDisplay } from './levels';
+import { sortBuildingLevelsForDisplay, sortBuildingLevelsForRender } from './levels';
 import type { BuildingLevel, SceneDocument, TileInstance } from './types';
 
 export interface CellContext {
@@ -38,6 +38,17 @@ export interface BuildingLevelContext {
 
 export interface PreviewLayerContext extends BuildingLevelContext {
   heightPercent: number;
+}
+
+export interface PreviewCanvasCellContext {
+  id: string;
+  coordinate: GridCoordinate;
+  areaType: AreaType;
+  placeable: boolean;
+  mainBoundary: boolean;
+  hidden: boolean;
+  tileInstances: TileInstance[];
+  instanceLayerContexts: BuildingLevelContext[];
 }
 
 export interface PreviewInspectorContext {
@@ -178,6 +189,64 @@ export function getVisibleBuildingLevelContexts(scene: SceneDocument): PreviewLa
     ...level,
     heightPercent: getPreviewLevelHeightPercent(level.levelNumber, maxLevelNumber),
   }));
+}
+
+export function getVisibleBuildingLevelContextsInRenderOrder(scene: SceneDocument): PreviewLayerContext[] {
+  return sortBuildingLevelsForRender(getVisibleBuildingLevelContexts(scene));
+}
+
+export function getCurrentLayerPreviewCellContexts(
+  scene: SceneDocument,
+  activeBuildingLevelId = scene.workspaceState.currentBuildingLevelId,
+): PreviewCanvasCellContext[] {
+  const activeLevelContext = getBuildingLevelContexts(scene).find((level) => level.id === activeBuildingLevelId);
+
+  if (!activeLevelContext) {
+    throw new RangeError(`Unknown building level: ${activeBuildingLevelId}`);
+  }
+
+  return getCanvasCellContexts(scene, activeBuildingLevelId).map((cell) => {
+    const visibleTileInstances = cell.buildingLevel.visible ? cell.tileInstances : [];
+
+    return {
+      id: cell.id,
+      coordinate: cell.coordinate,
+      areaType: cell.areaType,
+      placeable: cell.placeable,
+      mainBoundary: cell.mainBoundary,
+      hidden: !cell.buildingLevel.visible,
+      tileInstances: visibleTileInstances,
+      instanceLayerContexts: visibleTileInstances.length > 0 ? [activeLevelContext] : [],
+    };
+  });
+}
+
+export function getAllVisiblePreviewCellContexts(scene: SceneDocument): PreviewCanvasCellContext[] {
+  const dimensions = getSceneDimensions(scene);
+  const visibleLevels = getVisibleBuildingLevelContextsInRenderOrder(scene);
+
+  return createCanvasCells(dimensions).map((cell) => {
+    const tileInstances = visibleLevels.flatMap((level) =>
+      scene.tileInstances.filter(
+        (instance) =>
+          instance.coordinate.x === cell.x &&
+          instance.coordinate.y === cell.y &&
+          instance.buildingLevelId === level.id,
+      ),
+    );
+    const instanceLevelIds = new Set(tileInstances.map((instance) => instance.buildingLevelId));
+
+    return {
+      id: cell.id,
+      coordinate: { x: cell.x, y: cell.y },
+      areaType: cell.areaType,
+      placeable: isPlaceableArea(cell.areaType),
+      mainBoundary: isMainAreaBoundaryCell(cell, dimensions),
+      hidden: false,
+      tileInstances,
+      instanceLayerContexts: visibleLevels.filter((level) => instanceLevelIds.has(level.id)),
+    };
+  });
 }
 
 function getSceneDimensions(scene: SceneDocument): SceneDimensions {

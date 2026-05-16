@@ -26,9 +26,12 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
 
   await expect(previewInspector).toBeVisible();
   await expect(page.getByLabel('Dual preview inspector')).toBeVisible();
-  await expect(page.getByLabel('Top preview current layer')).toHaveText('0 层');
+  await expect(page.getByRole('button', { name: 'Preview current layer' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Preview all visible layers' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByLabel('Top preview scope')).toHaveText('Current layer preview');
+  await expect(page.getByLabel('Top preview layer summary')).toHaveText('L0 0 层 unlocked');
   await expect(page.getByLabel('Top preview item summary')).toHaveText('0 current-layer items');
-  await expect(page.getByLabel('Front preview layer summary')).toHaveText('3 visible layers, 0 visible items');
+  await expect(page.getByLabel('Front preview layer summary')).toHaveText('1 visible layer, 0 visible items');
   await expect(topPreview.locator('[data-preview-coordinate]')).toHaveCount(49);
   await expect(topPreview.locator('[data-preview-area="main"]')).toHaveCount(25);
   await expect(topPreview.locator('[data-preview-area="outer"]')).toHaveCount(24);
@@ -198,7 +201,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Selected asset', { exact: true })).toHaveText('Garden Plant');
   await expect(page.getByLabel('Top preview item summary')).toHaveText('1 current-layer item');
   await expect(page.getByLabel('Top preview selection summary')).toHaveText('2,3 · Garden Plant');
-  await expect(page.getByLabel('Front preview layer summary')).toHaveText('4 visible layers, 1 visible item');
+  await expect(page.getByLabel('Front preview layer summary')).toHaveText('1 visible layer, 1 visible item');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-has-instance', 'true');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-instance-count', '1');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-asset-id', 'garden-plant');
@@ -290,6 +293,46 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
       instance.coordinate.y === 3,
   );
   expect(movedInstanceBefore?.instanceId).toBeTruthy();
+  await page.getByRole('button', { name: 'Preview all visible layers' }).click();
+  await expect(page.getByLabel('Top preview scope')).toHaveText('All visible layers preview');
+  await expect(page.getByLabel('Top preview item summary')).toHaveText('3 visible items across 4 layers');
+  await expect(page.getByLabel('Front preview layer summary')).toHaveText('4 visible layers, 3 visible items');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-instance-count', '2');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-layer-count', '2');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-layer-stack', 'L0,L1');
+  await expect(previewCell('2,3')).toHaveAttribute(
+    'data-preview-asset-stack',
+    'L0 unlocked Wooden Floor → L1 unlocked Wooden Floor',
+  );
+  await page.getByRole('button', { name: /Hide 1 层/ }).click();
+  await expect(page.getByLabel('L1, 1 层, 1 instances, hidden, unlocked, current editing layer')).toBeVisible();
+  await expect(page.getByLabel('Top preview item summary')).toHaveText('2 visible items across 3 layers');
+  await expect(page.getByLabel('Front preview layer summary')).toHaveText('3 visible layers, 2 visible items');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-instance-count', '1');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-layer-stack', 'L0');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-asset-stack', 'L0 unlocked Wooden Floor');
+  await page.getByRole('button', { name: /Show 1 层/ }).click();
+  await expect(page.getByLabel('L1, 1 层, 1 instances, visible, unlocked, current editing layer')).toBeVisible();
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-instance-count', '2');
+  await page.getByRole('button', { name: /Lock 1 层/ }).click();
+  await expect(page.getByLabel('L1, 1 层, 1 instances, visible, locked, current editing layer')).toBeVisible();
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-locked-layer-count', '1');
+  await expect(previewCell('2,3')).toHaveAttribute(
+    'data-preview-asset-stack',
+    'L0 unlocked Wooden Floor → L1 locked Wooden Floor',
+  );
+  await expect(
+    page.getByRole('listitem', { name: 'L1 1 层, 1 item, visible, locked, active' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: /Unlock 1 层/ }).click();
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-locked-layer-count', '0');
+  await page.getByRole('button', { name: 'Preview current layer' }).click();
+  await page.locator('[data-coordinate="2,3"]').click();
+  await expect(page.getByLabel('Top preview scope')).toHaveText('Current layer preview');
+  await expect(page.getByLabel('Top preview item summary')).toHaveText('1 current-layer item');
+  await expect(page.getByLabel('Front preview layer summary')).toHaveText('1 visible layer, 1 visible item');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-layer-stack', 'L1');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-asset-stack', 'L1 unlocked Wooden Floor');
   await page.getByLabel('Move target layer').selectOption('level-0');
   await expect(page.getByLabel('Move target preview')).toContainText('Move blocked by 1 item on 0 层');
   await page.getByLabel('Move instance X').fill('5');
@@ -517,6 +560,20 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('Current building level')).toHaveText('Current L1');
   await expect(page.getByLabel('L1, 1 层, 0 instances, visible, unlocked, viewing layer')).toBeVisible();
   await expect(page.getByLabel('Cell 2,3, main area, level-1, read-only')).toBeVisible();
+  expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
+  await expect(page.getByRole('button', { name: 'Preview current layer' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Preview all visible layers' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Preview all visible layers' }).click();
+  await expect(page.getByLabel('Top preview scope')).toHaveText('All visible layers preview');
+  await page.getByLabel('Top preview view controls').scrollIntoViewIfNeeded();
+  await page.getByRole('button', { name: 'Top preview cell 2,3, main, empty' }).click();
+  await page.getByRole('button', { name: 'Zoom in preview' }).click();
+  await page.getByRole('button', { name: 'Pan preview right' }).click();
+  await expect(page.getByLabel('Top preview local focus')).toHaveText('2,3');
+  await expect(page.getByLabel('Top preview view state')).toHaveText('125%, pan 4,0');
+  await expect(page.getByLabel('Save status')).toHaveText('Read-only · Saved');
+  await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Redo' })).toBeDisabled();
   expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
   await page.getByRole('button', { name: /View 0 层 as viewing layer/ }).click();
   await expect(page.getByLabel('Current building level')).toHaveText('Current L0');

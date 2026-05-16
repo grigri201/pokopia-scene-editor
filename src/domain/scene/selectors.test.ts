@@ -3,12 +3,15 @@ import {
   createDefaultSceneDocument,
   createTileInstance,
   getBuildingLevelContexts,
+  getAllVisiblePreviewCellContexts,
   getCanvasCellContexts,
   getCurrentBuildingLevelContext,
+  getCurrentLayerPreviewCellContexts,
   getCellContext,
   getPreviewInspectorContext,
   getSelectedCellContext,
   getVisibleBuildingLevelContexts,
+  getVisibleBuildingLevelContextsInRenderOrder,
 } from './index';
 
 describe('scene selectors', () => {
@@ -195,9 +198,11 @@ describe('scene selectors', () => {
       ],
     };
     const visibleLevels = getVisibleBuildingLevelContexts(sceneWithHiddenLevel);
+    const visibleRenderLevels = getVisibleBuildingLevelContextsInRenderOrder(sceneWithHiddenLevel);
     const previewContext = getPreviewInspectorContext(sceneWithHiddenLevel, 'level-0');
 
     expect(visibleLevels.map((level) => level.id)).toEqual(['level-4', 'level-3', 'level-2', 'level-0']);
+    expect(visibleRenderLevels.map((level) => level.id)).toEqual(['level-0', 'level-2', 'level-3', 'level-4']);
     expect(visibleLevels.every((level) => level.heightPercent <= 100)).toBe(true);
     expect(visibleLevels.every((level) => level.heightPercent >= 28)).toBe(true);
     expect(previewContext.visibleTileInstances.map((instance) => instance.instanceId)).toEqual([
@@ -205,5 +210,48 @@ describe('scene selectors', () => {
       'tile-high',
     ]);
     expect(previewContext.activeLayerInstances.map((instance) => instance.instanceId)).toEqual(['tile-visible']);
+  });
+
+  it('derives current and all-visible preview cells without duplicating level visibility rules', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+    const sceneWithLayeredTiles = {
+      ...scene,
+      buildingLevels: scene.buildingLevels.map((level) =>
+        level.id === 'level-2' ? { ...level, visible: false, locked: true } : level,
+      ),
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-low',
+          assetId: 'wooden-floor',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-high',
+          assetId: 'roof-tile',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-1',
+        }),
+        createTileInstance({
+          instanceId: 'tile-hidden',
+          assetId: 'garden-plant',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-2',
+        }),
+      ],
+    };
+    const currentCells = getCurrentLayerPreviewCellContexts(sceneWithLayeredTiles, 'level-2');
+    const allVisibleCells = getAllVisiblePreviewCellContexts(sceneWithLayeredTiles);
+    const currentCell = currentCells.find((cell) => cell.id === '2-2');
+    const allVisibleCell = allVisibleCells.find((cell) => cell.id === '2-2');
+
+    expect(currentCell?.hidden).toBe(true);
+    expect(currentCell?.tileInstances).toEqual([]);
+    expect(allVisibleCell?.tileInstances.map((instance) => instance.instanceId)).toEqual(['tile-low', 'tile-high']);
+    expect(allVisibleCell?.instanceLayerContexts.map((level) => level.displayId)).toEqual(['L0', 'L1']);
+    expect(allVisibleCell?.mainBoundary).toBe(false);
   });
 });

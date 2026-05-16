@@ -43,6 +43,8 @@ describe('PreviewInspector', () => {
     expect(screen.getByLabelText('Dual preview inspector')).toBeVisible();
     expect(screen.getByLabelText('Top view preview')).toBeVisible();
     expect(screen.getByLabelText('Front view preview')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Preview current layer' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Preview all visible layers' })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getAllByRole('button', { name: /^Top preview cell/ })).toHaveLength(49);
     expect(container.querySelectorAll('[data-preview-area="main"]')).toHaveLength(25);
     expect(container.querySelectorAll('[data-preview-area="outer"]')).toHaveLength(24);
@@ -65,12 +67,43 @@ describe('PreviewInspector', () => {
     );
     expect(screen.getByRole('button', { name: 'Top preview cell 2,3, main, Garden Plant, 1 item, skill 树' }))
       .toBeVisible();
-    expect(screen.getByLabelText('Top preview current layer')).toHaveTextContent('0 层');
+    expect(screen.getByLabelText('Top preview scope')).toHaveTextContent('Current layer preview');
+    expect(screen.getByLabelText('Top preview layer summary')).toHaveTextContent('L0 0 层 unlocked');
     expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('1 current-layer item');
     expect(screen.getByLabelText('Top preview selection summary')).toHaveTextContent('2,3 · Garden Plant');
+    expect(screen.getByLabelText('Front preview layer summary')).toHaveTextContent('1 visible layer, 1 visible item');
+    expect(screen.getByRole('listitem', { name: 'L0 0 层, 1 item, visible, unlocked, active' }))
+      .toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
+
+    expect(screen.getByRole('button', { name: 'Preview all visible layers' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('Top preview scope')).toHaveTextContent('All visible layers preview');
+    expect(screen.getByLabelText('Top preview layer summary')).toHaveTextContent(
+      'L0 0 层 unlocked → L1 1 层 unlocked → L2 2 层 unlocked',
+    );
+    expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('2 visible items across 3 layers');
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-instance-count',
+      '2',
+    );
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-asset-id',
+      'roof-tile',
+    );
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-layer-stack',
+      'L0,L1',
+    );
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-asset-stack',
+      'L0 unlocked Garden Plant → L1 unlocked Roof Tile',
+    );
+    expect(screen.getByRole('button', {
+      name: 'Top preview cell 2,3, main, Roof Tile, 2 items, layers L0 0 层 unlocked → L1 1 层 unlocked, asset stack L0 unlocked Garden Plant → L1 unlocked Roof Tile, skill 树',
+    })).toBeVisible();
     expect(screen.getByLabelText('Front preview layer summary')).toHaveTextContent('3 visible layers, 2 visible items');
-    expect(screen.getByRole('listitem', { name: 'L0 0 层, 1 item, visible, active' })).toBeVisible();
-    expect(screen.getByRole('listitem', { name: 'L1 1 层, 1 item, visible' })).toBeVisible();
+    expect(screen.getByRole('listitem', { name: 'L1 1 层, 1 item, visible, unlocked' })).toBeVisible();
   });
 
   it('keeps read-only preview mode local to the preview and derived', () => {
@@ -87,9 +120,10 @@ describe('PreviewInspector', () => {
     );
 
     expect(screen.getByText('View only')).toBeVisible();
-    expect(screen.getByLabelText('Front preview mode')).toHaveTextContent('Read-only preview');
+    expect(screen.getByLabelText('Front preview mode')).toHaveTextContent('当前层 read-only preview');
     fireEvent.click(screen.getByRole('button', { name: 'Top preview cell 2,3, main, Roof Tile, 1 item' }));
     expect(screen.getByLabelText('Top preview local focus')).toHaveTextContent('2,3 · Roof Tile');
+    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
     fireEvent.click(screen.getByRole('button', { name: 'Zoom in preview' }));
     fireEvent.click(screen.getByRole('button', { name: 'Pan preview right' }));
     expect(screen.getByLabelText('Top preview view state')).toHaveTextContent('125%, pan 4,0');
@@ -118,7 +152,7 @@ describe('PreviewInspector', () => {
     expect(screen.getByLabelText('Top preview selection summary')).toHaveTextContent('2,3 · hidden layer');
     expect(screen.getByLabelText('Top preview local focus')).toHaveTextContent('2,3 · hidden layer');
     expect(screen.getByLabelText('Top preview local focus')).not.toHaveTextContent('Garden Plant');
-    expect(screen.getByLabelText('Front preview layer summary')).toHaveTextContent('2 visible layers, 1 visible item');
+    expect(screen.getByLabelText('Front preview layer summary')).toHaveTextContent('0 visible layers, 0 visible items');
     expect(screen.queryByRole('listitem', { name: /L0 0 层/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Top preview cell 1,1, main, hidden layer, main boundary' }))
       .toBeVisible();
@@ -129,6 +163,23 @@ describe('PreviewInspector', () => {
     expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
       'data-preview-requires-skill',
       'false',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
+
+    expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('1 visible item across 2 layers');
+    expect(screen.getByLabelText('Top preview layer summary')).toHaveTextContent(
+      'L1 1 层 unlocked → L2 2 层 unlocked',
+    );
+    expect(screen.getByLabelText('Top preview local focus')).toHaveTextContent('2,3 · Roof Tile');
+    expect(screen.getByLabelText('Top preview local focus')).not.toHaveTextContent('Garden Plant');
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-has-instance',
+      'true',
+    );
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-layer-stack',
+      'L1',
     );
   });
 
@@ -153,9 +204,49 @@ describe('PreviewInspector', () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
+
     const layerBars = screen.getAllByRole('listitem');
     expect(layerBars).toHaveLength(6);
     expect(layerBars.every((bar) => Number.parseFloat((bar as HTMLElement).style.height) <= 100)).toBe(true);
     expect(layerBars.every((bar) => Number.parseFloat((bar as HTMLElement).style.height) >= 28)).toBe(true);
+  });
+
+  it('surfaces locked level state while preserving visible preview content', () => {
+    const lockedScene = {
+      ...scene,
+      buildingLevels: scene.buildingLevels.map((level) =>
+        level.id === 'level-1' ? { ...level, locked: true } : level,
+      ),
+    };
+    const { container } = render(
+      <PreviewInspector
+        scene={lockedScene}
+        activeBuildingLevelId="level-1"
+        selectedCoordinate={{ x: 2, y: 3 }}
+        selectedInstanceId="tile-upper"
+        readOnly={false}
+      />,
+    );
+
+    expect(screen.getByLabelText('Top preview layer summary')).toHaveTextContent('L1 1 层 locked');
+    expect(screen.getByRole('listitem', { name: 'L1 1 层, 1 item, visible, locked, active' })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
+
+    expect(screen.getByLabelText('Top preview layer summary')).toHaveTextContent(
+      'L0 0 层 unlocked → L1 1 层 locked → L2 2 层 unlocked',
+    );
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-locked-layer-count',
+      '1',
+    );
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-asset-stack',
+      'L0 unlocked Garden Plant → L1 locked Roof Tile',
+    );
+    expect(screen.getByRole('button', {
+      name: 'Top preview cell 2,3, main, Roof Tile, 2 items, layers L0 0 层 unlocked → L1 1 层 locked, asset stack L0 unlocked Garden Plant → L1 locked Roof Tile, skill 树',
+    })).toBeVisible();
   });
 });

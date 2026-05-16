@@ -1019,6 +1019,30 @@ button:disabled {
   font-weight: 800;
 }
 
+.preview-scope-control {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.preview-scope-control button {
+  min-width: 0;
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 6px;
+  color: var(--ink-muted);
+  background: #fffefb;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.preview-scope-control button[aria-pressed="true"] {
+  border-color: var(--accent-strong);
+  color: var(--ink);
+  background: rgba(37, 111, 104, 0.12);
+}
+
 .mini-grid {
   overflow: hidden;
   min-height: 56px;
