@@ -58,6 +58,7 @@ export function SceneCanvas({
             const topInstance = visibleInstances.at(-1) ?? null;
             const topAssetLabel = topInstance ? getInstanceDisplayLabel(topInstance.assetId) : null;
             const stackCount = visibleInstances.length;
+            const otherLayerInstanceCount = cell.otherVisibleLayerInstances.length;
             const hasSkillInstance = visibleInstances.some((instance) => instance.requiresSkill);
             const rotationLabel = topInstance?.rotationDegrees ? `${topInstance.rotationDegrees} deg` : null;
             const dyeColor = topInstance?.dyeColor ?? null;
@@ -73,6 +74,7 @@ export function SceneCanvas({
                   !cell.buildingLevel.visible ? 'scene-cell--hidden-layer' : '',
                   cell.buildingLevel.locked ? 'scene-cell--locked-layer' : '',
                   !editable ? 'scene-cell--non-editable' : '',
+                  otherLayerInstanceCount > 0 ? 'scene-cell--has-other-layers' : '',
                   selected ? 'scene-cell--selected' : '',
                   targeted ? 'scene-cell--targeted' : '',
                 ]
@@ -84,6 +86,10 @@ export function SceneCanvas({
                 aria-label={`Cell ${coordinate.x},${coordinate.y}, ${cell.areaType} area, ${cell.buildingLevel.id}, ${stateLabel}${
                   topAssetLabel ? `, ${topAssetLabel}` : ''
                 }${stackCount > 1 ? `, ${stackCount} stacked items` : ''}${
+                  otherLayerInstanceCount > 0
+                    ? `, ${otherLayerInstanceCount} item${otherLayerInstanceCount === 1 ? '' : 's'} on other visible layers`
+                    : ''
+                }${
                   rotationLabel ? `, rotated ${rotationLabel}` : ''
                 }${dyeColor ? `, dyed ${dyeColor}` : ''}${hasSkillInstance ? ', skill required' : ''}${
                   selected ? ', selected' : ''
@@ -121,6 +127,7 @@ export function SceneCanvas({
                 data-main-boundary={cell.mainBoundary}
                 data-has-instance={Boolean(topInstance)}
                 data-instance-count={stackCount}
+                data-other-layer-instance-count={otherLayerInstanceCount}
                 data-requires-skill={hasSkillInstance}
                 data-rotation={topInstance?.rotationDegrees ?? 0}
                 data-dye-color={dyeColor ?? ''}
@@ -133,6 +140,16 @@ export function SceneCanvas({
                 <span className="cell-placeable">{readOnly ? 'view' : editable ? 'place' : stateLabel}</span>
                 {topAssetLabel ? <span className="cell-asset-label">{topAssetLabel}</span> : null}
                 {stackCount > 1 ? <span className="cell-stack-count">{stackCount}x</span> : null}
+                {otherLayerInstanceCount > 0 ? (
+                  <span
+                    className="cell-other-layer-count"
+                    aria-label={`${otherLayerInstanceCount} item${
+                      otherLayerInstanceCount === 1 ? '' : 's'
+                    } on other visible layers`}
+                  >
+                    +{otherLayerInstanceCount}
+                  </span>
+                ) : null}
                 {rotationLabel ? <span className="cell-rotation-marker">{rotationLabel}</span> : null}
                 {dyeColor ? (
                   <span

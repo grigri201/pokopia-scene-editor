@@ -220,6 +220,36 @@ describe('SceneCanvas', () => {
     expect(screen.getByText('skill')).toBeVisible();
   });
 
+  it('shows other visible layer context without marking the current layer as occupied', () => {
+    const sceneWithCrossLayerTile = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-other-layer',
+          assetId: 'roof-tile',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-1',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        cells={getCanvasCellContexts(sceneWithCrossLayerTile, 'level-0')}
+        readOnly={false}
+      />,
+    );
+
+    const cell = screen.getByLabelText(
+      'Cell 2,3, main area, level-0, placeable, 1 item on other visible layers',
+    );
+    expect(cell).toHaveAttribute('data-has-instance', 'false');
+    expect(cell).toHaveAttribute('data-instance-count', '0');
+    expect(cell).toHaveAttribute('data-other-layer-instance-count', '1');
+    expect(screen.getByLabelText('1 item on other visible layers')).toHaveTextContent('+1');
+  });
+
   it('renders the latest stacked asset, stack count, and unknown asset fallback', () => {
     const sceneWithStackedTiles = {
       ...scene,

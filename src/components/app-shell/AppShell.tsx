@@ -59,9 +59,6 @@ export function AppShell() {
     current: level.id === activeBuildingLevelId,
   }));
   const currentBuildingLevel = displayedBuildingLevelContexts.find((level) => level.current);
-  const currentLayerInstances = currentBuildingLevel
-    ? scene.tileInstances.filter((instance) => instance.buildingLevelId === currentBuildingLevel.id)
-    : [];
   const canvasCells = getCanvasCellContexts(scene, activeBuildingLevelId);
   const targetCoordinate = hoveredCoordinate ?? focusedCoordinate;
   const selectedCoordinate = isReadOnly
@@ -293,7 +290,7 @@ export function AppShell() {
     );
   };
 
-  const moveInstance = (instanceId: string, coordinate: GridCoordinate) => {
+  const moveInstance = (instanceId: string, coordinate: GridCoordinate, buildingLevelId: string) => {
     if (isReadOnly) {
       return;
     }
@@ -303,6 +300,7 @@ export function AppShell() {
         type: 'move',
         instanceId,
         coordinate,
+        buildingLevelId,
         interactionMode,
         now: getCurrentIsoTimestamp(),
       }),
@@ -540,7 +538,8 @@ export function AppShell() {
               canvasSize: scene.canvasSize,
               outerPadding: scene.outerPadding,
             }}
-            currentLayerInstances={currentLayerInstances}
+            buildingLevels={scene.buildingLevels}
+            tileInstances={scene.tileInstances}
             readOnly={isReadOnly}
             editFeedback={instanceEditFeedback}
             onSelectedInstanceChange={setSelectedInstanceId}

@@ -33,7 +33,8 @@ const defaultInspectorProps = {
   targetPlacement: null,
   canvasSize: scene.canvasSize,
   sceneDimensions,
-  currentLayerInstances: scene.tileInstances,
+  buildingLevels: scene.buildingLevels,
+  tileInstances: scene.tileInstances,
   editFeedback: null,
   onSelectedInstanceChange: () => undefined,
   onDeleteInstance: () => undefined,
@@ -85,7 +86,7 @@ describe('SelectionInspector', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save note' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
-    expect(onMoveInstance).toHaveBeenCalledWith('tile-edit', { x: 3, y: 4 });
+    expect(onMoveInstance).toHaveBeenCalledWith('tile-edit', { x: 3, y: 4 }, 'level-0');
     expect(onRotateInstance).toHaveBeenCalledWith('tile-edit', 180);
     expect(onDyeInstance).toHaveBeenCalledWith('tile-edit', '#bb6bd9');
     expect(onSaveInstanceNote).toHaveBeenCalledWith('tile-edit', '<img src=x onerror=alert(1)>');
@@ -143,7 +144,7 @@ describe('SelectionInspector', () => {
         selectedContext={stackedContext}
         selectedInstance={stackedContext.tileInstances[0]}
         selectedInstanceId="tile-bottom"
-        currentLayerInstances={stackedScene.tileInstances}
+        tileInstances={stackedScene.tileInstances}
         readOnly={false}
         onSelectedInstanceChange={onSelectedInstanceChange}
         onMoveInstance={onMoveInstance}
@@ -157,12 +158,98 @@ describe('SelectionInspector', () => {
 
     fireEvent.change(screen.getByLabelText('Move instance X'), { target: { value: '3' } });
     fireEvent.change(screen.getByLabelText('Move instance Y'), { target: { value: '3' } });
-    expect(screen.getByLabelText('Move target preview')).toHaveTextContent('Move blocked by 1 item at target');
+    expect(screen.getByLabelText('Move target preview')).toHaveTextContent('Move blocked by 1 item on 0 层');
     expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText('Move instance X'), { target: { value: '99' } });
     expect(screen.getByLabelText('Move target preview')).toHaveTextContent('Invalid target');
     fireEvent.click(screen.getByRole('button', { name: 'Move' }));
     expect(onMoveInstance).not.toHaveBeenCalled();
+  });
+
+  it('previews and emits cross-layer move targets from the layer selector', () => {
+    const onMoveInstance = vi.fn();
+    const crossLayerScene = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-source',
+          assetId: 'garden-plant',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-target-stack',
+          assetId: 'garden-plant',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-1',
+        }),
+      ],
+    };
+    const crossLayerContext = getCellContext(crossLayerScene, { x: 2, y: 2 }, 'level-0');
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={crossLayerContext}
+        selectedInstance={crossLayerContext.tileInstances[0]}
+        selectedInstanceId="tile-source"
+        tileInstances={crossLayerScene.tileInstances}
+        readOnly={false}
+        onMoveInstance={onMoveInstance}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Move target layer'), { target: { value: 'level-1' } });
+    expect(screen.getByLabelText('Move target preview')).toHaveTextContent('Move will stack with 1 item on 1 层');
+    fireEvent.click(screen.getByRole('button', { name: 'Move' }));
+    expect(onMoveInstance).toHaveBeenCalledWith('tile-source', { x: 2, y: 2 }, 'level-1');
+  });
+
+  it('keeps the selected target layer while note and dye fields change', () => {
+    const onMoveInstance = vi.fn();
+
+    const { rerender } = render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={selectedContext}
+        selectedInstance={selectedInstance}
+        selectedInstanceId="tile-edit"
+        readOnly={false}
+        onMoveInstance={onMoveInstance}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Move target layer'), { target: { value: 'level-1' } });
+    rerender(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={selectedContext}
+        selectedInstance={{ ...selectedInstance, dyeColor: '#bb6bd9', note: 'saved note' }}
+        selectedInstanceId="tile-edit"
+        readOnly={false}
+        onMoveInstance={onMoveInstance}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Move instance X'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Move' }));
+
+    expect(screen.getByLabelText('Move target layer')).toHaveValue('level-1');
+    expect(onMoveInstance).toHaveBeenCalledWith('tile-edit', { x: 3, y: 2 }, 'level-1');
+  });
+
+  it('disables no-op moves to the same layer and coordinate', () => {
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={selectedContext}
+        selectedInstance={selectedInstance}
+        selectedInstanceId="tile-edit"
+        readOnly={false}
+      />,
+    );
+
+    expect(screen.getByLabelText('Move target preview')).toHaveTextContent('Move target unchanged');
+    expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled();
   });
 });

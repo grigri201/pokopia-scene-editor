@@ -228,6 +228,61 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
     ]),
   );
 
+  await page.getByRole('button', { name: /Set 1 层 as current building layer/ }).click();
+  await expect(page.getByLabel('Current building level')).toHaveText('Current L1');
+  await expect(page.locator('[data-coordinate="3,3"]')).toHaveAttribute('data-other-layer-instance-count', '1');
+  await expect(
+    page.getByLabel('Cell 3,3, main area, level-1, placeable, 1 item on other visible layers'),
+  ).toBeVisible();
+  await page.locator('[data-coordinate="2,3"]').click();
+  await expect(page.locator('[data-coordinate="2,3"]')).toContainText('Wooden Floor');
+  await expect(page.locator('[data-coordinate="2,3"]')).toHaveAttribute('data-other-layer-instance-count', '1');
+  const crossLayerPlacementScene = await readSceneSnapshot(page);
+  expect(crossLayerPlacementScene.tileInstances).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ assetId: 'wooden-floor', coordinate: { x: 2, y: 3 }, buildingLevelId: 'level-0' }),
+      expect.objectContaining({ assetId: 'wooden-floor', coordinate: { x: 2, y: 3 }, buildingLevelId: 'level-1' }),
+    ]),
+  );
+  const movedInstanceBefore = crossLayerPlacementScene.tileInstances.find(
+    (instance) =>
+      instance.assetId === 'wooden-floor' &&
+      instance.buildingLevelId === 'level-1' &&
+      instance.coordinate?.x === 2 &&
+      instance.coordinate.y === 3,
+  );
+  expect(movedInstanceBefore?.instanceId).toBeTruthy();
+  await page.getByLabel('Move target layer').selectOption('level-0');
+  await expect(page.getByLabel('Move target preview')).toContainText('Move blocked by 1 item on 0 层');
+  await page.getByLabel('Move instance X').fill('5');
+  await page.getByLabel('Move instance Y').fill('5');
+  await expect(page.getByLabel('Move target preview')).toContainText('Move target is clear on 0 层');
+  await page.getByRole('button', { name: 'Move' }).click();
+  await expect(page.getByLabel('Current building level')).toHaveText('Current L0');
+  await expect(page.getByLabel('Selected coordinate')).toHaveText('5,5');
+  await expect(page.getByLabel('Selected layer')).toHaveText('0 层');
+  await expect(page.locator('[data-coordinate="5,5"]')).toContainText('Wooden Floor');
+  const crossLayerMoveScene = await readSceneSnapshot(page);
+  const movedInstanceAfter = crossLayerMoveScene.tileInstances.filter(
+    (instance) => instance.instanceId === movedInstanceBefore?.instanceId,
+  );
+  expect(crossLayerMoveScene.tileInstances).toHaveLength(crossLayerPlacementScene.tileInstances.length);
+  expect(movedInstanceAfter).toHaveLength(1);
+  expect(movedInstanceAfter[0]).toMatchObject({
+    assetId: 'wooden-floor',
+    coordinate: { x: 5, y: 5 },
+    buildingLevelId: 'level-0',
+  });
+  expect(
+    crossLayerMoveScene.tileInstances.some(
+      (instance) =>
+        instance.instanceId === movedInstanceBefore?.instanceId &&
+        instance.buildingLevelId === 'level-1' &&
+        instance.coordinate?.x === 2 &&
+        instance.coordinate.y === 3,
+    ),
+  ).toBe(false);
+
   await page.getByLabel('Search assets').fill('roof-tile');
   await page.getByRole('button', { name: /Roof Tile.*No\. 068/ }).click();
   await page.locator('[data-coordinate="4,4"]').click();
@@ -275,7 +330,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await page.getByRole('button', { name: /Copy 0 层/ }).click();
   await expect(page.getByLabel('Current building level')).toHaveText('Current L4');
   await expect(page.getByLabel('Building layer feedback')).toHaveText('Copied 0 层');
-  await expect(page.getByLabel('L4, 0 层 copy, 2 instances, visible, unlocked, current editing layer')).toBeVisible();
+  await expect(page.getByLabel('L4, 0 层 copy, 3 instances, visible, unlocked, current editing layer')).toBeVisible();
   await expect(page.locator('[data-coordinate="2,3"]')).toContainText('Wooden Floor');
   const copiedLayerScene = await readSceneSnapshot(page);
   expect(copiedLayerScene.buildingLevels.map((level) => level.id)).toContain('level-4');
@@ -287,12 +342,13 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
     expect.arrayContaining([
       expect.objectContaining({ assetId: 'wooden-floor', coordinate: { x: 2, y: 3 } }),
       expect.objectContaining({ assetId: 'wooden-floor', coordinate: { x: 3, y: 3 } }),
+      expect.objectContaining({ assetId: 'wooden-floor', coordinate: { x: 5, y: 5 } }),
     ]),
   );
 
   page.once('dialog', async (dialog) => {
     expect(dialog.message()).toContain('Delete building layer "0 层 copy"');
-    expect(dialog.message()).toContain('2 items');
+    expect(dialog.message()).toContain('3 items');
     expect(dialog.message()).toContain('removes the layer and all item instances');
     expect(dialog.message()).toContain('OK to confirm or Cancel');
     await dialog.dismiss();
@@ -502,6 +558,7 @@ interface SceneSnapshot {
     currentBuildingLevelId: string;
   };
   tileInstances: Array<{
+    instanceId?: string;
     assetId?: string;
     buildingLevelId: string;
     coordinate?: { x: number; y: number };

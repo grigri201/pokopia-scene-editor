@@ -70,6 +70,76 @@ describe('asset instance edit command', () => {
     expect(result.scene.workspaceState.selectedCoordinate).toEqual({ x: 3, y: 2 });
   });
 
+  it('moves an instance across building layers while preserving editable fields', () => {
+    const scene = createSceneWithInstances([
+      createTileInstance({
+        instanceId: 'tile-move-layer',
+        assetId: 'roof-tile',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+        rotationDegrees: 90,
+        dyeColor: '#56ccf2',
+        requiresSkill: true,
+        skillType: 'soil',
+        skillNote: 'needs height',
+        note: 'keep me',
+      }),
+    ]);
+    const result = editAssetInstance(scene, {
+      type: 'move',
+      instanceId: 'tile-move-layer',
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: 'level-1',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected cross-layer move success.');
+    }
+    expect(result.scene.tileInstances[0]).toMatchObject({
+      instanceId: 'tile-move-layer',
+      assetId: 'roof-tile',
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: 'level-1',
+      rotationDegrees: 90,
+      dyeColor: '#56ccf2',
+      requiresSkill: true,
+      skillType: 'soil',
+      skillNote: 'needs height',
+      note: 'keep me',
+    });
+    expect(result.scene.workspaceState.currentBuildingLevelId).toBe('level-1');
+  });
+
+  it('does not dirty the scene when moving an instance to its current layer and coordinate', () => {
+    const scene = createSceneWithInstances([
+      createTileInstance({
+        instanceId: 'tile-no-op',
+        assetId: 'roof-tile',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+      }),
+    ]);
+    const result = editAssetInstance(scene, {
+      type: 'move',
+      instanceId: 'tile-no-op',
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: 'level-0',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected no-op move success.');
+    }
+    expect(result.scene).toBe(scene);
+    expect(result.message).toBe('Move target unchanged');
+    expect(scene.workspaceState.saveStatus).toBe('saved');
+  });
+
   it('blocks incompatible or conflicting moves without mutating the scene', () => {
     const scene = createSceneWithInstances([
       createTileInstance({
@@ -110,6 +180,58 @@ describe('asset instance edit command', () => {
     }
     expect(scene.tileInstances[0].coordinate).toEqual({ x: 2, y: 2 });
     expect(scene.workspaceState.saveStatus).toBe('saved');
+  });
+
+  it('uses target building layer rules for cross-layer move conflicts and locks', () => {
+    const scene = createSceneWithInstances([
+      createTileInstance({
+        instanceId: 'tile-floor',
+        assetId: 'wooden-floor',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+      }),
+      createTileInstance({
+        instanceId: 'tile-target-blocker',
+        assetId: 'wooden-floor',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-1',
+      }),
+    ]);
+    const lockedTargetScene = {
+      ...scene,
+      buildingLevels: scene.buildingLevels.map((level) =>
+        level.id === 'level-1' ? { ...level, locked: true } : level,
+      ),
+    };
+    const conflict = editAssetInstance(scene, {
+      type: 'move',
+      instanceId: 'tile-floor',
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: 'level-1',
+      interactionMode: 'edit',
+      now,
+    });
+    const lockedTarget = editAssetInstance(lockedTargetScene, {
+      type: 'move',
+      instanceId: 'tile-floor',
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: 'level-1',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(conflict.ok).toBe(false);
+    if (!conflict.ok) {
+      expect(conflict.reason).toBe('target-conflict');
+    }
+    expect(lockedTarget.ok).toBe(false);
+    if (!lockedTarget.ok) {
+      expect(lockedTarget.reason).toBe('locked-layer');
+    }
+    expect(scene.tileInstances[0]).toMatchObject({
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: 'level-0',
+    });
   });
 
   it('returns a typed failure for invalid move coordinates', () => {

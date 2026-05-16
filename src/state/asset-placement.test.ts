@@ -150,6 +150,48 @@ describe('asset placement command', () => {
     expect(replaced.scene.tileInstances.map((instance) => instance.instanceId)).toEqual(['tile-replacement']);
   });
 
+  it('allows the same coordinate to hold independent instances on different building layers', () => {
+    const selectedScene = selectAsset(
+      createDefaultSceneDocument({ sceneId: 'scene-test', now }),
+      'wooden-floor',
+      'edit',
+      now,
+    );
+    const scene = {
+      ...selectedScene,
+      workspaceState: { ...selectedScene.workspaceState, currentBuildingLevelId: 'level-1' },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-level-0',
+          assetId: 'wooden-floor',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const preview = getAssetPlacementPreview(scene, { x: 2, y: 2 }, 'edit', false);
+    const result = placeSelectedAsset(scene, {
+      coordinate: { x: 2, y: 2 },
+      interactionMode: 'edit',
+      now,
+      instanceId: 'tile-level-1',
+      requiresSkill: false,
+    });
+
+    expect(preview?.status).toBe('ready');
+    expect(preview?.overwriteLabel).toBe('No overwrite');
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected cross-layer placement success.');
+    }
+    expect(result.scene.tileInstances).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ instanceId: 'tile-level-0', buildingLevelId: 'level-0' }),
+        expect.objectContaining({ instanceId: 'tile-level-1', buildingLevelId: 'level-1' }),
+      ]),
+    );
+  });
+
   it('stacks compatible assets without replacement confirmation', () => {
     const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'roof-tile', 'edit', now);
     const sceneWithTile = {

@@ -11,6 +11,7 @@ import type { InteractionMode } from './interaction-mode';
 export type InstanceEditFailureReason =
   | 'read-only'
   | 'missing-instance'
+  | 'missing-layer'
   | 'locked-layer'
   | 'hidden-layer'
   | 'unknown-asset'
@@ -42,7 +43,7 @@ export interface EditAssetInstanceBaseInput {
 
 export type EditAssetInstanceInput =
   | (EditAssetInstanceBaseInput & { type: 'delete' })
-  | (EditAssetInstanceBaseInput & { type: 'move'; coordinate: GridCoordinate })
+  | (EditAssetInstanceBaseInput & { type: 'move'; coordinate: GridCoordinate; buildingLevelId?: string })
   | (EditAssetInstanceBaseInput & { type: 'rotate'; rotationDegrees: RotationDegrees })
   | (EditAssetInstanceBaseInput & { type: 'dye'; dyeColor: string | null })
   | (EditAssetInstanceBaseInput & { type: 'note'; note: string });
@@ -66,7 +67,7 @@ export function editAssetInstance(
         'Instance deleted',
       );
     case 'move':
-      return moveInstance(scene, guard.instance, input.coordinate, input.now);
+      return moveInstance(scene, guard.instance, input.coordinate, input.buildingLevelId, input.now);
     case 'rotate':
       return updateInstance(
         scene,
@@ -140,11 +141,34 @@ function moveInstance(
   scene: SceneDocument,
   instance: TileInstance,
   coordinate: GridCoordinate,
+  buildingLevelId: string | undefined,
   now: string,
 ): AssetInstanceEditResult {
   const asset = getAssetById(instance.assetId);
   if (!asset) {
     return failure('unknown-asset', 'Unknown instance asset', 'Replace the instance with a known asset.');
+  }
+
+  const targetBuildingLevelId = buildingLevelId ?? instance.buildingLevelId;
+  const targetBuildingLevel = scene.buildingLevels.find((level) => level.id === targetBuildingLevelId);
+  if (!targetBuildingLevel) {
+    return failure('missing-layer', 'Target building layer is missing', 'Choose an existing target building layer.');
+  }
+
+  if (!targetBuildingLevel.visible) {
+    return failure('hidden-layer', 'Target layer is hidden', 'Show the target building layer before moving.');
+  }
+
+  if (targetBuildingLevel.locked) {
+    return failure('locked-layer', 'Target layer is locked', 'Unlock the target building layer before moving.');
+  }
+
+  if (
+    targetBuildingLevel.id === instance.buildingLevelId &&
+    coordinate.x === instance.coordinate.x &&
+    coordinate.y === instance.coordinate.y
+  ) {
+    return { ok: true, scene, instance, message: 'Move target unchanged' };
   }
 
   const dimensions = {
@@ -168,7 +192,7 @@ function moveInstance(
   const targetInstances = scene.tileInstances.filter(
     (candidate) =>
       candidate.instanceId !== instance.instanceId &&
-      candidate.buildingLevelId === instance.buildingLevelId &&
+      candidate.buildingLevelId === targetBuildingLevel.id &&
       candidate.coordinate.x === coordinate.x &&
       candidate.coordinate.y === coordinate.y,
   );
@@ -188,7 +212,10 @@ function moveInstance(
     ...current,
     coordinate: { x: coordinate.x, y: coordinate.y },
     areaType: targetAreaType,
-  }));
+    buildingLevelId: targetBuildingLevel.id,
+  }), undefined, {
+    currentBuildingLevelId: targetBuildingLevel.id,
+  });
 }
 
 function updateInstance(
@@ -198,6 +225,7 @@ function updateInstance(
   message: string,
   update: (instance: TileInstance) => TileInstance,
   capability?: 'rotation' | 'dye',
+  workspaceOverride?: Partial<SceneDocument['workspaceState']>,
 ): AssetInstanceEditResult {
   const asset = getAssetById(instance.assetId);
 
@@ -218,7 +246,7 @@ function updateInstance(
     candidate.instanceId === instance.instanceId ? nextInstance : candidate,
   );
 
-  return markEditedScene(scene, now, nextTileInstances, nextInstance, message);
+  return markEditedScene(scene, now, nextTileInstances, nextInstance, message, workspaceOverride);
 }
 
 function markEditedScene(
@@ -227,6 +255,7 @@ function markEditedScene(
   tileInstances: TileInstance[],
   instance: TileInstance | null,
   message: string,
+  workspaceOverride?: Partial<SceneDocument['workspaceState']>,
 ): AssetInstanceEditResult {
   return {
     ok: true,
@@ -237,6 +266,7 @@ function markEditedScene(
       tileInstances,
       workspaceState: {
         ...scene.workspaceState,
+        ...workspaceOverride,
         selectedCoordinate: instance
           ? { x: instance.coordinate.x, y: instance.coordinate.y }
           : scene.workspaceState.selectedCoordinate,

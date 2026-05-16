@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getAssetById } from '../../domain/assets';
 import {
+  type BuildingLevel,
   calculateAreaType,
   type CellContext,
   type GridCoordinate,
@@ -19,12 +20,13 @@ interface SelectionInspectorProps {
   targetPlacement: AssetPlacementPreview | null;
   canvasSize: GridSize;
   sceneDimensions: SceneDimensions;
-  currentLayerInstances: readonly TileInstance[];
+  buildingLevels: readonly BuildingLevel[];
+  tileInstances: readonly TileInstance[];
   readOnly: boolean;
   editFeedback: string | null;
   onSelectedInstanceChange: (instanceId: string) => void;
   onDeleteInstance: (instanceId: string) => void;
-  onMoveInstance: (instanceId: string, coordinate: GridCoordinate) => void;
+  onMoveInstance: (instanceId: string, coordinate: GridCoordinate, buildingLevelId: string) => void;
   onRotateInstance: (instanceId: string, rotationDegrees: RotationDegrees) => void;
   onDyeInstance: (instanceId: string, dyeColor: string | null) => void;
   onSaveInstanceNote: (instanceId: string, note: string) => void;
@@ -38,7 +40,8 @@ export function SelectionInspector({
   targetPlacement,
   canvasSize,
   sceneDimensions,
-  currentLayerInstances,
+  buildingLevels,
+  tileInstances,
   readOnly,
   editFeedback,
   onSelectedInstanceChange,
@@ -63,7 +66,8 @@ export function SelectionInspector({
         selectedInstanceId={selectedInstanceId}
         canvasSize={canvasSize}
         sceneDimensions={sceneDimensions}
-        currentLayerInstances={currentLayerInstances}
+        buildingLevels={buildingLevels}
+        tileInstances={tileInstances}
         readOnly={readOnly}
         feedback={editFeedback}
         onSelectedInstanceChange={onSelectedInstanceChange}
@@ -141,12 +145,13 @@ interface InstanceEditorProps {
   selectedInstanceId: string | null;
   canvasSize: GridSize;
   sceneDimensions: SceneDimensions;
-  currentLayerInstances: readonly TileInstance[];
+  buildingLevels: readonly BuildingLevel[];
+  tileInstances: readonly TileInstance[];
   readOnly: boolean;
   feedback: string | null;
   onSelectedInstanceChange: (instanceId: string) => void;
   onDeleteInstance: (instanceId: string) => void;
-  onMoveInstance: (instanceId: string, coordinate: GridCoordinate) => void;
+  onMoveInstance: (instanceId: string, coordinate: GridCoordinate, buildingLevelId: string) => void;
   onRotateInstance: (instanceId: string, rotationDegrees: RotationDegrees) => void;
   onDyeInstance: (instanceId: string, dyeColor: string | null) => void;
   onSaveInstanceNote: (instanceId: string, note: string) => void;
@@ -158,7 +163,8 @@ function InstanceEditor({
   selectedInstanceId,
   canvasSize,
   sceneDimensions,
-  currentLayerInstances,
+  buildingLevels,
+  tileInstances,
   readOnly,
   feedback,
   onSelectedInstanceChange,
@@ -171,14 +177,18 @@ function InstanceEditor({
   const asset = getAssetById(instance?.assetId);
   const [moveX, setMoveX] = useState('0');
   const [moveY, setMoveY] = useState('0');
+  const [targetBuildingLevelId, setTargetBuildingLevelId] = useState('');
   const [note, setNote] = useState('');
   const [dyeColor, setDyeColor] = useState('#ffffff');
   const disabledReason = getDisabledReason(context, readOnly);
   const canEdit = Boolean(instance && !disabledReason);
+  const effectiveTargetBuildingLevelId = targetBuildingLevelId || instance?.buildingLevelId || '';
   const movePreview = instance
     ? getMovePreview({
         instance,
-        currentLayerInstances,
+        buildingLevels,
+        tileInstances,
+        targetBuildingLevelId: effectiveTargetBuildingLevelId,
         canvasSize,
         sceneDimensions,
         xValue: moveX,
@@ -190,16 +200,39 @@ function InstanceEditor({
     if (!instance) {
       setMoveX('0');
       setMoveY('0');
-      setNote('');
-      setDyeColor('#ffffff');
       return;
     }
 
     setMoveX(String(instance.coordinate.x));
     setMoveY(String(instance.coordinate.y));
+  }, [instance?.instanceId, instance?.coordinate.x, instance?.coordinate.y]);
+
+  useEffect(() => {
+    if (!instance) {
+      setTargetBuildingLevelId('');
+      return;
+    }
+
+    setTargetBuildingLevelId(instance.buildingLevelId);
+  }, [instance?.instanceId, instance?.buildingLevelId]);
+
+  useEffect(() => {
+    if (!instance) {
+      setNote('');
+      return;
+    }
+
     setNote(instance.note);
+  }, [instance?.instanceId, instance?.note]);
+
+  useEffect(() => {
+    if (!instance) {
+      setDyeColor('#ffffff');
+      return;
+    }
+
     setDyeColor(instance.dyeColor ?? '#ffffff');
-  }, [instance?.instanceId, instance?.coordinate.x, instance?.coordinate.y, instance?.note, instance?.dyeColor]);
+  }, [instance?.instanceId, instance?.dyeColor]);
 
   if (!instance) {
     return (
@@ -250,6 +283,21 @@ function InstanceEditor({
           Delete
         </button>
         <label>
+          Layer
+          <select
+            aria-label="Move target layer"
+            value={effectiveTargetBuildingLevelId}
+            disabled={!canEdit}
+            onChange={(event) => setTargetBuildingLevelId(event.target.value)}
+          >
+            {buildingLevels.map((level) => (
+              <option value={level.id} key={level.id}>
+                {level.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           X
           <input
             aria-label="Move instance X"
@@ -279,7 +327,7 @@ function InstanceEditor({
           onClick={() => {
             const coordinate = parseMoveCoordinate(moveX, moveY, canvasSize);
             if (coordinate) {
-              onMoveInstance(instance.instanceId, coordinate);
+              onMoveInstance(instance.instanceId, coordinate, effectiveTargetBuildingLevelId);
             }
           }}
         >
@@ -352,24 +400,61 @@ function parseMoveCoordinate(xValue: string, yValue: string, canvasSize: GridSiz
 
 function getMovePreview({
   instance,
-  currentLayerInstances,
+  buildingLevels,
+  tileInstances,
+  targetBuildingLevelId,
   canvasSize,
   sceneDimensions,
   xValue,
   yValue,
 }: {
   instance: TileInstance;
-  currentLayerInstances: readonly TileInstance[];
+  buildingLevels: readonly BuildingLevel[];
+  tileInstances: readonly TileInstance[];
+  targetBuildingLevelId: string;
   canvasSize: GridSize;
   sceneDimensions: SceneDimensions;
   xValue: string;
   yValue: string;
-}): { status: 'ready' | 'blocked' | 'invalid'; message: string } {
+}): { status: 'ready' | 'blocked' | 'invalid' | 'unchanged'; message: string } {
   const coordinate = parseMoveCoordinate(xValue, yValue, canvasSize);
   if (!coordinate) {
     return {
       status: 'invalid',
       message: `Invalid target. Use whole numbers inside 0..${canvasSize.width - 1}, 0..${canvasSize.height - 1}.`,
+    };
+  }
+
+  const targetLevel = buildingLevels.find((level) => level.id === targetBuildingLevelId);
+  if (!targetLevel) {
+    return {
+      status: 'blocked',
+      message: 'Move target layer is missing.',
+    };
+  }
+
+  if (!targetLevel.visible) {
+    return {
+      status: 'blocked',
+      message: `Move blocked because ${targetLevel.name} is hidden.`,
+    };
+  }
+
+  if (targetLevel.locked) {
+    return {
+      status: 'blocked',
+      message: `Move blocked because ${targetLevel.name} is locked.`,
+    };
+  }
+
+  if (
+    targetLevel.id === instance.buildingLevelId &&
+    coordinate.x === instance.coordinate.x &&
+    coordinate.y === instance.coordinate.y
+  ) {
+    return {
+      status: 'unchanged',
+      message: 'Move target unchanged.',
     };
   }
 
@@ -381,9 +466,10 @@ function getMovePreview({
     };
   }
 
-  const targetInstances = currentLayerInstances.filter(
+  const targetInstances = tileInstances.filter(
     (candidate) =>
       candidate.instanceId !== instance.instanceId &&
+      candidate.buildingLevelId === targetLevel.id &&
       candidate.coordinate.x === coordinate.x &&
       candidate.coordinate.y === coordinate.y,
   );
@@ -395,18 +481,18 @@ function getMovePreview({
   if (!stackAllowed) {
     return {
       status: 'blocked',
-      message: `Move blocked by ${targetInstances.length} item${targetInstances.length === 1 ? '' : 's'} at target. Choose an empty compatible cell or stackable target.`,
+      message: `Move blocked by ${targetInstances.length} item${targetInstances.length === 1 ? '' : 's'} on ${targetLevel.name}. Choose an empty compatible cell or stackable target.`,
     };
   }
 
   if (targetInstances.length > 0) {
     return {
       status: 'ready',
-      message: `Move will stack with ${targetInstances.length} item${targetInstances.length === 1 ? '' : 's'} at target.`,
+      message: `Move will stack with ${targetInstances.length} item${targetInstances.length === 1 ? '' : 's'} on ${targetLevel.name}.`,
     };
   }
 
-  return { status: 'ready', message: 'Move target is clear.' };
+  return { status: 'ready', message: `Move target is clear on ${targetLevel.name}.` };
 }
 
 function getDisabledReason(context: CellContext | null, readOnly: boolean): string | null {

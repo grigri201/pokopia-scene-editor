@@ -22,6 +22,46 @@ describe('scene selectors', () => {
     expect(context.buildingLevel.id).toBe('level-0');
     expect(context.placeable).toBe(true);
     expect(context.empty).toBe(true);
+    expect(context.otherVisibleLayerInstances).toEqual([]);
+  });
+
+  it('derives other visible layer instances at the same coordinate without mixing current layer occupancy', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+    const sceneWithCrossLayerTiles = {
+      ...scene,
+      buildingLevels: scene.buildingLevels.map((level) =>
+        level.id === 'level-2' ? { ...level, visible: false } : level,
+      ),
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-current',
+          assetId: 'wooden-floor',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-other-visible',
+          assetId: 'roof-tile',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-1',
+        }),
+        createTileInstance({
+          instanceId: 'tile-other-hidden',
+          assetId: 'garden-plant',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-2',
+        }),
+      ],
+    };
+    const context = getCellContext(sceneWithCrossLayerTiles, { x: 2, y: 2 }, 'level-0');
+
+    expect(context.tileInstances.map((instance) => instance.instanceId)).toEqual(['tile-current']);
+    expect(context.otherVisibleLayerInstances.map((instance) => instance.instanceId)).toEqual([
+      'tile-other-visible',
+    ]);
   });
 
   it('returns selected context only after the scene has a selected coordinate', () => {

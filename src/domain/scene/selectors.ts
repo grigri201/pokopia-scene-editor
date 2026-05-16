@@ -17,6 +17,7 @@ export interface CellContext {
   placeable: boolean;
   empty: boolean;
   tileInstances: TileInstance[];
+  otherVisibleLayerInstances: TileInstance[];
 }
 
 export interface CanvasCellContext extends CellContext {
@@ -63,6 +64,17 @@ export function getCellContext(
       instance.coordinate.y === coordinate.y &&
       instance.buildingLevelId === buildingLevel.id,
   );
+  const otherVisibleLevelIds = new Set(
+    scene.buildingLevels
+      .filter((level) => level.id !== buildingLevel.id && level.visible)
+      .map((level) => level.id),
+  );
+  const otherVisibleLayerInstances = scene.tileInstances.filter(
+    (instance) =>
+      instance.coordinate.x === coordinate.x &&
+      instance.coordinate.y === coordinate.y &&
+      otherVisibleLevelIds.has(instance.buildingLevelId),
+  );
 
   return {
     coordinate: { x: coordinate.x, y: coordinate.y },
@@ -71,6 +83,7 @@ export function getCellContext(
     placeable: isPlaceableArea(areaType),
     empty: tileInstances.length === 0,
     tileInstances,
+    otherVisibleLayerInstances,
   };
 }
 
