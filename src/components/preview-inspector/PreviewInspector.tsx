@@ -7,7 +7,7 @@ import {
   type SceneDocument,
   type TileInstance,
 } from '../../domain/scene';
-import { getAssetById } from '../../domain/assets';
+import { getAssetById, getAssetSkillMarkerLabel } from '../../domain/assets';
 
 interface PreviewInspectorProps {
   scene: SceneDocument;
@@ -40,7 +40,7 @@ export function PreviewInspector({
     selectedContext?.tileInstances.find((instance) => instance.instanceId === selectedInstanceId) ??
     selectedContext?.tileInstances.at(-1) ??
     null;
-  const previewInstance = previewCell?.tileInstances.at(-1) ?? null;
+  const previewInstance = previewCell?.buildingLevel.visible ? previewCell.tileInstances.at(-1) ?? null : null;
   const visibleLayerCount = previewContext.visibleLevels.length;
   const visibleInstanceCount = previewContext.visibleTileInstances.length;
   const topViewSummary = `${previewContext.activeLayerInstances.length} current-layer item${
@@ -57,9 +57,11 @@ export function PreviewInspector({
       : `${selectedCoordinate.x},${selectedCoordinate.y} · hidden layer`
     : 'No selection';
   const previewFocusSummary = previewCoordinate
-    ? `${previewCoordinate.x},${previewCoordinate.y}${
-        previewInstance ? ` · ${getInstanceLabel(previewInstance.assetId)}` : ''
-      }`
+    ? previewCell && !previewCell.buildingLevel.visible
+      ? `${previewCoordinate.x},${previewCoordinate.y} · hidden layer`
+      : `${previewCoordinate.x},${previewCoordinate.y}${
+          previewInstance ? ` · ${getInstanceLabel(previewInstance.assetId)}` : ''
+        }`
     : 'No preview focus';
 
   useEffect(() => {
@@ -88,20 +90,49 @@ export function PreviewInspector({
                 transform: `translate(${previewPan.x}px, ${previewPan.y}px) scale(${previewZoom})`,
               }}
             >
-              {previewContext.activeCells.map((cell) => (
-                <button
-                  type="button"
-                  className="mini-grid__cell"
-                  aria-label={getPreviewCellLabel(cell)}
-                  aria-pressed={coordinatesEqual(previewCoordinate, cell.coordinate)}
-                  data-preview-area={cell.areaType}
-                  data-has-instance={cell.tileInstances.length > 0}
-                  key={cell.id}
-                  onClick={() => setPreviewCoordinate(cell.coordinate)}
-                >
-                  {cell.tileInstances.at(-1) ? getInstanceShortLabel(cell.tileInstances.at(-1)!) : ''}
-                </button>
-              ))}
+              {previewContext.activeCells.map((cell) => {
+                const visibleCellInstances = cell.buildingLevel.visible ? cell.tileInstances : [];
+                const topInstance = visibleCellInstances.at(-1) ?? null;
+                const skillInstances = visibleCellInstances.filter((instance) => instance.requiresSkill);
+                const topSkillInstance = skillInstances.at(-1) ?? null;
+                const skillMarkerLabel = topSkillInstance
+                  ? getAssetSkillMarkerLabel(topSkillInstance.skillType)
+                  : '';
+
+                return (
+                  <button
+                    type="button"
+                    className="mini-grid__cell"
+                    aria-label={getPreviewCellLabel(cell)}
+                    aria-pressed={coordinatesEqual(previewCoordinate, cell.coordinate)}
+                    data-preview-coordinate={`${cell.coordinate.x},${cell.coordinate.y}`}
+                    data-preview-area={cell.areaType}
+                    data-preview-main-boundary={cell.mainBoundary}
+                    data-preview-has-instance={visibleCellInstances.length > 0}
+                    data-preview-instance-count={visibleCellInstances.length}
+                    data-preview-asset-id={topInstance?.assetId ?? ''}
+                    data-preview-instance-id={topInstance?.instanceId ?? ''}
+                    data-preview-requires-skill={skillInstances.length > 0}
+                    data-preview-skill-marker-label={skillMarkerLabel}
+                    data-preview-skill-instance-id={topSkillInstance?.instanceId ?? ''}
+                    key={cell.id}
+                    onClick={() => setPreviewCoordinate(cell.coordinate)}
+                  >
+                    <span className="mini-grid__coordinate">
+                      {cell.coordinate.x},{cell.coordinate.y}
+                    </span>
+                    <span className="mini-grid__area">{cell.areaType === 'main' ? 'M' : 'O'}</span>
+                    {topInstance ? (
+                      <span className="mini-grid__asset">{getInstanceShortLabel(topInstance)}</span>
+                    ) : null}
+                    {topSkillInstance ? (
+                      <span className="mini-grid__skill" aria-label={`Top preview skill ${skillMarkerLabel}`}>
+                        {skillMarkerLabel}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <dl className="preview-summary">
@@ -188,15 +219,25 @@ function getInstanceShortLabel(instance: TileInstance): string {
 
 function getPreviewCellLabel(cell: CanvasCellContext): string {
   const coordinateLabel = `Top preview cell ${cell.coordinate.x},${cell.coordinate.y}`;
-  const topInstance = cell.tileInstances.at(-1);
+  const boundarySuffix = cell.mainBoundary ? ', main boundary' : '';
 
   if (!cell.buildingLevel.visible) {
-    return `${coordinateLabel}, ${cell.areaType}, hidden layer`;
+    return `${coordinateLabel}, ${cell.areaType}, hidden layer${boundarySuffix}`;
   }
 
+  const topInstance = cell.tileInstances.at(-1);
+  const topSkillInstance = cell.tileInstances.filter((instance) => instance.requiresSkill).at(-1) ?? null;
+  const skillSuffix = topSkillInstance
+    ? `, skill ${getAssetSkillMarkerLabel(topSkillInstance.skillType)}`
+    : '';
+
   return `${coordinateLabel}, ${cell.areaType}, ${
-    topInstance ? getInstanceLabel(topInstance.assetId) : 'empty'
-  }`;
+    topInstance
+      ? `${getInstanceLabel(topInstance.assetId)}, ${cell.tileInstances.length} item${
+          cell.tileInstances.length === 1 ? '' : 's'
+        }`
+      : 'empty'
+  }${skillSuffix}${boundarySuffix}`;
 }
 
 function coordinatesEqual(left: GridCoordinate | null, right: GridCoordinate): boolean {

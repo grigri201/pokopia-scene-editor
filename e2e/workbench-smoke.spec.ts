@@ -20,12 +20,27 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Asset result count')).toHaveText('06 / 06');
   await expect(page.getByLabel('Current placement asset')).toContainText('None');
   await expect(page.locator('[data-asset-id="wooden-floor"] .asset-thumb')).toBeVisible();
-  await expect(page.getByRole('complementary', { name: 'Preview inspector' })).toBeVisible();
+  const previewInspector = page.getByRole('complementary', { name: 'Preview inspector' });
+  const topPreview = previewInspector.getByLabel('Top view preview');
+  const previewCell = (coordinate: string) => topPreview.locator(`[data-preview-coordinate="${coordinate}"]`);
+
+  await expect(previewInspector).toBeVisible();
   await expect(page.getByLabel('Dual preview inspector')).toBeVisible();
   await expect(page.getByLabel('Top preview current layer')).toHaveText('0 层');
   await expect(page.getByLabel('Top preview item summary')).toHaveText('0 current-layer items');
   await expect(page.getByLabel('Front preview layer summary')).toHaveText('3 visible layers, 0 visible items');
-  const previewBox = await page.getByRole('complementary', { name: 'Preview inspector' }).boundingBox();
+  await expect(topPreview.locator('[data-preview-coordinate]')).toHaveCount(49);
+  await expect(topPreview.locator('[data-preview-area="main"]')).toHaveCount(25);
+  await expect(topPreview.locator('[data-preview-area="outer"]')).toHaveCount(24);
+  await expect(topPreview.locator('[data-preview-main-boundary="true"]')).toHaveCount(16);
+  await expect(topPreview.locator('.mini-grid__area').filter({ hasText: 'M' }).first()).toBeVisible();
+  await expect(topPreview.locator('.mini-grid__area').filter({ hasText: 'O' }).first()).toBeVisible();
+  const previewBoundaryShadow = await topPreview
+    .locator('[data-preview-main-boundary="true"]')
+    .first()
+    .evaluate((element) => getComputedStyle(element).boxShadow);
+  expect(previewBoundaryShadow).not.toBe('none');
+  const previewBox = await previewInspector.boundingBox();
   expect(previewBox).not.toBeNull();
   expect((previewBox?.y ?? 0) + (previewBox?.height ?? 0)).toBeLessThanOrEqual(720);
   await expect(page.getByLabel('Current building level')).toHaveText('Current L0');
@@ -184,11 +199,18 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Top preview item summary')).toHaveText('1 current-layer item');
   await expect(page.getByLabel('Top preview selection summary')).toHaveText('2,3 · Garden Plant');
   await expect(page.getByLabel('Front preview layer summary')).toHaveText('4 visible layers, 1 visible item');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-has-instance', 'true');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-instance-count', '1');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-asset-id', 'garden-plant');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-requires-skill', 'true');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-skill-marker-label', '树');
+  await expect(previewCell('2,3')).toHaveAttribute('aria-label', /Garden Plant, 1 item, skill 树/);
   await expect(page.getByLabel('Save status')).toHaveText('Dirty');
   await page.locator('[data-coordinate="2,3"]').click();
   await expect(page.locator('[data-coordinate="2,3"]')).toHaveAttribute('data-instance-count', '2');
   await expect(page.locator('[data-coordinate="2,3"]')).toContainText('2x');
   await expect(page.getByLabel('Selected asset stack')).toContainText('Garden Plant / Garden Plant');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-instance-count', '2');
   const stackedScene = await readSceneSnapshot(page);
   expect(stackedScene.tileInstances).toHaveLength(2);
   expect(stackedScene.tileInstances).toEqual(
@@ -206,6 +228,10 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   });
   await page.locator('[data-coordinate="2,3"]').click();
   await expect(page.locator('[data-coordinate="2,3"]')).toContainText('Wooden Floor');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-asset-id', 'wooden-floor');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-instance-count', '1');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-requires-skill', 'false');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-skill-marker-label', '');
   const replacedScene = await readSceneSnapshot(page);
   expect(replacedScene.tileInstances).toHaveLength(1);
   expect(replacedScene.tileInstances[0]).toMatchObject({ assetId: 'wooden-floor', coordinate: { x: 2, y: 3 } });
@@ -231,6 +257,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.locator('[data-coordinate="3,3"]')).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.locator('[data-coordinate="3,3"]')).toContainText('Wooden Floor');
+  await expect(previewCell('3,3')).toHaveAttribute('data-preview-asset-id', 'wooden-floor');
   const keyboardScene = await readSceneSnapshot(page);
   expect(keyboardScene.tileInstances).toEqual(
     expect.arrayContaining([
@@ -247,6 +274,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await page.locator('[data-coordinate="2,3"]').click();
   await expect(page.locator('[data-coordinate="2,3"]')).toContainText('Wooden Floor');
   await expect(page.locator('[data-coordinate="2,3"]')).toHaveAttribute('data-other-layer-instance-count', '1');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-asset-id', 'wooden-floor');
   const crossLayerPlacementScene = await readSceneSnapshot(page);
   expect(crossLayerPlacementScene.tileInstances).toEqual(
     expect.arrayContaining([
@@ -272,6 +300,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Selected coordinate')).toHaveText('5,5');
   await expect(page.getByLabel('Selected layer')).toHaveText('0 层');
   await expect(page.locator('[data-coordinate="5,5"]')).toContainText('Wooden Floor');
+  await expect(previewCell('5,5')).toHaveAttribute('data-preview-asset-id', 'wooden-floor');
   const crossLayerMoveScene = await readSceneSnapshot(page);
   const movedInstanceAfter = crossLayerMoveScene.tileInstances.filter(
     (instance) => instance.instanceId === movedInstanceBefore?.instanceId,
@@ -297,6 +326,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await page.getByRole('button', { name: /Roof Tile.*No\. 068/ }).click();
   await page.locator('[data-coordinate="4,4"]').click();
   await expect(page.getByLabel('Selected instance', { exact: true })).toHaveText('Roof Tile');
+  await expect(previewCell('4,4')).toHaveAttribute('data-preview-asset-id', 'roof-tile');
+  await expect(previewCell('4,4')).toHaveAttribute('data-preview-requires-skill', 'true');
+  await expect(previewCell('4,4')).toHaveAttribute('data-preview-skill-marker-label', '耕');
   await page.getByLabel('Instance rotation', { exact: true }).selectOption('90');
   await expect(page.locator('[data-coordinate="4,4"]')).toHaveAttribute('data-rotation', '90');
   await expect(page.locator('[data-coordinate="4,4"]')).toContainText('90 deg');
@@ -311,12 +343,16 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await page.getByRole('button', { name: 'Save skill' }).click();
   await expect(page.getByLabel('Selected instance skill type')).toHaveText('储水');
   await expect(page.getByLabel('Selected instance skill note')).toHaveText('<b>store water</b>');
+  await expect(previewCell('4,4')).toHaveAttribute('data-preview-skill-marker-label', '水');
+  await expect(previewCell('4,4')).toHaveAttribute('aria-label', /Roof Tile, 1 item, skill 水/);
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.getByLabel('Selected instance skill type')).toHaveText('耕地');
   await expect(page.getByLabel('Selected instance skill note')).toHaveText('No skill note');
+  await expect(previewCell('4,4')).toHaveAttribute('data-preview-skill-marker-label', '耕');
   await page.getByRole('button', { name: 'Redo' }).click();
   await expect(page.getByLabel('Selected instance skill type')).toHaveText('储水');
   await expect(page.getByLabel('Selected instance skill note')).toHaveText('<b>store water</b>');
+  await expect(previewCell('4,4')).toHaveAttribute('data-preview-skill-marker-label', '水');
   expect(
     await page.locator('.instance-editor').evaluate((editor) => editor.scrollWidth <= editor.clientWidth),
   ).toBe(true);
@@ -325,6 +361,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await page.getByRole('button', { name: 'Move' }).click();
   await expect(page.getByLabel('Selected coordinate')).toHaveText('5,4');
   await expect(page.locator('[data-coordinate="5,4"]')).toContainText('Roof Tile');
+  await expect(previewCell('4,4')).toHaveAttribute('data-preview-has-instance', 'false');
+  await expect(previewCell('5,4')).toHaveAttribute('data-preview-asset-id', 'roof-tile');
+  await expect(previewCell('5,4')).toHaveAttribute('data-preview-skill-marker-label', '水');
   const editedScene = await readSceneSnapshot(page);
   expect(editedScene.tileInstances).toEqual(
     expect.arrayContaining([
@@ -346,6 +385,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   });
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page.locator('[data-coordinate="5,4"]')).not.toContainText('Roof Tile');
+  await expect(previewCell('5,4')).toHaveAttribute('data-preview-has-instance', 'false');
+  await expect(previewCell('5,4')).toHaveAttribute('data-preview-asset-id', '');
+  await expect(previewCell('5,4')).toHaveAttribute('data-preview-requires-skill', 'false');
   const deletedScene = await readSceneSnapshot(page);
   expect(deletedScene.tileInstances.some((instance) => (instance as { assetId?: string }).assetId === 'roof-tile')).toBe(
     false,

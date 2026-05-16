@@ -29,7 +29,7 @@ const scene = {
 
 describe('PreviewInspector', () => {
   it('renders top and front previews from the scene selectors', () => {
-    render(
+    const { container } = render(
       <PreviewInspector
         scene={scene}
         activeBuildingLevelId="level-0"
@@ -43,6 +43,28 @@ describe('PreviewInspector', () => {
     expect(screen.getByLabelText('Dual preview inspector')).toBeVisible();
     expect(screen.getByLabelText('Top view preview')).toBeVisible();
     expect(screen.getByLabelText('Front view preview')).toBeVisible();
+    expect(screen.getAllByRole('button', { name: /^Top preview cell/ })).toHaveLength(49);
+    expect(container.querySelectorAll('[data-preview-area="main"]')).toHaveLength(25);
+    expect(container.querySelectorAll('[data-preview-area="outer"]')).toHaveLength(24);
+    expect(container.querySelectorAll('[data-preview-main-boundary="true"]')).toHaveLength(16);
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-has-instance',
+      'true',
+    );
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-asset-id',
+      'garden-plant',
+    );
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-requires-skill',
+      'true',
+    );
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-skill-marker-label',
+      '树',
+    );
+    expect(screen.getByRole('button', { name: 'Top preview cell 2,3, main, Garden Plant, 1 item, skill 树' }))
+      .toBeVisible();
     expect(screen.getByLabelText('Top preview current layer')).toHaveTextContent('0 层');
     expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('1 current-layer item');
     expect(screen.getByLabelText('Top preview selection summary')).toHaveTextContent('2,3 · Garden Plant');
@@ -66,7 +88,7 @@ describe('PreviewInspector', () => {
 
     expect(screen.getByText('View only')).toBeVisible();
     expect(screen.getByLabelText('Front preview mode')).toHaveTextContent('Read-only preview');
-    fireEvent.click(screen.getByRole('button', { name: 'Top preview cell 2,3, main, Roof Tile' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Top preview cell 2,3, main, Roof Tile, 1 item' }));
     expect(screen.getByLabelText('Top preview local focus')).toHaveTextContent('2,3 · Roof Tile');
     fireEvent.click(screen.getByRole('button', { name: 'Zoom in preview' }));
     fireEvent.click(screen.getByRole('button', { name: 'Pan preview right' }));
@@ -82,7 +104,7 @@ describe('PreviewInspector', () => {
       ),
     };
 
-    render(
+    const { container } = render(
       <PreviewInspector
         scene={hiddenScene}
         activeBuildingLevelId="level-0"
@@ -94,8 +116,20 @@ describe('PreviewInspector', () => {
 
     expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('0 current-layer items');
     expect(screen.getByLabelText('Top preview selection summary')).toHaveTextContent('2,3 · hidden layer');
+    expect(screen.getByLabelText('Top preview local focus')).toHaveTextContent('2,3 · hidden layer');
+    expect(screen.getByLabelText('Top preview local focus')).not.toHaveTextContent('Garden Plant');
     expect(screen.getByLabelText('Front preview layer summary')).toHaveTextContent('2 visible layers, 1 visible item');
     expect(screen.queryByRole('listitem', { name: /L0 0 层/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Top preview cell 1,1, main, hidden layer, main boundary' }))
+      .toBeVisible();
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-has-instance',
+      'false',
+    );
+    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-requires-skill',
+      'false',
+    );
   });
 
   it('keeps front-view bars bounded for scenes with more than three levels', () => {
