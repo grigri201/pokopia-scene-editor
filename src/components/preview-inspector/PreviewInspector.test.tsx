@@ -72,8 +72,30 @@ describe('PreviewInspector', () => {
     expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('1 current-layer item');
     expect(screen.getByLabelText('Top preview selection summary')).toHaveTextContent('2,3 · Garden Plant');
     expect(screen.getByLabelText('Front preview layer summary')).toHaveTextContent('1 visible layer, 1 visible item');
-    expect(screen.getByRole('listitem', { name: 'L0 0 层, 1 item, visible, unlocked, active' }))
+    expect(screen.getByLabelText('Front structure preview 1 visible layer, 1 visible item')).toHaveAttribute(
+      'data-front-rendering',
+      'structure-only',
+    );
+    expect(screen.getByLabelText('Front structure preview 1 visible layer, 1 visible item')).toHaveAttribute(
+      'data-front-scroll',
+      'independent',
+    );
+    expect(screen.getByRole('listitem', {
+      name: 'L0 0 层, height 28%, 1 item, main 1, outer 0, skill 1, visible, unlocked, active',
+    }))
       .toBeVisible();
+    expect(container.querySelector('[data-front-layer-id="level-0"]')).toHaveAttribute(
+      'data-front-layer-main-count',
+      '1',
+    );
+    expect(container.querySelector('[data-front-layer-id="level-0"]')).toHaveAttribute(
+      'data-front-layer-outer-count',
+      '0',
+    );
+    expect(container.querySelector('[data-front-layer-id="level-0"]')).toHaveAttribute(
+      'data-front-layer-skill-count',
+      '1',
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
 
@@ -103,7 +125,9 @@ describe('PreviewInspector', () => {
       name: 'Top preview cell 2,3, main, Roof Tile, 2 items, layers L0 0 层 unlocked → L1 1 层 unlocked, asset stack L0 unlocked Garden Plant → L1 unlocked Roof Tile, skill 树',
     })).toBeVisible();
     expect(screen.getByLabelText('Front preview layer summary')).toHaveTextContent('3 visible layers, 2 visible items');
-    expect(screen.getByRole('listitem', { name: 'L1 1 层, 1 item, visible, unlocked' })).toBeVisible();
+    expect(screen.getByRole('listitem', {
+      name: 'L1 1 层, height 64%, 1 item, main 1, outer 0, skill 0, visible, unlocked',
+    })).toBeVisible();
   });
 
   it('keeps read-only preview mode local to the preview and derived', () => {
@@ -206,10 +230,14 @@ describe('PreviewInspector', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
 
-    const layerBars = screen.getAllByRole('listitem');
-    expect(layerBars).toHaveLength(6);
-    expect(layerBars.every((bar) => Number.parseFloat((bar as HTMLElement).style.height) <= 100)).toBe(true);
-    expect(layerBars.every((bar) => Number.parseFloat((bar as HTMLElement).style.height) >= 28)).toBe(true);
+    const frontRows = document.querySelectorAll('.front-structure__layer');
+    expect(frontRows).toHaveLength(6);
+    expect(
+      Array.from(frontRows).every((row) => Number.parseFloat(row.getAttribute('data-front-layer-height') ?? '') <= 100),
+    ).toBe(true);
+    expect(
+      Array.from(frontRows).every((row) => Number.parseFloat(row.getAttribute('data-front-layer-height') ?? '') >= 28),
+    ).toBe(true);
   });
 
   it('surfaces locked level state while preserving visible preview content', () => {
@@ -230,7 +258,9 @@ describe('PreviewInspector', () => {
     );
 
     expect(screen.getByLabelText('Top preview layer summary')).toHaveTextContent('L1 1 层 locked');
-    expect(screen.getByRole('listitem', { name: 'L1 1 层, 1 item, visible, locked, active' })).toBeVisible();
+    expect(screen.getByRole('listitem', {
+      name: 'L1 1 层, height 64%, 1 item, main 1, outer 0, skill 0, visible, locked, active',
+    })).toBeVisible();
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
 

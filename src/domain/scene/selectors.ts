@@ -40,6 +40,13 @@ export interface PreviewLayerContext extends BuildingLevelContext {
   heightPercent: number;
 }
 
+export interface FrontPreviewLayerContext extends PreviewLayerContext {
+  mainInstanceCount: number;
+  outerInstanceCount: number;
+  skillInstanceCount: number;
+  totalInstanceCount: number;
+}
+
 export interface PreviewCanvasCellContext {
   id: string;
   coordinate: GridCoordinate;
@@ -183,7 +190,7 @@ export function getPreviewInspectorContext(
 
 export function getVisibleBuildingLevelContexts(scene: SceneDocument): PreviewLayerContext[] {
   const visibleLevels = getBuildingLevelContexts(scene).filter((level) => level.visible);
-  const maxLevelNumber = Math.max(...visibleLevels.map((level) => level.levelNumber), 0);
+  const maxLevelNumber = getMaxBuildingLevelNumber(scene.buildingLevels);
 
   return visibleLevels.map((level) => ({
     ...level,
@@ -193,6 +200,19 @@ export function getVisibleBuildingLevelContexts(scene: SceneDocument): PreviewLa
 
 export function getVisibleBuildingLevelContextsInRenderOrder(scene: SceneDocument): PreviewLayerContext[] {
   return sortBuildingLevelsForRender(getVisibleBuildingLevelContexts(scene));
+}
+
+export function getCurrentLayerFrontPreviewContexts(
+  scene: SceneDocument,
+  activeBuildingLevelId = scene.workspaceState.currentBuildingLevelId,
+): FrontPreviewLayerContext[] {
+  const activeLevel = getVisibleBuildingLevelContexts(scene).find((level) => level.id === activeBuildingLevelId);
+
+  return activeLevel ? buildFrontPreviewLayerContexts(scene, [activeLevel]) : [];
+}
+
+export function getAllVisibleFrontPreviewContexts(scene: SceneDocument): FrontPreviewLayerContext[] {
+  return buildFrontPreviewLayerContexts(scene, getVisibleBuildingLevelContextsInRenderOrder(scene));
 }
 
 export function getCurrentLayerPreviewCellContexts(
@@ -259,6 +279,55 @@ function getSceneDimensions(scene: SceneDocument): SceneDimensions {
 
 function countTileInstancesForLevel(scene: SceneDocument, buildingLevelId: string): number {
   return scene.tileInstances.filter((instance) => instance.buildingLevelId === buildingLevelId).length;
+}
+
+function buildFrontPreviewLayerContexts(
+  scene: SceneDocument,
+  levels: readonly PreviewLayerContext[],
+): FrontPreviewLayerContext[] {
+  const dimensions = getSceneDimensions(scene);
+  const statsByLevelId = new Map<string, Pick<FrontPreviewLayerContext, 'mainInstanceCount' | 'outerInstanceCount' | 'skillInstanceCount' | 'totalInstanceCount'>>();
+
+  for (const level of levels) {
+    statsByLevelId.set(level.id, {
+      mainInstanceCount: 0,
+      outerInstanceCount: 0,
+      skillInstanceCount: 0,
+      totalInstanceCount: 0,
+    });
+  }
+
+  for (const instance of scene.tileInstances) {
+    const stats = statsByLevelId.get(instance.buildingLevelId);
+
+    if (!stats) {
+      continue;
+    }
+
+    const areaType = calculateAreaType(instance.coordinate, dimensions);
+    stats.totalInstanceCount += 1;
+    stats.skillInstanceCount += instance.requiresSkill ? 1 : 0;
+
+    if (areaType === 'main') {
+      stats.mainInstanceCount += 1;
+    } else {
+      stats.outerInstanceCount += 1;
+    }
+  }
+
+  return levels.map((level) => ({
+    ...level,
+    ...(statsByLevelId.get(level.id) ?? {
+      mainInstanceCount: 0,
+      outerInstanceCount: 0,
+      skillInstanceCount: 0,
+      totalInstanceCount: 0,
+    }),
+  }));
+}
+
+function getMaxBuildingLevelNumber(levels: readonly Pick<BuildingLevel, 'levelNumber'>[]): number {
+  return Math.max(...levels.map((level) => level.levelNumber), 0);
 }
 
 function getPreviewLevelHeightPercent(levelNumber: number, maxLevelNumber: number): number {

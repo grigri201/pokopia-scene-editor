@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
   getCellContext,
+  getAllVisibleFrontPreviewContexts,
   getAllVisiblePreviewCellContexts,
+  getCurrentLayerFrontPreviewContexts,
   getCurrentLayerPreviewCellContexts,
   getPreviewInspectorContext,
   getVisibleBuildingLevelContextsInRenderOrder,
@@ -37,18 +39,18 @@ export function PreviewInspector({
   const previewContext = getPreviewInspectorContext(scene, activeBuildingLevelId);
   const currentLayerPreviewCells = getCurrentLayerPreviewCellContexts(scene, activeBuildingLevelId);
   const allVisiblePreviewCells = getAllVisiblePreviewCellContexts(scene);
+  const currentLayerFrontPreviewLevels = getCurrentLayerFrontPreviewContexts(scene, activeBuildingLevelId);
+  const allVisibleFrontPreviewLevels = getAllVisibleFrontPreviewContexts(scene);
   const visibleLevelsInRenderOrder = getVisibleBuildingLevelContextsInRenderOrder(scene);
-  const activePreviewLevel = previewContext.visibleLevels.find((level) => level.id === activeBuildingLevelId) ?? null;
   const topPreviewCells = previewScope === 'current-layer' ? currentLayerPreviewCells : allVisiblePreviewCells;
   const topPreviewInstances = topPreviewCells.flatMap((cell) => cell.tileInstances);
   const frontPreviewLevels = previewScope === 'current-layer'
-    ? activePreviewLevel
-      ? [activePreviewLevel]
-      : []
-    : visibleLevelsInRenderOrder;
-  const frontPreviewInstanceCount = previewScope === 'current-layer'
-    ? previewContext.activeLayerInstances.length
-    : previewContext.visibleTileInstances.length;
+    ? currentLayerFrontPreviewLevels
+    : allVisibleFrontPreviewLevels;
+  const frontPreviewInstanceCount = frontPreviewLevels.reduce(
+    (instanceCount, level) => instanceCount + level.totalInstanceCount,
+    0,
+  );
   const selectedContext = selectedCoordinate && previewContext.activeLevel.visible
     ? getCellContext(scene, selectedCoordinate, activeBuildingLevelId)
     : null;
@@ -237,15 +239,9 @@ export function PreviewInspector({
         </div>
         <div className="preview-tile" aria-label="Front view preview">
           <span>Front</span>
-          <div className="height-bars" aria-label={`Front preview ${frontViewSummary}`} role="list">
+          <div className="height-bars" aria-hidden="true">
             {frontPreviewLevels.map((level) => (
               <span
-                role="listitem"
-                aria-label={`${level.displayId} ${level.name}, ${level.instanceCount} item${
-                  level.instanceCount === 1 ? '' : 's'
-                }, visible, ${level.locked ? 'locked' : 'unlocked'}${
-                  level.id === activeBuildingLevelId ? ', active' : ''
-                }`}
                 data-active={level.id === activeBuildingLevelId}
                 data-preview-layer-id={level.id}
                 data-preview-layer-locked={level.locked}
@@ -253,6 +249,46 @@ export function PreviewInspector({
                 style={{ height: `${level.heightPercent}%` }}
               />
             ))}
+          </div>
+          <div
+            className="front-structure"
+            aria-label={`Front structure preview ${frontViewSummary}`}
+            data-front-rendering="structure-only"
+            data-front-scroll="independent"
+            role="list"
+          >
+            {frontPreviewLevels.length > 0 ? (
+              frontPreviewLevels.map((level) => (
+                <div
+                  className="front-structure__layer"
+                  aria-label={`${level.displayId} ${level.name}, height ${Math.round(level.heightPercent)}%, ${
+                    level.totalInstanceCount
+                  } item${level.totalInstanceCount === 1 ? '' : 's'}, main ${level.mainInstanceCount}, outer ${
+                    level.outerInstanceCount
+                  }, skill ${level.skillInstanceCount}, visible, ${level.locked ? 'locked' : 'unlocked'}${
+                    level.id === activeBuildingLevelId ? ', active' : ''
+                  }`}
+                  data-front-layer-id={level.id}
+                  data-front-layer-height={Math.round(level.heightPercent)}
+                  data-front-layer-main-count={level.mainInstanceCount}
+                  data-front-layer-outer-count={level.outerInstanceCount}
+                  data-front-layer-skill-count={level.skillInstanceCount}
+                  data-front-layer-locked={level.locked}
+                  key={level.id}
+                  role="listitem"
+                >
+                  <span className="front-structure__level">{level.displayId}</span>
+                  <span className="front-structure__height" style={{ inlineSize: `${level.heightPercent}%` }} />
+                  <span className="front-structure__area">main {level.mainInstanceCount}</span>
+                  <span className="front-structure__area">outer {level.outerInstanceCount}</span>
+                  <span className="front-structure__skill">skill {level.skillInstanceCount}</span>
+                </div>
+              ))
+            ) : (
+              <div className="front-structure__empty" role="listitem" aria-label="Front structure empty">
+                No visible layers
+              </div>
+            )}
           </div>
           <dl className="preview-summary">
             <div>

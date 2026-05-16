@@ -3,9 +3,11 @@ import {
   createDefaultSceneDocument,
   createTileInstance,
   getBuildingLevelContexts,
+  getAllVisibleFrontPreviewContexts,
   getAllVisiblePreviewCellContexts,
   getCanvasCellContexts,
   getCurrentBuildingLevelContext,
+  getCurrentLayerFrontPreviewContexts,
   getCurrentLayerPreviewCellContexts,
   getCellContext,
   getPreviewInspectorContext,
@@ -253,5 +255,81 @@ describe('scene selectors', () => {
     expect(allVisibleCell?.tileInstances.map((instance) => instance.instanceId)).toEqual(['tile-low', 'tile-high']);
     expect(allVisibleCell?.instanceLayerContexts.map((level) => level.displayId)).toEqual(['L0', 'L1']);
     expect(allVisibleCell?.mainBoundary).toBe(false);
+  });
+
+  it('derives front preview structure counts by area and visible layer scope', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+    const sceneWithFrontStructure = {
+      ...scene,
+      buildingLevels: scene.buildingLevels.map((level) =>
+        level.id === 'level-2' ? { ...level, visible: false, locked: true } : level,
+      ),
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-main',
+          assetId: 'wooden-floor',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+        {
+          ...createTileInstance({
+            instanceId: 'tile-stale-area',
+            assetId: 'outer-wall',
+            coordinate: { x: 0, y: 2 },
+            buildingLevelId: 'level-0',
+          }),
+          areaType: 'main' as const,
+        },
+        createTileInstance({
+          instanceId: 'tile-outer',
+          assetId: 'garden-plant',
+          coordinate: { x: 0, y: 2 },
+          buildingLevelId: 'level-0',
+          requiresSkill: true,
+          skillType: '树叶',
+        }),
+        createTileInstance({
+          instanceId: 'tile-high',
+          assetId: 'roof-tile',
+          coordinate: { x: 3, y: 3 },
+          buildingLevelId: 'level-1',
+          requiresSkill: true,
+          skillType: '耕地',
+        }),
+        createTileInstance({
+          instanceId: 'tile-hidden',
+          assetId: 'water-barrel',
+          coordinate: { x: 4, y: 4 },
+          buildingLevelId: 'level-2',
+          requiresSkill: true,
+          skillType: '储水',
+        }),
+      ],
+    };
+    const allVisibleLevels = getVisibleBuildingLevelContextsInRenderOrder(sceneWithFrontStructure);
+    const currentFront = getCurrentLayerFrontPreviewContexts(sceneWithFrontStructure, 'level-0');
+    const hiddenCurrentFront = getCurrentLayerFrontPreviewContexts(sceneWithFrontStructure, 'level-2');
+    const allVisibleFront = getAllVisibleFrontPreviewContexts(sceneWithFrontStructure);
+
+    expect(allVisibleLevels.find((level) => level.id === 'level-1')?.heightPercent).toBe(64);
+    expect(currentFront).toEqual([
+      expect.objectContaining({
+        displayId: 'L0',
+        mainInstanceCount: 1,
+        outerInstanceCount: 2,
+        skillInstanceCount: 1,
+        totalInstanceCount: 3,
+      }),
+    ]);
+    expect(hiddenCurrentFront).toEqual([]);
+    expect(allVisibleFront.map((level) => level.displayId)).toEqual(['L0', 'L1']);
+    expect(allVisibleFront.map((level) => level.totalInstanceCount)).toEqual([3, 1]);
+    expect(allVisibleFront.map((level) => level.mainInstanceCount)).toEqual([1, 1]);
+    expect(allVisibleFront.map((level) => level.outerInstanceCount)).toEqual([2, 0]);
+    expect(allVisibleFront.map((level) => level.skillInstanceCount)).toEqual([1, 1]);
+    expect(allVisibleFront.find((level) => level.id === 'level-1')?.heightPercent).toBe(64);
   });
 });

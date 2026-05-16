@@ -22,7 +22,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.locator('[data-asset-id="wooden-floor"] .asset-thumb')).toBeVisible();
   const previewInspector = page.getByRole('complementary', { name: 'Preview inspector' });
   const topPreview = previewInspector.getByLabel('Top view preview');
+  const frontPreview = previewInspector.getByLabel('Front view preview');
   const previewCell = (coordinate: string) => topPreview.locator(`[data-preview-coordinate="${coordinate}"]`);
+  const frontLayer = (levelId: string) => frontPreview.locator(`[data-front-layer-id="${levelId}"]`);
 
   await expect(previewInspector).toBeVisible();
   await expect(page.getByLabel('Dual preview inspector')).toBeVisible();
@@ -32,6 +34,14 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Top preview layer summary')).toHaveText('L0 0 层 unlocked');
   await expect(page.getByLabel('Top preview item summary')).toHaveText('0 current-layer items');
   await expect(page.getByLabel('Front preview layer summary')).toHaveText('1 visible layer, 0 visible items');
+  await expect(frontPreview.locator('.front-structure')).toHaveAttribute('data-front-rendering', 'structure-only');
+  await expect(frontPreview.locator('.front-structure')).toHaveAttribute('data-front-scroll', 'independent');
+  expect(
+    await frontPreview.locator('.front-structure').evaluate((element) => getComputedStyle(element).overflowY),
+  ).toBe('auto');
+  await expect(frontLayer('level-0')).toHaveAttribute('data-front-layer-main-count', '0');
+  await expect(frontLayer('level-0')).toHaveAttribute('data-front-layer-outer-count', '0');
+  await expect(frontLayer('level-0')).toHaveAttribute('data-front-layer-skill-count', '0');
   await expect(topPreview.locator('[data-preview-coordinate]')).toHaveCount(49);
   await expect(topPreview.locator('[data-preview-area="main"]')).toHaveCount(25);
   await expect(topPreview.locator('[data-preview-area="outer"]')).toHaveCount(24);
@@ -202,6 +212,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Top preview item summary')).toHaveText('1 current-layer item');
   await expect(page.getByLabel('Top preview selection summary')).toHaveText('2,3 · Garden Plant');
   await expect(page.getByLabel('Front preview layer summary')).toHaveText('1 visible layer, 1 visible item');
+  await expect(frontLayer('level-0')).toHaveAttribute('data-front-layer-main-count', '1');
+  await expect(frontLayer('level-0')).toHaveAttribute('data-front-layer-outer-count', '0');
+  await expect(frontLayer('level-0')).toHaveAttribute('data-front-layer-skill-count', '1');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-has-instance', 'true');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-instance-count', '1');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-asset-id', 'garden-plant');
@@ -297,6 +310,8 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Top preview scope')).toHaveText('All visible layers preview');
   await expect(page.getByLabel('Top preview item summary')).toHaveText('3 visible items across 4 layers');
   await expect(page.getByLabel('Front preview layer summary')).toHaveText('4 visible layers, 3 visible items');
+  await expect(frontLayer('level-0')).toHaveAttribute('data-front-layer-main-count', '2');
+  await expect(frontLayer('level-1')).toHaveAttribute('data-front-layer-main-count', '1');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-instance-count', '2');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-layer-count', '2');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-layer-stack', 'L0,L1');
@@ -308,6 +323,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('L1, 1 层, 1 instances, hidden, unlocked, current editing layer')).toBeVisible();
   await expect(page.getByLabel('Top preview item summary')).toHaveText('2 visible items across 3 layers');
   await expect(page.getByLabel('Front preview layer summary')).toHaveText('3 visible layers, 2 visible items');
+  await expect(frontLayer('level-1')).toHaveCount(0);
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-instance-count', '1');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-layer-stack', 'L0');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-asset-stack', 'L0 unlocked Wooden Floor');
@@ -321,8 +337,11 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
     'data-preview-asset-stack',
     'L0 unlocked Wooden Floor → L1 locked Wooden Floor',
   );
+  await expect(frontLayer('level-1')).toHaveAttribute('data-front-layer-locked', 'true');
   await expect(
-    page.getByRole('listitem', { name: 'L1 1 层, 1 item, visible, locked, active' }),
+    page.getByRole('listitem', {
+      name: /L1 1 层, height \d+%, 1 item, main 1, outer 0, skill 0, visible, locked, active/,
+    }),
   ).toBeVisible();
   await page.getByRole('button', { name: /Unlock 1 层/ }).click();
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-locked-layer-count', '0');
@@ -455,6 +474,31 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
       expect.objectContaining({ assetId: 'wooden-floor', coordinate: { x: 5, y: 5 } }),
     ]),
   );
+  await page.getByRole('button', { name: 'Preview all visible layers' }).click();
+  const canvasBeforeFrontScroll = await page.getByTestId('scene-canvas').boundingBox();
+  const frontStructureBoxBeforeScroll = await frontPreview.locator('.front-structure').boundingBox();
+  expect(canvasBeforeFrontScroll).not.toBeNull();
+  expect(frontStructureBoxBeforeScroll).not.toBeNull();
+  expect(
+    await frontPreview.locator('.front-structure').evaluate(
+      (element) => element.scrollHeight > element.clientHeight,
+    ),
+  ).toBe(true);
+  await frontPreview.locator('.front-structure').evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const canvasAfterFrontScroll = await page.getByTestId('scene-canvas').boundingBox();
+  const frontStructureBoxAfterScroll = await frontPreview.locator('.front-structure').boundingBox();
+  expect(canvasAfterFrontScroll).not.toBeNull();
+  expect(frontStructureBoxAfterScroll).not.toBeNull();
+  expect(Math.abs((canvasBeforeFrontScroll?.width ?? 0) - (canvasAfterFrontScroll?.width ?? 0))).toBeLessThanOrEqual(1);
+  expect(Math.abs((canvasBeforeFrontScroll?.height ?? 0) - (canvasAfterFrontScroll?.height ?? 0))).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs((frontStructureBoxBeforeScroll?.width ?? 0) - (frontStructureBoxAfterScroll?.width ?? 0)),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+  ).toBe(true);
 
   page.once('dialog', async (dialog) => {
     expect(dialog.message()).toContain('Delete building layer "0 层 copy"');
@@ -517,6 +561,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
 test('switches scaffold controls to read-only below the mobile breakpoint', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
+  const previewInspector = page.getByRole('complementary', { name: 'Preview inspector' });
+  const frontPreview = previewInspector.getByLabel('Front view preview');
+  const frontLayer = (levelId: string) => frontPreview.locator(`[data-front-layer-id="${levelId}"]`);
 
   await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile read-only mode');
   await expect(page.getByLabel('Save status')).toHaveText('Read-only · Saved');
@@ -571,6 +618,13 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await page.getByRole('button', { name: 'Pan preview right' }).click();
   await expect(page.getByLabel('Top preview local focus')).toHaveText('2,3');
   await expect(page.getByLabel('Top preview view state')).toHaveText('125%, pan 4,0');
+  await expect(page.getByLabel('Front preview mode')).toHaveText('全部可见层 read-only preview');
+  await expect(frontPreview.locator('.front-structure')).toHaveAttribute('data-front-rendering', 'structure-only');
+  await expect(frontPreview.locator('.front-structure')).toHaveAttribute('data-front-scroll', 'independent');
+  await expect(frontLayer('level-0')).toHaveAttribute('data-front-layer-main-count', '0');
+  await frontPreview.locator('.front-structure').evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
   await expect(page.getByLabel('Save status')).toHaveText('Read-only · Saved');
   await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Redo' })).toBeDisabled();
