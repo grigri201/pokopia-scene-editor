@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getAssetById, type PokemonKey } from '../../domain/assets';
+import { getAssetById, type AssetSkillType, type PokemonKey } from '../../domain/assets';
 import { AssetPicker } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
 import { PokemonSceneControls } from '../pokemon-scene-controls/PokemonSceneControls';
@@ -290,6 +290,22 @@ export function AppShell() {
     );
   };
 
+  const changeInstanceAsset = (instanceId: string, assetId: string) => {
+    if (isReadOnly) {
+      return;
+    }
+
+    handleInstanceEditResult(
+      editAssetInstance(scene, {
+        type: 'asset',
+        instanceId,
+        assetId,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
   const moveInstance = (instanceId: string, coordinate: GridCoordinate, buildingLevelId: string) => {
     if (isReadOnly) {
       return;
@@ -349,6 +365,29 @@ export function AppShell() {
         type: 'note',
         instanceId,
         note,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
+  const saveInstanceSkill = (
+    instanceId: string,
+    requiresSkill: boolean,
+    skillType: AssetSkillType,
+    skillNote: string,
+  ) => {
+    if (isReadOnly) {
+      return;
+    }
+
+    handleInstanceEditResult(
+      editAssetInstance(scene, {
+        type: 'skill',
+        instanceId,
+        requiresSkill,
+        skillType,
+        skillNote,
         interactionMode,
         now: getCurrentIsoTimestamp(),
       }),
@@ -544,9 +583,11 @@ export function AppShell() {
             editFeedback={instanceEditFeedback}
             onSelectedInstanceChange={setSelectedInstanceId}
             onDeleteInstance={deleteInstance}
+            onChangeInstanceAsset={changeInstanceAsset}
             onMoveInstance={moveInstance}
             onRotateInstance={rotateInstance}
             onDyeInstance={dyeInstance}
+            onSaveInstanceSkill={saveInstanceSkill}
             onSaveInstanceNote={saveInstanceNote}
           />
           <SceneCanvas

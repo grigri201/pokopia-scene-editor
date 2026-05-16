@@ -1,5 +1,5 @@
 # generated: 2026-05-16T06:01:02+0800
-# last_updated: 2026-05-16T08:59:09+0800
+# last_updated: 2026-05-16T09:11:45+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -34,7 +34,7 @@
 # - Dev moves story to 'review', then code-review triages findings before done.
 
 generated: 2026-05-16T06:01:02+0800
-last_updated: 2026-05-16T08:59:09+0800
+last_updated: 2026-05-16T09:11:45+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -58,7 +58,7 @@ development_status:
   2-5-building-layer-crud-visibility-lock: done
   2-6-copy-delete-building-layer: done
   2-7-cross-layer-placement-move: done
-  2-8-inspector-instance-fields: backlog
+  2-8-inspector-instance-fields: done
   2-9-ditto-skill-instances: backlog
   epic-2-retrospective: optional
   epic-3: backlog

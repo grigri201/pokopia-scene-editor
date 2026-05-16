@@ -38,18 +38,41 @@ const defaultInspectorProps = {
   editFeedback: null,
   onSelectedInstanceChange: () => undefined,
   onDeleteInstance: () => undefined,
+  onChangeInstanceAsset: () => undefined,
   onMoveInstance: () => undefined,
   onRotateInstance: () => undefined,
   onDyeInstance: () => undefined,
+  onSaveInstanceSkill: () => undefined,
   onSaveInstanceNote: () => undefined,
 };
 
 describe('SelectionInspector', () => {
+  it('shows executable next steps when no coordinate or instance is selected', () => {
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={null}
+        selectedInstance={null}
+        selectedInstanceId={null}
+        readOnly={false}
+      />,
+    );
+
+    expect(screen.getByLabelText('Selected next step')).toHaveTextContent(
+      'Choose an asset, then click a 7x7 canvas cell on the current building layer.',
+    );
+    expect(screen.getByLabelText('Instance next step')).toHaveTextContent(
+      'Select a placed item, or choose an asset and click the canvas to create one.',
+    );
+  });
+
   it('binds instance edit controls to the selected instance id', () => {
     const onDeleteInstance = vi.fn();
+    const onChangeInstanceAsset = vi.fn();
     const onMoveInstance = vi.fn();
     const onRotateInstance = vi.fn();
     const onDyeInstance = vi.fn();
+    const onSaveInstanceSkill = vi.fn();
     const onSaveInstanceNote = vi.fn();
 
     render(
@@ -61,34 +84,49 @@ describe('SelectionInspector', () => {
         readOnly={false}
         editFeedback="Ready"
         onDeleteInstance={onDeleteInstance}
+        onChangeInstanceAsset={onChangeInstanceAsset}
         onMoveInstance={onMoveInstance}
         onRotateInstance={onRotateInstance}
         onDyeInstance={onDyeInstance}
+        onSaveInstanceSkill={onSaveInstanceSkill}
         onSaveInstanceNote={onSaveInstanceNote}
       />,
     );
 
     expect(screen.getByLabelText('Selected instance')).toHaveTextContent('Roof Tile');
     expect(screen.getByLabelText('Selected instance id')).toHaveTextContent('tile-edit');
+    expect(screen.getByLabelText('Selected instance coordinate')).toHaveTextContent('2,2');
+    expect(screen.getByLabelText('Selected instance area')).toHaveTextContent('main');
+    expect(screen.getByLabelText('Selected instance layer')).toHaveTextContent('0 层');
     expect(screen.getByLabelText('Selected instance rotation')).toHaveTextContent('90 deg');
     expect(screen.getByLabelText('Selected instance dye')).toHaveTextContent('#56ccf2');
+    expect(screen.getByLabelText('Selected instance skill marker')).toHaveTextContent('No skill required');
+    expect(screen.getByLabelText('Selected instance skill type')).toHaveTextContent('No skill type');
+    expect(screen.getByLabelText('Selected instance skill note')).toHaveTextContent('No skill note');
     expect(screen.getByLabelText('Selected instance note')).toHaveTextContent('<script>alert(1)</script>');
     expect(screen.getByLabelText('Instance edit feedback')).toHaveTextContent('Ready');
 
+    fireEvent.change(screen.getByLabelText('Instance asset'), { target: { value: 'garden-plant' } });
     fireEvent.change(screen.getByLabelText('Move instance X'), { target: { value: '3' } });
     fireEvent.change(screen.getByLabelText('Move instance Y'), { target: { value: '4' } });
     fireEvent.click(screen.getByRole('button', { name: 'Move' }));
     fireEvent.change(screen.getByLabelText('Instance rotation'), { target: { value: '180' } });
     fireEvent.change(screen.getByLabelText('Instance dye color'), { target: { value: '#bb6bd9' } });
+    fireEvent.click(screen.getByLabelText('Instance requires skill'));
+    fireEvent.change(screen.getByLabelText('Instance skill type'), { target: { value: 'leaf' } });
+    fireEvent.change(screen.getByLabelText('Instance skill note'), { target: { value: '<b>skill</b>' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }));
     fireEvent.change(screen.getByLabelText('Instance note'), {
       target: { value: '<img src=x onerror=alert(1)>' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Save note' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
+    expect(onChangeInstanceAsset).toHaveBeenCalledWith('tile-edit', 'garden-plant');
     expect(onMoveInstance).toHaveBeenCalledWith('tile-edit', { x: 3, y: 4 }, 'level-0');
     expect(onRotateInstance).toHaveBeenCalledWith('tile-edit', 180);
     expect(onDyeInstance).toHaveBeenCalledWith('tile-edit', '#bb6bd9');
+    expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-edit', true, 'leaf', '<b>skill</b>');
     expect(onSaveInstanceNote).toHaveBeenCalledWith('tile-edit', '<img src=x onerror=alert(1)>');
     expect(onDeleteInstance).toHaveBeenCalledWith('tile-edit');
   });
@@ -105,9 +143,48 @@ describe('SelectionInspector', () => {
     );
 
     expect(screen.getByLabelText('Instance edit state')).toHaveTextContent('Read-only mode');
+    expect(screen.getByLabelText('Instance asset')).toBeDisabled();
+    expect(screen.getByLabelText('Move target layer')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled();
+    expect(screen.getByLabelText('Instance requires skill')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save skill' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Save note' })).toBeDisabled();
+  });
+
+  it('allows stale skill markers to be cleared for non-skill-capable instances', () => {
+    const onSaveInstanceSkill = vi.fn();
+    const staleScene = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-stale-skill',
+          assetId: 'wooden-floor',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+          requiresSkill: true,
+          skillType: 'cut',
+          skillNote: 'legacy note',
+        }),
+      ],
+    };
+    const staleContext = getCellContext(staleScene, { x: 2, y: 2 });
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={staleContext}
+        selectedInstance={staleContext.tileInstances[0]}
+        selectedInstanceId="tile-stale-skill"
+        readOnly={false}
+        onSaveInstanceSkill={onSaveInstanceSkill}
+      />,
+    );
+
+    expect(screen.getByLabelText('Instance requires skill')).toBeEnabled();
+    fireEvent.click(screen.getByLabelText('Instance requires skill'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }));
+    expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-stale-skill', false, 'cut', 'legacy note');
   });
 
   it('shows move preview, invalid input feedback, and unsupported capability reasons', () => {

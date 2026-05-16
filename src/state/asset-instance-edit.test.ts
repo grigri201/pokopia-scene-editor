@@ -309,6 +309,272 @@ describe('asset instance edit command', () => {
     });
   });
 
+  it('updates instance asset and resets unsupported fields through the command boundary', () => {
+    const scene = createSceneWithInstances([
+      createTileInstance({
+        instanceId: 'tile-asset',
+        assetId: 'roof-tile',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+        rotationDegrees: 90,
+        dyeColor: '#56ccf2',
+        requiresSkill: true,
+        skillType: 'soil',
+        skillNote: 'keep if capable',
+      }),
+    ]);
+    const result = editAssetInstance(scene, {
+      type: 'asset',
+      instanceId: 'tile-asset',
+      assetId: 'garden-plant',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected asset update success.');
+    }
+    expect(result.scene.tileInstances[0]).toMatchObject({
+      assetId: 'garden-plant',
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: 'level-0',
+      rotationDegrees: 0,
+      dyeColor: null,
+      requiresSkill: true,
+      skillType: 'soil',
+      skillNote: 'keep if capable',
+    });
+    expect(result.scene.workspaceState.saveStatus).toBe('dirty');
+  });
+
+  it('rejects invalid asset changes without mutating the scene', () => {
+    const scene = createSceneWithInstances([
+      createTileInstance({
+        instanceId: 'tile-asset',
+        assetId: 'wooden-floor',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+      }),
+      createTileInstance({
+        instanceId: 'tile-blocker',
+        assetId: 'wooden-floor',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+      }),
+    ]);
+    const unknown = editAssetInstance(scene, {
+      type: 'asset',
+      instanceId: 'tile-asset',
+      assetId: 'missing-asset',
+      interactionMode: 'edit',
+      now,
+    });
+    const incompatible = editAssetInstance(scene, {
+      type: 'asset',
+      instanceId: 'tile-asset',
+      assetId: 'outer-wall',
+      interactionMode: 'edit',
+      now,
+    });
+    const conflict = editAssetInstance(scene, {
+      type: 'asset',
+      instanceId: 'tile-asset',
+      assetId: 'water-barrel',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(unknown.ok).toBe(false);
+    expect(incompatible.ok).toBe(false);
+    expect(conflict.ok).toBe(false);
+    if (!unknown.ok) {
+      expect(unknown.reason).toBe('unknown-asset');
+    }
+    if (!incompatible.ok) {
+      expect(incompatible.reason).toBe('area-incompatible');
+    }
+    if (!conflict.ok) {
+      expect(conflict.reason).toBe('target-conflict');
+    }
+    expect(scene.tileInstances[0].assetId).toBe('wooden-floor');
+    expect(scene.workspaceState.saveStatus).toBe('saved');
+  });
+
+  it('updates skill fields only for the selected instance', () => {
+    const scene = createSceneWithInstances([
+      createTileInstance({
+        instanceId: 'tile-skill',
+        assetId: 'roof-tile',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+      }),
+      createTileInstance({
+        instanceId: 'tile-sibling',
+        assetId: 'roof-tile',
+        coordinate: { x: 3, y: 2 },
+        buildingLevelId: 'level-0',
+        requiresSkill: true,
+        skillType: 'soil',
+        skillNote: 'unchanged',
+      }),
+    ]);
+    const result = editAssetInstance(scene, {
+      type: 'skill',
+      instanceId: 'tile-skill',
+      requiresSkill: true,
+      skillType: 'leaf',
+      skillNote: '<script>alert(1)</script>',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected skill update success.');
+    }
+    expect(result.scene.tileInstances[0]).toMatchObject({
+      requiresSkill: true,
+      skillType: 'leaf',
+      skillNote: '<script>alert(1)</script>',
+    });
+    expect(result.scene.tileInstances[1]).toMatchObject({
+      requiresSkill: true,
+      skillType: 'soil',
+      skillNote: 'unchanged',
+    });
+  });
+
+  it('clears skill type and note when skill marker is disabled and rejects non-capable skill updates', () => {
+    const scene = createSceneWithInstances([
+      createTileInstance({
+        instanceId: 'tile-skill',
+        assetId: 'roof-tile',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+        requiresSkill: true,
+        skillType: 'soil',
+        skillNote: 'clear me',
+      }),
+      createTileInstance({
+        instanceId: 'tile-floor',
+        assetId: 'wooden-floor',
+        coordinate: { x: 3, y: 3 },
+        buildingLevelId: 'level-0',
+      }),
+    ]);
+    const cleared = editAssetInstance(scene, {
+      type: 'skill',
+      instanceId: 'tile-skill',
+      requiresSkill: false,
+      skillType: 'soil',
+      skillNote: 'ignored',
+      interactionMode: 'edit',
+      now,
+    });
+    const blocked = editAssetInstance(scene, {
+      type: 'skill',
+      instanceId: 'tile-floor',
+      requiresSkill: true,
+      skillType: 'leaf',
+      skillNote: 'blocked',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(cleared.ok).toBe(true);
+    if (!cleared.ok) {
+      throw new Error('Expected skill clear success.');
+    }
+    expect(cleared.scene.tileInstances[0]).toMatchObject({
+      requiresSkill: false,
+      skillType: null,
+      skillNote: '',
+    });
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) {
+      expect(blocked.reason).toBe('not-skill-capable');
+    }
+  });
+
+  it('allows stale skill data to be cleared without validating the stale type or asset capability', () => {
+    const scene = createSceneWithInstances([
+      createTileInstance({
+        instanceId: 'tile-stale-skill',
+        assetId: 'wooden-floor',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+        requiresSkill: true,
+        skillType: 'cut',
+        skillNote: 'legacy',
+      }),
+    ]);
+    const result = editAssetInstance(scene, {
+      type: 'skill',
+      instanceId: 'tile-stale-skill',
+      requiresSkill: false,
+      skillType: 'cut' as never,
+      skillNote: 'legacy',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected stale skill clear success.');
+    }
+    expect(result.scene.tileInstances[0]).toMatchObject({
+      requiresSkill: false,
+      skillType: null,
+      skillNote: '',
+    });
+  });
+
+  it('does not dirty the scene when saving unchanged instance fields', () => {
+    const scene = createSceneWithInstances([
+      createTileInstance({
+        instanceId: 'tile-unchanged',
+        assetId: 'roof-tile',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+        rotationDegrees: 90,
+        dyeColor: '#56ccf2',
+        requiresSkill: true,
+        skillType: 'soil',
+        skillNote: 'same',
+        note: 'same note',
+      }),
+    ]);
+    const rotation = editAssetInstance(scene, {
+      type: 'rotate',
+      instanceId: 'tile-unchanged',
+      rotationDegrees: 90,
+      interactionMode: 'edit',
+      now,
+    });
+    const skill = editAssetInstance(scene, {
+      type: 'skill',
+      instanceId: 'tile-unchanged',
+      requiresSkill: true,
+      skillType: 'soil',
+      skillNote: 'same',
+      interactionMode: 'edit',
+      now,
+    });
+    const note = editAssetInstance(scene, {
+      type: 'note',
+      instanceId: 'tile-unchanged',
+      note: 'same note',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(rotation.ok && rotation.scene).toBe(scene);
+    expect(skill.ok && skill.scene).toBe(scene);
+    expect(note.ok && note.scene).toBe(scene);
+    expect(scene.workspaceState.saveStatus).toBe('saved');
+  });
+
   it('blocks read-only, locked-layer, and unsupported asset edits without mutating scene', () => {
     const scene = createSceneWithInstances([
       createTileInstance({

@@ -295,6 +295,12 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await page.getByLabel('Instance note', { exact: true }).fill('<script>alert(1)</script><img src=x onerror=alert(1)>');
   await page.getByRole('button', { name: 'Save note' }).click();
   await expect(page.getByLabel('Selected instance note')).toHaveText('<script>alert(1)</script><img src=x onerror=alert(1)>');
+  await expect(page.getByLabel('Instance requires skill')).toBeChecked();
+  await page.getByLabel('Instance skill type', { exact: true }).selectOption('water');
+  await page.getByLabel('Instance skill note', { exact: true }).fill('<b>store water</b>');
+  await page.getByRole('button', { name: 'Save skill' }).click();
+  await expect(page.getByLabel('Selected instance skill type')).toHaveText('water');
+  await expect(page.getByLabel('Selected instance skill note')).toHaveText('<b>store water</b>');
   expect(
     await page.locator('.instance-editor').evaluate((editor) => editor.scrollWidth <= editor.clientWidth),
   ).toBe(true);
@@ -311,6 +317,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
         coordinate: { x: 5, y: 4 },
         rotationDegrees: 90,
         dyeColor: '#bb6bd9',
+        requiresSkill: true,
+        skillType: 'water',
+        skillNote: '<b>store water</b>',
         note: '<script>alert(1)</script><img src=x onerror=alert(1)>',
       }),
     ]),

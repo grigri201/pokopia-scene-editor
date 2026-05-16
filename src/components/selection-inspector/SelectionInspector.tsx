@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getAssetById } from '../../domain/assets';
+import { assetCatalog, canAssetRequirePlacementSkill, getAssetById, type AssetSkillType } from '../../domain/assets';
 import {
   type BuildingLevel,
   calculateAreaType,
@@ -26,9 +26,16 @@ interface SelectionInspectorProps {
   editFeedback: string | null;
   onSelectedInstanceChange: (instanceId: string) => void;
   onDeleteInstance: (instanceId: string) => void;
+  onChangeInstanceAsset: (instanceId: string, assetId: string) => void;
   onMoveInstance: (instanceId: string, coordinate: GridCoordinate, buildingLevelId: string) => void;
   onRotateInstance: (instanceId: string, rotationDegrees: RotationDegrees) => void;
   onDyeInstance: (instanceId: string, dyeColor: string | null) => void;
+  onSaveInstanceSkill: (
+    instanceId: string,
+    requiresSkill: boolean,
+    skillType: AssetSkillType,
+    skillNote: string,
+  ) => void;
   onSaveInstanceNote: (instanceId: string, note: string) => void;
 }
 
@@ -46,9 +53,11 @@ export function SelectionInspector({
   editFeedback,
   onSelectedInstanceChange,
   onDeleteInstance,
+  onChangeInstanceAsset,
   onMoveInstance,
   onRotateInstance,
   onDyeInstance,
+  onSaveInstanceSkill,
   onSaveInstanceNote,
 }: SelectionInspectorProps) {
   return (
@@ -72,9 +81,11 @@ export function SelectionInspector({
         feedback={editFeedback}
         onSelectedInstanceChange={onSelectedInstanceChange}
         onDeleteInstance={onDeleteInstance}
+        onChangeInstanceAsset={onChangeInstanceAsset}
         onMoveInstance={onMoveInstance}
         onRotateInstance={onRotateInstance}
         onDyeInstance={onDyeInstance}
+        onSaveInstanceSkill={onSaveInstanceSkill}
         onSaveInstanceNote={onSaveInstanceNote}
       />
     </section>
@@ -94,7 +105,9 @@ function ContextBlock({ title, labelPrefix, context, placement }: ContextBlockPr
       <div className="selection-card">
         <span>{title}</span>
         <strong aria-label={`${labelPrefix} coordinate`}>None</strong>
-        <em>Empty state</em>
+        <em aria-label={`${labelPrefix} next step`}>
+          Choose an asset, then click a 7x7 canvas cell on the current building layer.
+        </em>
       </div>
     );
   }
@@ -151,9 +164,16 @@ interface InstanceEditorProps {
   feedback: string | null;
   onSelectedInstanceChange: (instanceId: string) => void;
   onDeleteInstance: (instanceId: string) => void;
+  onChangeInstanceAsset: (instanceId: string, assetId: string) => void;
   onMoveInstance: (instanceId: string, coordinate: GridCoordinate, buildingLevelId: string) => void;
   onRotateInstance: (instanceId: string, rotationDegrees: RotationDegrees) => void;
   onDyeInstance: (instanceId: string, dyeColor: string | null) => void;
+  onSaveInstanceSkill: (
+    instanceId: string,
+    requiresSkill: boolean,
+    skillType: AssetSkillType,
+    skillNote: string,
+  ) => void;
   onSaveInstanceNote: (instanceId: string, note: string) => void;
 }
 
@@ -169,15 +189,20 @@ function InstanceEditor({
   feedback,
   onSelectedInstanceChange,
   onDeleteInstance,
+  onChangeInstanceAsset,
   onMoveInstance,
   onRotateInstance,
   onDyeInstance,
+  onSaveInstanceSkill,
   onSaveInstanceNote,
 }: InstanceEditorProps) {
   const asset = getAssetById(instance?.assetId);
   const [moveX, setMoveX] = useState('0');
   const [moveY, setMoveY] = useState('0');
   const [targetBuildingLevelId, setTargetBuildingLevelId] = useState('');
+  const [requiresSkill, setRequiresSkill] = useState(false);
+  const [skillType, setSkillType] = useState<AssetSkillType>(null);
+  const [skillNote, setSkillNote] = useState('');
   const [note, setNote] = useState('');
   const [dyeColor, setDyeColor] = useState('#ffffff');
   const disabledReason = getDisabledReason(context, readOnly);
@@ -227,6 +252,19 @@ function InstanceEditor({
 
   useEffect(() => {
     if (!instance) {
+      setRequiresSkill(false);
+      setSkillType(null);
+      setSkillNote('');
+      return;
+    }
+
+    setRequiresSkill(instance.requiresSkill);
+    setSkillType(instance.skillType as AssetSkillType);
+    setSkillNote(instance.skillNote);
+  }, [instance?.instanceId, instance?.requiresSkill, instance?.skillType, instance?.skillNote]);
+
+  useEffect(() => {
+    if (!instance) {
       setDyeColor('#ffffff');
       return;
     }
@@ -239,7 +277,9 @@ function InstanceEditor({
       <div className="selection-card instance-editor" aria-label="Selected instance editor">
         <span>Instance</span>
         <strong aria-label="Selected instance">None</strong>
-        <em>Select a placed asset instance</em>
+        <em aria-label="Instance next step">
+          Select a placed item, or choose an asset and click the canvas to create one.
+        </em>
       </div>
     );
   }
@@ -247,14 +287,28 @@ function InstanceEditor({
   const rotationDisabled = !canEdit || !asset?.rotatable;
   const dyeDisabled = !canEdit || !asset?.dyeable;
   const moveDisabled = !canEdit || movePreview?.status !== 'ready';
+  const skillCapable = Boolean(asset && canAssetRequirePlacementSkill(asset));
+  const staleSkillMarker = instance.requiresSkill && !skillCapable;
+  const skillDisabled = !canEdit || (!skillCapable && !requiresSkill && !staleSkillMarker);
+  const skillTypeValue = isSupportedAssetSkillType(skillType) ? skillType ?? '' : '';
 
   return (
     <div className="selection-card instance-editor" aria-label="Selected instance editor">
       <span>Instance</span>
       <strong aria-label="Selected instance">{asset?.name ?? `Unknown asset: ${instance.assetId}`}</strong>
       <em aria-label="Selected instance id">{instance.instanceId}</em>
+      <em aria-label="Selected instance coordinate">
+        {instance.coordinate.x},{instance.coordinate.y}
+      </em>
+      <em aria-label="Selected instance area">{instance.areaType}</em>
+      <em aria-label="Selected instance layer">{getBuildingLevelName(buildingLevels, instance.buildingLevelId)}</em>
       <em aria-label="Selected instance rotation">{instance.rotationDegrees} deg</em>
       <em aria-label="Selected instance dye">{instance.dyeColor ?? 'No dye'}</em>
+      <em aria-label="Selected instance skill marker">
+        {instance.requiresSkill ? 'Skill required' : 'No skill required'}
+      </em>
+      <em aria-label="Selected instance skill type">{instance.skillType ?? 'No skill type'}</em>
+      <em aria-label="Selected instance skill note">{instance.skillNote || 'No skill note'}</em>
       <em aria-label="Selected instance note">{instance.note || 'No note'}</em>
       {disabledReason ? <em aria-label="Instance edit state">{disabledReason}</em> : null}
       {feedback ? <em aria-label="Instance edit feedback" role="status">{feedback}</em> : null}
@@ -277,11 +331,27 @@ function InstanceEditor({
       ) : null}
       {!asset?.rotatable ? <em aria-label="Rotation edit state">This asset cannot rotate</em> : null}
       {!asset?.dyeable ? <em aria-label="Dye edit state">This asset cannot be dyed</em> : null}
+      {!skillCapable ? <em aria-label="Skill edit state">This asset cannot use a skill marker</em> : null}
       {movePreview ? <em aria-label="Move target preview">{movePreview.message}</em> : null}
       <div className="instance-actions">
         <button type="button" disabled={!canEdit} onClick={() => onDeleteInstance(instance.instanceId)}>
           Delete
         </button>
+        <label>
+          Asset
+          <select
+            aria-label="Instance asset"
+            value={instance.assetId}
+            disabled={!canEdit}
+            onChange={(event) => onChangeInstanceAsset(instance.instanceId, event.target.value)}
+          >
+            {assetCatalog.map((candidate) => (
+              <option value={candidate.assetId} key={candidate.assetId}>
+                {candidate.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           Layer
           <select
@@ -364,6 +434,48 @@ function InstanceEditor({
           Clear dye
         </button>
       </div>
+      <div className="instance-actions">
+        <label>
+          <input
+            aria-label="Instance requires skill"
+            type="checkbox"
+            checked={requiresSkill}
+            disabled={skillDisabled}
+            onChange={(event) => setRequiresSkill(event.target.checked)}
+          />
+          Skill
+        </label>
+        <label>
+          Skill type
+          <select
+            aria-label="Instance skill type"
+            value={skillTypeValue}
+            disabled={skillDisabled || !requiresSkill}
+            onChange={(event) => setSkillType(toAssetSkillType(event.target.value))}
+          >
+            <option value="">None</option>
+            <option value="leaf">leaf</option>
+            <option value="soil">soil</option>
+            <option value="water">water</option>
+          </select>
+        </label>
+      </div>
+      <label className="instance-note-field">
+        Skill note
+        <textarea
+          aria-label="Instance skill note"
+          value={skillNote}
+          disabled={skillDisabled || !requiresSkill}
+          onChange={(event) => setSkillNote(event.target.value)}
+        />
+      </label>
+      <button
+        type="button"
+        disabled={skillDisabled}
+        onClick={() => onSaveInstanceSkill(instance.instanceId, requiresSkill, skillType, skillNote)}
+      >
+        Save skill
+      </button>
       <label className="instance-note-field">
         Note
         <textarea
@@ -378,6 +490,18 @@ function InstanceEditor({
       </button>
     </div>
   );
+}
+
+function getBuildingLevelName(levels: readonly BuildingLevel[], buildingLevelId: string): string {
+  return levels.find((level) => level.id === buildingLevelId)?.name ?? buildingLevelId;
+}
+
+function toAssetSkillType(value: string): AssetSkillType {
+  return value === 'leaf' || value === 'soil' || value === 'water' ? value : null;
+}
+
+function isSupportedAssetSkillType(value: AssetSkillType): value is AssetSkillType {
+  return value === null || value === 'leaf' || value === 'soil' || value === 'water';
 }
 
 function parseMoveCoordinate(xValue: string, yValue: string, canvasSize: GridSize): GridCoordinate | null {

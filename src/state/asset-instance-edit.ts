@@ -5,7 +5,7 @@ import {
   type SceneDocument,
   type TileInstance,
 } from '../domain/scene';
-import { getAssetById } from '../domain/assets';
+import { canAssetRequirePlacementSkill, getAssetById, type AssetSkillType } from '../domain/assets';
 import type { InteractionMode } from './interaction-mode';
 
 export type InstanceEditFailureReason =
@@ -19,7 +19,9 @@ export type InstanceEditFailureReason =
   | 'area-incompatible'
   | 'target-conflict'
   | 'not-rotatable'
-  | 'not-dyeable';
+  | 'not-dyeable'
+  | 'not-skill-capable'
+  | 'invalid-skill-type';
 
 export type AssetInstanceEditResult =
   | {
@@ -43,9 +45,16 @@ export interface EditAssetInstanceBaseInput {
 
 export type EditAssetInstanceInput =
   | (EditAssetInstanceBaseInput & { type: 'delete' })
+  | (EditAssetInstanceBaseInput & { type: 'asset'; assetId: string })
   | (EditAssetInstanceBaseInput & { type: 'move'; coordinate: GridCoordinate; buildingLevelId?: string })
   | (EditAssetInstanceBaseInput & { type: 'rotate'; rotationDegrees: RotationDegrees })
   | (EditAssetInstanceBaseInput & { type: 'dye'; dyeColor: string | null })
+  | (EditAssetInstanceBaseInput & {
+      type: 'skill';
+      requiresSkill: boolean;
+      skillType: AssetSkillType;
+      skillNote: string;
+    })
   | (EditAssetInstanceBaseInput & { type: 'note'; note: string });
 
 export function editAssetInstance(
@@ -66,6 +75,8 @@ export function editAssetInstance(
         null,
         'Instance deleted',
       );
+    case 'asset':
+      return changeInstanceAsset(scene, guard.instance, input.assetId, input.now);
     case 'move':
       return moveInstance(scene, guard.instance, input.coordinate, input.buildingLevelId, input.now);
     case 'rotate':
@@ -92,6 +103,8 @@ export function editAssetInstance(
         }),
         'dye',
       );
+    case 'skill':
+      return updateSkill(scene, guard.instance, input.requiresSkill, input.skillType, input.skillNote, input.now);
     case 'note':
       return updateInstance(scene, guard.instance, input.now, 'Note saved', (instance) => ({
         ...instance,
@@ -118,7 +131,7 @@ function validateEditableInstance(
 
   const buildingLevel = scene.buildingLevels.find((level) => level.id === instance.buildingLevelId);
   if (!buildingLevel) {
-    return failure('missing-instance', 'Instance building layer is missing', 'Select another instance.');
+    return failure('missing-layer', 'Instance building layer is missing', 'Select another instance or repair the scene data.');
   }
 
   if (!buildingLevel.visible) {
@@ -135,6 +148,64 @@ function validateEditableInstance(
   }
 
   return { ok: true, instance };
+}
+
+function changeInstanceAsset(
+  scene: SceneDocument,
+  instance: TileInstance,
+  assetId: string,
+  now: string,
+): AssetInstanceEditResult {
+  if (instance.assetId === assetId) {
+    return { ok: true, scene, instance, message: 'Asset unchanged' };
+  }
+
+  const nextAsset = getAssetById(assetId);
+  if (!nextAsset) {
+    return failure('unknown-asset', 'Unknown replacement asset', 'Choose a valid asset from the Asset Picker.');
+  }
+
+  if (!nextAsset.applicableAreas.includes(instance.areaType)) {
+    return failure(
+      'area-incompatible',
+      `${nextAsset.name} cannot be used in ${instance.areaType}`,
+      `Choose an asset that supports ${instance.areaType} cells or move the instance first.`,
+    );
+  }
+
+  const targetInstances = scene.tileInstances.filter(
+    (candidate) =>
+      candidate.instanceId !== instance.instanceId &&
+      candidate.buildingLevelId === instance.buildingLevelId &&
+      candidate.coordinate.x === instance.coordinate.x &&
+      candidate.coordinate.y === instance.coordinate.y,
+  );
+  const stackAllowed =
+    targetInstances.length === 0 ||
+    (nextAsset.stackable && targetInstances.every((candidate) => getAssetById(candidate.assetId)?.stackable === true));
+
+  if (!stackAllowed) {
+    return failure(
+      'target-conflict',
+      `${nextAsset.name} conflicts with ${targetInstances.length} item${
+        targetInstances.length === 1 ? '' : 's'
+      } at this cell`,
+      'Choose a stackable asset, move the instance, or clear the target cell.',
+    );
+  }
+
+  const nextCanUseSkill = canAssetRequirePlacementSkill(nextAsset);
+  const nextRequiresSkill = instance.requiresSkill && nextCanUseSkill;
+
+  return updateInstance(scene, instance, now, 'Asset updated', (current) => ({
+    ...current,
+    assetId: nextAsset.assetId,
+    rotationDegrees: nextAsset.rotatable ? current.rotationDegrees : 0,
+    dyeColor: nextAsset.dyeable ? current.dyeColor : null,
+    requiresSkill: nextRequiresSkill,
+    skillType: nextRequiresSkill ? current.skillType ?? nextAsset.defaultSkillType : null,
+    skillNote: nextRequiresSkill ? current.skillNote : '',
+  }));
 }
 
 function moveInstance(
@@ -242,11 +313,57 @@ function updateInstance(
   }
 
   const nextInstance = update(instance);
+  if (instancesEqual(nextInstance, instance)) {
+    return { ok: true, scene, instance, message: `${message} unchanged` };
+  }
   const nextTileInstances = scene.tileInstances.map((candidate) =>
     candidate.instanceId === instance.instanceId ? nextInstance : candidate,
   );
 
   return markEditedScene(scene, now, nextTileInstances, nextInstance, message, workspaceOverride);
+}
+
+function updateSkill(
+  scene: SceneDocument,
+  instance: TileInstance,
+  requiresSkill: boolean,
+  skillType: AssetSkillType,
+  skillNote: string,
+  now: string,
+): AssetInstanceEditResult {
+  const asset = getAssetById(instance.assetId);
+
+  if (!asset) {
+    return failure('unknown-asset', 'Unknown instance asset', 'Replace the instance with a known asset.');
+  }
+
+  if (!requiresSkill) {
+    return updateInstance(scene, instance, now, 'Skill fields saved', (current) => ({
+      ...current,
+      requiresSkill: false,
+      skillType: null,
+      skillNote: '',
+    }));
+  }
+
+  if (!isValidSkillType(skillType)) {
+    return failure('invalid-skill-type', 'Invalid skill type', 'Choose leaf, soil, water, or no skill type.');
+  }
+
+  if (!canAssetRequirePlacementSkill(asset)) {
+    return failure(
+      'not-skill-capable',
+      `${asset.name} cannot use an instance skill marker`,
+      'Choose a skill-capable asset or turn off the skill marker.',
+    );
+  }
+
+  return updateInstance(scene, instance, now, 'Skill fields saved', (current) => ({
+    ...current,
+    requiresSkill: true,
+    skillType,
+    skillNote,
+  }));
 }
 
 function markEditedScene(
@@ -307,4 +424,25 @@ function getTargetAreaType(
       `Use whole-number coordinates inside 0..${dimensions.canvasSize.width - 1}, 0..${dimensions.canvasSize.height - 1}.`,
     );
   }
+}
+
+function isValidSkillType(value: AssetSkillType): value is AssetSkillType {
+  return value === null || value === 'leaf' || value === 'soil' || value === 'water';
+}
+
+function instancesEqual(left: TileInstance, right: TileInstance): boolean {
+  return (
+    left.instanceId === right.instanceId &&
+    left.assetId === right.assetId &&
+    left.coordinate.x === right.coordinate.x &&
+    left.coordinate.y === right.coordinate.y &&
+    left.areaType === right.areaType &&
+    left.buildingLevelId === right.buildingLevelId &&
+    left.rotationDegrees === right.rotationDegrees &&
+    left.dyeColor === right.dyeColor &&
+    left.requiresSkill === right.requiresSkill &&
+    left.skillType === right.skillType &&
+    left.skillNote === right.skillNote &&
+    left.note === right.note
+  );
 }
