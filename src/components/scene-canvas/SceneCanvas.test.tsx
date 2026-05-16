@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createDefaultSceneDocument, getCanvasCellContexts } from '../../domain/scene';
+import { createDefaultSceneDocument, createTileInstance, getCanvasCellContexts } from '../../domain/scene';
 import { SceneCanvas } from './SceneCanvas';
 
 const scene = createDefaultSceneDocument({
@@ -11,6 +11,7 @@ const scene = createDefaultSceneDocument({
 const defaultProps = {
   canvasSize: scene.canvasSize,
   cells: getCanvasCellContexts(scene),
+  placementMode: false,
   selectedCoordinate: null,
   targetCoordinate: null,
   onSelectCoordinate: () => undefined,
@@ -132,15 +133,39 @@ describe('SceneCanvas', () => {
     );
 
     const cell = screen.getByLabelText('Cell 2,3, main area, level-0, read-only');
+    fireEvent.pointerDown(cell);
     fireEvent.click(cell);
     fireEvent.keyDown(cell, { key: 'Enter' });
     fireEvent.keyDown(cell, { key: 'Delete' });
     fireEvent.keyDown(cell, { key: 's', metaKey: true });
 
     expect(onSelectCoordinate).not.toHaveBeenCalled();
-    expect(onViewCoordinate).toHaveBeenCalledTimes(2);
+    expect(onViewCoordinate).toHaveBeenCalledTimes(3);
     expect(onViewCoordinate).toHaveBeenNthCalledWith(1, { x: 2, y: 3 });
     expect(onViewCoordinate).toHaveBeenNthCalledWith(2, { x: 2, y: 3 });
+    expect(onViewCoordinate).toHaveBeenNthCalledWith(3, { x: 2, y: 3 });
+  });
+
+  it('moves the placement target before confirming with Enter', () => {
+    const onSelectCoordinate = vi.fn();
+    const onFocusCoordinate = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        placementMode
+        readOnly={false}
+        onSelectCoordinate={onSelectCoordinate}
+        onFocusCoordinate={onFocusCoordinate}
+      />,
+    );
+
+    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
+    fireEvent.keyDown(cell, { key: 'ArrowRight' });
+    fireEvent.keyDown(cell, { key: 'Enter' });
+
+    expect(onFocusCoordinate).toHaveBeenCalledWith({ x: 3, y: 3 });
+    expect(onSelectCoordinate).toHaveBeenCalledTimes(1);
+    expect(onSelectCoordinate).toHaveBeenCalledWith({ x: 3, y: 3 });
   });
 
   it('keeps focus target separate from hover target', () => {
@@ -163,5 +188,80 @@ describe('SceneCanvas', () => {
     expect(onFocusCoordinate).toHaveBeenNthCalledWith(1, { x: 2, y: 3 });
     expect(onFocusCoordinate).toHaveBeenNthCalledWith(2, null);
     expect(onHoverCoordinate).toHaveBeenCalledWith(null);
+  });
+
+  it('renders placed asset labels and skill markers on canvas cells', () => {
+    const sceneWithTile = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-1',
+          assetId: 'garden-plant',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-0',
+          requiresSkill: true,
+          skillType: 'leaf',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        cells={getCanvasCellContexts(sceneWithTile)}
+        readOnly={false}
+      />,
+    );
+
+    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable, Garden Plant, skill required');
+    expect(cell).toHaveAttribute('data-has-instance', 'true');
+    expect(cell).toHaveAttribute('data-requires-skill', 'true');
+    expect(screen.getByText('Garden Plant')).toBeVisible();
+    expect(screen.getByText('skill')).toBeVisible();
+  });
+
+  it('renders the latest stacked asset, stack count, and unknown asset fallback', () => {
+    const sceneWithStackedTiles = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-1',
+          assetId: 'garden-plant',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-2',
+          assetId: 'roof-tile',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-0',
+          requiresSkill: true,
+          skillType: 'soil',
+        }),
+        createTileInstance({
+          instanceId: 'tile-unknown',
+          assetId: 'missing-asset',
+          coordinate: { x: 4, y: 4 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        cells={getCanvasCellContexts(sceneWithStackedTiles)}
+        readOnly={false}
+      />,
+    );
+
+    const stackedCell = screen.getByLabelText(
+      'Cell 2,3, main area, level-0, placeable, Roof Tile, 2 stacked items, skill required',
+    );
+    expect(stackedCell).toHaveAttribute('data-instance-count', '2');
+    expect(stackedCell).toHaveTextContent('Roof Tile');
+    expect(stackedCell).toHaveTextContent('2x');
+
+    expect(screen.getByLabelText('Cell 4,4, main area, level-0, placeable, Unknown asset: missing-asset')).toBeVisible();
   });
 });

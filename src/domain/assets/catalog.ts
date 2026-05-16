@@ -181,6 +181,10 @@ export function getAssetSkillLabel(asset: AssetDefinition): string {
   return asset.defaultSkillType ? `Default skill: ${asset.defaultSkillType}` : 'Default skill required';
 }
 
+export function canAssetRequirePlacementSkill(asset: AssetDefinition): boolean {
+  return asset.skillCandidate || Boolean(asset.defaultSkillType);
+}
+
 export function assetMatchesPokemonFavorite(asset: AssetDefinition, pokemonKey: PokemonKey): boolean {
   return asset.favoritePokemonKeys.includes(pokemonKey);
 }

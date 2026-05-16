@@ -1,4 +1,5 @@
-import type { KeyboardEvent } from 'react';
+import type { FocusEvent, KeyboardEvent } from 'react';
+import { getAssetById } from '../../domain/assets';
 import type { BuildingLevel, CanvasCellContext, GridCoordinate, GridSize } from '../../domain/scene';
 import { moveCoordinate } from '../../state';
 
@@ -6,6 +7,7 @@ interface SceneCanvasProps {
   canvasSize: GridSize;
   cells: CanvasCellContext[];
   readOnly: boolean;
+  placementMode: boolean;
   selectedCoordinate: GridCoordinate | null;
   targetCoordinate: GridCoordinate | null;
   onSelectCoordinate: (coordinate: GridCoordinate) => void;
@@ -18,6 +20,7 @@ export function SceneCanvas({
   canvasSize,
   cells,
   readOnly,
+  placementMode,
   selectedCoordinate,
   targetCoordinate,
   onSelectCoordinate,
@@ -51,6 +54,10 @@ export function SceneCanvas({
             const stateLabel = getCellStateLabel(cell.buildingLevel, placeable, readOnly);
             const selected = coordinatesEqual(selectedCoordinate, coordinate);
             const targeted = coordinatesEqual(targetCoordinate, coordinate);
+            const topInstance = cell.tileInstances.at(-1) ?? null;
+            const topAssetLabel = topInstance ? getInstanceDisplayLabel(topInstance.assetId) : null;
+            const stackCount = cell.tileInstances.length;
+            const hasSkillInstance = cell.tileInstances.some((instance) => instance.requiresSkill);
 
             return (
               <button
@@ -69,17 +76,32 @@ export function SceneCanvas({
                 aria-selected={selected}
                 aria-current={selected ? 'location' : undefined}
                 aria-label={`Cell ${coordinate.x},${coordinate.y}, ${cell.areaType} area, ${cell.buildingLevel.id}, ${stateLabel}${
+                  topAssetLabel ? `, ${topAssetLabel}` : ''
+                }${stackCount > 1 ? `, ${stackCount} stacked items` : ''}${hasSkillInstance ? ', skill required' : ''}${
                   selected ? ', selected' : ''
                 }`}
                 onClick={() =>
                   handleCellPointerSelect(readOnly, coordinate, onSelectCoordinate, onViewCoordinate)
                 }
-                onFocus={() => onFocusCoordinate(toGridCoordinate(coordinate))}
+                onPointerDown={() => {
+                  if (readOnly) {
+                    handleCellPointerSelect(true, coordinate, onSelectCoordinate, onViewCoordinate);
+                  }
+                }}
+                onFocus={(event) => handleCellFocus(event, coordinate, onFocusCoordinate)}
                 onBlur={() => onFocusCoordinate(null)}
                 onMouseEnter={() => onHoverCoordinate(toGridCoordinate(coordinate))}
                 onMouseLeave={() => onHoverCoordinate(null)}
                 onKeyDown={(event) =>
-                  handleCellKeyDown(event, coordinate, readOnly, onSelectCoordinate, onViewCoordinate)
+                  handleCellKeyDown(
+                    event,
+                    coordinate,
+                    readOnly,
+                    placementMode,
+                    onSelectCoordinate,
+                    onViewCoordinate,
+                    onFocusCoordinate,
+                  )
                 }
                 data-testid="scene-cell"
                 data-coordinate={`${coordinate.x},${coordinate.y}`}
@@ -89,6 +111,9 @@ export function SceneCanvas({
                 data-selected={selected}
                 data-targeted={targeted}
                 data-main-boundary={cell.mainBoundary}
+                data-has-instance={Boolean(topInstance)}
+                data-instance-count={stackCount}
+                data-requires-skill={hasSkillInstance}
                 key={cell.id}
               >
                 <span className="cell-coordinate">
@@ -96,6 +121,9 @@ export function SceneCanvas({
                 </span>
                 <span className="cell-area">{cell.areaType}</span>
                 <span className="cell-placeable">{readOnly ? 'view' : 'place'}</span>
+                {topAssetLabel ? <span className="cell-asset-label">{topAssetLabel}</span> : null}
+                {stackCount > 1 ? <span className="cell-stack-count">{stackCount}x</span> : null}
+                {hasSkillInstance ? <span className="cell-skill-marker">skill</span> : null}
                 {selected ? <span className="cell-selected-cue">selected</span> : null}
               </button>
             );
@@ -110,8 +138,10 @@ function handleCellKeyDown(
   event: KeyboardEvent<HTMLButtonElement>,
   coordinate: GridCoordinate,
   readOnly: boolean,
+  placementMode: boolean,
   onSelectCoordinate: (coordinate: GridCoordinate) => void,
   onViewCoordinate: (coordinate: GridCoordinate) => void,
+  onFocusCoordinate: (coordinate: GridCoordinate | null) => void,
 ): void {
   if (readOnly && isBlockedReadOnlyEditKey(event)) {
     event.preventDefault();
@@ -127,7 +157,12 @@ function handleCellKeyDown(
 
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
-    dispatchCoordinate(readOnly, coordinate, onSelectCoordinate, onViewCoordinate);
+    dispatchCoordinate(
+      readOnly,
+      placementMode ? getGridKeyboardTarget(event.currentTarget) ?? coordinate : coordinate,
+      onSelectCoordinate,
+      onViewCoordinate,
+    );
     return;
   }
 
@@ -137,14 +172,28 @@ function handleCellKeyDown(
   }
 
   event.preventDefault();
-  const nextCoordinate = moveCoordinate(coordinate, direction);
+  const baseCoordinate = getGridKeyboardTarget(event.currentTarget) ?? coordinate;
+  const nextCoordinate = moveCoordinate(baseCoordinate, direction);
   const grid = event.currentTarget.closest('[role="grid"]');
-  dispatchCoordinate(readOnly, nextCoordinate, onSelectCoordinate, onViewCoordinate);
+  setGridKeyboardTarget(event.currentTarget, nextCoordinate);
+  if (!placementMode) {
+    dispatchCoordinate(readOnly, nextCoordinate, onSelectCoordinate, onViewCoordinate);
+  }
+  onFocusCoordinate(nextCoordinate);
   requestAnimationFrame(() => {
     grid
       ?.querySelector<HTMLButtonElement>(`[data-coordinate="${nextCoordinate.x},${nextCoordinate.y}"]`)
       ?.focus();
   });
+}
+
+function handleCellFocus(
+  event: FocusEvent<HTMLButtonElement>,
+  coordinate: GridCoordinate,
+  onFocusCoordinate: (coordinate: GridCoordinate | null) => void,
+): void {
+  setGridKeyboardTarget(event.currentTarget, coordinate);
+  onFocusCoordinate(toGridCoordinate(coordinate));
 }
 
 function coordinatesEqual(left: GridCoordinate | null, right: GridCoordinate): boolean {
@@ -177,6 +226,28 @@ function dispatchCoordinate(
 
 function toGridCoordinate(coordinate: GridCoordinate): GridCoordinate {
   return { x: coordinate.x, y: coordinate.y };
+}
+
+function getInstanceDisplayLabel(assetId: string): string {
+  return getAssetById(assetId)?.name ?? `Unknown asset: ${assetId}`;
+}
+
+function setGridKeyboardTarget(cell: HTMLButtonElement, coordinate: GridCoordinate): void {
+  cell.closest<HTMLElement>('[role="grid"]')?.setAttribute('data-keyboard-coordinate', `${coordinate.x},${coordinate.y}`);
+}
+
+function getGridKeyboardTarget(cell: HTMLButtonElement): GridCoordinate | null {
+  const value = cell.closest<HTMLElement>('[role="grid"]')?.getAttribute('data-keyboard-coordinate');
+  const match = value?.match(/^(\d+),(\d+)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    x: Number(match[1]),
+    y: Number(match[2]),
+  };
 }
 
 function isCellEditable(buildingLevel: BuildingLevel, placeable: boolean, readOnly: boolean): boolean {

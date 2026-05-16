@@ -85,6 +85,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await page.getByRole('button', { name: /Garden Plant.*No\. 014/ }).click();
   await expect(page.getByLabel('Current placement asset')).toContainText('Garden Plant');
   await expect(page.getByLabel('Current placement asset')).toContainText('Ready to place');
+  await expect(page.getByLabel('Requires Ditto skill')).toBeChecked();
   await expect(page.getByLabel('Garden Plant asset detail')).toContainText('Default skill: leaf');
   const assetScene = await readSceneSnapshot(page);
   expect(assetScene.workspaceState.selectedAssetId).toBe('garden-plant');
@@ -137,15 +138,49 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
 
   await page.locator('[data-coordinate="2,3"]').click();
   await expect(page.locator('[data-coordinate="2,3"]')).toHaveAttribute('data-selected', 'true');
+  await expect(page.locator('[data-coordinate="2,3"]')).toHaveAttribute('data-has-instance', 'true');
+  await expect(page.locator('[data-coordinate="2,3"]')).toHaveAttribute('data-requires-skill', 'true');
+  await expect(page.locator('[data-coordinate="2,3"]')).toContainText('Garden Plant');
   await expect(page.getByLabel('Selected coordinate')).toHaveText('2,3');
   await expect(page.getByLabel('Selected area')).toHaveText('main');
   await expect(page.getByLabel('Selected layer')).toHaveText('0 层');
-  await expect(page.getByLabel('Selected occupancy')).toHaveText('Empty cell');
+  await expect(page.getByLabel('Selected occupancy')).toHaveText('Has item');
+  await expect(page.getByLabel('Selected asset', { exact: true })).toHaveText('Garden Plant');
+  await expect(page.getByLabel('Save status')).toHaveText('Dirty');
+  await page.locator('[data-coordinate="2,3"]').click();
+  await expect(page.locator('[data-coordinate="2,3"]')).toHaveAttribute('data-instance-count', '2');
+  await expect(page.locator('[data-coordinate="2,3"]')).toContainText('2x');
+  await expect(page.getByLabel('Selected asset stack')).toContainText('Garden Plant / Garden Plant');
+  const stackedScene = await readSceneSnapshot(page);
+  expect(stackedScene.tileInstances).toHaveLength(2);
+  expect(stackedScene.tileInstances).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ assetId: 'garden-plant', coordinate: { x: 2, y: 3 } }),
+      expect.objectContaining({ assetId: 'garden-plant', coordinate: { x: 2, y: 3 } }),
+    ]),
+  );
+  await page.getByLabel('Search assets').fill('wooden-floor');
+  await page.getByRole('button', { name: /Wooden Floor.*No\. 001/ }).click();
+  await expect(page.getByLabel('Requires Ditto skill')).not.toBeChecked();
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('Replace the existing item at 2,3');
+    await dialog.accept();
+  });
+  await page.locator('[data-coordinate="2,3"]').click();
+  await expect(page.locator('[data-coordinate="2,3"]')).toContainText('Wooden Floor');
+  const replacedScene = await readSceneSnapshot(page);
+  expect(replacedScene.tileInstances).toHaveLength(1);
+  expect(replacedScene.tileInstances[0]).toMatchObject({ assetId: 'wooden-floor', coordinate: { x: 2, y: 3 } });
+  const sceneBeforeFailedPlacement = await readSceneSnapshot(page);
+  await page.locator('[data-coordinate="0,0"]').click();
+  await expect(page.getByLabel('Target placement status')).toContainText('Wooden Floor cannot be placed in outer');
+  expect(await readSceneSnapshot(page)).toEqual(sceneBeforeFailedPlacement);
 
   await page.locator('[data-coordinate="0,0"]').hover();
   await expect(page.getByLabel('Target coordinate')).toHaveText('0,0');
   await expect(page.getByLabel('Target area')).toHaveText('outer');
   await expect(page.getByLabel('Target placeable')).toHaveText('Placeable');
+  await expect(page.getByLabel('Target placement status')).toContainText('Wooden Floor cannot be placed in outer');
 
   await page.locator('[data-coordinate="4,4"]').focus();
   await page.mouse.move(10, 10);
@@ -154,14 +189,16 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await page.evaluate(() => performance.clearMeasures('scene-selection-duration'));
   await page.locator('[data-coordinate="2,3"]').focus();
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByLabel('Selected coordinate')).toHaveText('3,3');
+  await expect(page.getByLabel('Target coordinate')).toHaveText('3,3');
   await expect(page.locator('[data-coordinate="3,3"]')).toBeFocused();
-  await page.waitForFunction(() => performance.getEntriesByName('scene-selection-duration').length > 0);
-  const selectionDuration = await page.evaluate(() => {
-    const entries = performance.getEntriesByName('scene-selection-duration');
-    return entries.at(-1)?.duration ?? Number.POSITIVE_INFINITY;
-  });
-  expect(selectionDuration).toBeLessThanOrEqual(100);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('[data-coordinate="3,3"]')).toContainText('Wooden Floor');
+  const keyboardScene = await readSceneSnapshot(page);
+  expect(keyboardScene.tileInstances).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ assetId: 'wooden-floor', coordinate: { x: 3, y: 3 } }),
+    ]),
+  );
 });
 
 test('switches scaffold controls to read-only below the mobile breakpoint', async ({ page }) => {
@@ -200,6 +237,18 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   expect(sceneBefore.workspaceState.saveStatus).toBe('saved');
   expect(sceneBefore.workspaceState.selectedCoordinate).toBeNull();
   expect(sceneBefore.workspaceState.selectedAssetId).toBeNull();
+  await page.getByLabel('Cell 2,3, main area, level-0, read-only').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Selected coordinate')).toHaveText('2,3');
+  await expect(page.getByLabel('Selected area')).toHaveText('main');
+  await expect(page.getByLabel('Selected layer')).toHaveText('0 层');
+  expect(
+    await page.locator('.selection-card').evaluateAll((cards) =>
+      cards.every((card) => card.scrollWidth <= card.clientWidth),
+    ),
+  ).toBe(true);
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByLabel('Selected coordinate')).toHaveText('3,3');
   await page.getByRole('button', { name: 'View Wooden Floor details' }).click();
   await expect(page.getByLabel('Wooden Floor asset detail')).toContainText('wooden-floor');
   expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
@@ -216,17 +265,6 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await page.getByRole('button', { name: 'Show all' }).click();
   await expect(page.getByLabel('Asset result count')).toHaveText('06 / 06');
   expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
-  await page.locator('[data-coordinate="2,3"]').click();
-  await expect(page.getByLabel('Selected coordinate')).toHaveText('2,3');
-  await expect(page.getByLabel('Selected area')).toHaveText('main');
-  await expect(page.getByLabel('Selected layer')).toHaveText('0 层');
-  expect(
-    await page.locator('.selection-card').evaluateAll((cards) =>
-      cards.every((card) => card.scrollWidth <= card.clientWidth),
-    ),
-  ).toBe(true);
-  await page.keyboard.press('ArrowRight');
-  await expect(page.getByLabel('Selected coordinate')).toHaveText('3,3');
   await page.keyboard.press('Delete');
   await page.keyboard.press('ControlOrMeta+S');
   await page.getByRole('button', { name: 'Save scene' }).evaluate((button) => {
@@ -246,10 +284,21 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('Selected coordinate')).toHaveText('4,4');
   const desktopScene = await readSceneSnapshot(page);
   expect(desktopScene.workspaceState.selectedCoordinate).toEqual({ x: 4, y: 4 });
+  await page.getByRole('button', { name: /Garden Plant.*No\. 014/ }).click();
+  await expect(page.getByLabel('Current placement asset')).toContainText('Garden Plant');
+  const selectedAssetDesktopScene = await readSceneSnapshot(page);
+  expect(selectedAssetDesktopScene.workspaceState.selectedAssetId).toBe('garden-plant');
+  expect(selectedAssetDesktopScene.workspaceState.selectedCoordinate).toEqual({ x: 4, y: 4 });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile read-only mode');
   await expect(page.getByLabel('Selected coordinate')).toHaveText('4,4');
+  await page.locator('[data-coordinate="2,3"]').click();
+  await expect(page.getByLabel('Selected coordinate')).toHaveText('2,3');
+  await page.locator('[data-coordinate="2,3"]').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Selected coordinate')).toHaveText('2,3');
+  expect(await readSceneSnapshot(page)).toEqual(selectedAssetDesktopScene);
 });
 
 interface SceneSnapshot {

@@ -8,7 +8,7 @@ import {
   type SceneDimensions,
 } from './area';
 import { sortBuildingLevelsForDisplay } from './levels';
-import type { BuildingLevel, SceneDocument } from './types';
+import type { BuildingLevel, SceneDocument, TileInstance } from './types';
 
 export interface CellContext {
   coordinate: GridCoordinate;
@@ -16,6 +16,7 @@ export interface CellContext {
   buildingLevel: BuildingLevel;
   placeable: boolean;
   empty: boolean;
+  tileInstances: TileInstance[];
 }
 
 export interface CanvasCellContext extends CellContext {
@@ -52,7 +53,7 @@ export function getCellContext(scene: SceneDocument, coordinate: GridCoordinate)
   const dimensions = getSceneDimensions(scene);
   const areaType = calculateAreaType(coordinate, dimensions);
   const buildingLevel = getCurrentBuildingLevel(scene);
-  const hasInstance = scene.tileInstances.some(
+  const tileInstances = scene.tileInstances.filter(
     (instance) =>
       instance.coordinate.x === coordinate.x &&
       instance.coordinate.y === coordinate.y &&
@@ -64,7 +65,8 @@ export function getCellContext(scene: SceneDocument, coordinate: GridCoordinate)
     areaType,
     buildingLevel,
     placeable: isPlaceableArea(areaType),
-    empty: !hasInstance,
+    empty: tileInstances.length === 0,
+    tileInstances,
   };
 }
 

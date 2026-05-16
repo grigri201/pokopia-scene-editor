@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getAssetById, type PokemonKey } from '../../domain/assets';
 import { AssetPicker } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
@@ -13,25 +13,31 @@ import {
   getCellContext,
   type GridCoordinate,
 } from '../../domain/scene';
-import { getInteractionMode, sceneReducer, type InteractionMode } from '../../state';
+import {
+  getAssetPlacementPreview,
+  getInteractionMode,
+  placeSelectedAsset,
+  sceneReducer,
+  type AssetPlacementPreview,
+  type InteractionMode,
+  type SceneAction,
+} from '../../state';
 import { getPokemonTheme, toPokemonThemeStyle } from '../../theme';
 
 export function AppShell() {
-  const [scene, dispatch] = useReducer(
-    sceneReducer,
-    undefined,
-    () =>
-      createDefaultSceneDocument({
-        sceneId: 'scene-default',
-        now: '2026-05-16T07:00:00.000Z',
-      }),
+  const [scene, setScene] = useState(() =>
+    createDefaultSceneDocument({
+      sceneId: 'scene-default',
+      now: '2026-05-16T07:00:00.000Z',
+    }),
   );
   const pendingSelectionMeasureRef = useRef<string | null>(null);
   const selectionMeasureCounterRef = useRef(0);
   const [readOnlySelectedCoordinate, setReadOnlySelectedCoordinate] = useState<GridCoordinate | null>(null);
-  const [readOnlyViewedAssetId, setReadOnlyViewedAssetId] = useState<string | null>(null);
   const [hoveredCoordinate, setHoveredCoordinate] = useState<GridCoordinate | null>(null);
   const [focusedCoordinate, setFocusedCoordinate] = useState<GridCoordinate | null>(null);
+  const [placementRequiresSkill, setPlacementRequiresSkill] = useState(false);
+  const [placementFeedback, setPlacementFeedback] = useState<AssetPlacementPreview | null>(null);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(() =>
     getInteractionMode(window.innerWidth),
   );
@@ -45,8 +51,14 @@ export function AppShell() {
     : scene.workspaceState.selectedCoordinate;
   const selectedContext = selectedCoordinate ? getCellContext(scene, selectedCoordinate) : null;
   const targetContext = targetCoordinate ? getCellContext(scene, targetCoordinate) : null;
-  const selectedAssetId = isReadOnly ? readOnlyViewedAssetId : scene.workspaceState.selectedAssetId;
+  const selectedAssetId = scene.workspaceState.selectedAssetId;
+  const targetPlacementPreview = targetCoordinate
+    ? getAssetPlacementPreview(scene, targetCoordinate, interactionMode, placementRequiresSkill)
+    : placementFeedback;
   const pokemonThemeStyle = toPokemonThemeStyle(getPokemonTheme(scene.selectedPokemonKey));
+  const dispatch = (action: SceneAction) => {
+    setScene((currentScene) => sceneReducer(currentScene, action));
+  };
 
   useEffect(() => {
     const updateInteractionMode = () => {
@@ -73,13 +85,11 @@ export function AppShell() {
   useEffect(() => {
     if (isReadOnly) {
       setReadOnlySelectedCoordinate(scene.workspaceState.selectedCoordinate);
-      setReadOnlyViewedAssetId(scene.workspaceState.selectedAssetId);
       return;
     }
 
     setReadOnlySelectedCoordinate(null);
-    setReadOnlyViewedAssetId(null);
-  }, [isReadOnly, scene.workspaceState.selectedAssetId, scene.workspaceState.selectedCoordinate]);
+  }, [isReadOnly, scene.workspaceState.selectedCoordinate]);
 
   useEffect(() => {
     const measureId = pendingSelectionMeasureRef.current;
@@ -106,6 +116,12 @@ export function AppShell() {
     const nextCoordinate = { x: coordinate.x, y: coordinate.y };
     pendingSelectionMeasureRef.current = markSelectionStart(selectionMeasureCounterRef.current);
     selectionMeasureCounterRef.current += 1;
+    setFocusedCoordinate(nextCoordinate);
+
+    if (scene.workspaceState.selectedAssetId) {
+      placeCurrentAsset(nextCoordinate);
+      return;
+    }
 
     dispatch({ type: 'select-coordinate', coordinate: nextCoordinate, interactionMode });
   };
@@ -145,16 +161,65 @@ export function AppShell() {
 
   const selectAsset = (assetId: string) => {
     if (isReadOnly) {
-      setReadOnlyViewedAssetId(getAssetById(assetId)?.assetId ?? null);
       return;
     }
 
+    const asset = getAssetById(assetId);
+    setPlacementRequiresSkill(Boolean(asset?.defaultRequiresSkill));
+    setPlacementFeedback(null);
     dispatch({
       type: 'select-asset',
       assetId,
       interactionMode,
       now: getCurrentIsoTimestamp(),
     });
+  };
+
+  const placeCurrentAsset = (coordinate: GridCoordinate) => {
+    const result = placeSelectedAsset(scene, {
+      coordinate,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+      instanceId: createTileInstanceId(),
+      requiresSkill: placementRequiresSkill,
+    });
+
+    if (result.ok) {
+      setScene(result.scene);
+      setPlacementFeedback(result.preview);
+      return;
+    }
+
+    if (result.reason === 'replace-confirmation-required') {
+      const confirmed = window.confirm(
+        `${result.preview.message}. Replace the existing item at ${coordinate.x},${coordinate.y}?`,
+      );
+
+      if (!confirmed) {
+        setPlacementFeedback(result.preview);
+        return;
+      }
+
+      const confirmedResult = placeSelectedAsset(scene, {
+        coordinate,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+        instanceId: createTileInstanceId(),
+        requiresSkill: placementRequiresSkill,
+        confirmReplace: true,
+      });
+
+      if (confirmedResult.ok) {
+        setScene(confirmedResult.scene);
+        setPlacementFeedback(confirmedResult.preview);
+        return;
+      }
+
+      setPlacementFeedback(confirmedResult.preview);
+      return;
+    }
+
+    setPlacementFeedback(result.preview);
   };
 
   return (
@@ -188,11 +253,16 @@ export function AppShell() {
               {isReadOnly ? 'Mobile read-only mode' : 'Desktop edit mode'}
             </span>
           </div>
-          <SelectionInspector selectedContext={selectedContext} targetContext={targetContext} />
+          <SelectionInspector
+            selectedContext={selectedContext}
+            targetContext={targetContext}
+            targetPlacement={targetPlacementPreview}
+          />
           <SceneCanvas
             canvasSize={scene.canvasSize}
             cells={canvasCells}
             readOnly={isReadOnly}
+            placementMode={Boolean(scene.workspaceState.selectedAssetId && !isReadOnly)}
             selectedCoordinate={selectedCoordinate}
             targetCoordinate={targetCoordinate}
             onSelectCoordinate={selectCoordinate}
@@ -206,6 +276,8 @@ export function AppShell() {
           selectedAssetId={selectedAssetId}
           selectedPokemonKey={scene.selectedPokemonKey}
           currentBuildingLevelName={currentBuildingLevel?.name ?? 'No building layer'}
+          placementRequiresSkill={placementRequiresSkill}
+          onPlacementRequiresSkillChange={setPlacementRequiresSkill}
           onAssetSelect={selectAsset}
         />
       </section>
@@ -243,4 +315,8 @@ function isLocalPreviewHost(hostname: string): boolean {
 
 function getCurrentIsoTimestamp(): string {
   return new Date().toISOString();
+}
+
+function createTileInstanceId(): string {
+  return `tile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }

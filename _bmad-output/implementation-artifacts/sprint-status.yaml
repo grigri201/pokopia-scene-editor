@@ -1,5 +1,5 @@
 # generated: 2026-05-16T06:01:02+0800
-# last_updated: 2026-05-16T07:42:44+0800
+# last_updated: 2026-05-16T08:04:32+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -34,7 +34,7 @@
 # - Dev moves story to 'review', then code-review triages findings before done.
 
 generated: 2026-05-16T06:01:02+0800
-last_updated: 2026-05-16T07:42:44+0800
+last_updated: 2026-05-16T08:04:32+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -53,7 +53,7 @@ development_status:
   epic-2: in-progress
   2-1-asset-browser-selection: done
   2-2-asset-search-filters: done
-  2-3-place-assets-on-building-layer: backlog
+  2-3-place-assets-on-building-layer: done
   2-4-edit-asset-instance: backlog
   2-5-building-layer-crud-visibility-lock: backlog
   2-6-copy-delete-building-layer: backlog

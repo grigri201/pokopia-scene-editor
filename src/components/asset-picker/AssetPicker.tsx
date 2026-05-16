@@ -5,6 +5,7 @@ import {
   assetMatchesPokemonFavorite,
   areaLabels,
   assetRenderLimit,
+  canAssetRequirePlacementSkill,
   defaultAssetFilters,
   filterAssetCatalog,
   getAssetAreaLabel,
@@ -25,6 +26,8 @@ interface AssetPickerProps {
   selectedAssetId: string | null;
   selectedPokemonKey: PokemonKey;
   currentBuildingLevelName: string;
+  placementRequiresSkill: boolean;
+  onPlacementRequiresSkillChange: (requiresSkill: boolean) => void;
   onAssetSelect: (assetId: string) => void;
 }
 
@@ -33,6 +36,8 @@ export function AssetPicker({
   selectedAssetId,
   selectedPokemonKey,
   currentBuildingLevelName,
+  placementRequiresSkill,
+  onPlacementRequiresSkillChange,
   onAssetSelect,
 }: AssetPickerProps) {
   const assetPickerId = useId();
@@ -181,6 +186,8 @@ export function AssetPicker({
       <CurrentAssetSummary
         asset={selectedAsset}
         currentBuildingLevelName={currentBuildingLevelName}
+        placementRequiresSkill={placementRequiresSkill}
+        onPlacementRequiresSkillChange={onPlacementRequiresSkillChange}
         readOnly={readOnly}
       />
       {filterResult.renderLimited ? (
@@ -345,12 +352,18 @@ function getSecondaryRecoveryAction({
 function CurrentAssetSummary({
   asset,
   currentBuildingLevelName,
+  placementRequiresSkill,
+  onPlacementRequiresSkillChange,
   readOnly,
 }: {
   asset: AssetDefinition | null;
   currentBuildingLevelName: string;
+  placementRequiresSkill: boolean;
+  onPlacementRequiresSkillChange: (requiresSkill: boolean) => void;
   readOnly: boolean;
 }) {
+  const canConfigurePlacementSkill = Boolean(asset && canAssetRequirePlacementSkill(asset));
+
   return (
     <section className="current-asset" aria-label="Current placement asset">
       <span>Current Asset</span>
@@ -362,6 +375,15 @@ function CurrentAssetSummary({
             }`
           : `${currentBuildingLevelName} · ${readOnly ? 'View only' : 'Choose an asset to place'}`}
       </em>
+      <label className="placement-skill-toggle">
+        <input
+          type="checkbox"
+          checked={Boolean(asset && canConfigurePlacementSkill && placementRequiresSkill)}
+          disabled={readOnly || !asset || !canConfigurePlacementSkill}
+          onChange={(event) => onPlacementRequiresSkillChange(canConfigurePlacementSkill && event.target.checked)}
+        />
+        Requires Ditto skill
+      </label>
     </section>
   );
 }

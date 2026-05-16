@@ -10,6 +10,8 @@ describe('AssetPicker', () => {
         selectedAssetId="garden-plant"
         selectedPokemonKey="ditto"
         currentBuildingLevelName="0 层"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
         onAssetSelect={() => undefined}
       />,
     );
@@ -35,6 +37,8 @@ describe('AssetPicker', () => {
         selectedAssetId={null}
         selectedPokemonKey="ditto"
         currentBuildingLevelName="0 层"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
         onAssetSelect={onAssetSelect}
       />,
     );
@@ -62,6 +66,8 @@ describe('AssetPicker', () => {
         selectedAssetId="wooden-floor"
         selectedPokemonKey="ditto"
         currentBuildingLevelName="0 层"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
         onAssetSelect={onAssetSelect}
       />,
     );
@@ -74,6 +80,41 @@ describe('AssetPicker', () => {
     expect(within(screen.getByLabelText('Outer Wall asset detail')).getByAltText('Outer wall thumbnail')).toBeVisible();
   });
 
+  it('only enables the placement skill toggle for skill-capable assets', () => {
+    const onPlacementRequiresSkillChange = vi.fn();
+    const { rerender } = render(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId="wooden-floor"
+        selectedPokemonKey="ditto"
+        currentBuildingLevelName="0 层"
+        placementRequiresSkill
+        onPlacementRequiresSkillChange={onPlacementRequiresSkillChange}
+        onAssetSelect={() => undefined}
+      />,
+    );
+
+    expect(screen.getByLabelText('Requires Ditto skill')).toBeDisabled();
+    expect(screen.getByLabelText('Requires Ditto skill')).not.toBeChecked();
+
+    rerender(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId="ditto-doll"
+        selectedPokemonKey="ditto"
+        currentBuildingLevelName="0 层"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={onPlacementRequiresSkillChange}
+        onAssetSelect={() => undefined}
+      />,
+    );
+
+    const skillToggle = screen.getByLabelText('Requires Ditto skill');
+    expect(skillToggle).toBeEnabled();
+    fireEvent.click(skillToggle);
+    expect(onPlacementRequiresSkillChange).toHaveBeenCalledWith(true);
+  });
+
   it('filters by search query and current Pokemon favorites', () => {
     render(
       <AssetPicker
@@ -81,6 +122,8 @@ describe('AssetPicker', () => {
         selectedAssetId={null}
         selectedPokemonKey="eevee"
         currentBuildingLevelName="0 层"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
         onAssetSelect={() => undefined}
       />,
     );
@@ -106,6 +149,8 @@ describe('AssetPicker', () => {
         selectedAssetId={null}
         selectedPokemonKey="pikachu"
         currentBuildingLevelName="0 层"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
         onAssetSelect={() => undefined}
       />,
     );
@@ -133,6 +178,8 @@ describe('AssetPicker', () => {
         selectedAssetId={null}
         selectedPokemonKey="ditto"
         currentBuildingLevelName="0 层"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
         onAssetSelect={() => undefined}
       />,
     );
@@ -152,6 +199,8 @@ describe('AssetPicker', () => {
         selectedAssetId={null}
         selectedPokemonKey="ditto"
         currentBuildingLevelName="0 层"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
         onAssetSelect={() => undefined}
       />,
     );
@@ -173,6 +222,8 @@ describe('AssetPicker', () => {
         selectedAssetId="wooden-floor"
         selectedPokemonKey="ditto"
         currentBuildingLevelName="0 层"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
         onAssetSelect={onAssetSelect}
       />,
     );
