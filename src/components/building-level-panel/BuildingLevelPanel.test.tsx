@@ -33,16 +33,25 @@ describe('BuildingLevelPanel', () => {
 
     expect(within(currentRow).getByText('Visible')).toBeVisible();
     expect(within(currentRow).getByText('Unlocked')).toBeVisible();
+    expect(screen.getByLabelText('Building layer edit mode')).toHaveTextContent(
+      'Mobile View-only Mode · Layer edits disabled',
+    );
     const setButton = within(currentRow).getByRole('button', { name: /View 0 层 as viewing layer/ });
     const hideButton = within(currentRow).getByRole('button', { name: /Hide 0 层/ });
     const lockButton = within(currentRow).getByRole('button', { name: /Lock 0 层/ });
+    const copyButton = within(currentRow).getByRole('button', { name: /Copy 0 层/ });
+    const deleteButton = within(currentRow).getByRole('button', { name: /Delete 0 层/ });
 
     expect(setButton).toBeDisabled();
     expect(hideButton).toBeDisabled();
     expect(lockButton).toBeDisabled();
+    expect(copyButton).toBeDisabled();
+    expect(deleteButton).toBeDisabled();
     expect(setButton).toHaveAttribute('data-disabled-reason', 'current');
     expect(hideButton).toHaveAttribute('data-disabled-reason', 'read-only');
     expect(lockButton).toHaveAttribute('data-disabled-reason', 'read-only');
+    expect(copyButton).toHaveAttribute('data-disabled-reason', 'read-only');
+    expect(deleteButton).toHaveAttribute('data-disabled-reason', 'read-only');
     expect(screen.getByRole('button', { name: 'New layer' })).toBeDisabled();
     expect(
       within(screen.getByLabelText('L1, 1 层, 0 instances, visible, unlocked')).getByRole('button', {
@@ -61,6 +70,8 @@ describe('BuildingLevelPanel', () => {
     fireEvent.click(within(standbyRow).getByRole('button', { name: /Set 1 层 as current building layer/ }));
     fireEvent.click(within(standbyRow).getByRole('button', { name: /Hide 1 层/ }));
     fireEvent.click(within(standbyRow).getByRole('button', { name: /Lock 1 层/ }));
+    fireEvent.click(within(standbyRow).getByRole('button', { name: /Copy 1 层/ }));
+    fireEvent.click(within(standbyRow).getByRole('button', { name: /Delete 1 层/ }));
     const nameInput = within(standbyRow).getByLabelText('Rename 1 层');
     fireEvent.change(nameInput, { target: { value: '屋顶层' } });
     fireEvent.blur(nameInput);
@@ -69,6 +80,8 @@ describe('BuildingLevelPanel', () => {
     expect(props.onSetCurrentLayer).toHaveBeenCalledWith('level-1');
     expect(props.onSetLayerVisible).toHaveBeenCalledWith('level-1', false);
     expect(props.onSetLayerLocked).toHaveBeenCalledWith('level-1', true);
+    expect(props.onCopyLayer).toHaveBeenCalledWith('level-1');
+    expect(props.onDeleteLayer).toHaveBeenCalledWith('level-1');
     expect(props.onRenameLayer).toHaveBeenCalledWith('level-1', '屋顶层');
   });
 
@@ -87,6 +100,9 @@ describe('BuildingLevelPanel', () => {
     expect(lockedRow).toHaveClass('level-row--locked');
     expect(within(lockedRow).getByText('Hidden')).toBeVisible();
     expect(within(lockedRow).getByText('Locked')).toBeVisible();
+    const deleteButton = within(lockedRow).getByRole('button', { name: /Delete 1 层/ });
+    expect(deleteButton).toBeDisabled();
+    expect(deleteButton).toHaveAttribute('data-disabled-reason', 'locked-layer');
   });
 });
 
@@ -98,5 +114,7 @@ function defaultProps() {
     onSetCurrentLayer: vi.fn(),
     onSetLayerVisible: vi.fn(),
     onSetLayerLocked: vi.fn(),
+    onCopyLayer: vi.fn(),
+    onDeleteLayer: vi.fn(),
   };
 }

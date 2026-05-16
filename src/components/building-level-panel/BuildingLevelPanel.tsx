@@ -10,6 +10,8 @@ interface BuildingLevelPanelProps {
   onSetCurrentLayer: (levelId: string) => void;
   onSetLayerVisible: (levelId: string, visible: boolean) => void;
   onSetLayerLocked: (levelId: string, locked: boolean) => void;
+  onCopyLayer: (levelId: string) => void;
+  onDeleteLayer: (levelId: string) => void;
 }
 
 export function BuildingLevelPanel({
@@ -21,6 +23,8 @@ export function BuildingLevelPanel({
   onSetCurrentLayer,
   onSetLayerVisible,
   onSetLayerLocked,
+  onCopyLayer,
+  onDeleteLayer,
 }: BuildingLevelPanelProps) {
   const currentLevel = levels.find((level) => level.current);
   const [levelNames, setLevelNames] = useState<Record<string, string>>({});
@@ -41,6 +45,11 @@ export function BuildingLevelPanel({
         <button type="button" disabled={readOnly} onClick={onCreateLayer}>
           New layer
         </button>
+        {readOnly ? (
+          <span aria-label="Building layer edit mode">
+            Mobile View-only Mode · Layer edits disabled
+          </span>
+        ) : null}
         {feedback ? <span aria-label="Building layer feedback" role="status">{feedback}</span> : null}
       </div>
       <div className="level-list" role="list" aria-label="Building levels high to low">
@@ -138,6 +147,30 @@ export function BuildingLevelPanel({
                 onClick={() => onSetLayerLocked(level.id, !level.locked)}
               >
                 {level.locked ? 'Unlock' : 'Lock'}
+              </button>
+              <button
+                type="button"
+                disabled={readOnly}
+                data-disabled-reason={readOnly ? 'read-only' : 'available'}
+                aria-label={`Copy ${level.name} (${level.displayId})${readOnly ? ' disabled in read-only mode' : ''}`}
+                onClick={() => onCopyLayer(level.id)}
+              >
+                Copy
+              </button>
+              <button
+                type="button"
+                disabled={readOnly || level.locked}
+                data-disabled-reason={readOnly ? 'read-only' : level.locked ? 'locked-layer' : 'available'}
+                aria-label={`Delete ${level.name} (${level.displayId})${
+                  readOnly
+                    ? ' disabled in read-only mode'
+                    : level.locked
+                      ? ' disabled because layer is locked'
+                      : ''
+                }`}
+                onClick={() => onDeleteLayer(level.id)}
+              >
+                Delete
               </button>
             </div>
           </article>

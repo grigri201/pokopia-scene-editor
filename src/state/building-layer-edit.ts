@@ -9,7 +9,10 @@ export type BuildingLayerEditFailureReason =
   | 'read-only'
   | 'missing-layer'
   | 'invalid-name'
-  | 'last-visible-layer';
+  | 'last-visible-layer'
+  | 'last-layer'
+  | 'locked-layer'
+  | 'delete-confirmation-required';
 
 export type BuildingLayerEditResult =
   | {
@@ -26,6 +29,8 @@ export type BuildingLayerEditResult =
 
 export type BuildingLayerEditInput =
   | { type: 'create'; interactionMode: InteractionMode; now: string }
+  | { type: 'copy'; levelId: string; instanceIdPrefix: string; interactionMode: InteractionMode; now: string }
+  | { type: 'delete'; levelId: string; confirmDelete?: boolean; interactionMode: InteractionMode; now: string }
   | { type: 'rename'; levelId: string; name: string; interactionMode: InteractionMode; now: string }
   | { type: 'set-current'; levelId: string; interactionMode: InteractionMode; now: string }
   | { type: 'set-visible'; levelId: string; visible: boolean; interactionMode: InteractionMode; now: string }
@@ -42,6 +47,10 @@ export function editBuildingLayer(
   switch (input.type) {
     case 'create':
       return createLayer(scene, input.now);
+    case 'copy':
+      return copyLayer(scene, input.levelId, input.instanceIdPrefix, input.now);
+    case 'delete':
+      return deleteLayer(scene, input.levelId, Boolean(input.confirmDelete), input.now);
     case 'rename':
       return renameLayer(scene, input.levelId, input.name, input.now);
     case 'set-current':
@@ -96,6 +105,100 @@ function createLayer(scene: SceneDocument, now: string): BuildingLayerEditResult
     },
     now,
     `Created ${nextLevel.name}`,
+  );
+}
+
+function copyLayer(
+  scene: SceneDocument,
+  levelId: string,
+  instanceIdPrefix: string,
+  now: string,
+): BuildingLayerEditResult {
+  const sourceLayer = scene.buildingLevels.find((level) => level.id === levelId);
+  if (!sourceLayer) {
+    return failure('missing-layer', 'Unknown building layer', 'Choose an existing building layer.');
+  }
+
+  const nextLevelNumber = getNextBuildingLevelNumber(scene.buildingLevels);
+  const nextLevel = {
+    ...createBuildingLevel(nextLevelNumber),
+    name: `${sourceLayer.name} copy`,
+    visible: sourceLayer.visible,
+    locked: false,
+  };
+  const copiedInstances = scene.tileInstances
+    .filter((instance) => instance.buildingLevelId === sourceLayer.id)
+    .map((instance, index) => ({
+      ...instance,
+      instanceId: createUniqueCopiedInstanceId(instanceIdPrefix, index + 1, scene.tileInstances),
+      buildingLevelId: nextLevel.id,
+    }));
+
+  return markLayerSceneDirty(
+    {
+      ...scene,
+      buildingLevels: [...scene.buildingLevels, nextLevel],
+      tileInstances: [...scene.tileInstances, ...copiedInstances],
+      workspaceState: {
+        ...scene.workspaceState,
+        currentBuildingLevelId: nextLevel.id,
+      },
+    },
+    now,
+    `Copied ${sourceLayer.name}`,
+  );
+}
+
+function deleteLayer(
+  scene: SceneDocument,
+  levelId: string,
+  confirmDelete: boolean,
+  now: string,
+): BuildingLayerEditResult {
+  const targetLayer = scene.buildingLevels.find((level) => level.id === levelId);
+  if (!targetLayer) {
+    return failure('missing-layer', 'Unknown building layer', 'Choose an existing building layer.');
+  }
+
+  if (scene.buildingLevels.length <= 1) {
+    return failure('last-layer', 'Cannot delete the last building layer', 'Create another building layer before deleting this one.');
+  }
+
+  if (targetLayer.locked) {
+    return failure('locked-layer', 'Cannot delete a locked building layer', 'Unlock the building layer before deleting it.');
+  }
+
+  const remainingLevels = scene.buildingLevels.filter((level) => level.id !== levelId);
+  if (!remainingLevels.some((level) => level.visible)) {
+    return failure('last-visible-layer', 'Cannot delete the last visible layer', 'Show another layer before deleting this one.');
+  }
+
+  const affectedInstances = scene.tileInstances.filter((instance) => instance.buildingLevelId === levelId);
+  if (!confirmDelete) {
+    return failure(
+      'delete-confirmation-required',
+      `Delete ${targetLayer.name} with ${affectedInstances.length} item${affectedInstances.length === 1 ? '' : 's'}`,
+      'Confirm deletion to remove this layer and its instances.',
+    );
+  }
+
+  const nextCurrentLevelId =
+    scene.workspaceState.currentBuildingLevelId === levelId
+      ? getFallbackLevelId(remainingLevels)
+      : scene.workspaceState.currentBuildingLevelId;
+
+  return markLayerSceneDirty(
+    {
+      ...scene,
+      buildingLevels: remainingLevels,
+      tileInstances: scene.tileInstances.filter((instance) => instance.buildingLevelId !== levelId),
+      workspaceState: {
+        ...scene.workspaceState,
+        currentBuildingLevelId: nextCurrentLevelId,
+      },
+    },
+    now,
+    `Deleted ${targetLayer.name}`,
   );
 }
 
@@ -166,6 +269,34 @@ function updateLayer(
 
 function layerExists(scene: SceneDocument, levelId: string): boolean {
   return scene.buildingLevels.some((level) => level.id === levelId);
+}
+
+function createUniqueCopiedInstanceId(
+  instanceIdPrefix: string,
+  copyIndex: number,
+  existingInstances: SceneDocument['tileInstances'],
+): string {
+  const existingIds = new Set(existingInstances.map((instance) => instance.instanceId));
+  const baseId = `${instanceIdPrefix}-${copyIndex}`;
+  let nextId = baseId;
+  let suffix = 2;
+
+  while (existingIds.has(nextId)) {
+    nextId = `${baseId}-${suffix}`;
+    suffix += 1;
+  }
+
+  existingIds.add(nextId);
+  return nextId;
+}
+
+function getFallbackLevelId(levels: SceneDocument['buildingLevels']): string {
+  const sortedLevels = [...levels].sort((left, right) => right.levelNumber - left.levelNumber);
+  return (
+    sortedLevels.find((level) => level.visible && !level.locked) ??
+    sortedLevels.find((level) => level.visible) ??
+    sortedLevels[0]
+  ).id;
 }
 
 function markLayerSceneDirty(scene: SceneDocument, now: string, message: string): BuildingLayerEditResult {

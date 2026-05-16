@@ -286,7 +286,7 @@ export function AppShell() {
     handleInstanceEditResult(
       editAssetInstance(scene, {
         type: 'delete',
-          instanceId,
+        instanceId,
         interactionMode,
         now: getCurrentIsoTimestamp(),
       }),
@@ -432,6 +432,60 @@ export function AppShell() {
     );
   };
 
+  const copyBuildingLayer = (levelId: string) => {
+    handleBuildingLayerResult(
+      editBuildingLayer(scene, {
+        type: 'copy',
+        levelId,
+        instanceIdPrefix: createCopiedLayerInstancePrefix(),
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
+  const deleteBuildingLayer = (levelId: string) => {
+    const result = editBuildingLayer(scene, {
+      type: 'delete',
+      levelId,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+
+    if (result.ok) {
+      handleBuildingLayerResult(result);
+      return;
+    }
+
+    if (result.reason !== 'delete-confirmation-required') {
+      handleBuildingLayerResult(result);
+      return;
+    }
+
+    const targetLayer = scene.buildingLevels.find((level) => level.id === levelId);
+    const affectedCount = scene.tileInstances.filter((instance) => instance.buildingLevelId === levelId).length;
+    const confirmed = window.confirm(
+      `Delete building layer "${targetLayer?.name ?? levelId}" with ${affectedCount} item${
+        affectedCount === 1 ? '' : 's'
+      }? This removes the layer and all item instances. Press OK to confirm or Cancel to keep the scene unchanged.`,
+    );
+
+    if (!confirmed) {
+      setBuildingLayerFeedback(`${result.message}. Canceled; scene unchanged.`);
+      return;
+    }
+
+    handleBuildingLayerResult(
+      editBuildingLayer(scene, {
+        type: 'delete',
+        levelId,
+        confirmDelete: true,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
   return (
     <main
       className="app-shell"
@@ -459,6 +513,8 @@ export function AppShell() {
             onSetCurrentLayer={setCurrentBuildingLayer}
             onSetLayerVisible={setBuildingLayerVisible}
             onSetLayerLocked={setBuildingLayerLocked}
+            onCopyLayer={copyBuildingLayer}
+            onDeleteLayer={deleteBuildingLayer}
           />
           <PreviewInspector />
         </div>
@@ -555,4 +611,8 @@ function getCurrentIsoTimestamp(): string {
 
 function createTileInstanceId(): string {
   return `tile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createCopiedLayerInstancePrefix(): string {
+  return `layer-copy-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }

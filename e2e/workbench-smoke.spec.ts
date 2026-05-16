@@ -264,12 +264,88 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
     expect(dialog.message()).toContain('Delete the selected asset instance');
     await dialog.accept();
   });
-  await page.getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page.locator('[data-coordinate="5,4"]')).not.toContainText('Roof Tile');
   const deletedScene = await readSceneSnapshot(page);
   expect(deletedScene.tileInstances.some((instance) => (instance as { assetId?: string }).assetId === 'roof-tile')).toBe(
     false,
   );
+
+  const sceneBeforeLayerCopy = await readSceneSnapshot(page);
+  await page.getByRole('button', { name: /Copy 0 层/ }).click();
+  await expect(page.getByLabel('Current building level')).toHaveText('Current L4');
+  await expect(page.getByLabel('Building layer feedback')).toHaveText('Copied 0 层');
+  await expect(page.getByLabel('L4, 0 层 copy, 2 instances, visible, unlocked, current editing layer')).toBeVisible();
+  await expect(page.locator('[data-coordinate="2,3"]')).toContainText('Wooden Floor');
+  const copiedLayerScene = await readSceneSnapshot(page);
+  expect(copiedLayerScene.buildingLevels.map((level) => level.id)).toContain('level-4');
+  expect(copiedLayerScene.workspaceState.currentBuildingLevelId).toBe('level-4');
+  expect(copiedLayerScene.tileInstances).toHaveLength(sceneBeforeLayerCopy.tileInstances.length * 2);
+  expect(
+    copiedLayerScene.tileInstances.filter((instance) => instance.buildingLevelId === 'level-4'),
+  ).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ assetId: 'wooden-floor', coordinate: { x: 2, y: 3 } }),
+      expect.objectContaining({ assetId: 'wooden-floor', coordinate: { x: 3, y: 3 } }),
+    ]),
+  );
+
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('Delete building layer "0 层 copy"');
+    expect(dialog.message()).toContain('2 items');
+    expect(dialog.message()).toContain('removes the layer and all item instances');
+    expect(dialog.message()).toContain('OK to confirm or Cancel');
+    await dialog.dismiss();
+  });
+  await page.getByRole('button', { name: /Delete 0 层 copy/ }).click();
+  await expect(page.getByLabel('Building layer feedback')).toContainText('Canceled; scene unchanged');
+  expect(await readSceneSnapshot(page)).toEqual(copiedLayerScene);
+
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('Delete building layer "0 层 copy"');
+    await dialog.accept();
+  });
+  await page.getByRole('button', { name: /Delete 0 层 copy/ }).click();
+  await expect(page.getByLabel('Current building level')).toHaveText('Current L3');
+  await expect(page.getByLabel('Building layer feedback')).toHaveText('Deleted 0 层 copy');
+  const sceneAfterLayerDelete = await readSceneSnapshot(page);
+  expect(sceneAfterLayerDelete.buildingLevels.map((level) => level.id)).not.toContain('level-4');
+  expect(sceneAfterLayerDelete.tileInstances).toHaveLength(sceneBeforeLayerCopy.tileInstances.length);
+  expect(sceneAfterLayerDelete.tileInstances.every((instance) => instance.buildingLevelId !== 'level-4')).toBe(true);
+
+  const sceneBeforeEmptyDeleteCancel = await readSceneSnapshot(page);
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('Delete building layer "屋顶层"');
+    expect(dialog.message()).toContain('0 items');
+    await dialog.dismiss();
+  });
+  await page.getByRole('button', { name: /Delete 屋顶层/ }).click();
+  await expect(page.getByLabel('Building layer feedback')).toContainText('Canceled; scene unchanged');
+  expect(await readSceneSnapshot(page)).toEqual(sceneBeforeEmptyDeleteCancel);
+
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('Delete building layer "屋顶层"');
+    expect(dialog.message()).toContain('0 items');
+    await dialog.accept();
+  });
+  await page.getByRole('button', { name: /Delete 屋顶层/ }).click();
+  await expect(page.getByLabel('Current building level')).toHaveText('Current L2');
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('Delete building layer "2 层"');
+    await dialog.accept();
+  });
+  await page.getByRole('button', { name: /Delete 2 层/ }).click();
+  await expect(page.getByLabel('Current building level')).toHaveText('Current L1');
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('Delete building layer "1 层"');
+    await dialog.accept();
+  });
+  await page.getByRole('button', { name: /Delete 1 层/ }).click();
+  await expect(page.getByLabel('Current building level')).toHaveText('Current L0');
+  const lastLayerScene = await readSceneSnapshot(page);
+  await page.getByRole('button', { name: /Delete 0 层/ }).click();
+  await expect(page.getByLabel('Building layer feedback')).toContainText('Cannot delete the last building layer');
+  expect(await readSceneSnapshot(page)).toEqual(lastLayerScene);
 });
 
 test('switches scaffold controls to read-only below the mobile breakpoint', async ({ page }) => {
@@ -312,6 +388,8 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('Rename 0 层')).toBeDisabled();
   await expect(page.getByRole('button', { name: /Hide 0 层/ })).toBeDisabled();
   await expect(page.getByRole('button', { name: /Lock 0 层/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Copy 0 层/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Delete 0 层/ })).toBeDisabled();
   await page.getByRole('button', { name: /View 1 层 as viewing layer/ }).click();
   await expect(page.getByLabel('Current building level')).toHaveText('Current L1');
   await expect(page.getByLabel('L1, 1 层, 0 instances, visible, unlocked, viewing layer')).toBeVisible();
@@ -326,6 +404,12 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
     (button as HTMLButtonElement).click();
   });
   await page.getByRole('button', { name: /Lock 0 层/ }).evaluate((button) => {
+    (button as HTMLButtonElement).click();
+  });
+  await page.getByRole('button', { name: /Copy 0 层/ }).evaluate((button) => {
+    (button as HTMLButtonElement).click();
+  });
+  await page.getByRole('button', { name: /Delete 0 层/ }).evaluate((button) => {
     (button as HTMLButtonElement).click();
   });
   expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
@@ -389,10 +473,10 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile read-only mode');
   await expect(page.getByLabel('Selected coordinate')).toHaveText('4,4');
   await expect(page.getByLabel('Selected instance', { exact: true })).toHaveText('Garden Plant');
-  await expect(page.getByRole('button', { name: 'Delete' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Move' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Save note' })).toBeDisabled();
-  await page.getByRole('button', { name: 'Delete' }).evaluate((button) => {
+  await page.getByRole('button', { name: 'Delete', exact: true }).evaluate((button) => {
     (button as HTMLButtonElement).click();
   });
   await page.getByRole('button', { name: 'Move' }).evaluate((button) => {
@@ -415,9 +499,18 @@ interface SceneSnapshot {
     selectedCoordinate: { x: number; y: number } | null;
     selectedAssetId: string | null;
     saveStatus: string;
+    currentBuildingLevelId: string;
   };
-  tileInstances: unknown[];
-  buildingLevels: unknown[];
+  tileInstances: Array<{
+    assetId?: string;
+    buildingLevelId: string;
+    coordinate?: { x: number; y: number };
+  }>;
+  buildingLevels: Array<{
+    id: string;
+    levelNumber: number;
+    name: string;
+  }>;
 }
 
 async function readSceneSnapshot(page: Page): Promise<SceneSnapshot> {
