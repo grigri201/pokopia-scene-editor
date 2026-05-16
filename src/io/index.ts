@@ -5,3 +5,6 @@ export interface SceneIoBoundary {
 export const sceneIoBoundary: SceneIoBoundary = {
   status: 'reserved-for-save-and-recovery',
 };
+
+export * from './scene-schema';
+export * from './scene-serializer';
