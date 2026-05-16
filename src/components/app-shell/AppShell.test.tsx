@@ -1,11 +1,18 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createDefaultSceneDocument } from '../../domain/scene';
+import { createDefaultSceneDocument, createTileInstance } from '../../domain/scene';
 import {
   autosavedSceneStorageKey,
   savedSceneStorageKey,
+  serializeSceneDocument,
   writeSceneDocumentToStorage,
 } from '../../io';
+import {
+  unsafeAngleText,
+  unsafeCombinedText,
+  unsafeImageText,
+  unsafeScriptText,
+} from '../../test/fixtures/unsafe-text';
 import { AppShell } from './AppShell';
 
 describe('AppShell scene storage integration', () => {
@@ -142,7 +149,8 @@ describe('AppShell scene storage integration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    expect(screen.queryByLabelText('Recovery Validator')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'canceled');
+    expect(screen.getByLabelText('Recovery Validator')).toHaveTextContent('Recovery canceled');
     expect(screen.getByLabelText('Scene Name')).toHaveValue('Ditto 5x5 布景草稿');
   });
 
@@ -172,7 +180,7 @@ describe('AppShell scene storage integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     await waitFor(() => {
-      expect(screen.queryByLabelText('Recovery Validator')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'success');
       expect(screen.getByLabelText('Scene Name')).toHaveValue('Retry 5x5 Recovery');
       expect(screen.getByLabelText(/Cell 3,3, main area, level-0, placeable, selected/)).toBeVisible();
     });
@@ -204,6 +212,91 @@ describe('AppShell scene storage integration', () => {
       expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
       expect(screen.getByLabelText('Scene Name')).toHaveValue('Ditto 5x5 布景草稿');
       expect(screen.getByLabelText('Save status')).toHaveTextContent('Read-only · Saved');
+    });
+  });
+
+  it('renders unsafe RecoveryError values as text and preserves scene state after cancel', async () => {
+    window.localStorage.setItem(
+      autosavedSceneStorageKey,
+      JSON.stringify({
+        schemaVersion: 1,
+        sceneId: 'bad-unsafe-scene',
+        sceneName: 'Unsafe 5x5 error',
+        selectedPokemonKey: unsafeCombinedText,
+      }),
+    );
+
+    render(<AppShell />);
+
+    const validator = screen.getByLabelText('Recovery Validator');
+    const details = screen.getByLabelText('Recovery error details');
+    expect(validator).toHaveAttribute('data-recovery-status', 'error');
+    expect(details).toHaveTextContent(unsafeCombinedText);
+    expect(details.querySelector('script')).toBeNull();
+    expect(details.querySelector('img')).toBeNull();
+    expect(screen.getByLabelText('Scene Name')).toHaveValue('Ditto 5x5 布景草稿');
+    expect(screen.getByLabelText('Save status')).toHaveTextContent('Saved');
+
+    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Current Dirty 5x5 Layout' } });
+    fireEvent.click(screen.getByRole('button', { name: /Set 1 层 as current building layer/ }));
+    await waitFor(() => {
+      const levelOneBefore = screen.getByLabelText('L1, 1 层, 0 instances, visible, unlocked, current editing layer');
+      expect(levelOneBefore).toHaveAttribute('data-current', 'true');
+      expect(levelOneBefore).toHaveAttribute('data-locked', 'false');
+      expect(screen.getByLabelText('Save status')).toHaveTextContent('Dirty');
+    });
+    fireEvent.click(screen.getByLabelText('Cell 2,3, main area, level-1, placeable'));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Cell 2,3, main area, level-1, placeable, selected')).toBeVisible();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'canceled');
+    expect(screen.getByLabelText('Scene Name')).toHaveValue('Current Dirty 5x5 Layout');
+    expect(screen.getByLabelText('Save status')).toHaveTextContent('Dirty');
+    const levelOneAfter = screen.getByLabelText('L1, 1 层, 0 instances, visible, unlocked, current editing layer');
+    expect(levelOneAfter).toHaveAttribute('data-current', 'true');
+    expect(levelOneAfter).toHaveAttribute('data-locked', 'false');
+    expect(screen.getByLabelText('Cell 2,3, main area, level-1, placeable, selected')).toBeVisible();
+  });
+
+  it('recovers unsafe scene text as plain text without inserting executable DOM nodes', async () => {
+    const unsafeScene = createDefaultSceneDocument({
+      sceneId: 'scene-unsafe-recovery',
+      sceneName: `Unsafe 5x5 ${unsafeAngleText}`,
+      selectedCoordinate: { x: 2, y: 2 },
+      now: '2026-05-16T08:30:00.000Z',
+    });
+    window.localStorage.setItem(
+      autosavedSceneStorageKey,
+      JSON.stringify({
+        ...serializeSceneDocument({
+          ...unsafeScene,
+          tileInstances: [
+            createTileInstance({
+              instanceId: 'tile-unsafe-note',
+              assetId: 'garden-plant',
+              coordinate: { x: 2, y: 2 },
+              buildingLevelId: 'level-0',
+              requiresSkill: true,
+              skillType: '树叶',
+              skillNote: unsafeScriptText,
+              note: unsafeImageText,
+            }),
+          ],
+        }),
+      }),
+    );
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Scene Name')).toHaveValue(`Unsafe 5x5 ${unsafeAngleText}`);
+      expect(screen.getByLabelText('Selected instance note')).toHaveTextContent(unsafeImageText);
+      expect(screen.getByLabelText('Selected instance skill note')).toHaveTextContent(unsafeScriptText);
+      expect(document.querySelector('script')).toBeNull();
+      expect(document.querySelector('img[src="x"]')).toBeNull();
     });
   });
 });

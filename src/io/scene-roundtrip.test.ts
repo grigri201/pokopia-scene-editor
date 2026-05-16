@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultSceneDocument, createTileInstance, type SceneDocument } from '../domain/scene';
+import { unsafeImageText, unsafeScriptText } from '../test/fixtures/unsafe-text';
 import { roundtripSceneDocument } from './scene-roundtrip';
 
 describe('SceneDocument v1 roundtrip', () => {
@@ -141,6 +142,41 @@ describe('SceneDocument v1 roundtrip', () => {
         recoveryAction: 'Use an existing Decor Dex Pokemon key.',
       }),
     ]);
+  });
+
+  it('roundtrips unsafe note and skillNote strings as plain data', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-unsafe-roundtrip',
+      sceneName: 'Unsafe 5x5 Roundtrip',
+      now: '2026-05-16T09:30:00.000Z',
+    });
+    const roundtrip = expectRoundtrip({
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-unsafe-roundtrip',
+          assetId: 'garden-plant',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+          requiresSkill: true,
+          skillType: '树叶',
+          skillNote: unsafeScriptText,
+          note: unsafeImageText,
+        }),
+      ],
+      workspaceState: {
+        ...scene.workspaceState,
+        selectedCoordinate: { x: 2, y: 2 },
+      },
+    });
+
+    expect(roundtrip.sourcePayload).toEqual(roundtrip.roundtrippedPayload);
+    expect(roundtrip.sourcePayload.tileInstances[0]).toMatchObject({
+      skillNote: unsafeScriptText,
+      note: unsafeImageText,
+    });
+    expect(JSON.stringify(roundtrip.roundtrippedPayload)).toContain(unsafeScriptText);
+    expect(JSON.stringify(roundtrip.roundtrippedPayload)).toContain(unsafeImageText);
   });
 });
 

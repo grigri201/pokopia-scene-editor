@@ -44,6 +44,9 @@ export function AppShell() {
   const [recoveryErrors, setRecoveryErrors] = useState<RecoveryError[]>(
     initialSceneState.recoveryErrors,
   );
+  const [recoveryStatus, setRecoveryStatus] = useState<'idle' | 'error' | 'success' | 'canceled'>(
+    initialSceneState.recoveryErrors.length > 0 ? 'error' : 'idle',
+  );
   const [undoStack, setUndoStack] = useState<SceneDocument[]>([]);
   const [redoStack, setRedoStack] = useState<SceneDocument[]>([]);
   const autosaveReadyRef = useRef(false);
@@ -648,17 +651,20 @@ export function AppShell() {
     const storage = getBrowserStorage();
     if (!storage) {
       setRecoveryErrors([createStorageUnavailableRecoveryError()]);
+      setRecoveryStatus('error');
       return;
     }
 
     const storedScene = readLatestSceneDocumentFromStorage(storage);
     if (!storedScene) {
       setRecoveryErrors([]);
+      setRecoveryStatus('idle');
       return;
     }
 
     if (!storedScene.ok) {
       setRecoveryErrors(storedScene.errors);
+      setRecoveryStatus('error');
       return;
     }
 
@@ -668,6 +674,7 @@ export function AppShell() {
     });
     if (!appliedRecovery.ok) {
       setRecoveryErrors(appliedRecovery.errors);
+      setRecoveryStatus('error');
       return;
     }
 
@@ -675,6 +682,7 @@ export function AppShell() {
     setUndoStack([]);
     setRedoStack([]);
     setRecoveryErrors([]);
+    setRecoveryStatus('success');
     setPlacementFeedback(null);
     setInstanceEditFeedback('Recovered saved scene');
     setBuildingLayerFeedback(null);
@@ -682,6 +690,7 @@ export function AppShell() {
 
   const cancelSceneRecovery = () => {
     setRecoveryErrors([]);
+    setRecoveryStatus('canceled');
   };
 
   return (
@@ -704,34 +713,43 @@ export function AppShell() {
         onUndo={undoSceneEdit}
         onRedo={redoSceneEdit}
       />
-      {recoveryErrors.length > 0 ? (
-        <section className="recovery-validator" role="alert" aria-label="Recovery Validator">
+      {recoveryStatus !== 'idle' ? (
+        <section
+          className="recovery-validator"
+          role={recoveryStatus === 'error' ? 'alert' : 'status'}
+          aria-label="Recovery Validator"
+          data-recovery-status={recoveryStatus}
+        >
           <div className="recovery-validator__header">
             <div>
               <p className="eyebrow">Recovery Validator</p>
-              <h2>Saved scene was rejected</h2>
-              <p>Current scene was kept unchanged. Review the invalid fields, retry, or cancel.</p>
+              <h2>{getRecoveryStatusTitle(recoveryStatus)}</h2>
+              <p>{getRecoveryStatusMessage(recoveryStatus)}</p>
             </div>
-            <div className="recovery-validator__actions" aria-label="Recovery actions">
-              <button type="button" onClick={retrySceneRecovery}>
-                Retry
-              </button>
-              <button type="button" onClick={cancelSceneRecovery}>
-                Cancel
-              </button>
-            </div>
+            {recoveryStatus === 'error' ? (
+              <div className="recovery-validator__actions" aria-label="Recovery actions">
+                <button type="button" onClick={retrySceneRecovery}>
+                  Retry
+                </button>
+                <button type="button" onClick={cancelSceneRecovery}>
+                  Cancel
+                </button>
+              </div>
+            ) : null}
           </div>
-          <ul className="recovery-validator__errors" aria-label="Recovery error details">
-            {recoveryErrors.map((error, index) => (
-              <li key={`${error.fieldPath}-${index}`}>
-                <strong>{error.fieldPath}</strong>
-                <span>{error.reason}</span>
-                <span>Expected: {error.expected}</span>
-                <span>Actual: {error.actual}</span>
-                <span>{error.recoveryAction}</span>
-              </li>
-            ))}
-          </ul>
+          {recoveryStatus === 'error' ? (
+            <ul className="recovery-validator__errors" aria-label="Recovery error details">
+              {recoveryErrors.map((error, index) => (
+                <li key={`${error.fieldPath}-${index}`}>
+                  <strong>{error.fieldPath}</strong>
+                  <span>{error.reason}</span>
+                  <span>Expected: {error.expected}</span>
+                  <span>Actual: {error.actual}</span>
+                  <span>{error.recoveryAction}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </section>
       ) : null}
       <section className="workbench-grid" aria-label="Open Design editing workbench">
@@ -935,6 +953,38 @@ function createStorageUnavailableRecoveryError(): RecoveryError {
     reason: 'Saved scene storage is unavailable.',
     recoveryAction: 'Enable localStorage and retry recovery.',
   };
+}
+
+function getRecoveryStatusTitle(status: 'idle' | 'error' | 'success' | 'canceled'): string {
+  if (status === 'success') {
+    return 'Saved scene recovered';
+  }
+
+  if (status === 'canceled') {
+    return 'Recovery canceled';
+  }
+
+  if (status === 'error') {
+    return 'Saved scene was rejected';
+  }
+
+  return 'Recovery idle';
+}
+
+function getRecoveryStatusMessage(status: 'idle' | 'error' | 'success' | 'canceled'): string {
+  if (status === 'success') {
+    return 'The saved SceneDocument passed validation and replaced the current scene.';
+  }
+
+  if (status === 'canceled') {
+    return 'Current scene was kept unchanged.';
+  }
+
+  if (status === 'error') {
+    return 'Current scene was kept unchanged. Review the invalid fields, retry, or cancel.';
+  }
+
+  return 'No recovery action is pending.';
 }
 
 function reconcileHistorySceneSaveStatus(scene: SceneDocument): SceneDocument {
