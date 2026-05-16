@@ -17,6 +17,12 @@ import { getAssetById, getAssetSkillMarkerLabel } from '../../domain/assets';
 
 type PreviewLayerScope = 'current-layer' | 'all-visible-layers';
 
+interface PreviewDisplayOptions {
+  grid: boolean;
+  mainBoundary: boolean;
+  skillMarkers: boolean;
+}
+
 interface PreviewInspectorProps {
   scene: SceneDocument;
   activeBuildingLevelId: string;
@@ -36,6 +42,11 @@ export function PreviewInspector({
   const [previewZoom, setPreviewZoom] = useState(1);
   const [previewPan, setPreviewPan] = useState({ x: 0, y: 0 });
   const [previewScope, setPreviewScope] = useState<PreviewLayerScope>('current-layer');
+  const [displayOptions, setDisplayOptions] = useState<PreviewDisplayOptions>({
+    grid: true,
+    mainBoundary: true,
+    skillMarkers: true,
+  });
   const previewContext = getPreviewInspectorContext(scene, activeBuildingLevelId);
   const currentLayerPreviewCells = getCurrentLayerPreviewCellContexts(scene, activeBuildingLevelId);
   const allVisiblePreviewCells = getAllVisiblePreviewCellContexts(scene);
@@ -102,6 +113,13 @@ export function PreviewInspector({
     setPreviewCoordinate(selectedCoordinate);
   }, [selectedCoordinate?.x, selectedCoordinate?.y]);
 
+  const setDisplayOption = (key: keyof PreviewDisplayOptions) => {
+    setDisplayOptions((currentOptions) => ({
+      ...currentOptions,
+      [key]: !currentOptions[key],
+    }));
+  };
+
   return (
     <aside className="panel preview-panel" aria-label="Preview inspector">
       <div className="panel__header">
@@ -109,6 +127,32 @@ export function PreviewInspector({
         <span>{readOnly ? 'View only' : 'Top / Front'}</span>
       </div>
       <div className="preview-grid" aria-label="Dual preview inspector">
+        <div className="preview-display-options" role="group" aria-label="Preview display options">
+          <button
+            type="button"
+            aria-label="Show preview grid"
+            aria-pressed={displayOptions.grid}
+            onClick={() => setDisplayOption('grid')}
+          >
+            网格
+          </button>
+          <button
+            type="button"
+            aria-label="Show preview main boundary"
+            aria-pressed={displayOptions.mainBoundary}
+            onClick={() => setDisplayOption('mainBoundary')}
+          >
+            主体边界
+          </button>
+          <button
+            type="button"
+            aria-label="Show preview skill markers"
+            aria-pressed={displayOptions.skillMarkers}
+            onClick={() => setDisplayOption('skillMarkers')}
+          >
+            技能标记
+          </button>
+        </div>
         <div className="preview-tile" aria-label="Top view preview">
           <span>Top</span>
           <div className="preview-scope-control" role="group" aria-label="Preview layer scope">
@@ -132,6 +176,9 @@ export function PreviewInspector({
           <div
             className="mini-grid"
             aria-label={`Top preview surface ${topPreviewSurfaceLabel}`}
+            data-preview-grid-visible={displayOptions.grid}
+            data-preview-main-boundary-visible={displayOptions.mainBoundary}
+            data-preview-skill-markers-visible={displayOptions.skillMarkers}
             data-zoom={previewZoom}
             data-pan-x={previewPan.x}
             data-pan-y={previewPan.y}
@@ -163,6 +210,7 @@ export function PreviewInspector({
                     data-preview-coordinate={`${cell.coordinate.x},${cell.coordinate.y}`}
                     data-preview-area={cell.areaType}
                     data-preview-main-boundary={cell.mainBoundary}
+                    data-preview-main-boundary-visible={displayOptions.mainBoundary && cell.mainBoundary}
                     data-preview-has-instance={visibleCellInstances.length > 0}
                     data-preview-instance-count={visibleCellInstances.length}
                     data-preview-layer-count={cell.instanceLayerContexts.length}
@@ -185,7 +233,11 @@ export function PreviewInspector({
                       <span className="mini-grid__asset">{getInstanceShortLabel(topInstance)}</span>
                     ) : null}
                     {topSkillInstance ? (
-                      <span className="mini-grid__skill" aria-label={`Top preview skill ${skillMarkerLabel}`}>
+                      <span
+                        className="mini-grid__skill"
+                        aria-label={`Top preview skill ${skillMarkerLabel}`}
+                        data-preview-skill-visible={displayOptions.skillMarkers}
+                      >
                         {skillMarkerLabel}
                       </span>
                     ) : null}
@@ -255,6 +307,9 @@ export function PreviewInspector({
             aria-label={`Front structure preview ${frontViewSummary}`}
             data-front-rendering="structure-only"
             data-front-scroll="independent"
+            data-front-grid-visible={displayOptions.grid}
+            data-front-main-boundary-visible={displayOptions.mainBoundary}
+            data-front-skill-markers-visible={displayOptions.skillMarkers}
             role="list"
           >
             {frontPreviewLevels.length > 0 ? (
@@ -273,6 +328,7 @@ export function PreviewInspector({
                   data-front-layer-main-count={level.mainInstanceCount}
                   data-front-layer-outer-count={level.outerInstanceCount}
                   data-front-layer-skill-count={level.skillInstanceCount}
+                  data-front-layer-skill-visible={displayOptions.skillMarkers && level.skillInstanceCount > 0}
                   data-front-layer-locked={level.locked}
                   key={level.id}
                   role="listitem"
@@ -281,7 +337,9 @@ export function PreviewInspector({
                   <span className="front-structure__height" style={{ inlineSize: `${level.heightPercent}%` }} />
                   <span className="front-structure__area">main {level.mainInstanceCount}</span>
                   <span className="front-structure__area">outer {level.outerInstanceCount}</span>
-                  <span className="front-structure__skill">skill {level.skillInstanceCount}</span>
+                  <span className="front-structure__skill" data-front-skill-visible={displayOptions.skillMarkers}>
+                    skill {level.skillInstanceCount}
+                  </span>
                 </div>
               ))
             ) : (

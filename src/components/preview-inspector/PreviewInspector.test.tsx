@@ -154,6 +154,69 @@ describe('PreviewInspector', () => {
     expect(JSON.stringify(scene)).toBe(snapshotBefore);
   });
 
+  it('keeps preview display toggles local while preserving derived data attributes', () => {
+    const snapshotBefore = JSON.stringify(scene);
+    const { container } = render(
+      <PreviewInspector
+        scene={scene}
+        activeBuildingLevelId="level-0"
+        selectedCoordinate={{ x: 2, y: 3 }}
+        selectedInstanceId="tile-preview"
+        readOnly={false}
+      />,
+    );
+    const topSurface = container.querySelector('.mini-grid');
+    const frontSurface = container.querySelector('.front-structure');
+    const boundaryCell = container.querySelector('[data-preview-coordinate="1,1"]');
+    const skillCell = container.querySelector('[data-preview-coordinate="2,3"]');
+    const frontLevel = container.querySelector('[data-front-layer-id="level-0"]');
+    const gridToggle = screen.getByRole('button', { name: 'Show preview grid' });
+    const boundaryToggle = screen.getByRole('button', { name: 'Show preview main boundary' });
+    const skillToggle = screen.getByRole('button', { name: 'Show preview skill markers' });
+
+    expect(screen.getByRole('group', { name: 'Preview display options' })).toBeVisible();
+    expect(gridToggle).toHaveAttribute('aria-pressed', 'true');
+    expect(boundaryToggle).toHaveAttribute('aria-pressed', 'true');
+    expect(skillToggle).toHaveAttribute('aria-pressed', 'true');
+    expect(topSurface).toHaveAttribute('data-preview-grid-visible', 'true');
+    expect(topSurface).toHaveAttribute('data-preview-main-boundary-visible', 'true');
+    expect(topSurface).toHaveAttribute('data-preview-skill-markers-visible', 'true');
+    expect(frontSurface).toHaveAttribute('data-front-grid-visible', 'true');
+    expect(frontSurface).toHaveAttribute('data-front-main-boundary-visible', 'true');
+    expect(frontSurface).toHaveAttribute('data-front-skill-markers-visible', 'true');
+    expect(boundaryCell).toHaveAttribute('data-preview-main-boundary', 'true');
+    expect(boundaryCell).toHaveAttribute('data-preview-main-boundary-visible', 'true');
+    expect(skillCell).toHaveAttribute('data-preview-requires-skill', 'true');
+    expect(skillCell).toHaveAttribute('data-preview-skill-marker-label', '树');
+    expect(frontLevel).toHaveAttribute('data-front-layer-skill-count', '1');
+    expect(frontLevel).toHaveAttribute('data-front-layer-skill-visible', 'true');
+
+    fireEvent.click(gridToggle);
+    expect(gridToggle).toHaveAttribute('aria-pressed', 'false');
+    expect(topSurface).toHaveAttribute('data-preview-grid-visible', 'false');
+    expect(frontSurface).toHaveAttribute('data-front-grid-visible', 'false');
+    expect(JSON.stringify(scene)).toBe(snapshotBefore);
+
+    fireEvent.click(boundaryToggle);
+    expect(boundaryToggle).toHaveAttribute('aria-pressed', 'false');
+    expect(topSurface).toHaveAttribute('data-preview-main-boundary-visible', 'false');
+    expect(frontSurface).toHaveAttribute('data-front-main-boundary-visible', 'false');
+    expect(boundaryCell).toHaveAttribute('data-preview-main-boundary', 'true');
+    expect(boundaryCell).toHaveAttribute('data-preview-main-boundary-visible', 'false');
+    expect(JSON.stringify(scene)).toBe(snapshotBefore);
+
+    fireEvent.click(skillToggle);
+    expect(skillToggle).toHaveAttribute('aria-pressed', 'false');
+    expect(topSurface).toHaveAttribute('data-preview-skill-markers-visible', 'false');
+    expect(frontSurface).toHaveAttribute('data-front-skill-markers-visible', 'false');
+    expect(skillCell).toHaveAttribute('data-preview-requires-skill', 'true');
+    expect(skillCell).toHaveAttribute('data-preview-skill-marker-label', '树');
+    expect(screen.getByLabelText('Top preview skill 树')).toHaveAttribute('data-preview-skill-visible', 'false');
+    expect(frontLevel).toHaveAttribute('data-front-layer-skill-count', '1');
+    expect(frontLevel).toHaveAttribute('data-front-layer-skill-visible', 'false');
+    expect(JSON.stringify(scene)).toBe(snapshotBefore);
+  });
+
   it('excludes hidden-layer instances from visible preview summaries', () => {
     const hiddenScene = {
       ...scene,

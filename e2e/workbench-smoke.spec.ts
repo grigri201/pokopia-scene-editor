@@ -48,6 +48,40 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(topPreview.locator('[data-preview-main-boundary="true"]')).toHaveCount(16);
   await expect(topPreview.locator('.mini-grid__area').filter({ hasText: 'M' }).first()).toBeVisible();
   await expect(topPreview.locator('.mini-grid__area').filter({ hasText: 'O' }).first()).toBeVisible();
+  const sceneBeforePreviewDisplay = await readSceneSnapshot(page);
+  const topPreviewSurface = topPreview.locator('.mini-grid');
+  const frontStructure = frontPreview.locator('.front-structure');
+  await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Show preview main boundary' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Show preview skill markers' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(topPreview.locator('.mini-grid__cells')).toHaveCSS('gap', '1px');
+  expect(await frontStructure.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await page.getByRole('button', { name: 'Show preview grid' }).click();
+  await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(topPreviewSurface).toHaveAttribute('data-preview-grid-visible', 'false');
+  await expect(topPreview.locator('.mini-grid__cells')).toHaveCSS('gap', '0px');
+  await expect(frontStructure).toHaveAttribute('data-front-grid-visible', 'false');
+  await expect(page.getByLabel('Save status')).toHaveText('Saved');
+  expect(await readSceneSnapshot(page)).toEqual(sceneBeforePreviewDisplay);
+  await page.getByRole('button', { name: 'Show preview grid' }).click();
+  await page.getByRole('button', { name: 'Show preview main boundary' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Show preview main boundary' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await expect(topPreviewSurface).toHaveAttribute('data-preview-main-boundary-visible', 'false');
+  await expect(frontStructure).toHaveAttribute('data-front-main-boundary-visible', 'false');
+  await expect(topPreview.locator('[data-preview-coordinate="1,1"]')).toHaveAttribute(
+    'data-preview-main-boundary',
+    'true',
+  );
+  await expect(topPreview.locator('[data-preview-coordinate="1,1"]')).toHaveAttribute(
+    'data-preview-main-boundary-visible',
+    'false',
+  );
+  expect(await readSceneSnapshot(page)).toEqual(sceneBeforePreviewDisplay);
+  await page.getByRole('button', { name: 'Show preview main boundary' }).click();
   const previewBoundaryShadow = await topPreview
     .locator('[data-preview-main-boundary="true"]')
     .first()
@@ -215,12 +249,34 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(frontLayer('level-0')).toHaveAttribute('data-front-layer-main-count', '1');
   await expect(frontLayer('level-0')).toHaveAttribute('data-front-layer-outer-count', '0');
   await expect(frontLayer('level-0')).toHaveAttribute('data-front-layer-skill-count', '1');
+  expect(await frontStructure.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-has-instance', 'true');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-instance-count', '1');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-asset-id', 'garden-plant');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-requires-skill', 'true');
   await expect(previewCell('2,3')).toHaveAttribute('data-preview-skill-marker-label', '树');
   await expect(previewCell('2,3')).toHaveAttribute('aria-label', /Garden Plant, 1 item, skill 树/);
+  await expect(topPreview.locator('.mini-grid__skill')).toBeVisible();
+  const sceneBeforeSkillDisplayToggle = await readSceneSnapshot(page);
+  await page.getByRole('button', { name: 'Show preview skill markers' }).click();
+  await expect(page.getByRole('button', { name: 'Show preview skill markers' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await expect(topPreviewSurface).toHaveAttribute('data-preview-skill-markers-visible', 'false');
+  await expect(frontStructure).toHaveAttribute('data-front-skill-markers-visible', 'false');
+  await expect(previewCell('2,3')).toHaveAttribute('data-preview-skill-marker-label', '树');
+  await expect(frontLayer('level-0')).toHaveAttribute('data-front-layer-skill-count', '1');
+  await expect(frontLayer('level-0')).toHaveAttribute('data-front-layer-skill-visible', 'false');
+  await expect(topPreview.locator('.mini-grid__skill')).not.toBeVisible();
+  await expect(page.getByLabel('Save status')).toHaveText('Dirty');
+  expect(await readSceneSnapshot(page)).toEqual(sceneBeforeSkillDisplayToggle);
+  await page.getByRole('button', { name: 'Show preview skill markers' }).click();
+  await expect(page.getByRole('button', { name: 'Show preview skill markers' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(topPreview.locator('.mini-grid__skill')).toBeVisible();
   await expect(page.getByLabel('Save status')).toHaveText('Dirty');
   await page.locator('[data-coordinate="2,3"]').click();
   await expect(page.locator('[data-coordinate="2,3"]')).toHaveAttribute('data-instance-count', '2');
@@ -562,6 +618,7 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   const previewInspector = page.getByRole('complementary', { name: 'Preview inspector' });
+  const topPreview = previewInspector.getByLabel('Top view preview');
   const frontPreview = previewInspector.getByLabel('Front view preview');
   const frontLayer = (levelId: string) => frontPreview.locator(`[data-front-layer-id="${levelId}"]`);
 
@@ -597,6 +654,20 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   expect(sceneBefore.workspaceState.saveStatus).toBe('saved');
   expect(sceneBefore.workspaceState.selectedCoordinate).toBeNull();
   expect(sceneBefore.workspaceState.selectedAssetId).toBeNull();
+  await page.getByRole('button', { name: 'Show preview grid' }).click();
+  await page.getByRole('button', { name: 'Show preview main boundary' }).click();
+  await page.getByRole('button', { name: 'Show preview skill markers' }).click();
+  await expect(topPreview.locator('.mini-grid')).toHaveAttribute('data-preview-grid-visible', 'false');
+  await expect(topPreview.locator('.mini-grid')).toHaveAttribute('data-preview-main-boundary-visible', 'false');
+  await expect(topPreview.locator('.mini-grid')).toHaveAttribute('data-preview-skill-markers-visible', 'false');
+  await expect(frontPreview.locator('.front-structure')).toHaveAttribute('data-front-grid-visible', 'false');
+  await expect(frontPreview.locator('.front-structure')).toHaveAttribute('data-front-main-boundary-visible', 'false');
+  await expect(frontPreview.locator('.front-structure')).toHaveAttribute('data-front-skill-markers-visible', 'false');
+  expect(
+    await frontPreview.locator('.front-structure').evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+  ).toBe(true);
+  await expect(page.getByLabel('Save status')).toHaveText('Read-only · Saved');
+  expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
   await expect(page.getByRole('button', { name: 'New layer' })).toBeDisabled();
   await expect(page.getByLabel('Rename 0 层')).toBeDisabled();
   await expect(page.getByRole('button', { name: /Hide 0 层/ })).toBeDisabled();
