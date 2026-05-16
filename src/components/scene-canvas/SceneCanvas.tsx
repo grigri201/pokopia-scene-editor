@@ -54,10 +54,11 @@ export function SceneCanvas({
             const stateLabel = getCellStateLabel(cell.buildingLevel, placeable, readOnly);
             const selected = coordinatesEqual(selectedCoordinate, coordinate);
             const targeted = coordinatesEqual(targetCoordinate, coordinate);
-            const topInstance = cell.tileInstances.at(-1) ?? null;
+            const visibleInstances = cell.buildingLevel.visible ? cell.tileInstances : [];
+            const topInstance = visibleInstances.at(-1) ?? null;
             const topAssetLabel = topInstance ? getInstanceDisplayLabel(topInstance.assetId) : null;
-            const stackCount = cell.tileInstances.length;
-            const hasSkillInstance = cell.tileInstances.some((instance) => instance.requiresSkill);
+            const stackCount = visibleInstances.length;
+            const hasSkillInstance = visibleInstances.some((instance) => instance.requiresSkill);
             const rotationLabel = topInstance?.rotationDegrees ? `${topInstance.rotationDegrees} deg` : null;
             const dyeColor = topInstance?.dyeColor ?? null;
 
@@ -69,6 +70,9 @@ export function SceneCanvas({
                   'scene-cell',
                   `scene-cell--${cell.areaType}`,
                   cell.mainBoundary ? 'scene-cell--main-boundary' : '',
+                  !cell.buildingLevel.visible ? 'scene-cell--hidden-layer' : '',
+                  cell.buildingLevel.locked ? 'scene-cell--locked-layer' : '',
+                  !editable ? 'scene-cell--non-editable' : '',
                   selected ? 'scene-cell--selected' : '',
                   targeted ? 'scene-cell--targeted' : '',
                 ]
@@ -126,7 +130,7 @@ export function SceneCanvas({
                   {coordinate.x},{coordinate.y}
                 </span>
                 <span className="cell-area">{cell.areaType}</span>
-                <span className="cell-placeable">{readOnly ? 'view' : 'place'}</span>
+                <span className="cell-placeable">{readOnly ? 'view' : editable ? 'place' : stateLabel}</span>
                 {topAssetLabel ? <span className="cell-asset-label">{topAssetLabel}</span> : null}
                 {stackCount > 1 ? <span className="cell-stack-count">{stackCount}x</span> : null}
                 {rotationLabel ? <span className="cell-rotation-marker">{rotationLabel}</span> : null}

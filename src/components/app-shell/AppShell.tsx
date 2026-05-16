@@ -15,12 +15,14 @@ import {
 } from '../../domain/scene';
 import {
   editAssetInstance,
+  editBuildingLayer,
   getAssetPlacementPreview,
   getInteractionMode,
   placeSelectedAsset,
   sceneReducer,
   type AssetInstanceEditResult,
   type AssetPlacementPreview,
+  type BuildingLayerEditResult,
   type InteractionMode,
   type SceneAction,
 } from '../../state';
@@ -41,27 +43,36 @@ export function AppShell() {
   const [placementRequiresSkill, setPlacementRequiresSkill] = useState(false);
   const [placementFeedback, setPlacementFeedback] = useState<AssetPlacementPreview | null>(null);
   const [instanceEditFeedback, setInstanceEditFeedback] = useState<string | null>(null);
+  const [buildingLayerFeedback, setBuildingLayerFeedback] = useState<string | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
+  const [readOnlyViewingLevelId, setReadOnlyViewingLevelId] = useState<string | null>(null);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(() =>
     getInteractionMode(window.innerWidth),
   );
   const isReadOnly = interactionMode === 'readOnly';
+  const activeBuildingLevelId = isReadOnly
+    ? readOnlyViewingLevelId ?? scene.workspaceState.currentBuildingLevelId
+    : scene.workspaceState.currentBuildingLevelId;
   const buildingLevelContexts = getBuildingLevelContexts(scene);
-  const currentBuildingLevel = buildingLevelContexts.find((level) => level.current);
+  const displayedBuildingLevelContexts = buildingLevelContexts.map((level) => ({
+    ...level,
+    current: level.id === activeBuildingLevelId,
+  }));
+  const currentBuildingLevel = displayedBuildingLevelContexts.find((level) => level.current);
   const currentLayerInstances = currentBuildingLevel
     ? scene.tileInstances.filter((instance) => instance.buildingLevelId === currentBuildingLevel.id)
     : [];
-  const canvasCells = getCanvasCellContexts(scene);
+  const canvasCells = getCanvasCellContexts(scene, activeBuildingLevelId);
   const targetCoordinate = hoveredCoordinate ?? focusedCoordinate;
   const selectedCoordinate = isReadOnly
     ? readOnlySelectedCoordinate
     : scene.workspaceState.selectedCoordinate;
-  const selectedContext = selectedCoordinate ? getCellContext(scene, selectedCoordinate) : null;
+  const selectedContext = selectedCoordinate ? getCellContext(scene, selectedCoordinate, activeBuildingLevelId) : null;
   const selectedInstance =
     selectedContext?.tileInstances.find((instance) => instance.instanceId === selectedInstanceId) ??
     selectedContext?.tileInstances.at(-1) ??
     null;
-  const targetContext = targetCoordinate ? getCellContext(scene, targetCoordinate) : null;
+  const targetContext = targetCoordinate ? getCellContext(scene, targetCoordinate, activeBuildingLevelId) : null;
   const selectedAssetId = scene.workspaceState.selectedAssetId;
   const targetPlacementPreview = targetCoordinate
     ? getAssetPlacementPreview(scene, targetCoordinate, interactionMode, placementRequiresSkill)
@@ -95,12 +106,14 @@ export function AppShell() {
 
   useEffect(() => {
     if (isReadOnly) {
+      setReadOnlyViewingLevelId(scene.workspaceState.currentBuildingLevelId);
       setReadOnlySelectedCoordinate(scene.workspaceState.selectedCoordinate);
       return;
     }
 
+    setReadOnlyViewingLevelId(null);
     setReadOnlySelectedCoordinate(null);
-  }, [isReadOnly, scene.workspaceState.selectedCoordinate]);
+  }, [isReadOnly, scene.workspaceState.currentBuildingLevelId, scene.workspaceState.selectedCoordinate]);
 
   useEffect(() => {
     const measureId = pendingSelectionMeasureRef.current;
@@ -344,6 +357,81 @@ export function AppShell() {
     );
   };
 
+  const handleBuildingLayerResult = (result: BuildingLayerEditResult) => {
+    if (result.ok) {
+      setScene(result.scene);
+      setBuildingLayerFeedback(result.message);
+      setPlacementFeedback(null);
+      setInstanceEditFeedback(null);
+      return;
+    }
+
+    setBuildingLayerFeedback(`${result.message}. ${result.repairHint}`);
+  };
+
+  const createBuildingLayer = () => {
+    handleBuildingLayerResult(
+      editBuildingLayer(scene, {
+        type: 'create',
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
+  const renameBuildingLayer = (levelId: string, name: string) => {
+    handleBuildingLayerResult(
+      editBuildingLayer(scene, {
+        type: 'rename',
+        levelId,
+        name,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
+  const setCurrentBuildingLayer = (levelId: string) => {
+    if (isReadOnly) {
+      setReadOnlyViewingLevelId(levelId);
+      setBuildingLayerFeedback('Viewing layer changed');
+      return;
+    }
+
+    handleBuildingLayerResult(
+      editBuildingLayer(scene, {
+        type: 'set-current',
+        levelId,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
+  const setBuildingLayerVisible = (levelId: string, visible: boolean) => {
+    handleBuildingLayerResult(
+      editBuildingLayer(scene, {
+        type: 'set-visible',
+        levelId,
+        visible,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
+  const setBuildingLayerLocked = (levelId: string, locked: boolean) => {
+    handleBuildingLayerResult(
+      editBuildingLayer(scene, {
+        type: 'set-locked',
+        levelId,
+        locked,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
   return (
     <main
       className="app-shell"
@@ -362,7 +450,16 @@ export function AppShell() {
       />
       <section className="workbench-grid" aria-label="Open Design editing workbench">
         <div className="workbench-left">
-          <BuildingLevelPanel levels={buildingLevelContexts} readOnly={isReadOnly} />
+          <BuildingLevelPanel
+            levels={displayedBuildingLevelContexts}
+            readOnly={isReadOnly}
+            feedback={buildingLayerFeedback}
+            onCreateLayer={createBuildingLayer}
+            onRenameLayer={renameBuildingLayer}
+            onSetCurrentLayer={setCurrentBuildingLayer}
+            onSetLayerVisible={setBuildingLayerVisible}
+            onSetLayerLocked={setBuildingLayerLocked}
+          />
           <PreviewInspector />
         </div>
         <section className="canvas-stage" aria-label="7x7 scene canvas workspace">

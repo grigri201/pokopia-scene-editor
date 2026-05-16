@@ -35,24 +35,28 @@ export interface BuildingLevelContext {
   current: boolean;
 }
 
-export function getCurrentBuildingLevel(scene: SceneDocument): BuildingLevel {
+export function getCurrentBuildingLevel(scene: SceneDocument, buildingLevelId = scene.workspaceState.currentBuildingLevelId): BuildingLevel {
   assertUniqueBuildingLevelIds(scene.buildingLevels);
 
   const level = scene.buildingLevels.find(
-    (candidate) => candidate.id === scene.workspaceState.currentBuildingLevelId,
+    (candidate) => candidate.id === buildingLevelId,
   );
 
   if (!level) {
-    throw new RangeError(`Unknown building level: ${scene.workspaceState.currentBuildingLevelId}`);
+    throw new RangeError(`Unknown building level: ${buildingLevelId}`);
   }
 
   return level;
 }
 
-export function getCellContext(scene: SceneDocument, coordinate: GridCoordinate): CellContext {
+export function getCellContext(
+  scene: SceneDocument,
+  coordinate: GridCoordinate,
+  buildingLevelId = scene.workspaceState.currentBuildingLevelId,
+): CellContext {
   const dimensions = getSceneDimensions(scene);
   const areaType = calculateAreaType(coordinate, dimensions);
-  const buildingLevel = getCurrentBuildingLevel(scene);
+  const buildingLevel = getCurrentBuildingLevel(scene, buildingLevelId);
   const tileInstances = scene.tileInstances.filter(
     (instance) =>
       instance.coordinate.x === coordinate.x &&
@@ -70,11 +74,14 @@ export function getCellContext(scene: SceneDocument, coordinate: GridCoordinate)
   };
 }
 
-export function getCanvasCellContexts(scene: SceneDocument): CanvasCellContext[] {
+export function getCanvasCellContexts(
+  scene: SceneDocument,
+  buildingLevelId = scene.workspaceState.currentBuildingLevelId,
+): CanvasCellContext[] {
   const dimensions = getSceneDimensions(scene);
 
   return createCanvasCells(dimensions).map((cell) => ({
-    ...getCellContext(scene, cell),
+    ...getCellContext(scene, cell, buildingLevelId),
     id: cell.id,
     mainBoundary: isMainAreaBoundaryCell(cell, dimensions),
   }));

@@ -59,6 +59,34 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
     await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
   ).toBe(true);
 
+  await page.getByRole('button', { name: 'New layer' }).click();
+  await expect(page.getByLabel('Current building level')).toHaveText('Current L3');
+  await expect(page.getByLabel('Building layer feedback')).toHaveText('Created 3 层');
+  await expect(page.getByTestId('building-level-row')).toHaveCount(4);
+  await expect(page.getByTestId('building-level-row').nth(0)).toHaveAttribute('data-display-id', 'L3');
+  await expect(page.getByTestId('building-level-row').nth(0)).toHaveAttribute('data-current', 'true');
+  await page.getByLabel('Rename 3 层').fill('屋顶层');
+  await page.getByLabel('Rename 3 层').press('Enter');
+  await expect(page.getByLabel('L3, 屋顶层, 0 instances, visible, unlocked, current editing layer')).toBeVisible();
+  await page.getByRole('button', { name: /Set 0 层 as current building layer/ }).click();
+  await expect(page.getByLabel('Current building level')).toHaveText('Current L0');
+  const beforeHideBox = await page.getByTestId('scene-canvas').boundingBox();
+  const beforeHideCellBox = await page.getByTestId('scene-cell').first().boundingBox();
+  await page.getByRole('button', { name: /Hide 0 层/ }).click();
+  await expect(page.getByLabel('L0, 0 层, 0 instances, hidden, unlocked, current editing layer')).toBeVisible();
+  await expect(page.getByLabel('Cell 1,1, main area, level-0, hidden layer')).toBeVisible();
+  const afterHideBox = await page.getByTestId('scene-canvas').boundingBox();
+  const afterHideCellBox = await page.getByTestId('scene-cell').first().boundingBox();
+  expect(Math.abs((beforeHideBox?.width ?? 0) - (afterHideBox?.width ?? 0))).toBeLessThanOrEqual(1);
+  expect(Math.abs((beforeHideCellBox?.width ?? 0) - (afterHideCellBox?.width ?? 0))).toBeLessThanOrEqual(1);
+  await page.getByRole('button', { name: /Show 0 层/ }).click();
+  await page.getByRole('button', { name: /Lock 0 层/ }).click();
+  await expect(page.getByLabel('L0, 0 层, 0 instances, visible, locked, current editing layer')).toBeVisible();
+  await expect(page.locator('[data-level-id="level-0"]')).toHaveClass(/level-row--locked/);
+  await expect(page.locator('[data-coordinate="1,1"]')).toHaveAttribute('data-editable', 'false');
+  await page.getByRole('button', { name: /Unlock 0 层/ }).click();
+  await expect(page.locator('[data-coordinate="1,1"]')).toHaveAttribute('data-editable', 'true');
+
   await page.getByLabel('Current Pokemon').fill('eevee');
   await expect(page.getByLabel('Current Pokemon')).toHaveValue('eevee');
   await expect(page.getByLabel('Save status')).toHaveText('Dirty');
@@ -256,7 +284,7 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('Current building level')).toHaveText('Current L0');
   await expect(page.getByTestId('building-level-row')).toHaveCount(3);
   await expect(page.getByLabel('L2, 2 层, 0 instances, visible, unlocked')).toBeVisible();
-  await expect(page.getByLabel('L0, 0 层, 0 instances, visible, unlocked, current editing layer')).toBeVisible();
+  await expect(page.getByLabel('L0, 0 层, 0 instances, visible, unlocked, viewing layer')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(
     true,
   );
@@ -280,6 +308,27 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   expect(sceneBefore.workspaceState.saveStatus).toBe('saved');
   expect(sceneBefore.workspaceState.selectedCoordinate).toBeNull();
   expect(sceneBefore.workspaceState.selectedAssetId).toBeNull();
+  await expect(page.getByRole('button', { name: 'New layer' })).toBeDisabled();
+  await expect(page.getByLabel('Rename 0 层')).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Hide 0 层/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Lock 0 层/ })).toBeDisabled();
+  await page.getByRole('button', { name: /View 1 层 as viewing layer/ }).click();
+  await expect(page.getByLabel('Current building level')).toHaveText('Current L1');
+  await expect(page.getByLabel('L1, 1 层, 0 instances, visible, unlocked, viewing layer')).toBeVisible();
+  await expect(page.getByLabel('Cell 2,3, main area, level-1, read-only')).toBeVisible();
+  expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
+  await page.getByRole('button', { name: /View 0 层 as viewing layer/ }).click();
+  await expect(page.getByLabel('Current building level')).toHaveText('Current L0');
+  await page.getByRole('button', { name: 'New layer' }).evaluate((button) => {
+    (button as HTMLButtonElement).click();
+  });
+  await page.getByRole('button', { name: /Hide 0 层/ }).evaluate((button) => {
+    (button as HTMLButtonElement).click();
+  });
+  await page.getByRole('button', { name: /Lock 0 层/ }).evaluate((button) => {
+    (button as HTMLButtonElement).click();
+  });
+  expect(await readSceneSnapshot(page)).toEqual(sceneBefore);
   await page.getByLabel('Cell 2,3, main area, level-0, read-only').focus();
   await page.keyboard.press('Enter');
   await expect(page.getByLabel('Selected coordinate')).toHaveText('2,3');

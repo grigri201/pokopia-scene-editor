@@ -270,4 +270,33 @@ describe('SceneCanvas', () => {
 
     expect(screen.getByLabelText('Cell 4,4, main area, level-0, placeable, Unknown asset: missing-asset')).toBeVisible();
   });
+
+  it('does not render instances when the current building layer is hidden', () => {
+    const hiddenScene = {
+      ...scene,
+      buildingLevels: scene.buildingLevels.map((level) =>
+        level.id === 'level-0' ? { ...level, visible: false } : level,
+      ),
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-hidden',
+          assetId: 'garden-plant',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        cells={getCanvasCellContexts(hiddenScene)}
+        readOnly={false}
+      />,
+    );
+
+    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, hidden layer');
+    expect(cell).toHaveAttribute('data-has-instance', 'false');
+    expect(cell).not.toHaveTextContent('Garden Plant');
+  });
 });
