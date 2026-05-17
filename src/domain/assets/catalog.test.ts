@@ -5,6 +5,7 @@ import {
   filterAssetsByFavorite,
   getAssetAreaLabel,
   getAssetById,
+  getAssetSkillMarkerIconUrl,
   getAssetSkillMarkerLabel,
   getAssetSkillLabel,
   isAssetSkillType,
@@ -17,12 +18,12 @@ describe('asset catalog', () => {
 
     for (const asset of assetCatalog) {
       expect(asset.assetId).not.toBe('');
-      expect(asset.officialId).toMatch(/^\d{3}$/);
+      expect(asset.officialId).toMatch(/^\d{3,4}$/);
       expect(asset.name).not.toBe('');
       expect(asset.tags.length).toBeGreaterThan(0);
       expect(asset.applicableAreas.length).toBeGreaterThan(0);
-      expect(asset.thumbnailUrl).toMatch(/^\/assets\/asset-thumbnails\/.+\.svg$/);
-      expect(asset.thumbnailAlt).toContain('thumbnail');
+      expect(asset.thumbnailUrl).toMatch(/^\/assets\/pokopia_image_sources\/item_portraits\/.+\.(png|webp)$/);
+      expect(asset.thumbnailAlt).toContain('缩略图');
       expect(typeof asset.defaultRequiresSkill).toBe('boolean');
       expect(typeof asset.skillCandidate).toBe('boolean');
       expect(typeof asset.rotatable).toBe('boolean');
@@ -32,7 +33,7 @@ describe('asset catalog', () => {
   });
 
   it('looks up assets and rejects unknown ids', () => {
-    expect(getAssetById('garden-plant')?.name).toBe('Garden Plant');
+    expect(getAssetById('garden-plant')?.name).toBe('小型灌木');
     expect(getAssetById(null)).toBeNull();
     expect(() => assertKnownAssetId('missing-asset')).toThrow(RangeError);
   });
@@ -43,7 +44,7 @@ describe('asset catalog', () => {
 
     expect(gardenPlant).not.toBeNull();
     expect(woodenFloor).not.toBeNull();
-    expect(getAssetAreaLabel(gardenPlant!)).toBe('Main / Outer');
+    expect(getAssetAreaLabel(gardenPlant!)).toBe('主体 / 外围');
     expect(getAssetSkillLabel(gardenPlant!)).toBe('Default skill: 树叶');
     expect(getAssetSkillLabel(woodenFloor!)).toBe('No default skill');
   });
@@ -61,6 +62,12 @@ describe('asset catalog', () => {
     expect(getAssetSkillMarkerLabel('耕地')).toBe('耕');
     expect(getAssetSkillMarkerLabel('储水')).toBe('水');
     expect(getAssetSkillMarkerLabel(null)).toBe('技');
+    expect(getAssetSkillMarkerIconUrl('树叶')).toContain('/assets/pokopia_image_sources/item_portraits/0050-leaf.png');
+    expect(getAssetSkillMarkerIconUrl('耕地')).toContain(
+      '/assets/pokopia_image_sources/decorative_item_portraits/171-farm-soil-ridge.webp',
+    );
+    expect(getAssetSkillMarkerIconUrl('water')).toContain('/assets/pokopia_image_sources/item_portraits/0508-water-basin.png');
+    expect(getAssetSkillMarkerIconUrl(null)).toBeNull();
   });
 
   it('filters favorite assets by current Pokemon', () => {

@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createDefaultSceneDocument, createTileInstance } from '../../domain/scene';
+import { createBuildingLevel, createDefaultSceneDocument, createTileInstance } from '../../domain/scene';
 import { readUiPreferencesFromStorage } from '../../io';
 import { PreviewInspector } from './PreviewInspector';
 
@@ -37,7 +37,7 @@ describe('PreviewInspector', () => {
     window.localStorage.clear();
   });
 
-  it('renders top and front previews from the scene selectors', () => {
+  it('renders the compact dual 7x7 preview inspector', () => {
     const { container } = render(
       <PreviewInspector
         scene={scene}
@@ -48,185 +48,37 @@ describe('PreviewInspector', () => {
       />,
     );
 
-    expect(screen.getByRole('complementary', { name: 'Preview inspector' })).toBeVisible();
-    expect(screen.getByLabelText('Dual preview inspector')).toBeVisible();
-    expect(screen.getByLabelText('Top view preview')).toBeVisible();
-    expect(screen.getByLabelText('Front view preview')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Preview current layer' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Preview all visible layers' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getAllByRole('button', { name: /^Top preview cell/ })).toHaveLength(49);
-    expect(container.querySelectorAll('[data-preview-area="main"]')).toHaveLength(25);
-    expect(container.querySelectorAll('[data-preview-area="outer"]')).toHaveLength(24);
-    expect(container.querySelectorAll('[data-preview-main-boundary="true"]')).toHaveLength(16);
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
-      'data-preview-has-instance',
-      'true',
-    );
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+    expect(screen.getByRole('complementary', { name: '检查器预览' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: '检查器' })).toBeVisible();
+    expect(screen.getByLabelText('正视图预览')).toBeVisible();
+    expect(screen.getByLabelText('俯视图预览')).toBeVisible();
+    expect(container.querySelectorAll('.front-cell')).toHaveLength(21);
+    expect(container.querySelectorAll('.top-cell')).toHaveLength(49);
+    expect(container.querySelectorAll('[data-preview-coordinate="2,3"]')).toHaveLength(1);
+    expect(container.querySelector('.top-cell[data-preview-coordinate="2,3"]')).toHaveAttribute(
       'data-preview-asset-id',
       'garden-plant',
     );
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
-      'data-preview-requires-skill',
-      'true',
-    );
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+    expect(container.querySelector('.top-cell[data-preview-coordinate="2,3"]')).toHaveAttribute(
       'data-preview-skill-marker-label',
       '树',
     );
-    expect(screen.getByRole('button', { name: 'Top preview cell 2,3, main, Garden Plant, 1 item, skill 树' }))
-      .toBeVisible();
-    expect(screen.getByLabelText('Top preview scope')).toHaveTextContent('Current layer preview');
-    expect(screen.getByLabelText('Top preview layer summary')).toHaveTextContent('L0 0 层 unlocked');
-    expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('1 current-layer item');
-    expect(screen.getByLabelText('Top preview selection summary')).toHaveTextContent('2,3 · Garden Plant');
-    expect(screen.getByLabelText('Front preview layer summary')).toHaveTextContent('1 visible layer, 1 visible item');
-    expect(screen.getByLabelText('Front structure preview 1 visible layer, 1 visible item')).toHaveAttribute(
-      'data-front-rendering',
-      'structure-only',
+    expect(container.querySelector('.top-cell[data-preview-coordinate="2,3"] img')).toHaveAttribute(
+      'src',
+      '/assets/pokopia_image_sources/item_portraits/0345-leafy-plant.png',
     );
-    expect(screen.getByLabelText('Front structure preview 1 visible layer, 1 visible item')).toHaveAttribute(
-      'data-front-scroll',
-      'independent',
-    );
-    expect(screen.getByRole('listitem', {
-      name: 'L0 0 层, height 28%, 1 item, main 1, outer 0, skill 1, visible, unlocked, active',
-    }))
-      .toBeVisible();
-    expect(container.querySelector('[data-front-layer-id="level-0"]')).toHaveAttribute(
-      'data-front-layer-main-count',
-      '1',
-    );
-    expect(container.querySelector('[data-front-layer-id="level-0"]')).toHaveAttribute(
-      'data-front-layer-outer-count',
-      '0',
-    );
-    expect(container.querySelector('[data-front-layer-id="level-0"]')).toHaveAttribute(
-      'data-front-layer-skill-count',
-      '1',
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
-
-    expect(screen.getByRole('button', { name: 'Preview all visible layers' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByLabelText('Top preview scope')).toHaveTextContent('All visible layers preview');
-    expect(screen.getByLabelText('Top preview layer summary')).toHaveTextContent(
-      'L0 0 层 unlocked → L1 1 层 unlocked → L2 2 层 unlocked',
-    );
-    expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('2 visible items across 3 layers');
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
-      'data-preview-instance-count',
-      '2',
-    );
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+    expect(container.querySelector('.front-cell[data-front-level-id="level-1"][data-front-x="2"]')).toHaveAttribute(
       'data-preview-asset-id',
       'roof-tile',
     );
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
-      'data-preview-layer-stack',
-      'L0,L1',
-    );
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
-      'data-preview-asset-stack',
-      'L0 unlocked Garden Plant → L1 unlocked Roof Tile',
-    );
-    expect(screen.getByRole('button', {
-      name: 'Top preview cell 2,3, main, Roof Tile, 2 items, layers L0 0 层 unlocked → L1 1 层 unlocked, asset stack L0 unlocked Garden Plant → L1 unlocked Roof Tile, skill 树',
-    })).toBeVisible();
-    expect(screen.getByLabelText('Front preview layer summary')).toHaveTextContent('3 visible layers, 2 visible items');
-    expect(screen.getByRole('listitem', {
-      name: 'L1 1 层, height 64%, 1 item, main 1, outer 0, skill 0, visible, unlocked',
-    })).toBeVisible();
+    expect(screen.getByLabelText('Top preview scope')).toHaveTextContent('Current layer top projection');
+    expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('1 current-layer preview items');
+    expect(screen.getByLabelText('Front preview item summary')).toHaveTextContent('2 visible items projected across 3 layers');
+    expect(screen.getByLabelText('Top preview selection summary')).toHaveTextContent('2,3');
   });
 
-  it('keeps read-only preview mode local to the preview and derived', () => {
+  it('keeps preview scope and display options in UI preferences only', () => {
     const snapshotBefore = JSON.stringify(scene);
-
-    render(
-      <PreviewInspector
-        scene={scene}
-        activeBuildingLevelId="level-1"
-        selectedCoordinate={{ x: 2, y: 3 }}
-        selectedInstanceId="tile-upper"
-        readOnly
-      />,
-    );
-
-    expect(screen.getByText('View only')).toBeVisible();
-    expect(screen.getByLabelText('Front preview mode')).toHaveTextContent('当前层 read-only preview');
-    fireEvent.click(screen.getByRole('button', { name: 'Top preview cell 2,3, main, Roof Tile, 1 item' }));
-    expect(screen.getByLabelText('Top preview local focus')).toHaveTextContent('2,3 · Roof Tile');
-    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Zoom in preview' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Pan preview right' }));
-    expect(screen.getByLabelText('Top preview view state')).toHaveTextContent('125%, pan 4,0');
-    expect(JSON.stringify(scene)).toBe(snapshotBefore);
-  });
-
-  it('keeps preview display toggles local while preserving derived data attributes', () => {
-    const snapshotBefore = JSON.stringify(scene);
-    const { container } = render(
-      <PreviewInspector
-        scene={scene}
-        activeBuildingLevelId="level-0"
-        selectedCoordinate={{ x: 2, y: 3 }}
-        selectedInstanceId="tile-preview"
-        readOnly={false}
-      />,
-    );
-    const topSurface = container.querySelector('.mini-grid');
-    const frontSurface = container.querySelector('.front-structure');
-    const boundaryCell = container.querySelector('[data-preview-coordinate="1,1"]');
-    const skillCell = container.querySelector('[data-preview-coordinate="2,3"]');
-    const frontLevel = container.querySelector('[data-front-layer-id="level-0"]');
-    const gridToggle = screen.getByRole('button', { name: 'Show preview grid' });
-    const boundaryToggle = screen.getByRole('button', { name: 'Show preview main boundary' });
-    const skillToggle = screen.getByRole('button', { name: 'Show preview skill markers' });
-
-    expect(screen.getByRole('group', { name: 'Preview display options' })).toBeVisible();
-    expect(gridToggle).toHaveAttribute('aria-pressed', 'true');
-    expect(boundaryToggle).toHaveAttribute('aria-pressed', 'true');
-    expect(skillToggle).toHaveAttribute('aria-pressed', 'true');
-    expect(topSurface).toHaveAttribute('data-preview-grid-visible', 'true');
-    expect(topSurface).toHaveAttribute('data-preview-main-boundary-visible', 'true');
-    expect(topSurface).toHaveAttribute('data-preview-skill-markers-visible', 'true');
-    expect(frontSurface).toHaveAttribute('data-front-grid-visible', 'true');
-    expect(frontSurface).toHaveAttribute('data-front-main-boundary-visible', 'true');
-    expect(frontSurface).toHaveAttribute('data-front-skill-markers-visible', 'true');
-    expect(boundaryCell).toHaveAttribute('data-preview-main-boundary', 'true');
-    expect(boundaryCell).toHaveAttribute('data-preview-main-boundary-visible', 'true');
-    expect(skillCell).toHaveAttribute('data-preview-requires-skill', 'true');
-    expect(skillCell).toHaveAttribute('data-preview-skill-marker-label', '树');
-    expect(frontLevel).toHaveAttribute('data-front-layer-skill-count', '1');
-    expect(frontLevel).toHaveAttribute('data-front-layer-skill-visible', 'true');
-
-    fireEvent.click(gridToggle);
-    expect(gridToggle).toHaveAttribute('aria-pressed', 'false');
-    expect(topSurface).toHaveAttribute('data-preview-grid-visible', 'false');
-    expect(frontSurface).toHaveAttribute('data-front-grid-visible', 'false');
-    expect(JSON.stringify(scene)).toBe(snapshotBefore);
-
-    fireEvent.click(boundaryToggle);
-    expect(boundaryToggle).toHaveAttribute('aria-pressed', 'false');
-    expect(topSurface).toHaveAttribute('data-preview-main-boundary-visible', 'false');
-    expect(frontSurface).toHaveAttribute('data-front-main-boundary-visible', 'false');
-    expect(boundaryCell).toHaveAttribute('data-preview-main-boundary', 'true');
-    expect(boundaryCell).toHaveAttribute('data-preview-main-boundary-visible', 'false');
-    expect(JSON.stringify(scene)).toBe(snapshotBefore);
-
-    fireEvent.click(skillToggle);
-    expect(skillToggle).toHaveAttribute('aria-pressed', 'false');
-    expect(topSurface).toHaveAttribute('data-preview-skill-markers-visible', 'false');
-    expect(frontSurface).toHaveAttribute('data-front-skill-markers-visible', 'false');
-    expect(skillCell).toHaveAttribute('data-preview-requires-skill', 'true');
-    expect(skillCell).toHaveAttribute('data-preview-skill-marker-label', '树');
-    expect(screen.getByLabelText('Top preview skill 树')).toHaveAttribute('data-preview-skill-visible', 'false');
-    expect(frontLevel).toHaveAttribute('data-front-layer-skill-count', '1');
-    expect(frontLevel).toHaveAttribute('data-front-layer-skill-visible', 'false');
-    expect(JSON.stringify(scene)).toBe(snapshotBefore);
-  });
-
-  it('persists and restores preview display options and layer scope', () => {
     const { container, unmount } = render(
       <PreviewInspector
         scene={scene}
@@ -237,7 +89,6 @@ describe('PreviewInspector', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
     fireEvent.click(screen.getByRole('button', { name: 'Show preview grid' }));
     fireEvent.click(screen.getByRole('button', { name: 'Show preview main boundary' }));
     fireEvent.click(screen.getByRole('button', { name: 'Show preview skill markers' }));
@@ -248,10 +99,18 @@ describe('PreviewInspector', () => {
         mainBoundary: false,
         skillMarkers: false,
       },
-      layerScope: 'all-visible-layers',
+      layerScope: 'current-layer',
     });
-    expect(container.querySelector('.mini-grid')).toHaveAttribute('data-preview-grid-visible', 'false');
-    expect(screen.getByRole('button', { name: 'Preview all visible layers' })).toHaveAttribute('aria-pressed', 'true');
+    expect(container.querySelector('.front-preview')).toHaveAttribute('data-preview-grid-visible', 'false');
+    expect(container.querySelector('.front-cell[data-front-level-id="level-1"][data-front-x="2"]')).toHaveAttribute(
+      'data-preview-asset-id',
+      'roof-tile',
+    );
+    expect(container.querySelector('.top-cell[data-preview-coordinate="2,3"]')).toHaveAttribute(
+      'data-preview-asset-id',
+      'garden-plant',
+    );
+    expect(JSON.stringify(scene)).toBe(snapshotBefore);
 
     unmount();
     const restored = render(
@@ -264,23 +123,40 @@ describe('PreviewInspector', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Preview all visible layers' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Preview all visible layers' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show preview grid' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: 'Show preview main boundary' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: 'Show preview skill markers' })).toHaveAttribute('aria-pressed', 'false');
-    expect(restored.container.querySelector('.mini-grid')).toHaveAttribute('data-preview-grid-visible', 'false');
-    expect(restored.container.querySelector('.front-structure')).toHaveAttribute('data-front-skill-markers-visible', 'false');
-    expect(screen.getByLabelText('Top preview scope')).toHaveTextContent('All visible layers preview');
+    expect(restored.container.querySelector('.front-preview')).toHaveAttribute('data-preview-grid-visible', 'false');
+    expect(screen.getByLabelText('Top preview scope')).toHaveTextContent('Current layer top projection');
   });
 
-  it('excludes hidden-layer instances from visible preview summaries', () => {
+  it('renders display-only Open Design preview cells without mutating the scene', () => {
+    const snapshotBefore = JSON.stringify(scene);
+    const { container } = render(
+      <PreviewInspector
+        scene={scene}
+        activeBuildingLevelId="level-0"
+        selectedCoordinate={{ x: 2, y: 3 }}
+        selectedInstanceId="tile-preview"
+        readOnly
+      />,
+    );
+
+    expect(screen.getByText('View only')).toBeInTheDocument();
+    expect(container.querySelector('.top-cell[data-preview-coordinate="3,3"]')).toHaveAttribute(
+      'aria-label',
+      '3,3',
+    );
+    expect(screen.queryAllByRole('button', { name: /preview cell/i })).toHaveLength(0);
+    expect(JSON.stringify(scene)).toBe(snapshotBefore);
+  });
+
+  it('excludes hidden current-layer instances while preserving all-visible preview mode', () => {
     const hiddenScene = {
       ...scene,
       buildingLevels: scene.buildingLevels.map((level) =>
         level.id === 'level-0' ? { ...level, visible: false } : level,
       ),
     };
-
     const { container } = render(
       <PreviewInspector
         scene={hiddenScene}
@@ -291,111 +167,94 @@ describe('PreviewInspector', () => {
       />,
     );
 
-    expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('0 current-layer items');
-    expect(screen.getByLabelText('Top preview selection summary')).toHaveTextContent('2,3 · hidden layer');
-    expect(screen.getByLabelText('Top preview local focus')).toHaveTextContent('2,3 · hidden layer');
-    expect(screen.getByLabelText('Top preview local focus')).not.toHaveTextContent('Garden Plant');
-    expect(screen.getByLabelText('Front preview layer summary')).toHaveTextContent('0 visible layers, 0 visible items');
-    expect(screen.queryByRole('listitem', { name: /L0 0 层/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Top preview cell 1,1, main, hidden layer, main boundary' }))
-      .toBeVisible();
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
+    expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('0 current-layer preview items');
+    expect(container.querySelector('.top-cell[data-preview-coordinate="2,3"]')).toHaveAttribute(
       'data-preview-has-instance',
       'false',
     );
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
-      'data-preview-requires-skill',
-      'false',
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
-
-    expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('1 visible item across 2 layers');
-    expect(screen.getByLabelText('Top preview layer summary')).toHaveTextContent(
-      'L1 1 层 unlocked → L2 2 层 unlocked',
-    );
-    expect(screen.getByLabelText('Top preview local focus')).toHaveTextContent('2,3 · Roof Tile');
-    expect(screen.getByLabelText('Top preview local focus')).not.toHaveTextContent('Garden Plant');
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
-      'data-preview-has-instance',
-      'true',
-    );
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
-      'data-preview-layer-stack',
-      'L1',
+    expect(screen.getByLabelText('Front preview item summary')).toHaveTextContent('1 visible items projected across 2 layers');
+    expect(container.querySelector('.front-cell[data-front-level-id="level-1"][data-front-x="2"]')).toHaveAttribute(
+      'data-preview-asset-id',
+      'roof-tile',
     );
   });
 
-  it('keeps front-view bars bounded for scenes with more than three levels', () => {
+  it('keeps the front view in a scrollable seven-layer viewport when scenes exceed seven layers', () => {
     const manyLevelScene = {
       ...scene,
-      buildingLevels: [
-        ...scene.buildingLevels,
-        { id: 'level-3', levelNumber: 3, name: '3 层', visible: true, locked: false },
-        { id: 'level-4', levelNumber: 4, name: '4 层', visible: true, locked: false },
-        { id: 'level-5', levelNumber: 5, name: '5 层', visible: true, locked: false },
-      ],
-    };
-
-    render(
-      <PreviewInspector
-        scene={manyLevelScene}
-        activeBuildingLevelId="level-5"
-        selectedCoordinate={null}
-        selectedInstanceId={null}
-        readOnly={false}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
-
-    const frontRows = document.querySelectorAll('.front-structure__layer');
-    expect(frontRows).toHaveLength(6);
-    expect(
-      Array.from(frontRows).every((row) => Number.parseFloat(row.getAttribute('data-front-layer-height') ?? '') <= 100),
-    ).toBe(true);
-    expect(
-      Array.from(frontRows).every((row) => Number.parseFloat(row.getAttribute('data-front-layer-height') ?? '') >= 28),
-    ).toBe(true);
-  });
-
-  it('surfaces locked level state while preserving visible preview content', () => {
-    const lockedScene = {
-      ...scene,
-      buildingLevels: scene.buildingLevels.map((level) =>
-        level.id === 'level-1' ? { ...level, locked: true } : level,
-      ),
+      buildingLevels: Array.from({ length: 9 }, (_, levelNumber) => createBuildingLevel(levelNumber)),
     };
     const { container } = render(
       <PreviewInspector
-        scene={lockedScene}
-        activeBuildingLevelId="level-1"
+        scene={manyLevelScene}
+        activeBuildingLevelId="level-0"
         selectedCoordinate={{ x: 2, y: 3 }}
-        selectedInstanceId="tile-upper"
+        selectedInstanceId="tile-preview"
         readOnly={false}
       />,
     );
 
-    expect(screen.getByLabelText('Top preview layer summary')).toHaveTextContent('L1 1 层 locked');
-    expect(screen.getByRole('listitem', {
-      name: 'L1 1 层, height 64%, 1 item, main 1, outer 0, skill 0, visible, locked, active',
-    })).toBeVisible();
+    const frontScrollRegion = screen.getByRole('region', { name: '正视图滚动区域' });
+    const frontScrollShell = frontScrollRegion.closest('.preview-scroll-shell');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
+    expect(frontScrollRegion).toHaveAttribute('tabindex', '0');
+    expect(frontScrollRegion).toHaveAttribute('data-front-visible-level-count', '9');
+    expect(frontScrollRegion).toHaveAttribute('data-front-overflowing-levels', 'true');
+    expect(frontScrollRegion).toHaveAttribute('data-front-scroll-window-layers', '7');
+    expect(frontScrollShell).toHaveAttribute('data-front-scroll-can-up', 'false');
+    expect(frontScrollShell).toHaveAttribute('data-front-scroll-can-down', 'true');
+    expect(container.querySelector('.preview-scroll-cue--up')).toBeInTheDocument();
+    expect(container.querySelector('.preview-scroll-cue--down')).toBeInTheDocument();
+    expect(container.querySelectorAll('.front-cell')).toHaveLength(63);
+    expect(container.querySelector('.front-cell[data-front-level-display-id="L8"]')).toBeInTheDocument();
+    expect(container.querySelector('.front-cell[data-front-level-display-id="L0"]')).toBeInTheDocument();
+  });
 
-    expect(screen.getByLabelText('Top preview layer summary')).toHaveTextContent(
-      'L0 0 层 unlocked → L1 1 层 locked → L2 2 层 unlocked',
+  it('updates front view scroll arrow hints from the scroll position', async () => {
+    const manyLevelScene = {
+      ...scene,
+      buildingLevels: Array.from({ length: 9 }, (_, levelNumber) => createBuildingLevel(levelNumber)),
+    };
+    render(
+      <PreviewInspector
+        scene={manyLevelScene}
+        activeBuildingLevelId="level-0"
+        selectedCoordinate={{ x: 2, y: 3 }}
+        selectedInstanceId="tile-preview"
+        readOnly={false}
+      />,
     );
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
-      'data-preview-locked-layer-count',
-      '1',
-    );
-    expect(container.querySelector('[data-preview-coordinate="2,3"]')).toHaveAttribute(
-      'data-preview-asset-stack',
-      'L0 unlocked Garden Plant → L1 locked Roof Tile',
-    );
-    expect(screen.getByRole('button', {
-      name: 'Top preview cell 2,3, main, Roof Tile, 2 items, layers L0 0 层 unlocked → L1 1 层 locked, asset stack L0 unlocked Garden Plant → L1 locked Roof Tile, skill 树',
-    })).toBeVisible();
+
+    const frontScrollRegion = screen.getByRole('region', { name: '正视图滚动区域' }) as HTMLDivElement;
+    const frontScrollShell = frontScrollRegion.closest('.preview-scroll-shell');
+    expect(frontScrollShell).not.toBeNull();
+    if (!frontScrollShell) {
+      throw new Error('Expected front scroll shell.');
+    }
+
+    Object.defineProperty(frontScrollRegion, 'clientHeight', {
+      configurable: true,
+      value: 96,
+    });
+    Object.defineProperty(frontScrollRegion, 'scrollHeight', {
+      configurable: true,
+      value: 124,
+    });
+    Object.defineProperty(frontScrollRegion, 'scrollTop', {
+      configurable: true,
+      value: 0,
+      writable: true,
+    });
+
+    fireEvent.scroll(frontScrollRegion);
+
+    await waitFor(() => expect(frontScrollShell).toHaveAttribute('data-front-scroll-can-up', 'false'));
+    expect(frontScrollShell).toHaveAttribute('data-front-scroll-can-down', 'true');
+
+    frontScrollRegion.scrollTop = 28;
+    fireEvent.scroll(frontScrollRegion);
+
+    await waitFor(() => expect(frontScrollShell).toHaveAttribute('data-front-scroll-can-up', 'true'));
+    expect(frontScrollShell).toHaveAttribute('data-front-scroll-can-down', 'false');
   });
 });

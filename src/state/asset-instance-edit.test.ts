@@ -144,7 +144,7 @@ describe('asset instance edit command', () => {
     const scene = createSceneWithInstances([
       createTileInstance({
         instanceId: 'tile-floor',
-        assetId: 'wooden-floor',
+        assetId: 'ditto-doll',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: 'level-0',
       }),
@@ -385,6 +385,14 @@ describe('asset instance edit command', () => {
       createTileInstance({
         instanceId: 'tile-asset',
         assetId: 'wooden-floor',
+        coordinate: { x: 0, y: 0 },
+        buildingLevelId: 'level-0',
+      }),
+    ]);
+    const conflictScene = createSceneWithInstances([
+      createTileInstance({
+        instanceId: 'tile-asset',
+        assetId: 'wooden-floor',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: 'level-0',
       }),
@@ -405,11 +413,11 @@ describe('asset instance edit command', () => {
     const incompatible = editAssetInstance(scene, {
       type: 'asset',
       instanceId: 'tile-asset',
-      assetId: 'outer-wall',
+      assetId: 'ditto-doll',
       interactionMode: 'edit',
       now,
     });
-    const conflict = editAssetInstance(scene, {
+    const conflict = editAssetInstance(conflictScene, {
       type: 'asset',
       instanceId: 'tile-asset',
       assetId: 'water-barrel',
@@ -477,7 +485,7 @@ describe('asset instance edit command', () => {
     });
   });
 
-  it('clears skill type and note when skill marker is disabled and rejects non-capable skill updates', () => {
+  it('clears skill type and note when skill marker is disabled and saves manual skill updates', () => {
     const scene = createSceneWithInstances([
       createTileInstance({
         instanceId: 'tile-skill',
@@ -504,12 +512,12 @@ describe('asset instance edit command', () => {
       interactionMode: 'edit',
       now,
     });
-    const blocked = editAssetInstance(scene, {
+    const manuallyMarked = editAssetInstance(scene, {
       type: 'skill',
       instanceId: 'tile-floor',
       requiresSkill: true,
       skillType: '树叶',
-      skillNote: 'blocked',
+      skillNote: 'manual marker',
       interactionMode: 'edit',
       now,
     });
@@ -523,10 +531,15 @@ describe('asset instance edit command', () => {
       skillType: null,
       skillNote: '',
     });
-    expect(blocked.ok).toBe(false);
-    if (!blocked.ok) {
-      expect(blocked.reason).toBe('not-skill-capable');
+    expect(manuallyMarked.ok).toBe(true);
+    if (!manuallyMarked.ok) {
+      throw new Error('Expected manual skill marker success.');
     }
+    expect(manuallyMarked.scene.tileInstances[1]).toMatchObject({
+      requiresSkill: true,
+      skillType: '树叶',
+      skillNote: 'manual marker',
+    });
   });
 
   it('saves a skill marker with null type and empty note when fields are cleared', () => {

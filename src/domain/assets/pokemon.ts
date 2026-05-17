@@ -7,26 +7,30 @@ export interface PokemonThemeDefinition {
   name: string;
   background: string;
   accent: string;
+  portraitUrl: string;
 }
 
 export const pokemonThemeCatalog: readonly PokemonThemeDefinition[] = [
   {
     key: 'ditto',
-    name: 'Ditto',
+    name: '百变怪',
     background: '#e6d1df',
     accent: '#7d4a74',
+    portraitUrl: getPokemonPortraitUrl('063-ditto.png'),
   },
   {
     key: 'eevee',
-    name: 'Eevee',
+    name: '伊布',
     background: '#d8c3a4',
     accent: '#855f37',
+    portraitUrl: getPokemonPortraitUrl('077-eevee.png'),
   },
   {
     key: 'pikachu',
-    name: 'Pikachu',
+    name: '皮卡丘',
     background: '#f4dc67',
     accent: '#9c6b13',
+    portraitUrl: getPokemonPortraitUrl('213-pikachu.png'),
   },
 ] as const;
 
@@ -64,4 +68,12 @@ export function findPokemonKeyByQuery(query: string): PokemonKey | null {
   );
 
   return normalizedQuery && partialMatches.length === 1 ? partialMatches[0].key : null;
+}
+
+function getPokemonPortraitUrl(fileName: string): string {
+  return `${normalizeBaseUrl(import.meta.env.BASE_URL)}assets/pokopia_image_sources/pokemon_portraits/${fileName}`;
+}
+
+function normalizeBaseUrl(baseUrl: string): string {
+  return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 }

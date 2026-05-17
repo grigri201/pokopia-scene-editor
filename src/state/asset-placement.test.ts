@@ -75,7 +75,7 @@ describe('asset placement command', () => {
   });
 
   it('blocks incompatible areas and locked layers without mutating scene state', () => {
-    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'wooden-floor', 'edit', now);
+    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'ditto-doll', 'edit', now);
     const lockedScene = {
       ...scene,
       buildingLevels: scene.buildingLevels.map((level) =>

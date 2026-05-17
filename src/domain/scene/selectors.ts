@@ -47,6 +47,17 @@ export interface FrontPreviewLayerContext extends PreviewLayerContext {
   totalInstanceCount: number;
 }
 
+export interface FrontProjectionCellContext {
+  id: string;
+  x: number;
+  areaType: AreaType;
+  mainBoundary: boolean;
+  buildingLevel: PreviewLayerContext;
+  tileInstances: TileInstance[];
+  projectedInstance: TileInstance | null;
+  skillInstance: TileInstance | null;
+}
+
 export interface PreviewCanvasCellContext {
   id: string;
   coordinate: GridCoordinate;
@@ -215,6 +226,39 @@ export function getAllVisibleFrontPreviewContexts(scene: SceneDocument): FrontPr
   return buildFrontPreviewLayerContexts(scene, getVisibleBuildingLevelContextsInRenderOrder(scene));
 }
 
+export function getAllVisibleFrontProjectionCellContexts(scene: SceneDocument): FrontProjectionCellContext[] {
+  const dimensions = getSceneDimensions(scene);
+  const visibleLevels = [...getVisibleBuildingLevelContexts(scene)].sort(
+    (left, right) => right.levelNumber - left.levelNumber,
+  );
+  const xCoordinates = Array.from({ length: dimensions.canvasSize.width }, (_, x) => x);
+
+  return visibleLevels.flatMap((level) =>
+    xCoordinates.map((x) => {
+      const tileInstances = scene.tileInstances
+        .filter((instance) => instance.buildingLevelId === level.id && instance.coordinate.x === x)
+        .sort((left, right) => left.coordinate.y - right.coordinate.y);
+      const projectedInstance = tileInstances.at(-1) ?? null;
+      const skillInstance = tileInstances.filter((instance) => instance.requiresSkill).at(-1) ?? null;
+      const projectionAreaCoordinate = projectedInstance?.coordinate ?? {
+        x,
+        y: Math.min(dimensions.outerPadding, dimensions.canvasSize.height - 1),
+      };
+
+      return {
+        id: `${level.id}-${x}`,
+        x,
+        areaType: calculateAreaType(projectionAreaCoordinate, dimensions),
+        mainBoundary: isFrontProjectionBoundaryColumn(x, dimensions),
+        buildingLevel: level,
+        tileInstances,
+        projectedInstance,
+        skillInstance,
+      };
+    }),
+  );
+}
+
 export function getCurrentLayerPreviewCellContexts(
   scene: SceneDocument,
   activeBuildingLevelId = scene.workspaceState.currentBuildingLevelId,
@@ -336,6 +380,10 @@ function getPreviewLevelHeightPercent(levelNumber: number, maxLevelNumber: numbe
   }
 
   return Math.min(100, Math.max(28, 28 + (levelNumber / maxLevelNumber) * 72));
+}
+
+function isFrontProjectionBoundaryColumn(x: number, dimensions: SceneDimensions): boolean {
+  return x === dimensions.outerPadding || x === dimensions.outerPadding + dimensions.sceneSize.width - 1;
 }
 
 function assertUniqueBuildingLevelIds(levels: readonly BuildingLevel[]): void {

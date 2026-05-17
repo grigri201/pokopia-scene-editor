@@ -1,26 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  getCellContext,
-  getAllVisibleFrontPreviewContexts,
-  getAllVisiblePreviewCellContexts,
-  getCurrentLayerFrontPreviewContexts,
+  getAllVisibleFrontProjectionCellContexts,
   getCurrentLayerPreviewCellContexts,
-  getPreviewInspectorContext,
-  getVisibleBuildingLevelContextsInRenderOrder,
+  type FrontProjectionCellContext,
   type GridCoordinate,
   type PreviewCanvasCellContext,
-  type BuildingLevelContext,
   type SceneDocument,
-  type TileInstance,
 } from '../../domain/scene';
 import { getAssetById, getAssetSkillMarkerLabel } from '../../domain/assets';
 import {
   getUiPreferencesStorage,
   readUiPreferencesFromStorage,
   writePreviewDisplayOptionsToStorage,
-  writePreviewLayerScopePreferenceToStorage,
   type PreviewDisplayOptions,
-  type PreviewLayerScope,
 } from '../../io';
 
 interface PreviewInspectorProps {
@@ -35,86 +27,33 @@ export function PreviewInspector({
   scene,
   activeBuildingLevelId,
   selectedCoordinate,
-  selectedInstanceId,
   readOnly,
 }: PreviewInspectorProps) {
+  const frontScrollRef = useRef<HTMLDivElement | null>(null);
+  const [frontScrollHints, setFrontScrollHints] = useState({
+    canScrollUp: false,
+    canScrollDown: false,
+  });
   const [initialPreviewPreferences] = useState(() =>
     readUiPreferencesFromStorage(getUiPreferencesStorage()).preview,
-  );
-  const [previewCoordinate, setPreviewCoordinate] = useState<GridCoordinate | null>(selectedCoordinate);
-  const [previewZoom, setPreviewZoom] = useState(1);
-  const [previewPan, setPreviewPan] = useState({ x: 0, y: 0 });
-  const [previewScope, setPreviewScopeState] = useState<PreviewLayerScope>(
-    initialPreviewPreferences.layerScope,
   );
   const [displayOptions, setDisplayOptions] = useState<PreviewDisplayOptions>(
     initialPreviewPreferences.displayOptions,
   );
-  const previewContext = getPreviewInspectorContext(scene, activeBuildingLevelId);
-  const currentLayerPreviewCells = getCurrentLayerPreviewCellContexts(scene, activeBuildingLevelId);
-  const allVisiblePreviewCells = getAllVisiblePreviewCellContexts(scene);
-  const currentLayerFrontPreviewLevels = getCurrentLayerFrontPreviewContexts(scene, activeBuildingLevelId);
-  const allVisibleFrontPreviewLevels = getAllVisibleFrontPreviewContexts(scene);
-  const visibleLevelsInRenderOrder = getVisibleBuildingLevelContextsInRenderOrder(scene);
-  const topPreviewCells = previewScope === 'current-layer' ? currentLayerPreviewCells : allVisiblePreviewCells;
-  const topPreviewInstances = topPreviewCells.flatMap((cell) => cell.tileInstances);
-  const frontPreviewLevels = previewScope === 'current-layer'
-    ? currentLayerFrontPreviewLevels
-    : allVisibleFrontPreviewLevels;
-  const frontPreviewInstanceCount = frontPreviewLevels.reduce(
-    (instanceCount, level) => instanceCount + level.totalInstanceCount,
-    0,
-  );
-  const selectedContext = selectedCoordinate && previewContext.activeLevel.visible
-    ? getCellContext(scene, selectedCoordinate, activeBuildingLevelId)
-    : null;
-  const previewCell = previewCoordinate
-    ? topPreviewCells.find(
-        (cell) => cell.coordinate.x === previewCoordinate.x && cell.coordinate.y === previewCoordinate.y,
-      ) ?? null
-    : null;
-  const selectedInstance =
-    selectedContext?.tileInstances.find((instance) => instance.instanceId === selectedInstanceId) ??
-    selectedContext?.tileInstances.at(-1) ??
-    null;
-  const previewInstance = previewCell?.hidden ? null : previewCell?.tileInstances.at(-1) ?? null;
-  const topViewSummary = previewScope === 'current-layer'
-    ? `${topPreviewInstances.length} current-layer item${topPreviewInstances.length === 1 ? '' : 's'}`
-    : `${topPreviewInstances.length} visible item${topPreviewInstances.length === 1 ? '' : 's'} across ${
-        visibleLevelsInRenderOrder.length
-      } layer${visibleLevelsInRenderOrder.length === 1 ? '' : 's'}`;
-  const frontViewSummary = `${frontPreviewLevels.length} visible layer${frontPreviewLevels.length === 1 ? '' : 's'}, ${
-    frontPreviewInstanceCount
-  } visible item${frontPreviewInstanceCount === 1 ? '' : 's'}`;
-  const layerSummary = previewScope === 'current-layer'
-    ? formatLevelSummary(previewContext.activeLevel)
-    : visibleLevelsInRenderOrder.length > 0
-      ? visibleLevelsInRenderOrder.map(formatLevelSummary).join(' → ')
-      : 'No visible layers';
-  const scopeSummary = previewScope === 'current-layer' ? 'Current layer preview' : 'All visible layers preview';
-  const topPreviewSurfaceLabel = `${scopeSummary}, ${layerSummary}, ${topViewSummary}`;
-  const scopeControlLabel = previewScope === 'current-layer' ? '当前层' : '全部可见层';
-  const frontPreviewMode = readOnly
-    ? `${scopeControlLabel} read-only preview`
-    : `${scopeControlLabel} derived preview`;
+  const currentLayerCells = getCurrentLayerPreviewCellContexts(scene, activeBuildingLevelId);
+  const frontProjectionCells = getAllVisibleFrontProjectionCellContexts(scene);
+  const frontProjectionLevelCount = new Set(frontProjectionCells.map((cell) => cell.buildingLevel.id)).size;
+  const hasFrontOverflowingLevels = frontProjectionLevelCount > 7;
+  const frontScrollCanUp = frontScrollHints.canScrollUp;
+  const frontScrollCanDown = frontScrollHints.canScrollDown || (hasFrontOverflowingLevels && !frontScrollCanUp);
   const selectedSummary = selectedCoordinate
-    ? previewContext.activeLevel.visible
-      ? `${selectedCoordinate.x},${selectedCoordinate.y}${
-          selectedInstance ? ` · ${getInstanceLabel(selectedInstance.assetId)}` : ''
-        }`
-      : `${selectedCoordinate.x},${selectedCoordinate.y} · hidden layer`
+    ? `${selectedCoordinate.x},${selectedCoordinate.y}`
     : 'No selection';
-  const previewFocusSummary = previewCoordinate
-    ? previewCell?.hidden
-      ? `${previewCoordinate.x},${previewCoordinate.y} · hidden layer`
-      : `${previewCoordinate.x},${previewCoordinate.y}${
-          previewInstance ? ` · ${getInstanceLabel(previewInstance.assetId)}` : ''
-        }`
-    : 'No preview focus';
-
-  useEffect(() => {
-    setPreviewCoordinate(selectedCoordinate);
-  }, [selectedCoordinate?.x, selectedCoordinate?.y]);
+  const topItemSummary = `${currentLayerCells.filter((cell) => !cell.hidden && cell.tileInstances.length > 0).length} current-layer preview items`;
+  const frontItemSummary = `${frontProjectionCells.reduce(
+    (total, cell) => total + cell.tileInstances.length,
+    0,
+  )} visible items projected across ${frontProjectionLevelCount} layers`;
 
   const persistDisplayOption = (key: keyof PreviewDisplayOptions) => {
     setDisplayOptions((currentOptions) => {
@@ -128,260 +67,305 @@ export function PreviewInspector({
     });
   };
 
-  const setPreviewLayerScope = (layerScope: PreviewLayerScope) => {
-    setPreviewScopeState(layerScope);
-    writePreviewLayerScopePreferenceToStorage(getUiPreferencesStorage(), layerScope);
-  };
+  const syncFrontScrollHints = useCallback(() => {
+    const scrollElement = frontScrollRef.current;
+    if (!scrollElement) {
+      return;
+    }
+
+    const maxScrollTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+    const nextHints = {
+      canScrollUp: scrollElement.scrollTop > 1,
+      canScrollDown: scrollElement.scrollTop < maxScrollTop - 1,
+    };
+
+    setFrontScrollHints((currentHints) =>
+      currentHints.canScrollUp === nextHints.canScrollUp &&
+      currentHints.canScrollDown === nextHints.canScrollDown
+        ? currentHints
+        : nextHints,
+    );
+  }, []);
+
+  useEffect(() => {
+    const scrollElement = frontScrollRef.current;
+    if (!scrollElement) {
+      return undefined;
+    }
+
+    const frame = requestAnimationFrame(syncFrontScrollHints);
+    const ResizeObserverCtor = typeof ResizeObserver === 'undefined' ? null : ResizeObserver;
+    const resizeObserver = ResizeObserverCtor ? new ResizeObserver(syncFrontScrollHints) : null;
+    resizeObserver?.observe(scrollElement);
+    if (scrollElement.firstElementChild) {
+      resizeObserver?.observe(scrollElement.firstElementChild);
+    }
+
+    return () => {
+      cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+    };
+  }, [
+    syncFrontScrollHints,
+    frontProjectionCells.length,
+    frontProjectionLevelCount,
+    displayOptions.grid,
+    displayOptions.mainBoundary,
+    displayOptions.skillMarkers,
+  ]);
 
   return (
-    <aside className="panel preview-panel" aria-label="Preview inspector">
-      <div className="panel__header">
-        <h2>检查器预览</h2>
-        <span>{readOnly ? 'View only' : 'Top / Front'}</span>
+    <aside className="panel preview-panel inspector-panel" aria-label="检查器预览">
+      <div className="floating-preview-head">
+        <h2>检查器</h2>
+        <span className="sr-only">{readOnly ? 'View only' : 'Top / Front'}</span>
       </div>
-      <div className="preview-grid" aria-label="Dual preview inspector">
-        <div className="preview-display-options" role="group" aria-label="Preview display options">
-          <button
-            type="button"
-            aria-label="Show preview grid"
-            aria-pressed={displayOptions.grid}
-            onClick={() => persistDisplayOption('grid')}
-          >
-            网格
-          </button>
-          <button
-            type="button"
-            aria-label="Show preview main boundary"
-            aria-pressed={displayOptions.mainBoundary}
-            title="显示主体边界"
-            onClick={() => persistDisplayOption('mainBoundary')}
-          >
-            边界
-          </button>
-          <button
-            type="button"
-            aria-label="Show preview skill markers"
-            aria-pressed={displayOptions.skillMarkers}
-            title="显示技能标记"
-            onClick={() => persistDisplayOption('skillMarkers')}
-          >
-            技能
-          </button>
-        </div>
-        <div className="preview-tile" aria-label="Top view preview">
-          <span>Top</span>
-          <div className="preview-scope-control" role="group" aria-label="Preview layer scope">
-            <button
-              type="button"
-              aria-label="Preview current layer"
-              aria-pressed={previewScope === 'current-layer'}
-              title="预览当前层"
-              onClick={() => setPreviewLayerScope('current-layer')}
-            >
-              当前
-            </button>
-            <button
-              type="button"
-              aria-label="Preview all visible layers"
-              aria-pressed={previewScope === 'all-visible-layers'}
-              title="预览全部可见层"
-              onClick={() => setPreviewLayerScope('all-visible-layers')}
-            >
-              全部
-            </button>
-          </div>
+      <div className="preview-hidden-controls sr-only" aria-label="Preview display options">
+        <button
+          type="button"
+          aria-label="Show preview grid"
+          aria-pressed={displayOptions.grid}
+          onClick={() => persistDisplayOption('grid')}
+        >
+          网格
+        </button>
+        <button
+          type="button"
+          aria-label="Show preview main boundary"
+          aria-pressed={displayOptions.mainBoundary}
+          onClick={() => persistDisplayOption('mainBoundary')}
+        >
+          边界
+        </button>
+        <button
+          type="button"
+          aria-label="Show preview skill markers"
+          aria-pressed={displayOptions.skillMarkers}
+          onClick={() => persistDisplayOption('skillMarkers')}
+        >
+          技能
+        </button>
+      </div>
+      <div className="preview-pair">
+        <section className="preview-pane is-scrollable">
+          <h3>正视图</h3>
           <div
-            className="mini-grid"
-            aria-label={`Top preview surface ${topPreviewSurfaceLabel}`}
-            data-preview-grid-visible={displayOptions.grid}
-            data-preview-main-boundary-visible={displayOptions.mainBoundary}
-            data-preview-skill-markers-visible={displayOptions.skillMarkers}
-            data-zoom={previewZoom}
-            data-pan-x={previewPan.x}
-            data-pan-y={previewPan.y}
+            className="preview-scroll-shell"
+            data-front-scroll-can-up={frontScrollCanUp}
+            data-front-scroll-can-down={frontScrollCanDown}
           >
+            <span className="preview-scroll-cue preview-scroll-cue--up" aria-hidden="true">
+              <ScrollArrowUpIcon />
+            </span>
             <div
-              className="mini-grid__cells"
-              style={{
-                transform: `translate(${previewPan.x}px, ${previewPan.y}px) scale(${previewZoom})`,
-              }}
+              className="preview-scroll"
+              aria-label="正视图滚动区域"
+              role="region"
+              tabIndex={0}
+              data-front-visible-level-count={frontProjectionLevelCount}
+              data-front-overflowing-levels={hasFrontOverflowingLevels}
+              data-front-scroll-window-layers="7"
+              onScroll={syncFrontScrollHints}
+              ref={frontScrollRef}
             >
-              {topPreviewCells.map((cell) => {
-                const visibleCellInstances = cell.hidden ? [] : cell.tileInstances;
-                const topInstance = visibleCellInstances.at(-1) ?? null;
-                const skillInstances = visibleCellInstances.filter((instance) => instance.requiresSkill);
-                const topSkillInstance = skillInstances.at(-1) ?? null;
-                const skillMarkerLabel = topSkillInstance
-                  ? getAssetSkillMarkerLabel(topSkillInstance.skillType)
-                  : '';
-                const assetStackLabel = getPreviewAssetStackLabel(cell);
-                const lockedLayerCount = cell.instanceLayerContexts.filter((level) => level.locked).length;
-
-                return (
-                  <button
-                    type="button"
-                    className="mini-grid__cell"
-                    aria-label={getPreviewCellLabel(cell, previewScope)}
-                    aria-pressed={coordinatesEqual(previewCoordinate, cell.coordinate)}
-                    data-preview-scope={previewScope}
-                    data-preview-coordinate={`${cell.coordinate.x},${cell.coordinate.y}`}
-                    data-preview-area={cell.areaType}
-                    data-preview-main-boundary={cell.mainBoundary}
-                    data-preview-main-boundary-visible={displayOptions.mainBoundary && cell.mainBoundary}
-                    data-preview-has-instance={visibleCellInstances.length > 0}
-                    data-preview-instance-count={visibleCellInstances.length}
-                    data-preview-layer-count={cell.instanceLayerContexts.length}
-                    data-preview-layer-stack={cell.instanceLayerContexts.map((level) => level.displayId).join(',')}
-                    data-preview-locked-layer-count={lockedLayerCount}
-                    data-preview-asset-stack={assetStackLabel}
-                    data-preview-asset-id={topInstance?.assetId ?? ''}
-                    data-preview-instance-id={topInstance?.instanceId ?? ''}
-                    data-preview-requires-skill={skillInstances.length > 0}
-                    data-preview-skill-marker-label={skillMarkerLabel}
-                    data-preview-skill-instance-id={topSkillInstance?.instanceId ?? ''}
-                    key={cell.id}
-                    onClick={() => setPreviewCoordinate(cell.coordinate)}
-                  >
-                    <span className="mini-grid__coordinate">
-                      {cell.coordinate.x},{cell.coordinate.y}
-                    </span>
-                    <span className="mini-grid__area">{cell.areaType === 'main' ? 'M' : 'O'}</span>
-                    {topInstance ? (
-                      <span className="mini-grid__asset">{getInstanceShortLabel(topInstance)}</span>
-                    ) : null}
-                    {topSkillInstance ? (
-                      <span
-                        className="mini-grid__skill"
-                        aria-label={`Top preview skill ${skillMarkerLabel}`}
-                        data-preview-skill-visible={displayOptions.skillMarkers}
-                      >
-                        {skillMarkerLabel}
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <dl className="preview-summary">
-            <div>
-              <dt>Scope</dt>
-              <dd aria-label="Top preview scope">{scopeSummary}</dd>
-            </div>
-            <div>
-              <dt>Layer</dt>
-              <dd aria-label="Top preview layer summary">{layerSummary}</dd>
-            </div>
-            <div>
-              <dt>Items</dt>
-              <dd aria-label="Top preview item summary">{topViewSummary}</dd>
-            </div>
-            <div>
-              <dt>Selected</dt>
-              <dd aria-label="Top preview selection summary">{selectedSummary}</dd>
-            </div>
-            <div>
-              <dt>Focus</dt>
-              <dd aria-label="Top preview local focus">{previewFocusSummary}</dd>
-            </div>
-            <div>
-              <dt>View</dt>
-              <dd aria-label="Top preview view state">
-                {Math.round(previewZoom * 100)}%, pan {previewPan.x},{previewPan.y}
-              </dd>
-            </div>
-          </dl>
-          <div className="preview-view-controls" aria-label="Top preview view controls">
-            <button type="button" aria-label="Zoom in preview" onClick={() => setPreviewZoom((zoom) => Math.min(2, zoom + 0.25))}>
-              +
-            </button>
-            <button type="button" aria-label="Zoom out preview" onClick={() => setPreviewZoom((zoom) => Math.max(1, zoom - 0.25))}>
-              -
-            </button>
-            <button type="button" aria-label="Pan preview left" onClick={() => setPreviewPan((pan) => ({ ...pan, x: Math.max(-16, pan.x - 4) }))}>
-              &lt;
-            </button>
-            <button type="button" aria-label="Pan preview right" onClick={() => setPreviewPan((pan) => ({ ...pan, x: Math.min(16, pan.x + 4) }))}>
-              &gt;
-            </button>
-          </div>
-        </div>
-        <div className="preview-tile" aria-label="Front view preview">
-          <span>Front</span>
-          <div className="height-bars" aria-hidden="true">
-            {frontPreviewLevels.map((level) => (
-              <span
-                data-active={level.id === activeBuildingLevelId}
-                data-preview-layer-id={level.id}
-                data-preview-layer-locked={level.locked}
-                key={level.id}
-                style={{ height: `${level.heightPercent}%` }}
+              <FrontProjectionGrid
+                ariaLabel="正视图预览"
+                cells={frontProjectionCells}
+                displayOptions={displayOptions}
               />
-            ))}
+            </div>
+            <span className="preview-scroll-cue preview-scroll-cue--down" aria-hidden="true">
+              <ScrollArrowDownIcon />
+            </span>
           </div>
-          <div
-            className="front-structure"
-            aria-label={`Front structure preview ${frontViewSummary}`}
-            data-front-rendering="structure-only"
-            data-front-scroll="independent"
-            data-front-grid-visible={displayOptions.grid}
-            data-front-main-boundary-visible={displayOptions.mainBoundary}
-            data-front-skill-markers-visible={displayOptions.skillMarkers}
-            role="list"
-          >
-            {frontPreviewLevels.length > 0 ? (
-              frontPreviewLevels.map((level) => (
-                <div
-                  className="front-structure__layer"
-                  aria-label={`${level.displayId} ${level.name}, height ${Math.round(level.heightPercent)}%, ${
-                    level.totalInstanceCount
-                  } item${level.totalInstanceCount === 1 ? '' : 's'}, main ${level.mainInstanceCount}, outer ${
-                    level.outerInstanceCount
-                  }, skill ${level.skillInstanceCount}, visible, ${level.locked ? 'locked' : 'unlocked'}${
-                    level.id === activeBuildingLevelId ? ', active' : ''
-                  }`}
-                  data-front-layer-id={level.id}
-                  data-front-layer-height={Math.round(level.heightPercent)}
-                  data-front-layer-main-count={level.mainInstanceCount}
-                  data-front-layer-outer-count={level.outerInstanceCount}
-                  data-front-layer-skill-count={level.skillInstanceCount}
-                  data-front-layer-skill-visible={displayOptions.skillMarkers && level.skillInstanceCount > 0}
-                  data-front-layer-locked={level.locked}
-                  key={level.id}
-                  role="listitem"
-                >
-                  <span className="front-structure__level">{level.displayId}</span>
-                  <span className="front-structure__height" style={{ inlineSize: `${level.heightPercent}%` }} />
-                  <span className="front-structure__area">main {level.mainInstanceCount}</span>
-                  <span className="front-structure__area">outer {level.outerInstanceCount}</span>
-                  <span className="front-structure__skill" data-front-skill-visible={displayOptions.skillMarkers}>
-                    skill {level.skillInstanceCount}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <div className="front-structure__empty" role="listitem" aria-label="Front structure empty">
-                No visible layers
-              </div>
-            )}
-          </div>
-          <dl className="preview-summary">
-            <div>
-              <dt>Scope</dt>
-              <dd aria-label="Front preview scope">{scopeSummary}</dd>
-            </div>
-            <div>
-              <dt>Levels</dt>
-              <dd aria-label="Front preview layer summary">{frontViewSummary}</dd>
-            </div>
-            <div>
-              <dt>Mode</dt>
-              <dd aria-label="Front preview mode">{frontPreviewMode}</dd>
-            </div>
-          </dl>
-        </div>
+        </section>
+        <section className="preview-pane">
+          <h3>俯视图</h3>
+          <PreviewGrid
+            ariaLabel="俯视图预览"
+            className="top-preview"
+            cellClassName="top-cell"
+            cells={currentLayerCells}
+            displayOptions={displayOptions}
+          />
+        </section>
       </div>
+      <dl className="sr-only">
+        <div>
+          <dt>Scope</dt>
+          <dd aria-label="Top preview scope">
+            Current layer top projection
+          </dd>
+        </div>
+        <div>
+          <dt>Items</dt>
+          <dd aria-label="Top preview item summary">{topItemSummary}</dd>
+        </div>
+        <div>
+          <dt>Selected</dt>
+          <dd aria-label="Top preview selection summary">{selectedSummary}</dd>
+        </div>
+        <div>
+          <dt>Mode</dt>
+          <dd aria-label="Front preview mode">
+            All visible layers front projection {readOnly ? 'read-only preview' : 'derived preview'}
+          </dd>
+        </div>
+        <div>
+          <dt>Items</dt>
+          <dd aria-label="Front preview item summary">{frontItemSummary}</dd>
+        </div>
+      </dl>
     </aside>
+  );
+}
+
+function ScrollArrowUpIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M4 10 8 6l4 4" />
+    </svg>
+  );
+}
+
+function ScrollArrowDownIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="m4 6 4 4 4-4" />
+    </svg>
+  );
+}
+
+function FrontProjectionGrid({
+  ariaLabel,
+  cells,
+  displayOptions,
+}: {
+  ariaLabel: string;
+  cells: FrontProjectionCellContext[];
+  displayOptions: PreviewDisplayOptions;
+}) {
+  return (
+    <div
+      className="front-preview"
+      aria-label={ariaLabel}
+      data-preview-grid-visible={displayOptions.grid}
+      data-preview-main-boundary-visible={displayOptions.mainBoundary}
+      data-preview-skill-markers-visible={displayOptions.skillMarkers}
+    >
+      {cells.map((cell) => {
+        const projectionInstance = cell.projectedInstance;
+        const projectionAsset = getAssetById(projectionInstance?.assetId);
+        const skillMarkerLabel = cell.skillInstance
+          ? getAssetSkillMarkerLabel(cell.skillInstance.skillType)
+          : '';
+        const cellLabel = projectionInstance
+          ? `${cell.buildingLevel.displayId} x${cell.x}, projected y${projectionInstance.coordinate.y} ${getInstanceLabel(projectionInstance.assetId)}`
+          : `${cell.buildingLevel.displayId} x${cell.x}`;
+
+        return (
+          <span
+            className={[
+              'front-cell',
+              cell.areaType === 'outer' ? 'outer' : '',
+              projectionInstance ? 'fill' : '',
+              cell.skillInstance && displayOptions.skillMarkers ? 'skill' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            aria-label={cellLabel}
+            data-front-x={cell.x}
+            data-front-level-id={cell.buildingLevel.id}
+            data-front-level-display-id={cell.buildingLevel.displayId}
+            data-front-projected-y={projectionInstance?.coordinate.y ?? ''}
+            data-preview-area={cell.areaType}
+            data-preview-main-boundary={cell.mainBoundary}
+            data-preview-main-boundary-visible={displayOptions.mainBoundary && cell.mainBoundary}
+            data-preview-has-instance={cell.tileInstances.length > 0}
+            data-preview-instance-count={cell.tileInstances.length}
+            data-preview-asset-id={projectionInstance?.assetId ?? ''}
+            data-preview-instance-id={projectionInstance?.instanceId ?? ''}
+            data-preview-requires-skill={Boolean(cell.skillInstance)}
+            data-preview-skill-marker-label={skillMarkerLabel}
+            key={cell.id}
+          >
+            {projectionAsset?.thumbnailUrl ? (
+              <img src={projectionAsset.thumbnailUrl} alt="" />
+            ) : projectionInstance ? (
+              getInstanceShortLabel(projectionInstance.assetId)
+            ) : null}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function PreviewGrid({
+  ariaLabel,
+  className,
+  cellClassName,
+  cells,
+  displayOptions,
+}: {
+  ariaLabel: string;
+  className: string;
+  cellClassName: string;
+  cells: PreviewCanvasCellContext[];
+  displayOptions: PreviewDisplayOptions;
+}) {
+  return (
+    <div
+      className={className}
+      aria-label={ariaLabel}
+      data-preview-grid-visible={displayOptions.grid}
+      data-preview-main-boundary-visible={displayOptions.mainBoundary}
+      data-preview-skill-markers-visible={displayOptions.skillMarkers}
+    >
+      {cells.map((cell) => {
+        const visibleCellInstances = cell.hidden ? [] : cell.tileInstances;
+        const topInstance = visibleCellInstances.at(-1) ?? null;
+        const topAsset = getAssetById(topInstance?.assetId);
+        const skillInstance = visibleCellInstances.find((instance) => instance.requiresSkill) ?? null;
+        const skillMarkerLabel = skillInstance
+          ? getAssetSkillMarkerLabel(skillInstance.skillType)
+          : '';
+        const cellLabel = topInstance
+          ? `${cell.coordinate.x},${cell.coordinate.y} ${getInstanceLabel(topInstance.assetId)}`
+          : `${cell.coordinate.x},${cell.coordinate.y}`;
+
+        return (
+          <span
+            className={[
+              cellClassName,
+              cell.areaType === 'outer' ? 'outer' : '',
+              topInstance ? 'fill' : '',
+              skillInstance && displayOptions.skillMarkers ? 'skill' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            aria-label={cellLabel}
+            data-preview-coordinate={`${cell.coordinate.x},${cell.coordinate.y}`}
+            data-preview-area={cell.areaType}
+            data-preview-main-boundary={cell.mainBoundary}
+            data-preview-main-boundary-visible={displayOptions.mainBoundary && cell.mainBoundary}
+            data-preview-has-instance={visibleCellInstances.length > 0}
+            data-preview-instance-count={visibleCellInstances.length}
+            data-preview-asset-id={topInstance?.assetId ?? ''}
+            data-preview-instance-id={topInstance?.instanceId ?? ''}
+            data-preview-requires-skill={Boolean(skillInstance)}
+            data-preview-skill-marker-label={skillMarkerLabel}
+            key={`${className}-${cell.id}`}
+          >
+            {topAsset?.thumbnailUrl ? (
+              <img src={topAsset.thumbnailUrl} alt="" />
+            ) : topInstance ? (
+              getInstanceShortLabel(topInstance.assetId)
+            ) : null}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
@@ -389,58 +373,6 @@ function getInstanceLabel(assetId: string): string {
   return getAssetById(assetId)?.name ?? `Unknown asset: ${assetId}`;
 }
 
-function getInstanceShortLabel(instance: TileInstance): string {
-  return getAssetById(instance.assetId)?.name.slice(0, 1) ?? '?';
-}
-
-function getPreviewCellLabel(cell: PreviewCanvasCellContext, previewScope: PreviewLayerScope): string {
-  const coordinateLabel = `Top preview cell ${cell.coordinate.x},${cell.coordinate.y}`;
-  const boundarySuffix = cell.mainBoundary ? ', main boundary' : '';
-
-  if (cell.hidden) {
-    return `${coordinateLabel}, ${cell.areaType}, hidden layer${boundarySuffix}`;
-  }
-
-  const topInstance = cell.tileInstances.at(-1);
-  const topSkillInstance = cell.tileInstances.filter((instance) => instance.requiresSkill).at(-1) ?? null;
-  const skillSuffix = topSkillInstance
-    ? `, skill ${getAssetSkillMarkerLabel(topSkillInstance.skillType)}`
-    : '';
-  const layerSuffix = previewScope === 'all-visible-layers' && cell.instanceLayerContexts.length > 0
-    ? `, layers ${cell.instanceLayerContexts.map(formatLevelSummary).join(' → ')}`
-    : '';
-  const assetStackSuffix = previewScope === 'all-visible-layers' && cell.tileInstances.length > 1
-    ? `, asset stack ${getPreviewAssetStackLabel(cell)}`
-    : '';
-
-  return `${coordinateLabel}, ${cell.areaType}, ${
-    topInstance
-      ? `${getInstanceLabel(topInstance.assetId)}, ${cell.tileInstances.length} item${
-          cell.tileInstances.length === 1 ? '' : 's'
-        }`
-      : 'empty'
-  }${layerSuffix}${assetStackSuffix}${skillSuffix}${boundarySuffix}`;
-}
-
-function coordinatesEqual(left: GridCoordinate | null, right: GridCoordinate): boolean {
-  return left?.x === right.x && left.y === right.y;
-}
-
-function formatLevelSummary(
-  level: Pick<BuildingLevelContext, 'name'> & Partial<Pick<BuildingLevelContext, 'displayId' | 'levelNumber' | 'locked'>>,
-): string {
-  const lockState = typeof level.locked === 'boolean' ? ` ${level.locked ? 'locked' : 'unlocked'}` : '';
-
-  return `${level.displayId ?? `L${level.levelNumber}`} ${level.name}${lockState}`;
-}
-
-function getPreviewAssetStackLabel(cell: PreviewCanvasCellContext): string {
-  return cell.tileInstances
-    .map((instance) => {
-      const level = cell.instanceLayerContexts.find((candidate) => candidate.id === instance.buildingLevelId);
-      const levelLabel = level ? `${level.displayId} ${level.locked ? 'locked' : 'unlocked'}` : instance.buildingLevelId;
-
-      return `${levelLabel} ${getInstanceLabel(instance.assetId)}`;
-    })
-    .join(' → ');
+function getInstanceShortLabel(assetId: string): string {
+  return getAssetById(assetId)?.name.slice(0, 1) ?? '?';
 }

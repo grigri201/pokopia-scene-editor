@@ -38,10 +38,10 @@ describe('UI preferences storage', () => {
     expect(() =>
       writeAssetFilterPreferencesToStorage(throwingWriteStorage, {
         query: 'roof',
-        category: 'wall',
+        category: 'roof',
         area: 'outer',
         favoriteOnly: true,
-        skill: '耕地',
+        skill: 'skill-candidate',
       }),
     ).not.toThrow();
   });
@@ -49,18 +49,18 @@ describe('UI preferences storage', () => {
   it('writes and restores asset filter preferences from an isolated namespace', () => {
     const preferences = writeAssetFilterPreferencesToStorage(window.localStorage, {
       query: 'roof',
-      category: 'wall',
+      category: 'roof',
       area: 'outer',
       favoriteOnly: true,
-      skill: '耕地',
+      skill: 'skill-candidate',
     });
 
     expect(preferences.assetFilters).toEqual({
       query: 'roof',
-      category: 'wall',
+      category: 'roof',
       area: 'outer',
       favoriteOnly: true,
-      skill: '耕地',
+      skill: 'skill-candidate',
     });
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).not.toBeNull();
     expect(readUiPreferencesFromStorage(window.localStorage).assetFilters).toEqual(preferences.assetFilters);
@@ -69,7 +69,7 @@ describe('UI preferences storage', () => {
   it('merges preview display options and layer scope without replacing asset filters', () => {
     writeAssetFilterPreferencesToStorage(window.localStorage, {
       query: 'plant',
-      category: 'plant',
+      category: 'decor',
       area: 'main',
       favoriteOnly: false,
       skill: '树叶',
@@ -83,7 +83,7 @@ describe('UI preferences storage', () => {
 
     expect(preferences.assetFilters).toMatchObject({
       query: 'plant',
-      category: 'plant',
+      category: 'decor',
       area: 'main',
       skill: '树叶',
     });

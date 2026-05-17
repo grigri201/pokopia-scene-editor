@@ -1,5 +1,5 @@
-import type { FocusEvent, KeyboardEvent } from 'react';
-import { getAssetById, getAssetSkillMarkerLabel } from '../../domain/assets';
+import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
+import { getAssetById, getAssetSkillMarkerIconUrl, getAssetSkillMarkerLabel } from '../../domain/assets';
 import type { BuildingLevel, CanvasCellContext, GridCoordinate, GridSize } from '../../domain/scene';
 import { moveCoordinate } from '../../state';
 
@@ -56,6 +56,7 @@ export function SceneCanvas({
             const targeted = coordinatesEqual(targetCoordinate, coordinate);
             const visibleInstances = cell.buildingLevel.visible ? cell.tileInstances : [];
             const topInstance = visibleInstances.at(-1) ?? null;
+            const topAsset = getAssetById(topInstance?.assetId);
             const topAssetLabel = topInstance ? getInstanceDisplayLabel(topInstance.assetId) : null;
             const stackCount = visibleInstances.length;
             const otherLayerInstanceCount = cell.otherVisibleLayerInstances.length;
@@ -63,10 +64,15 @@ export function SceneCanvas({
             const topSkillInstance = skillInstances.at(-1) ?? null;
             const hasSkillInstance = skillInstances.length > 0;
             const skillMarkerLabel = topSkillInstance ? getAssetSkillMarkerLabel(topSkillInstance.skillType) : null;
+            const skillMarkerIconUrl = topSkillInstance
+              ? getAssetSkillMarkerIconUrl(topSkillInstance.skillType)
+              : null;
+            const skillMarkerTooltip = topSkillInstance?.skillType ?? null;
             const skillStackLabel = topSkillInstance
               ? getSkillStackLabel(skillInstances.length, topSkillInstance.assetId, skillMarkerLabel)
               : null;
-            const rotationLabel = topInstance?.rotationDegrees ? `${topInstance.rotationDegrees} deg` : null;
+            const rotationDegrees = topInstance?.rotationDegrees ?? 0;
+            const rotationLabel = rotationDegrees ? `${rotationDegrees}` : null;
             const dyeColor = topInstance?.dyeColor ?? null;
 
             return (
@@ -80,7 +86,6 @@ export function SceneCanvas({
                   !cell.buildingLevel.visible ? 'scene-cell--hidden-layer' : '',
                   cell.buildingLevel.locked ? 'scene-cell--locked-layer' : '',
                   !editable ? 'scene-cell--non-editable' : '',
-                  otherLayerInstanceCount > 0 ? 'scene-cell--has-other-layers' : '',
                   selected ? 'scene-cell--selected' : '',
                   targeted ? 'scene-cell--targeted' : '',
                 ]
@@ -99,8 +104,6 @@ export function SceneCanvas({
                   rotationLabel ? `, rotated ${rotationLabel}` : ''
                 }${dyeColor ? `, dyed ${dyeColor}` : ''}${
                   skillStackLabel ? `, ${skillStackLabel}` : ''
-                }${
-                  selected ? ', selected' : ''
                 }`}
                 onClick={() =>
                   handleCellPointerSelect(readOnly, coordinate, onSelectCoordinate, onViewCoordinate)
@@ -147,19 +150,37 @@ export function SceneCanvas({
                 </span>
                 <span className="cell-area">{cell.areaType}</span>
                 <span className="cell-placeable">{readOnly ? 'view' : editable ? 'place' : stateLabel}</span>
-                {topAssetLabel ? <span className="cell-asset-label">{topAssetLabel}</span> : null}
+                {topAsset ? (
+                  <span className="cell-asset-token">
+                    <img src={topAsset.thumbnailUrl} alt="" className="cell-asset-thumb" />
+                    <span className="sr-only">{topAssetLabel}</span>
+                  </span>
+                ) : topAssetLabel ? (
+                  <span className="cell-asset-label">{topAssetLabel}</span>
+                ) : null}
                 {stackCount > 1 ? <span className="cell-stack-count">{stackCount}x</span> : null}
-                {otherLayerInstanceCount > 0 ? (
+                {rotationLabel ? (
                   <span
-                    className="cell-other-layer-count"
-                    aria-label={`${otherLayerInstanceCount} item${
-                      otherLayerInstanceCount === 1 ? '' : 's'
-                    } on other visible layers`}
+                    className="cell-rotation-marker has-icon-tooltip"
+                    data-tooltip={`旋转 ${rotationLabel} 度`}
+                    title={`旋转 ${rotationLabel} 度`}
+                    aria-label={`旋转 ${rotationLabel} 度`}
                   >
-                    +{otherLayerInstanceCount}
+                    <svg viewBox="0 0 28 24" aria-hidden="true">
+                      <path
+                        className="cell-rotation-marker__blob"
+                        d="M4.4 13.1C2.7 8.4 5.4 4.3 10.1 4.6c1.4-2.4 5.2-2.3 6.4.1 4.2-.4 7.6 3.1 6.6 7.5 1.8 2.7-.1 6.3-3.6 6.5-2.6 2.4-7.1 2.2-9.2-.2-3.6.7-6.9-2-5.9-5.4Z"
+                      />
+                      <g
+                        className="cell-rotation-marker__arrow"
+                        style={{ '--rotation': `${rotationDegrees}deg` } as CSSProperties}
+                      >
+                        <path d="M14 17.5v-11" />
+                        <path d="m9.7 10.8 4.3-4.3 4.3 4.3" />
+                      </g>
+                    </svg>
                   </span>
                 ) : null}
-                {rotationLabel ? <span className="cell-rotation-marker">{rotationLabel}</span> : null}
                 {dyeColor ? (
                   <span
                     className="cell-dye-marker"
@@ -168,11 +189,19 @@ export function SceneCanvas({
                   />
                 ) : null}
                 {hasSkillInstance ? (
-                  <span className="cell-skill-marker" aria-label={skillStackLabel ?? 'Skill marker'}>
-                    {skillMarkerLabel}
+                  <span
+                    className="cell-skill-marker has-icon-tooltip"
+                    aria-label={skillStackLabel ?? 'Skill marker'}
+                    data-tooltip={skillMarkerTooltip ?? skillMarkerLabel ?? '技能'}
+                    title={skillMarkerTooltip ?? skillMarkerLabel ?? '技能'}
+                  >
+                    {skillMarkerIconUrl ? (
+                      <img src={skillMarkerIconUrl} alt="" />
+                    ) : (
+                      <span className="cell-skill-marker__fallback">{skillMarkerLabel}</span>
+                    )}
                   </span>
                 ) : null}
-                {selected ? <span className="cell-selected-cue">selected</span> : null}
               </button>
             );
           })}

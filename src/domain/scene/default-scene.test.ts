@@ -67,7 +67,7 @@ describe('default scene document', () => {
     expect(() =>
       createDefaultSceneDocument({
         sceneId: 'scene-test',
-        sceneName: 'No size label',
+        sceneName: '   ',
         now: '2026-05-16T06:20:00.000Z',
       }),
     ).toThrow(RangeError);

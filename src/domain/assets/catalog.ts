@@ -1,7 +1,7 @@
 import type { AreaType } from '../scene';
 import type { PokemonKey } from './pokemon';
 
-export type AssetCategory = 'floor' | 'plant' | 'wall' | 'decor' | 'utility';
+export type AssetCategory = 'furniture' | 'decor' | 'ground' | 'building' | 'roof';
 export const assetSkillTypes = ['树叶', '耕地', '储水'] as const;
 export type ConcreteAssetSkillType = (typeof assetSkillTypes)[number];
 export type AssetSkillType = ConcreteAssetSkillType | null;
@@ -25,22 +25,28 @@ export interface AssetDefinition {
 }
 
 export const assetCategoryLabels: Record<AssetCategory, string> = {
-  floor: 'Floor',
-  plant: 'Plant',
-  wall: 'Wall',
-  decor: 'Decor',
-  utility: 'Utility',
+  furniture: '家具',
+  decor: '装饰',
+  ground: '地块',
+  building: '建筑',
+  roof: '屋顶',
 };
 
 export const areaLabels: Record<AreaType, string> = {
-  main: 'Main',
-  outer: 'Outer',
+  main: '主体',
+  outer: '外围',
 };
 
 export const assetSkillMarkerLabels: Record<ConcreteAssetSkillType, string> = {
   树叶: '树',
   耕地: '耕',
   储水: '水',
+};
+
+const assetSkillMarkerIconPaths: Record<ConcreteAssetSkillType, string> = {
+  树叶: 'assets/pokopia_image_sources/item_portraits/0050-leaf.png',
+  耕地: 'assets/pokopia_image_sources/decorative_item_portraits/171-farm-soil-ridge.webp',
+  储水: 'assets/pokopia_image_sources/item_portraits/0508-water-basin.png',
 };
 
 const legacyAssetSkillTypeMap: Record<string, ConcreteAssetSkillType> = {
@@ -52,45 +58,45 @@ const legacyAssetSkillTypeMap: Record<string, ConcreteAssetSkillType> = {
 export const assetCatalog: readonly AssetDefinition[] = [
   {
     assetId: 'wooden-floor',
-    officialId: '001',
-    name: 'Wooden Floor',
-    category: 'floor',
-    tags: ['floor', 'wood', 'base'],
-    applicableAreas: ['main'],
-    favoritePokemonKeys: ['eevee'],
+    officialId: '390',
+    name: '白木栅栏',
+    category: 'decor',
+    tags: ['装饰', '通用', '可旋转'],
+    applicableAreas: ['main', 'outer'],
+    favoritePokemonKeys: ['pikachu', 'eevee'],
     defaultRequiresSkill: false,
     defaultSkillType: null,
     skillCandidate: false,
-    rotatable: false,
+    rotatable: true,
     stackable: false,
     dyeable: true,
-    thumbnailUrl: getAssetThumbnailUrl('wooden-floor.svg'),
-    thumbnailAlt: 'Wooden floor thumbnail',
+    thumbnailUrl: getAssetThumbnailUrl('0684-wooden-fencing.png'),
+    thumbnailAlt: '白木栅栏缩略图',
   },
   {
     assetId: 'garden-plant',
-    officialId: '014',
-    name: 'Garden Plant',
-    category: 'plant',
-    tags: ['plant', 'leaf', 'green'],
+    officialId: '1052',
+    name: '小型灌木',
+    category: 'decor',
+    tags: ['装饰', '植物'],
     applicableAreas: ['main', 'outer'],
-    favoritePokemonKeys: ['ditto', 'eevee'],
+    favoritePokemonKeys: ['pikachu', 'ditto', 'eevee'],
     defaultRequiresSkill: true,
     defaultSkillType: '树叶',
     skillCandidate: true,
     rotatable: false,
     stackable: true,
     dyeable: false,
-    thumbnailUrl: getAssetThumbnailUrl('garden-plant.svg'),
-    thumbnailAlt: 'Garden plant thumbnail',
+    thumbnailUrl: getAssetThumbnailUrl('0345-leafy-plant.png'),
+    thumbnailAlt: '小型灌木缩略图',
   },
   {
     assetId: 'outer-wall',
-    officialId: '027',
-    name: 'Outer Wall',
-    category: 'wall',
-    tags: ['wall', 'edge', 'outer'],
-    applicableAreas: ['outer'],
+    officialId: '717',
+    name: '石板路径',
+    category: 'ground',
+    tags: ['地块', '道路'],
+    applicableAreas: ['main', 'outer'],
     favoritePokemonKeys: ['pikachu'],
     defaultRequiresSkill: false,
     defaultSkillType: null,
@@ -98,59 +104,59 @@ export const assetCatalog: readonly AssetDefinition[] = [
     rotatable: true,
     stackable: false,
     dyeable: true,
-    thumbnailUrl: getAssetThumbnailUrl('outer-wall.svg'),
-    thumbnailAlt: 'Outer wall thumbnail',
+    thumbnailUrl: getAssetThumbnailUrl('0701-stepping-stones.png'),
+    thumbnailAlt: '石板路径缩略图',
   },
   {
     assetId: 'ditto-doll',
-    officialId: '039',
-    name: 'Ditto Doll',
-    category: 'decor',
-    tags: ['decor', 'ditto', 'cute'],
+    officialId: '047',
+    name: '木质长椅',
+    category: 'furniture',
+    tags: ['家具', '休憩'],
     applicableAreas: ['main'],
-    favoritePokemonKeys: ['ditto'],
+    favoritePokemonKeys: ['pikachu', 'ditto'],
     defaultRequiresSkill: false,
     defaultSkillType: null,
     skillCandidate: true,
     rotatable: true,
     stackable: true,
     dyeable: false,
-    thumbnailUrl: getAssetThumbnailUrl('ditto-doll.svg'),
-    thumbnailAlt: 'Ditto doll thumbnail',
+    thumbnailUrl: getAssetThumbnailUrl('0282-wooden-bench.png'),
+    thumbnailAlt: '木质长椅缩略图',
   },
   {
     assetId: 'water-barrel',
-    officialId: '052',
-    name: 'Water Barrel',
-    category: 'utility',
-    tags: ['water', 'barrel', 'storage'],
+    officialId: '1168',
+    name: '矮墙边角',
+    category: 'building',
+    tags: ['建筑', '围墙'],
     applicableAreas: ['main', 'outer'],
     favoritePokemonKeys: ['pikachu'],
-    defaultRequiresSkill: true,
-    defaultSkillType: '储水',
+    defaultRequiresSkill: false,
+    defaultSkillType: null,
     skillCandidate: true,
     rotatable: true,
     stackable: false,
     dyeable: false,
-    thumbnailUrl: getAssetThumbnailUrl('water-barrel.svg'),
-    thumbnailAlt: 'Water barrel thumbnail',
+    thumbnailUrl: getAssetThumbnailUrl('0756-stone-brick-wall.png'),
+    thumbnailAlt: '矮墙边角缩略图',
   },
   {
     assetId: 'roof-tile',
-    officialId: '068',
-    name: 'Roof Tile',
-    category: 'wall',
-    tags: ['roof', 'tile', 'height'],
+    officialId: '1903',
+    name: '屋檐片段',
+    category: 'roof',
+    tags: ['屋顶', 'L2'],
     applicableAreas: ['main', 'outer'],
     favoritePokemonKeys: ['eevee', 'pikachu'],
-    defaultRequiresSkill: true,
-    defaultSkillType: '耕地',
+    defaultRequiresSkill: false,
+    defaultSkillType: null,
     skillCandidate: true,
     rotatable: true,
     stackable: true,
     dyeable: true,
-    thumbnailUrl: getAssetThumbnailUrl('roof-tile.svg'),
-    thumbnailAlt: 'Roof tile thumbnail',
+    thumbnailUrl: getAssetThumbnailUrl('0675-brick-roof-decoration.png'),
+    thumbnailAlt: '屋檐片段缩略图',
   },
 ] as const;
 
@@ -213,6 +219,14 @@ export function getAssetSkillMarkerLabel(skillType: string | null | undefined): 
   return normalizedSkillType ? assetSkillMarkerLabels[normalizedSkillType] : '技';
 }
 
+export function getAssetSkillMarkerIconUrl(skillType: string | null | undefined): string | null {
+  const normalizedSkillType = toAssetSkillType(skillType);
+
+  return normalizedSkillType
+    ? `${normalizeBaseUrl(import.meta.env.BASE_URL)}${assetSkillMarkerIconPaths[normalizedSkillType]}`
+    : null;
+}
+
 export function canAssetRequirePlacementSkill(asset: AssetDefinition): boolean {
   return asset.skillCandidate || Boolean(asset.defaultSkillType);
 }
@@ -234,7 +248,7 @@ export function filterAssetsByFavorite(
 }
 
 function getAssetThumbnailUrl(fileName: string): string {
-  return `${normalizeBaseUrl(import.meta.env.BASE_URL)}assets/asset-thumbnails/${fileName}`;
+  return `${normalizeBaseUrl(import.meta.env.BASE_URL)}assets/pokopia_image_sources/item_portraits/${fileName}`;
 }
 
 function normalizeBaseUrl(baseUrl: string): string {

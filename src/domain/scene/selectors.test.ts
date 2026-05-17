@@ -4,6 +4,7 @@ import {
   createDefaultSceneDocument,
   createTileInstance,
   getBuildingLevelContexts,
+  getAllVisibleFrontProjectionCellContexts,
   getAllVisibleFrontPreviewContexts,
   getAllVisiblePreviewCellContexts,
   getCanvasCellContexts,
@@ -332,6 +333,60 @@ describe('scene selectors', () => {
     expect(allVisibleFront.map((level) => level.outerInstanceCount)).toEqual([2, 0]);
     expect(allVisibleFront.map((level) => level.skillInstanceCount)).toEqual([1, 1]);
     expect(allVisibleFront.find((level) => level.id === 'level-1')?.heightPercent).toBe(64);
+  });
+
+  it('derives all-visible front projection cells by building level and x column', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-front-projection',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+    const sceneWithProjectedTiles = {
+      ...scene,
+      buildingLevels: scene.buildingLevels.map((level) =>
+        level.id === 'level-2' ? { ...level, visible: false, locked: true } : level,
+      ),
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-back',
+          assetId: 'garden-plant',
+          coordinate: { x: 2, y: 1 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-front',
+          assetId: 'wooden-floor',
+          coordinate: { x: 2, y: 5 },
+          buildingLevelId: 'level-0',
+          requiresSkill: true,
+          skillType: '树叶',
+        }),
+        createTileInstance({
+          instanceId: 'tile-upper',
+          assetId: 'roof-tile',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-1',
+        }),
+        createTileInstance({
+          instanceId: 'tile-hidden',
+          assetId: 'water-barrel',
+          coordinate: { x: 2, y: 6 },
+          buildingLevelId: 'level-2',
+        }),
+      ],
+    };
+    const frontProjectionCells = getAllVisibleFrontProjectionCellContexts(sceneWithProjectedTiles);
+    const levelZeroColumn = frontProjectionCells.find((cell) => cell.buildingLevel.id === 'level-0' && cell.x === 2);
+    const levelOneColumn = frontProjectionCells.find((cell) => cell.buildingLevel.id === 'level-1' && cell.x === 2);
+
+    expect(frontProjectionCells).toHaveLength(14);
+    expect(frontProjectionCells.slice(0, 7).every((cell) => cell.buildingLevel.id === 'level-1')).toBe(true);
+    expect(levelZeroColumn?.tileInstances.map((instance) => instance.instanceId)).toEqual(['tile-back', 'tile-front']);
+    expect(levelZeroColumn?.projectedInstance?.instanceId).toBe('tile-front');
+    expect(levelZeroColumn?.skillInstance?.instanceId).toBe('tile-front');
+    expect(levelOneColumn?.projectedInstance?.instanceId).toBe('tile-upper');
+    expect(frontProjectionCells.some((cell) =>
+      cell.tileInstances.some((instance) => instance.instanceId === 'tile-hidden'),
+    )).toBe(false);
   });
 
   it('derives dense top and front previews within the preview performance budget', () => {

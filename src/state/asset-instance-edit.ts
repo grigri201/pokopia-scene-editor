@@ -356,14 +356,6 @@ function updateSkill(
     return failure('invalid-skill-type', 'Invalid skill type', 'Choose 树叶, 耕地, 储水, or no skill type.');
   }
 
-  if (!canAssetRequirePlacementSkill(asset)) {
-    return failure(
-      'not-skill-capable',
-      `${asset.name} cannot use an instance skill marker`,
-      'Choose a skill-capable asset or turn off the skill marker.',
-    );
-  }
-
   return updateInstance(scene, instance, now, 'Skill fields saved', (current) => ({
     ...current,
     requiresSkill: true,

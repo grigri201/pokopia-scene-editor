@@ -29,6 +29,7 @@ import {
 } from '../../state';
 import {
   applyRecoveredSceneDocument,
+  autosavedSceneStorageKey,
   readLatestSceneDocumentFromStorage,
   savedSceneStorageKey,
   serializeSceneDocument,
@@ -57,7 +58,6 @@ export function AppShell() {
   const [focusedCoordinate, setFocusedCoordinate] = useState<GridCoordinate | null>(null);
   const [placementRequiresSkill, setPlacementRequiresSkill] = useState(false);
   const [placementFeedback, setPlacementFeedback] = useState<AssetPlacementPreview | null>(null);
-  const [instanceEditFeedback, setInstanceEditFeedback] = useState<string | null>(null);
   const [buildingLayerFeedback, setBuildingLayerFeedback] = useState<string | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [readOnlyViewingLevelId, setReadOnlyViewingLevelId] = useState<string | null>(null);
@@ -206,7 +206,6 @@ export function AppShell() {
     pendingSelectionMeasureRef.current = markSelectionStart(selectionMeasureCounterRef.current);
     selectionMeasureCounterRef.current += 1;
     setFocusedCoordinate(nextCoordinate);
-    setInstanceEditFeedback(null);
 
     if (scene.workspaceState.selectedAssetId) {
       placeCurrentAsset(nextCoordinate);
@@ -220,7 +219,6 @@ export function AppShell() {
     const nextCoordinate = { x: coordinate.x, y: coordinate.y };
     pendingSelectionMeasureRef.current = markSelectionStart(selectionMeasureCounterRef.current);
     selectionMeasureCounterRef.current += 1;
-    setInstanceEditFeedback(null);
     setReadOnlySelectedCoordinate(nextCoordinate);
   };
 
@@ -350,12 +348,8 @@ export function AppShell() {
     if (result.ok) {
       commitSceneEdit(result.scene);
       setSelectedInstanceId(result.instance?.instanceId ?? null);
-      setInstanceEditFeedback(result.message);
       setPlacementFeedback(null);
-      return;
     }
-
-    setInstanceEditFeedback(`${result.message}. ${result.repairHint}`);
   };
 
   const deleteInstance = (instanceId: string) => {
@@ -487,7 +481,6 @@ export function AppShell() {
       commitSceneEdit(result.scene);
       setBuildingLayerFeedback(result.message);
       setPlacementFeedback(null);
-      setInstanceEditFeedback(null);
       return;
     }
 
@@ -504,22 +497,10 @@ export function AppShell() {
     );
   };
 
-  const renameBuildingLayer = (levelId: string, name: string) => {
-    handleBuildingLayerResult(
-      editBuildingLayer(scene, {
-        type: 'rename',
-        levelId,
-        name,
-        interactionMode,
-        now: getCurrentIsoTimestamp(),
-      }),
-    );
-  };
-
-  const setCurrentBuildingLayer = (levelId: string) => {
+  const selectBuildingLayer = (levelId: string) => {
     if (isReadOnly) {
       setReadOnlyViewingLevelId(levelId);
-      setBuildingLayerFeedback('Viewing layer changed');
+      setBuildingLayerFeedback(null);
       return;
     }
 
@@ -533,24 +514,12 @@ export function AppShell() {
     );
   };
 
-  const setBuildingLayerVisible = (levelId: string, visible: boolean) => {
+  const renameBuildingLayer = (levelId: string, name: string) => {
     handleBuildingLayerResult(
       editBuildingLayer(scene, {
-        type: 'set-visible',
+        type: 'rename',
         levelId,
-        visible,
-        interactionMode,
-        now: getCurrentIsoTimestamp(),
-      }),
-    );
-  };
-
-  const setBuildingLayerLocked = (levelId: string, locked: boolean) => {
-    handleBuildingLayerResult(
-      editBuildingLayer(scene, {
-        type: 'set-locked',
-        levelId,
-        locked,
+        name,
         interactionMode,
         now: getCurrentIsoTimestamp(),
       }),
@@ -625,7 +594,6 @@ export function AppShell() {
     setRedoStack((futureScenes) => [scene, ...futureScenes.slice(0, 49)]);
     setScene(reconcileHistorySceneSaveStatus(previousScene));
     setPlacementFeedback(null);
-    setInstanceEditFeedback('Undo applied');
     setBuildingLayerFeedback(null);
   };
 
@@ -643,7 +611,35 @@ export function AppShell() {
     setUndoStack((pastScenes) => [...pastScenes.slice(-49), scene]);
     setScene(reconcileHistorySceneSaveStatus(nextScene));
     setPlacementFeedback(null);
-    setInstanceEditFeedback('Redo applied');
+    setBuildingLayerFeedback(null);
+  };
+
+  const deleteCurrentScene = () => {
+    if (isReadOnly) {
+      return;
+    }
+
+    const confirmed = window.confirm('Delete the current scene and reset the workbench?');
+    if (!confirmed) {
+      return;
+    }
+
+    const nextScene = createDefaultSceneDocument({
+      sceneId: 'scene-default',
+      now: getCurrentIsoTimestamp(),
+      includeOpenDesignDemo: true,
+    });
+    const storage = getBrowserStorage();
+    storage?.removeItem(savedSceneStorageKey);
+    storage?.removeItem(autosavedSceneStorageKey);
+    setUndoStack([]);
+    setRedoStack([]);
+    setScene(nextScene);
+    setRecoveryErrors([]);
+    setRecoveryStatus('idle');
+    setSelectedInstanceId(null);
+    setPlacementRequiresSkill(false);
+    setPlacementFeedback(null);
     setBuildingLayerFeedback(null);
   };
 
@@ -684,7 +680,6 @@ export function AppShell() {
     setRecoveryErrors([]);
     setRecoveryStatus('success');
     setPlacementFeedback(null);
-    setInstanceEditFeedback('Recovered saved scene');
     setBuildingLayerFeedback(null);
   };
 
@@ -699,20 +694,54 @@ export function AppShell() {
       aria-label="Pokopia scene editor workbench"
       style={pokemonThemeStyle}
     >
-      <PokemonSceneControls
-        readOnly={isReadOnly}
-        selectedPokemonKey={scene.selectedPokemonKey}
-        sceneName={scene.sceneName}
-        saveStatus={scene.workspaceState.saveStatus}
-        saveError={scene.workspaceState.saveError}
-        canUndo={undoStack.length > 0}
-        canRedo={redoStack.length > 0}
-        onPokemonChange={updatePokemon}
-        onSceneNameChange={updateSceneName}
-        onSave={saveScene}
-        onUndo={undoSceneEdit}
-        onRedo={redoSceneEdit}
-      />
+      <header className="app-header" aria-label="Application header">
+        <div className="app-brand" aria-label="Pokopia Scene Editor">
+          <span className="app-brand__mark" aria-hidden="true">P</span>
+          <span>Pokopia Scene Editor</span>
+        </div>
+        <div className="app-header__actions" aria-label="Scene file actions">
+          <button
+            type="button"
+            className="icon-button has-icon-tooltip"
+            aria-label="Save scene"
+            data-tooltip="保存"
+            title="保存"
+            disabled={isReadOnly || scene.workspaceState.saveStatus === 'saved'}
+            onClick={saveScene}
+          >
+            <SaveIcon />
+          </button>
+          <button
+            type="button"
+            className="icon-button icon-button--danger has-icon-tooltip"
+            aria-label="Delete scene"
+            data-tooltip="删除"
+            title="删除"
+            disabled={isReadOnly}
+            onClick={deleteCurrentScene}
+          >
+            <DeleteIcon />
+          </button>
+          <button
+            type="button"
+            className="sr-only"
+            aria-label="Undo"
+            disabled={isReadOnly || undoStack.length === 0}
+            onClick={undoSceneEdit}
+          >
+            Undo
+          </button>
+          <button
+            type="button"
+            className="sr-only"
+            aria-label="Redo"
+            disabled={isReadOnly || redoStack.length === 0}
+            onClick={redoSceneEdit}
+          >
+            Redo
+          </button>
+        </div>
+      </header>
       {recoveryStatus !== 'idle' ? (
         <section
           className="recovery-validator"
@@ -754,61 +783,30 @@ export function AppShell() {
       ) : null}
       <section className="workbench-grid" aria-label="Open Design editing workbench">
         <div className="workbench-left">
+          <PokemonSceneControls
+            readOnly={isReadOnly}
+            selectedPokemonKey={scene.selectedPokemonKey}
+            sceneName={scene.sceneName}
+            saveStatus={scene.workspaceState.saveStatus}
+            onPokemonChange={updatePokemon}
+            onSceneNameChange={updateSceneName}
+            onSave={saveScene}
+          />
           <BuildingLevelPanel
             levels={displayedBuildingLevelContexts}
             readOnly={isReadOnly}
             feedback={buildingLayerFeedback}
             onCreateLayer={createBuildingLayer}
+            onSelectLayer={selectBuildingLayer}
             onRenameLayer={renameBuildingLayer}
-            onSetCurrentLayer={setCurrentBuildingLayer}
-            onSetLayerVisible={setBuildingLayerVisible}
-            onSetLayerLocked={setBuildingLayerLocked}
             onCopyLayer={copyBuildingLayer}
             onDeleteLayer={deleteBuildingLayer}
           />
-          <PreviewInspector
-            scene={scene}
-            activeBuildingLevelId={activeBuildingLevelId}
-            selectedCoordinate={selectedCoordinate}
-            selectedInstanceId={selectedInstanceId}
-            readOnly={isReadOnly}
-          />
         </div>
         <section className="canvas-stage" aria-label="7x7 scene canvas workspace">
-          <div className="canvas-stage__header">
-            <div>
-              <p className="eyebrow">5x5 scene, 7x7 editable canvas</p>
-              <h1>Pokopia Scene Editor</h1>
-            </div>
-            <span className="status-pill" aria-label="Interaction mode">
-              {isReadOnly ? 'Mobile read-only mode' : 'Desktop edit mode'}
-            </span>
-          </div>
-          <SelectionInspector
-            selectedContext={selectedContext}
-            selectedInstance={selectedInstance}
-            selectedInstanceId={selectedInstanceId}
-            targetContext={targetContext}
-            targetPlacement={targetPlacementPreview}
-            canvasSize={scene.canvasSize}
-            sceneDimensions={{
-              sceneSize: scene.sceneSize,
-              canvasSize: scene.canvasSize,
-              outerPadding: scene.outerPadding,
-            }}
-            buildingLevels={scene.buildingLevels}
-            tileInstances={scene.tileInstances}
-            readOnly={isReadOnly}
-            editFeedback={instanceEditFeedback}
-            onSelectedInstanceChange={setSelectedInstanceId}
-            onDeleteInstance={deleteInstance}
-            onChangeInstanceAsset={changeInstanceAsset}
-            onMoveInstance={moveInstance}
-            onRotateInstance={rotateInstance}
-            onDyeInstance={dyeInstance}
-            onSaveInstanceSkill={saveInstanceSkill}
-            onSaveInstanceNote={saveInstanceNote}
-          />
+          <span className="sr-only status-pill" aria-label="Interaction mode">
+            {isReadOnly ? 'Mobile read-only mode' : 'Desktop edit mode'}
+          </span>
           <SceneCanvas
             canvasSize={scene.canvasSize}
             cells={canvasCells}
@@ -821,6 +819,39 @@ export function AppShell() {
             onHoverCoordinate={setHoveredCoordinate}
             onFocusCoordinate={setFocusedCoordinate}
           />
+          <div className="canvas-bottom-panels" aria-label="Canvas lower inspectors">
+            <SelectionInspector
+              selectedContext={selectedContext}
+              selectedInstance={selectedInstance}
+              selectedInstanceId={selectedInstanceId}
+              targetContext={targetContext}
+              targetPlacement={targetPlacementPreview}
+              canvasSize={scene.canvasSize}
+              sceneDimensions={{
+                sceneSize: scene.sceneSize,
+                canvasSize: scene.canvasSize,
+                outerPadding: scene.outerPadding,
+              }}
+              buildingLevels={scene.buildingLevels}
+              tileInstances={scene.tileInstances}
+              readOnly={isReadOnly}
+              onSelectedInstanceChange={setSelectedInstanceId}
+              onDeleteInstance={deleteInstance}
+              onChangeInstanceAsset={changeInstanceAsset}
+              onMoveInstance={moveInstance}
+              onRotateInstance={rotateInstance}
+              onDyeInstance={dyeInstance}
+              onSaveInstanceSkill={saveInstanceSkill}
+              onSaveInstanceNote={saveInstanceNote}
+            />
+            <PreviewInspector
+              scene={scene}
+              activeBuildingLevelId={activeBuildingLevelId}
+              selectedCoordinate={selectedCoordinate}
+              selectedInstanceId={selectedInstanceId}
+              readOnly={isReadOnly}
+            />
+          </div>
         </section>
         <AssetPicker
           readOnly={isReadOnly}
@@ -869,10 +900,33 @@ interface InitialSceneState {
   recoveryErrors: RecoveryError[];
 }
 
+function SaveIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 4h12l2 2v14H5z" />
+      <path d="M8 4v6h8V4" />
+      <path d="M8 20v-7h8v7" />
+    </svg>
+  );
+}
+
+function DeleteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 7h16" />
+      <path d="M9 7V4h6v3" />
+      <path d="M7 7l1 13h8l1-13" />
+      <path d="M10 11v5" />
+      <path d="M14 11v5" />
+    </svg>
+  );
+}
+
 function createInitialSceneState(): InitialSceneState {
   const defaultScene = createDefaultSceneDocument({
     sceneId: 'scene-default',
     now: '2026-05-16T07:00:00.000Z',
+    includeOpenDesignDemo: true,
   });
   const initialInteractionMode = getInteractionMode(window.innerWidth);
   const testWindow = window as unknown as { __pokopiaInitialSceneSnapshot?: SceneDocument };

@@ -3,22 +3,17 @@ import {
   assetCatalog,
   assetCategoryLabels,
   assetMatchesPokemonFavorite,
-  areaLabels,
   assetRenderLimit,
-  assetSkillTypes,
   canAssetRequirePlacementSkill,
   defaultAssetFilters,
   filterAssetCatalog,
   getAssetAreaLabel,
   getAssetById,
   getAssetSkillLabel,
-  hasActiveAssetFilters,
-  type AssetAreaFilter,
   type AssetCategory,
   type AssetCategoryFilter,
   type AssetDefinition,
   type AssetFilterState,
-  type AssetSkillFilter,
   type PokemonKey,
 } from '../../domain/assets';
 import {
@@ -41,7 +36,6 @@ export function AssetPicker({
   readOnly,
   selectedAssetId,
   selectedPokemonKey,
-  currentBuildingLevelName,
   placementRequiresSkill,
   onPlacementRequiresSkillChange,
   onAssetSelect,
@@ -54,12 +48,10 @@ export function AssetPicker({
   const [viewedAssetId, setViewedAssetId] = useState<string | null>(selectedAssetId);
   const selectedAsset = getAssetById(selectedAssetId);
   const viewedAsset = getAssetById(viewedAssetId) ?? selectedAsset;
-  const countWidth = `${String(assetCatalog.length).length * 2 + 3}ch`;
   const filterResult = useMemo(
     () => filterAssetCatalog(assetCatalog, filters, selectedPokemonKey, renderLimit),
     [filters, renderLimit, selectedPokemonKey],
   );
-  const hasActiveFilters = hasActiveAssetFilters(filters);
 
   useEffect(() => {
     if (selectedAssetId) {
@@ -118,30 +110,38 @@ export function AssetPicker({
 
   return (
     <aside className="panel asset-picker" aria-label="Asset picker">
-      <div className="panel__header">
-        <h2>素材栏</h2>
+      <div className="asset-picker__header">
+        <h2>素材</h2>
+        <label className="favorite-toggle">
+          <input
+            type="checkbox"
+            aria-label="Show favorite assets"
+            checked={filters.favoriteOnly}
+            onChange={(event) => updateFilters({ favoriteOnly: event.target.checked })}
+          />
+          只显示喜好
+        </label>
         <span
           className="asset-count"
           role="status"
           aria-live="polite"
           aria-atomic="true"
           aria-label="Asset result count"
-          style={{ width: countWidth }}
         >
-          {filterResult.filteredCount.toString().padStart(2, '0')} / {filterResult.totalCount.toString().padStart(2, '0')}
+          {String(filterResult.filteredCount).padStart(3, '0')} results
         </span>
       </div>
       <label className="asset-search">
-        Search assets
+        <span className="sr-only">Search assets</span>
         <input
           aria-label="Search assets"
-          placeholder="floor, plant, wall"
+          placeholder="围栏"
           value={filters.query}
           onChange={(event) => updateFilters({ query: event.target.value })}
         />
       </label>
-      <fieldset className="filter-row" aria-label="Asset category filters">
-        <legend>Category</legend>
+      <fieldset className="asset-category-tabs" aria-label="Asset category filters">
+        <legend className="sr-only">Category</legend>
         {categoryFilterOptions.map((option) => (
           <button
             type="button"
@@ -153,53 +153,8 @@ export function AssetPicker({
           </button>
         ))}
       </fieldset>
-      <fieldset className="filter-row" aria-label="Asset area filters">
-        <legend>Area</legend>
-        {areaFilterOptions.map((option) => (
-          <button
-            type="button"
-            aria-pressed={filters.area === option.value}
-            onClick={() => updateFilters({ area: option.value })}
-            key={option.value}
-          >
-            {option.label}
-          </button>
-        ))}
-      </fieldset>
-      <fieldset className="filter-row" aria-label="Asset filters">
-        <legend>Skill and favorites</legend>
-        <button type="button" aria-pressed={!filters.favoriteOnly} onClick={clearFavoriteFilter}>
-          All
-        </button>
-        <button
-          type="button"
-          aria-label="Show favorite assets"
-          aria-pressed={filters.favoriteOnly}
-          onClick={() => updateFilters({ favoriteOnly: true })}
-        >
-          Favorite
-        </button>
-        <label className="asset-filter-field">
-          Skill
-          <select
-            aria-label="Skill filter"
-            value={filters.skill}
-            onChange={(event) => updateFilters({ skill: event.target.value as AssetSkillFilter })}
-          >
-            {skillFilterOptions.map((option) => (
-              <option value={option.value} key={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="button" disabled={!hasActiveFilters} onClick={resetFilters}>
-          Clear
-        </button>
-      </fieldset>
-      <CurrentAssetSummary
+      <PlacementSkillToggle
         asset={selectedAsset}
-        currentBuildingLevelName={currentBuildingLevelName}
         placementRequiresSkill={placementRequiresSkill}
         onPlacementRequiresSkillChange={onPlacementRequiresSkillChange}
         readOnly={readOnly}
@@ -229,7 +184,6 @@ export function AssetPicker({
                 className="asset-select-button"
                 aria-pressed={selected}
                 aria-labelledby={`${ids.name} ${ids.meta}`}
-                aria-describedby={`${ids.tags} ${ids.skill} ${ids.candidate} ${ids.favorite}`}
                 onClick={() => handleAssetActivation(asset.assetId)}
                 onKeyDown={(event) => handleAssetKeyDown(event, asset.assetId)}
               >
@@ -237,29 +191,16 @@ export function AssetPicker({
                 <span className="asset-row__body">
                   <strong id={ids.name}>{asset.name}</strong>
                   <span className="asset-row__meta" id={ids.meta}>
-                    No. {asset.officialId} · {assetCategoryLabels[asset.category]} · {getAssetAreaLabel(asset)}
-                  </span>
-                  <span className="asset-tags" aria-label={`${asset.name} tags`} id={ids.tags}>
-                    {asset.tags.map((tag) => (
-                      <span key={tag}>{tag}</span>
-                    ))}
+                    {assetCategoryLabels[asset.category]} · {asset.tags.slice(0, 1).join('')}
                   </span>
                 </span>
-                <span className="asset-skill-state" id={ids.skill}>
-                  {getAssetSkillLabel(asset)}
-                </span>
-                <span className="asset-candidate-state" id={ids.candidate}>
-                  {asset.skillCandidate ? 'Placement skill candidate' : 'Not a placement skill candidate'}
-                </span>
-                <span className="asset-favorite-state" id={ids.favorite}>
-                  {assetMatchesPokemonFavorite(asset, selectedPokemonKey)
-                    ? `Favorite for ${selectedPokemonKey}`
-                    : 'No current Pokemon favorite match'}
+                <span className="asset-row__official-id">
+                  No. {asset.officialId}
                 </span>
               </button>
               <button
                 type="button"
-                className="asset-detail-button"
+                className="sr-only"
                 aria-label={`View ${asset.name} details`}
                 onClick={() => setViewedAssetId(asset.assetId)}
               >
@@ -281,7 +222,9 @@ export function AssetPicker({
           />
         ) : null}
       </div>
-      <AssetDetail asset={viewedAsset} selectedPokemonKey={selectedPokemonKey} />
+      <div className="sr-only">
+        <AssetDetail asset={viewedAsset} selectedPokemonKey={selectedPokemonKey} />
+      </div>
     </aside>
   );
 }
@@ -363,15 +306,13 @@ function getSecondaryRecoveryAction({
   return { label: 'Reset filters', onClick: onSwitchCategory };
 }
 
-function CurrentAssetSummary({
+function PlacementSkillToggle({
   asset,
-  currentBuildingLevelName,
   placementRequiresSkill,
   onPlacementRequiresSkillChange,
   readOnly,
 }: {
   asset: AssetDefinition | null;
-  currentBuildingLevelName: string;
   placementRequiresSkill: boolean;
   onPlacementRequiresSkillChange: (requiresSkill: boolean) => void;
   readOnly: boolean;
@@ -379,26 +320,15 @@ function CurrentAssetSummary({
   const canConfigurePlacementSkill = Boolean(asset && canAssetRequirePlacementSkill(asset));
 
   return (
-    <section className="current-asset" aria-label="Current placement asset">
-      <span>Current Asset</span>
-      <strong>{asset?.name ?? 'None'}</strong>
-      <em>
-        {asset
-          ? `${getAssetSkillLabel(asset)} · ${currentBuildingLevelName} · ${
-              readOnly ? 'View only details' : `Ready to place in ${getAssetAreaLabel(asset)} cells`
-            }`
-          : `${currentBuildingLevelName} · ${readOnly ? 'View only' : 'Choose an asset to place'}`}
-      </em>
-      <label className="placement-skill-toggle">
-        <input
-          type="checkbox"
-          checked={Boolean(asset && canConfigurePlacementSkill && placementRequiresSkill)}
-          disabled={readOnly || !asset || !canConfigurePlacementSkill}
-          onChange={(event) => onPlacementRequiresSkillChange(canConfigurePlacementSkill && event.target.checked)}
-        />
-        Requires Ditto skill
-      </label>
-    </section>
+    <label className="placement-skill-toggle sr-only">
+      <input
+        type="checkbox"
+        checked={Boolean(asset && canConfigurePlacementSkill && placementRequiresSkill)}
+        disabled={readOnly || !asset || !canConfigurePlacementSkill}
+        onChange={(event) => onPlacementRequiresSkillChange(canConfigurePlacementSkill && event.target.checked)}
+      />
+      Requires Ditto skill
+    </label>
   );
 }
 
@@ -486,24 +416,11 @@ function focusSiblingAsset(currentButton: HTMLButtonElement, offset: number): vo
 }
 
 const categoryFilterOptions: readonly { value: AssetCategoryFilter; label: string }[] = [
-  { value: 'all', label: 'All Categories' },
+  { value: 'all', label: '全部' },
   ...Object.entries(assetCategoryLabels).map(([value, label]) => ({
     value: value as AssetCategory,
     label,
   })),
-];
-
-const areaFilterOptions: readonly { value: AssetAreaFilter; label: string }[] = [
-  { value: 'all', label: 'All Areas' },
-  { value: 'main', label: areaLabels.main },
-  { value: 'outer', label: areaLabels.outer },
-];
-
-const skillFilterOptions: readonly { value: AssetSkillFilter; label: string }[] = [
-  { value: 'all', label: 'All skills' },
-  { value: 'requires-skill', label: 'Default skill' },
-  { value: 'skill-candidate', label: 'Skill candidate' },
-  ...assetSkillTypes.map((skillType) => ({ value: skillType, label: skillType })),
 ];
 
 function getAssetRowIds(assetPickerId: string, assetId: string) {

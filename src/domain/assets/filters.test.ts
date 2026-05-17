@@ -10,20 +10,20 @@ import {
 
 describe('asset catalog filters', () => {
   it('matches keyword queries by name, id, category, and tag', () => {
-    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: 'plant' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['garden-plant']);
+    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: '植物' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['garden-plant']);
     expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: 'garden-plant' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['garden-plant']);
-    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: '052' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['water-barrel']);
-    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: 'WALL' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['outer-wall', 'roof-tile']);
-    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: 'cute' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['ditto-doll']);
+    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: '1168' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['water-barrel']);
+    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: '屋顶' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['roof-tile']);
+    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: '休憩' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['ditto-doll']);
   });
 
   it('combines category, area, favorite, and skill filters', () => {
     const filters: AssetFilterState = {
       query: '',
-      category: 'wall',
+      category: 'roof',
       area: 'outer',
       favoriteOnly: true,
-      skill: '耕地',
+      skill: 'skill-candidate',
     };
 
     expect(filterAssetCatalog(assetCatalog, filters, 'pikachu').filteredAssets.map((asset) => asset.assetId)).toEqual(['roof-tile']);
@@ -34,8 +34,6 @@ describe('asset catalog filters', () => {
   it('filters default skill requirements and placement skill candidates separately', () => {
     expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, skill: 'requires-skill' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual([
       'garden-plant',
-      'water-barrel',
-      'roof-tile',
     ]);
     expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, skill: 'skill-candidate' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual([
       'garden-plant',

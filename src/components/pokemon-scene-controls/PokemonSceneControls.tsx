@@ -1,24 +1,23 @@
 import { useEffect, useId, useState } from 'react';
 import {
-  findPokemonKeyByQuery,
+  getPokemonThemeDefinition,
   pokemonThemeCatalog,
   type PokemonKey,
 } from '../../domain/assets';
-import { sceneNameLabelsSceneSize, type SaveStatus } from '../../domain/scene';
+import type { SaveStatus } from '../../domain/scene';
 
 interface PokemonSceneControlsProps {
   readOnly: boolean;
   selectedPokemonKey: PokemonKey;
   sceneName: string;
   saveStatus: SaveStatus;
-  saveError: string | null;
-  canUndo: boolean;
-  canRedo: boolean;
+  canUndo?: boolean;
+  canRedo?: boolean;
   onPokemonChange: (pokemonKey: PokemonKey) => void;
   onSceneNameChange: (sceneName: string) => void;
   onSave: () => void;
-  onUndo: () => void;
-  onRedo: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export function PokemonSceneControls({
@@ -26,55 +25,25 @@ export function PokemonSceneControls({
   selectedPokemonKey,
   sceneName,
   saveStatus,
-  saveError,
-  canUndo,
-  canRedo,
   onPokemonChange,
   onSceneNameChange,
   onSave,
-  onUndo,
-  onRedo,
 }: PokemonSceneControlsProps) {
-  const pokemonListId = useId();
-  const pokemonErrorId = useId();
   const sceneNameErrorId = useId();
-  const [pokemonQuery, setPokemonQuery] = useState<string>(selectedPokemonKey);
   const [sceneNameDraft, setSceneNameDraft] = useState(sceneName);
-  const matchedPokemonKey = findPokemonKeyByQuery(pokemonQuery);
-  const pokemonInvalid = Boolean(pokemonQuery.trim()) && !matchedPokemonKey;
-  const sceneNameInvalid = Boolean(sceneNameDraft.trim()) && !sceneNameLabelsSceneSize(sceneNameDraft);
   const sceneNameEmpty = !sceneNameDraft.trim();
-  const hasValidationError = pokemonInvalid || sceneNameInvalid || sceneNameEmpty;
-
-  useEffect(() => {
-    setPokemonQuery(selectedPokemonKey);
-  }, [selectedPokemonKey]);
+  const selectedPokemon = getPokemonThemeDefinition(selectedPokemonKey);
 
   useEffect(() => {
     setSceneNameDraft(sceneName);
   }, [sceneName]);
 
-  const handlePokemonQueryChange = (value: string) => {
+  const handlePokemonChange = (value: string) => {
     if (readOnly) {
       return;
     }
 
-    setPokemonQuery(value);
-    const matchedKey = findPokemonKeyByQuery(value);
-
-    if (matchedKey) {
-      onPokemonChange(matchedKey);
-    }
-  };
-
-  const handlePokemonBlur = () => {
-    if (readOnly) {
-      return;
-    }
-
-    if (!findPokemonKeyByQuery(pokemonQuery)) {
-      setPokemonQuery(selectedPokemonKey);
-    }
+    onPokemonChange(value as PokemonKey);
   };
 
   const handleSceneNameCommit = () => {
@@ -83,7 +52,7 @@ export function PokemonSceneControls({
     }
 
     const nextSceneName = sceneNameDraft.trim();
-    if (!nextSceneName || !sceneNameLabelsSceneSize(nextSceneName)) {
+    if (!nextSceneName) {
       return;
     }
 
@@ -98,95 +67,64 @@ export function PokemonSceneControls({
     setSceneNameDraft(value);
 
     const nextSceneName = value.trim();
-    if (nextSceneName && sceneNameLabelsSceneSize(nextSceneName)) {
+    if (nextSceneName) {
       onSceneNameChange(nextSceneName);
     }
   };
 
   return (
-    <header className="scene-controls" aria-label="Pokemon scene controls">
-      <div className="scene-controls__identity">
-        <label>
+    <section className="scene-controls" aria-label="Pokemon scene controls">
+      <div className="scene-controls__fields">
+        <label className="scene-field scene-field--pokemon">
           Pokemon
-          <input
-            aria-label="Current Pokemon"
-            aria-invalid={pokemonInvalid}
-            aria-describedby={pokemonInvalid ? pokemonErrorId : undefined}
-            list={pokemonListId}
-            value={pokemonQuery}
-            onBlur={handlePokemonBlur}
-            onChange={(event) => handlePokemonQueryChange(event.target.value)}
-            disabled={readOnly}
-          />
-          <datalist id={pokemonListId}>
-            {pokemonThemeCatalog.map((pokemon) => (
-              <option value={pokemon.key} key={pokemon.key}>
-                {pokemon.name}
-              </option>
-            ))}
-          </datalist>
-          {pokemonInvalid ? (
-            <span id={pokemonErrorId} className="field-error">
-              Choose Ditto, Eevee, or Pikachu.
-            </span>
-          ) : null}
+          <span className="pokemon-select-control">
+            <img
+              src={selectedPokemon.portraitUrl}
+              alt=""
+              aria-hidden="true"
+              className="pokemon-select-control__image"
+            />
+            <select
+              aria-label="Current Pokemon"
+              value={selectedPokemonKey}
+              onChange={(event) => handlePokemonChange(event.target.value)}
+              disabled={readOnly}
+            >
+              {pokemonThemeCatalog.map((pokemon) => (
+                <option value={pokemon.key} key={pokemon.key}>
+                  {pokemon.name}
+                </option>
+              ))}
+            </select>
+          </span>
         </label>
         <label>
-          Scene Name
+          Name
           <input
             aria-label="Scene Name"
-            aria-invalid={sceneNameInvalid || sceneNameEmpty}
-            aria-describedby={sceneNameInvalid || sceneNameEmpty ? sceneNameErrorId : undefined}
+            aria-invalid={sceneNameEmpty}
+            aria-describedby={sceneNameEmpty ? sceneNameErrorId : undefined}
             value={sceneNameDraft}
             onBlur={handleSceneNameCommit}
             onChange={(event) => handleSceneNameChange(event.target.value)}
             readOnly={readOnly}
           />
-          {sceneNameInvalid || sceneNameEmpty ? (
+          {sceneNameEmpty ? (
             <span id={sceneNameErrorId} className="field-error">
-              Name must include 5x5.
+              Name is required.
             </span>
           ) : null}
         </label>
-      </div>
-      <div className="scene-controls__actions" aria-label="Scene status and tools">
-        <span
-          className="save-state"
-          aria-label="Save status"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {getSaveStatusText(readOnly, saveStatus, saveError)}
-        </span>
         <button
           type="button"
-          aria-label="Save scene"
-          disabled={readOnly || saveStatus === 'saved' || hasValidationError}
+          className="scene-controls__save"
+          aria-label="Save scene from scene controls"
+          disabled={readOnly || saveStatus === 'saved' || sceneNameEmpty}
           onClick={onSave}
         >
-          Save
-        </button>
-        <button type="button" aria-label="Undo" disabled={readOnly || !canUndo} onClick={onUndo}>
-          Undo
-        </button>
-        <button type="button" aria-label="Redo" disabled={readOnly || !canRedo} onClick={onRedo}>
-          Redo
-        </button>
-        <button type="button" aria-label="Toggle grid" aria-pressed="true" disabled={readOnly}>
-          Grid
+          保存
         </button>
       </div>
-    </header>
+    </section>
   );
-}
-
-function getSaveStatusText(readOnly: boolean, saveStatus: SaveStatus, saveError: string | null): string {
-  const modePrefix = readOnly ? 'Read-only · ' : '';
-
-  if (saveStatus === 'saveError') {
-    return `${modePrefix}Save failed${saveError ? `: ${saveError}` : ''}`;
-  }
-
-  return `${modePrefix}${saveStatus === 'dirty' ? 'Dirty' : 'Saved'}`;
 }

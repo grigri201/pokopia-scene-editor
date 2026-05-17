@@ -214,13 +214,19 @@ describe('SceneCanvas', () => {
     );
 
     const cell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, Garden Plant, 1 skill item in stack, top skill Garden Plant 树',
+      'Cell 2,3, main area, level-0, placeable, 小型灌木, 1 skill item in stack, top skill 小型灌木 树',
     );
     expect(cell).toHaveAttribute('data-has-instance', 'true');
     expect(cell).toHaveAttribute('data-requires-skill', 'true');
     expect(cell).toHaveAttribute('data-skill-marker-label', '树');
-    expect(screen.getByText('Garden Plant')).toBeVisible();
-    expect(screen.getByLabelText('1 skill item in stack, top skill Garden Plant 树')).toHaveTextContent('树');
+    expect(cell).toHaveTextContent('小型灌木');
+    const skillMarker = screen.getByLabelText('1 skill item in stack, top skill 小型灌木 树');
+    expect(skillMarker).toHaveAttribute('data-tooltip', '树叶');
+    expect(skillMarker).not.toHaveTextContent('树');
+    expect(skillMarker.querySelector('img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/assets/pokopia_image_sources/item_portraits/0050-leaf.png'),
+    );
   });
 
   it('shows other visible layer context without marking the current layer as occupied', () => {
@@ -250,7 +256,8 @@ describe('SceneCanvas', () => {
     expect(cell).toHaveAttribute('data-has-instance', 'false');
     expect(cell).toHaveAttribute('data-instance-count', '0');
     expect(cell).toHaveAttribute('data-other-layer-instance-count', '1');
-    expect(screen.getByLabelText('1 item on other visible layers')).toHaveTextContent('+1');
+    expect(cell).not.toHaveTextContent('+1');
+    expect(document.querySelector('.cell-other-layer-count')).toBeNull();
   });
 
   it('renders the latest stacked asset, stack count, and unknown asset fallback', () => {
@@ -291,16 +298,25 @@ describe('SceneCanvas', () => {
     );
 
     const stackedCell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, Roof Tile, 2 stacked items, rotated 90 deg, dyed #56ccf2, 1 skill item in stack, top skill Roof Tile 耕',
+      'Cell 2,3, main area, level-0, placeable, 屋檐片段, 2 stacked items, rotated 90, dyed #56ccf2, 1 skill item in stack, top skill 屋檐片段 耕',
     );
     expect(stackedCell).toHaveAttribute('data-instance-count', '2');
     expect(stackedCell).toHaveAttribute('data-skill-marker-label', '耕');
     expect(stackedCell).toHaveAttribute('data-rotation', '90');
     expect(stackedCell).toHaveAttribute('data-dye-color', '#56ccf2');
-    expect(stackedCell).toHaveTextContent('Roof Tile');
+    expect(stackedCell).toHaveTextContent('屋檐片段');
     expect(stackedCell).toHaveTextContent('2x');
-    expect(stackedCell).toHaveTextContent('90 deg');
+    const rotationMarker = stackedCell.querySelector('.cell-rotation-marker');
+    expect(rotationMarker).toHaveAttribute('aria-label', '旋转 90 度');
+    expect(rotationMarker).toHaveAttribute('data-tooltip', '旋转 90 度');
+    expect(rotationMarker?.querySelector('svg')).toBeInTheDocument();
     expect(screen.getByLabelText('Dye #56ccf2')).toBeVisible();
+    const stackedSkillMarker = screen.getByLabelText('1 skill item in stack, top skill 屋檐片段 耕');
+    expect(stackedSkillMarker).toHaveAttribute('data-tooltip', '耕地');
+    expect(stackedSkillMarker.querySelector('img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/assets/pokopia_image_sources/decorative_item_portraits/171-farm-soil-ridge.webp'),
+    );
 
     expect(screen.getByLabelText('Cell 4,4, main area, level-0, placeable, Unknown asset: missing-asset')).toBeVisible();
   });
@@ -336,10 +352,13 @@ describe('SceneCanvas', () => {
     );
 
     const cell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, Ditto Doll, 2 stacked items, 1 skill item in stack, top skill Garden Plant 树',
+      'Cell 2,3, main area, level-0, placeable, 木质长椅, 2 stacked items, 1 skill item in stack, top skill 小型灌木 树',
     );
-    expect(cell).toHaveTextContent('Ditto Doll');
-    expect(screen.getByLabelText('1 skill item in stack, top skill Garden Plant 树')).toHaveTextContent('树');
+    expect(cell).toHaveTextContent('木质长椅');
+    expect(screen.getByLabelText('1 skill item in stack, top skill 小型灌木 树').querySelector('img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/assets/pokopia_image_sources/item_portraits/0050-leaf.png'),
+    );
   });
 
   it('does not render instances when the current building layer is hidden', () => {
@@ -372,7 +391,7 @@ describe('SceneCanvas', () => {
     const cell = screen.getByLabelText('Cell 2,3, main area, level-0, hidden layer');
     expect(cell).toHaveAttribute('data-has-instance', 'false');
     expect(cell).toHaveAttribute('data-requires-skill', 'false');
-    expect(cell).not.toHaveTextContent('Garden Plant');
+    expect(cell).not.toHaveTextContent('小型灌木');
     expect(hiddenScene.tileInstances[0]).toMatchObject({
       requiresSkill: true,
       skillType: '树叶',

@@ -162,13 +162,13 @@ describe('scene reducer selection rules', () => {
     expect(recovered.workspaceState.saveError).toBeNull();
   });
 
-  it('rejects scene names that do not label the 5x5 scene size', () => {
+  it('rejects empty scene names', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-test',
       now: '2026-05-16T07:00:00.000Z',
     });
 
-    expect(() => updateSceneName(scene, 'Garden layout', 'edit', '2026-05-16T08:00:00.000Z')).toThrow(
+    expect(() => updateSceneName(scene, '   ', 'edit', '2026-05-16T08:00:00.000Z')).toThrow(
       RangeError,
     );
   });

@@ -26,19 +26,33 @@ describe('AppShell scene storage integration', () => {
     window.localStorage.clear();
   });
 
-  it('saves the editable scene and restores it after the app remounts', async () => {
+  it('saves the editable Open Design scene and restores it after remount', async () => {
     const { unmount } = render(<AppShell />);
+    const saveButton = screen.getByRole('button', { name: 'Save scene' });
+    const deleteButton = screen.getByRole('button', { name: 'Delete scene' });
 
-    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Saved 5x5 Layout' } });
-    await waitFor(() => expect(screen.getByLabelText('Save status')).toHaveTextContent('Dirty'));
+    expect(saveButton.querySelector('svg')).toBeInTheDocument();
+    expect(deleteButton.querySelector('svg')).toBeInTheDocument();
+    expect(saveButton).toHaveAttribute('data-tooltip', '保存');
+    expect(deleteButton).toHaveAttribute('data-tooltip', '删除');
+    expect(saveButton).not.toHaveTextContent('S');
+    expect(deleteButton).not.toHaveTextContent('D');
+
+    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Saved Garden Layout' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save scene' })).toBeEnabled());
+    expectNoSaveStatus();
     fireEvent.click(screen.getByRole('button', { name: 'Save scene' }));
 
-    await waitFor(() => expect(screen.getByLabelText('Save status')).toHaveTextContent('Saved'));
-    const rawSavedPayload = window.localStorage.getItem(savedSceneStorageKey);
+    let rawSavedPayload: string | null = null;
+    await waitFor(() => {
+      rawSavedPayload = window.localStorage.getItem(savedSceneStorageKey);
+      expect(rawSavedPayload).not.toBeNull();
+    });
     expect(rawSavedPayload).not.toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(rawSavedPayload);
     expect(JSON.parse(rawSavedPayload ?? '{}')).toMatchObject({
-      sceneName: 'Saved 5x5 Layout',
+      sceneName: 'Saved Garden Layout',
+      selectedPokemonKey: 'pikachu',
       workspaceState: {
         saveStatus: 'saved',
       },
@@ -47,33 +61,59 @@ describe('AppShell scene storage integration', () => {
     unmount();
     render(<AppShell />);
 
-    expect(screen.getByLabelText('Scene Name')).toHaveValue('Saved 5x5 Layout');
-    expect(screen.getByLabelText('Save status')).toHaveTextContent('Saved');
+    expect(screen.getByLabelText('Scene Name')).toHaveValue('Saved Garden Layout');
+    expectNoSaveStatus();
   }, 10_000);
+
+  it('places the preview inspector below the canvas next to the current selection item', () => {
+    const { container } = render(<AppShell />);
+
+    const lowerInspectors = container.querySelector('.canvas-stage > .canvas-bottom-panels');
+    expect(lowerInspectors).toBeInTheDocument();
+    expect(lowerInspectors).toHaveAttribute('aria-label', 'Canvas lower inspectors');
+    expect(lowerInspectors?.children[0]).toHaveClass('selection-inspector');
+    expect(lowerInspectors?.children[1]).toHaveClass('preview-panel');
+    expect(container.querySelector('.workbench-left .preview-panel')).toBeNull();
+  });
+
+  it('switches the active editing layer when a building level row is clicked', () => {
+    render(<AppShell />);
+
+    const roofRow = screen.getByLabelText('L2, 屋顶与遮挡, 5 instances, visible, unlocked');
+
+    expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L1');
+    expect(roofRow).not.toHaveAttribute('aria-current');
+
+    fireEvent.click(roofRow);
+
+    expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L2');
+    expect(roofRow).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByLabelText(/Cell 0,0, outer area, level-2/)).toBeVisible();
+  });
 
   it('autosaves dirty edits without marking them saved', async () => {
     render(<AppShell />);
 
-    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Autosaved 5x5 Layout' } });
+    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Autosaved Garden Layout' } });
 
     await waitFor(() => {
       const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
       expect(rawAutosavePayload).not.toBeNull();
       expect(JSON.parse(rawAutosavePayload ?? '{}')).toMatchObject({
-        sceneName: 'Autosaved 5x5 Layout',
+        sceneName: 'Autosaved Garden Layout',
         workspaceState: {
           saveStatus: 'dirty',
         },
       });
     });
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
-    expect(screen.getByLabelText('Save status')).toHaveTextContent('Dirty');
+    expectNoSaveStatus();
   });
 
-  it('autosaves workspace selection changes even when the scene remains saved', async () => {
+  it('autosaves a default selected-asset placement on the current Open Design layer', async () => {
     const { unmount } = render(<AppShell />);
 
-    fireEvent.click(screen.getByLabelText('Cell 2,3, main area, level-0, placeable'));
+    fireEvent.click(screen.getByLabelText('Cell 2,3, main area, level-1, placeable'));
 
     await waitFor(() => {
       const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
@@ -81,40 +121,41 @@ describe('AppShell scene storage integration', () => {
       expect(JSON.parse(rawAutosavePayload ?? '{}')).toMatchObject({
         workspaceState: {
           selectedCoordinate: { x: 2, y: 3 },
-          saveStatus: 'saved',
+          saveStatus: 'dirty',
         },
       });
     });
-    expect(screen.getByLabelText('Save status')).toHaveTextContent('Saved');
+    expectNoSaveStatus();
 
     unmount();
     render(<AppShell />);
 
-    expect(screen.getByLabelText(/Cell 2,3, main area, level-0, placeable, selected/)).toBeVisible();
+    const restoredCell = screen.getByLabelText(/Cell 2,3, main area, level-1, placeable, 白木栅栏/);
+    expect(restoredCell).toBeVisible();
+    expect(restoredCell).toHaveAttribute('aria-selected', 'true');
   });
 
   it('stores UI preferences separately without dirtying or polluting saved SceneDocument payloads', async () => {
     render(<AppShell />);
 
-    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'roof' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Show favorite assets' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Preview all visible layers' }));
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '屋顶' } });
+    fireEvent.click(screen.getByLabelText('Show favorite assets'));
     fireEvent.click(screen.getByRole('button', { name: 'Show preview grid' }));
 
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).not.toBeNull();
-    expect(screen.getByLabelText('Save status')).toHaveTextContent('Saved');
+    expectNoSaveStatus();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
 
-    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Payload Isolation 5x5 Layout' } });
-    await waitFor(() => expect(screen.getByLabelText('Save status')).toHaveTextContent('Dirty'));
+    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Payload Isolation Layout' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save scene' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Save scene' }));
 
     await waitFor(() => {
       const rawSavedPayload = window.localStorage.getItem(savedSceneStorageKey);
       expect(rawSavedPayload).not.toBeNull();
       expect(JSON.parse(rawSavedPayload ?? '{}')).toMatchObject({
-        sceneName: 'Payload Isolation 5x5 Layout',
+        sceneName: 'Payload Isolation Layout',
         workspaceState: {
           saveStatus: 'saved',
         },
@@ -129,23 +170,21 @@ describe('AppShell scene storage integration', () => {
   it('does not create an extra undo step for saving', async () => {
     render(<AppShell />);
 
-    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Undo Check 5x5 Layout' } });
-    await waitFor(() => expect(screen.getByLabelText('Save status')).toHaveTextContent('Dirty'));
+    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Undo Check Layout' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save scene' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Save scene' }));
-    await waitFor(() => expect(screen.getByLabelText('Save status')).toHaveTextContent('Saved'));
+    await waitFor(() => expect(window.localStorage.getItem(savedSceneStorageKey)).not.toBeNull());
 
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
-    await waitFor(() => expect(screen.getByLabelText('Scene Name')).toHaveValue('Ditto 5x5 布景草稿'));
-    await waitFor(() => expect(screen.getByLabelText('Save status')).toHaveTextContent('Dirty'));
+    await waitFor(() => expect(screen.getByLabelText('Scene Name')).toHaveValue('星光庭院'));
     expect(screen.getByRole('button', { name: 'Save scene' })).toBeEnabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save scene' }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Save status')).toHaveTextContent('Saved');
       expect(JSON.parse(window.localStorage.getItem(savedSceneStorageKey) ?? '{}')).toMatchObject({
-        sceneName: 'Ditto 5x5 布景草稿',
+        sceneName: '星光庭院',
         workspaceState: {
           saveStatus: 'saved',
         },
@@ -160,12 +199,12 @@ describe('AppShell scene storage integration', () => {
 
     expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
     expect(screen.getByRole('button', { name: 'Save scene' })).toBeDisabled();
-    expect(screen.getByLabelText('Save status')).toHaveTextContent('Read-only · Saved');
+    expectNoSaveStatus();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
   });
 
-  it('shows recovery errors and keeps the current scene when startup storage is invalid', () => {
+  it('shows recovery errors and keeps the current Open Design scene when startup storage is invalid', () => {
     window.localStorage.setItem(
       autosavedSceneStorageKey,
       JSON.stringify({
@@ -178,14 +217,14 @@ describe('AppShell scene storage integration', () => {
 
     expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
     expect(screen.getByLabelText('Recovery error details')).toHaveTextContent('schemaVersion');
-    expect(screen.getByLabelText('Scene Name')).toHaveValue('Ditto 5x5 布景草稿');
-    expect(screen.getByLabelText('Save status')).toHaveTextContent('Saved');
+    expect(screen.getByLabelText('Scene Name')).toHaveValue('星光庭院');
+    expectNoSaveStatus();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'canceled');
     expect(screen.getByLabelText('Recovery Validator')).toHaveTextContent('Recovery canceled');
-    expect(screen.getByLabelText('Scene Name')).toHaveValue('Ditto 5x5 布景草稿');
+    expect(screen.getByLabelText('Scene Name')).toHaveValue('星光庭院');
   });
 
   it('retries recovery and replaces the scene only after storage becomes valid', async () => {
@@ -204,7 +243,7 @@ describe('AppShell scene storage integration', () => {
       window.localStorage,
       createDefaultSceneDocument({
         sceneId: 'scene-retry-recovery',
-        sceneName: 'Retry 5x5 Recovery',
+        sceneName: 'Retry Recovery',
         selectedPokemonKey: 'pikachu',
         selectedCoordinate: { x: 3, y: 3 },
         now: '2026-05-16T08:30:00.000Z',
@@ -215,8 +254,10 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'success');
-      expect(screen.getByLabelText('Scene Name')).toHaveValue('Retry 5x5 Recovery');
-      expect(screen.getByLabelText(/Cell 3,3, main area, level-0, placeable, selected/)).toBeVisible();
+      expect(screen.getByLabelText('Scene Name')).toHaveValue('Retry Recovery');
+      const recoveredCell = screen.getByLabelText(/Cell 3,3, main area, level-0, placeable$/);
+      expect(recoveredCell).toBeVisible();
+      expect(recoveredCell).toHaveAttribute('aria-selected', 'true');
     });
   });
 
@@ -226,7 +267,7 @@ describe('AppShell scene storage integration', () => {
       window.localStorage,
       createDefaultSceneDocument({
         sceneId: 'scene-readonly-recovery',
-        sceneName: 'Blocked 5x5 Recovery',
+        sceneName: 'Blocked Recovery',
         selectedPokemonKey: 'pikachu',
         now: '2026-05-16T08:30:00.000Z',
       }),
@@ -238,14 +279,14 @@ describe('AppShell scene storage integration', () => {
     expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
     expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
     expect(screen.getByLabelText('Recovery error details')).toHaveTextContent('Read-only mode cannot replace');
-    expect(screen.getByLabelText('Scene Name')).toHaveValue('Ditto 5x5 布景草稿');
+    expect(screen.getByLabelText('Scene Name')).toHaveValue('星光庭院');
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     await waitFor(() => {
       expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
-      expect(screen.getByLabelText('Scene Name')).toHaveValue('Ditto 5x5 布景草稿');
-      expect(screen.getByLabelText('Save status')).toHaveTextContent('Read-only · Saved');
+      expect(screen.getByLabelText('Scene Name')).toHaveValue('星光庭院');
+      expectNoSaveStatus();
     });
   });
 
@@ -255,7 +296,7 @@ describe('AppShell scene storage integration', () => {
       JSON.stringify({
         schemaVersion: 1,
         sceneId: 'bad-unsafe-scene',
-        sceneName: 'Unsafe 5x5 error',
+        sceneName: 'Unsafe error',
         selectedPokemonKey: unsafeCombinedText,
       }),
     );
@@ -268,37 +309,23 @@ describe('AppShell scene storage integration', () => {
     expect(details).toHaveTextContent(unsafeCombinedText);
     expect(details.querySelector('script')).toBeNull();
     expect(details.querySelector('img')).toBeNull();
-    expect(screen.getByLabelText('Scene Name')).toHaveValue('Ditto 5x5 布景草稿');
-    expect(screen.getByLabelText('Save status')).toHaveTextContent('Saved');
+    expect(screen.getByLabelText('Scene Name')).toHaveValue('星光庭院');
+    expectNoSaveStatus();
 
-    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Current Dirty 5x5 Layout' } });
-    fireEvent.click(screen.getByRole('button', { name: /Set 1 层 as current building layer/ }));
-    await waitFor(() => {
-      const levelOneBefore = screen.getByLabelText('L1, 1 层, 0 instances, visible, unlocked, current editing layer');
-      expect(levelOneBefore).toHaveAttribute('data-current', 'true');
-      expect(levelOneBefore).toHaveAttribute('data-locked', 'false');
-      expect(screen.getByLabelText('Save status')).toHaveTextContent('Dirty');
-    });
-    fireEvent.click(screen.getByLabelText('Cell 2,3, main area, level-1, placeable'));
-    await waitFor(() => {
-      expect(screen.getByLabelText('Cell 2,3, main area, level-1, placeable, selected')).toBeVisible();
-    });
+    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Current Dirty Layout' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save scene' })).toBeEnabled());
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'canceled');
-    expect(screen.getByLabelText('Scene Name')).toHaveValue('Current Dirty 5x5 Layout');
-    expect(screen.getByLabelText('Save status')).toHaveTextContent('Dirty');
-    const levelOneAfter = screen.getByLabelText('L1, 1 层, 0 instances, visible, unlocked, current editing layer');
-    expect(levelOneAfter).toHaveAttribute('data-current', 'true');
-    expect(levelOneAfter).toHaveAttribute('data-locked', 'false');
-    expect(screen.getByLabelText('Cell 2,3, main area, level-1, placeable, selected')).toBeVisible();
+    expect(screen.getByLabelText('Scene Name')).toHaveValue('Current Dirty Layout');
+    expectNoSaveStatus();
   });
 
   it('recovers unsafe scene text as plain text without inserting executable DOM nodes', async () => {
     const unsafeScene = createDefaultSceneDocument({
       sceneId: 'scene-unsafe-recovery',
-      sceneName: `Unsafe 5x5 ${unsafeAngleText}`,
+      sceneName: `Unsafe ${unsafeAngleText}`,
       selectedCoordinate: { x: 2, y: 2 },
       now: '2026-05-16T08:30:00.000Z',
     });
@@ -326,9 +353,8 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Scene Name')).toHaveValue(`Unsafe 5x5 ${unsafeAngleText}`);
-      expect(screen.getByLabelText('Selected instance note')).toHaveTextContent(unsafeImageText);
-      expect(screen.getByLabelText('Selected instance skill note')).toHaveTextContent(unsafeScriptText);
+      expect(screen.getByLabelText('Scene Name')).toHaveValue(`Unsafe ${unsafeAngleText}`);
+      expect(screen.getByLabelText('Selected instance')).toHaveTextContent('小型灌木');
       expect(document.querySelector('script')).toBeNull();
       expect(document.querySelector('img[src="x"]')).toBeNull();
     });
@@ -342,4 +368,9 @@ function setViewportWidth(width: number): void {
     value: width,
   });
   window.dispatchEvent(new Event('resize'));
+}
+
+function expectNoSaveStatus(): void {
+  expect(screen.queryByLabelText('Save status')).not.toBeInTheDocument();
+  expect(screen.queryByRole('status', { name: 'Save status' })).not.toBeInTheDocument();
 }
