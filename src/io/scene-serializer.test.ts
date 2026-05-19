@@ -4,14 +4,12 @@ import { parseSceneDocument } from './scene-schema';
 import { serializeSceneDocument, stringifySceneDocument } from './scene-serializer';
 
 describe('SceneDocument v1 serializer', () => {
-  it('serializes complete scene fields while excluding UI-only save errors', () => {
+  it('serializes complete scene fields while excluding UI-only save status', () => {
     const scene = createSceneWithInstances({
       workspaceState: {
         currentBuildingLevelId: 'level-1',
         selectedAssetId: 'garden-plant',
         selectedCoordinate: { x: 2, y: 3 },
-        saveStatus: 'saveError',
-        saveError: 'Local storage unavailable.',
       },
     });
 
@@ -29,7 +27,6 @@ describe('SceneDocument v1 serializer', () => {
         currentBuildingLevelId: 'level-1',
         selectedAssetId: 'garden-plant',
         selectedCoordinate: { x: 2, y: 3 },
-        saveStatus: 'dirty',
       },
       metadata: {
         createdAt: '2026-05-16T06:20:00.000Z',
@@ -38,6 +35,7 @@ describe('SceneDocument v1 serializer', () => {
         lastAutosavedAt: null,
       },
     });
+    expect(payload.workspaceState).not.toHaveProperty('saveStatus');
     expect(JSON.stringify(payload)).not.toContain('saveError');
     expect(parseSceneDocument(payload).ok).toBe(true);
   });
@@ -61,7 +59,7 @@ describe('SceneDocument v1 serializer', () => {
     });
   });
 
-  it('keeps skill, note, and dye fields explicit for recovery', () => {
+  it('keeps skill and dye fields explicit for recovery', () => {
     const payload = serializeSceneDocument(createSceneWithInstances());
 
     expect(payload.tileInstances).toEqual(
@@ -72,7 +70,6 @@ describe('SceneDocument v1 serializer', () => {
           requiresSkill: true,
           skillType: '树叶',
           skillNote: '',
-          note: '',
         }),
         expect.objectContaining({
           assetId: 'wooden-floor',
@@ -80,10 +77,10 @@ describe('SceneDocument v1 serializer', () => {
           requiresSkill: false,
           skillType: null,
           skillNote: '',
-          note: '',
         }),
       ]),
     );
+    expect(JSON.stringify(payload)).not.toContain('"note"');
   });
 
   it('normalizes unset, invalid, and unsupported dye colors to null', () => {
@@ -107,21 +104,10 @@ describe('SceneDocument v1 serializer', () => {
     expect(payload.tileInstances.map((instance) => instance.dyeColor)).toEqual([null, null]);
   });
 
-  it('serializes saved status without mutating the source scene', () => {
-    const scene = createSceneWithInstances({
-      workspaceState: {
-        currentBuildingLevelId: 'level-0',
-        selectedAssetId: null,
-        selectedCoordinate: null,
-        saveStatus: 'saved',
-        saveError: null,
-      },
-    });
+  it('serializes without mutating source scene geometry', () => {
+    const scene = createSceneWithInstances();
+    serializeSceneDocument(scene);
 
-    const payload = serializeSceneDocument(scene);
-
-    expect(payload.workspaceState.saveStatus).toBe('saved');
-    expect(scene.workspaceState.saveStatus).toBe('saved');
     expect(scene.tileInstances[0].areaType).toBe('main');
   });
 
@@ -152,7 +138,6 @@ function createSceneWithInstances(overrides: Partial<SceneDocument> = {}): Scene
         requiresSkill: true,
         skillType: '树叶',
         skillNote: '',
-        note: '',
       }),
       createTileInstance({
         instanceId: 'tile-dye',
@@ -161,15 +146,12 @@ function createSceneWithInstances(overrides: Partial<SceneDocument> = {}): Scene
         buildingLevelId: 'level-0',
         dyeColor: '#bb6bd9',
         skillNote: '',
-        note: '',
       }),
     ],
     workspaceState: {
       currentBuildingLevelId: 'level-0',
       selectedAssetId: null,
       selectedCoordinate: null,
-      saveStatus: 'dirty',
-      saveError: null,
     },
     metadata: {
       ...scene.metadata,

@@ -7,7 +7,6 @@ import {
 import {
   type BuildingLevel,
   type CellContext,
-  type GridCoordinate,
   type GridSize,
   type RotationDegrees,
   type SceneDimensions,
@@ -26,19 +25,13 @@ interface SelectionInspectorProps {
   buildingLevels: readonly BuildingLevel[];
   tileInstances: readonly TileInstance[];
   readOnly: boolean;
-  onSelectedInstanceChange: (instanceId: string) => void;
-  onDeleteInstance: (instanceId: string) => void;
-  onChangeInstanceAsset: (instanceId: string, assetId: string) => void;
-  onMoveInstance: (instanceId: string, coordinate: GridCoordinate, buildingLevelId: string) => void;
   onRotateInstance: (instanceId: string, rotationDegrees: RotationDegrees) => void;
-  onDyeInstance: (instanceId: string, dyeColor: string | null) => void;
   onSaveInstanceSkill: (
     instanceId: string,
     requiresSkill: boolean,
     skillType: AssetSkillType,
     skillNote: string,
   ) => void;
-  onSaveInstanceNote: (instanceId: string, note: string) => void;
 }
 
 export function SelectionInspector({
@@ -78,7 +71,7 @@ export function SelectionInspector({
         </div>
         {coordinate ? (
           <div className="current-selection-bar__actions" aria-label="Selection skill marker actions">
-            {selectedInstance && asset?.rotatable ? (
+            {selectedInstance ? (
               <button
                 type="button"
                 className="current-selection-action-button current-selection-action-button--rotate has-icon-tooltip"

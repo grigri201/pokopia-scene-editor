@@ -20,8 +20,6 @@ describe('scene storage', () => {
         currentBuildingLevelId: 'level-1',
         selectedAssetId: 'roof-tile',
         selectedCoordinate: { x: 0, y: 2 },
-        saveStatus: 'saved',
-        saveError: null,
       },
     });
 
@@ -31,7 +29,7 @@ describe('scene storage', () => {
     expect(rawPayload).not.toBeNull();
     expect(JSON.parse(rawPayload ?? '{}')).toEqual(payload);
     expect(rawPayload).not.toContain('saveError');
-    expect(payload.workspaceState.saveStatus).toBe('saved');
+    expect(payload.workspaceState).not.toHaveProperty('saveStatus');
     expect(payload.tileInstances[0]).toMatchObject({
       assetId: 'roof-tile',
       areaType: 'outer',
@@ -40,11 +38,11 @@ describe('scene storage', () => {
       requiresSkill: true,
       skillType: '耕地',
       skillNote: 'soil marker',
-      note: 'edge roof',
     });
+    expect(payload.tileInstances[0]).not.toHaveProperty('note');
   });
 
-  it('reads storage payloads into editable scene state with saveError restored as null', () => {
+  it('reads storage payloads into editable scene state', () => {
     const scene = createScene();
     writeSceneDocumentToStorage(window.localStorage, scene, 'autosave');
 
@@ -56,7 +54,7 @@ describe('scene storage', () => {
     }
     expect(recovered.slot).toBe('autosave');
     expect(recovered.scene.sceneName).toBe('Storage 5x5 scene');
-    expect(recovered.scene.workspaceState.saveError).toBeNull();
+    expect(recovered.scene.workspaceState).not.toHaveProperty('saveError');
     expect(recovered.scene.tileInstances).toHaveLength(1);
   });
 
@@ -77,8 +75,6 @@ describe('scene storage', () => {
         currentBuildingLevelId: 'level-1',
         selectedAssetId: 'roof-tile',
         selectedCoordinate: { x: 0, y: 2 },
-        saveStatus: 'dirty',
-        saveError: null,
       },
     });
 
@@ -93,7 +89,7 @@ describe('scene storage', () => {
     }
     expect(latest.slot).toBe('autosave');
     expect(latest.scene.sceneName).toBe('Autosaved 5x5 scene');
-    expect(latest.scene.workspaceState.saveStatus).toBe('dirty');
+    expect(latest.scene.workspaceState.selectedAssetId).toBe('roof-tile');
   });
 
   it('surfaces invalid autosave instead of silently falling back to saved scene', () => {
@@ -167,15 +163,12 @@ function createScene(options: CreateSceneOptions = {}): SceneDocument {
         requiresSkill: true,
         skillType: '耕地',
         skillNote: 'soil marker',
-        note: 'edge roof',
       }),
     ],
     workspaceState: {
       currentBuildingLevelId: 'level-1',
       selectedAssetId: 'roof-tile',
       selectedCoordinate: { x: 0, y: 2 },
-      saveStatus: 'dirty',
-      saveError: null,
     },
     metadata: {
       ...scene.metadata,

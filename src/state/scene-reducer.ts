@@ -36,8 +36,6 @@ export type SceneAction =
       type: 'save-scene';
       interactionMode: InteractionMode;
       now: string;
-      result?: 'success' | 'failure';
-      errorMessage?: string;
     };
 
 export function sceneReducer(scene: SceneDocument, action: SceneAction): SceneDocument {
@@ -51,7 +49,7 @@ export function sceneReducer(scene: SceneDocument, action: SceneAction): SceneDo
     case 'select-asset':
       return selectAsset(scene, action.assetId, action.interactionMode, action.now);
     case 'save-scene':
-      return saveScene(scene, action.interactionMode, action.now, action.result, action.errorMessage);
+      return saveScene(scene, action.interactionMode, action.now);
   }
 }
 
@@ -160,35 +158,13 @@ export function saveScene(
   scene: SceneDocument,
   interactionMode: InteractionMode,
   now: string,
-  result: 'success' | 'failure' = 'success',
-  errorMessage = 'Unable to save scene.',
 ): SceneDocument {
   if (interactionMode === 'readOnly') {
     return scene;
   }
 
-  if (result === 'failure') {
-    return {
-      ...scene,
-      workspaceState: {
-        ...scene.workspaceState,
-        saveStatus: 'saveError',
-        saveError: errorMessage,
-      },
-      metadata: {
-        ...scene.metadata,
-        updatedAt: now,
-      },
-    };
-  }
-
   return {
     ...scene,
-    workspaceState: {
-      ...scene.workspaceState,
-      saveStatus: 'saved',
-      saveError: null,
-    },
     metadata: {
       ...scene.metadata,
       updatedAt: now,
@@ -218,11 +194,6 @@ function clampCanvasCoordinate(value: number): number {
 function markSceneDirty(scene: SceneDocument, now: string): SceneDocument {
   return {
     ...scene,
-    workspaceState: {
-      ...scene.workspaceState,
-      saveStatus: 'dirty',
-      saveError: null,
-    },
     metadata: {
       ...scene.metadata,
       updatedAt: now,

@@ -383,14 +383,6 @@ function AssetDetail({
           <dd>{getAssetSkillLabel(asset)}</dd>
         </div>
         <div>
-          <dt>Rotatable</dt>
-          <dd>{asset.rotatable ? 'Yes' : 'No'}</dd>
-        </div>
-        <div>
-          <dt>Stackable</dt>
-          <dd>{asset.stackable ? 'Yes' : 'No'}</dd>
-        </div>
-        <div>
           <dt>Dyeable</dt>
           <dd>{asset.dyeable ? 'Yes' : 'No'}</dd>
         </div>

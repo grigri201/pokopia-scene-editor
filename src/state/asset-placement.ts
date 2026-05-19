@@ -9,7 +9,7 @@ import {
 import { canAssetRequirePlacementSkill, getAssetById, type AssetDefinition } from '../domain/assets';
 import type { InteractionMode } from './interaction-mode';
 
-export type PlacementStatus = 'ready' | 'blocked' | 'will-stack' | 'will-replace' | 'no-asset' | 'read-only';
+export type PlacementStatus = 'ready' | 'blocked' | 'will-replace' | 'no-asset' | 'read-only';
 
 export interface AssetPlacementPreview {
   status: PlacementStatus;
@@ -26,9 +26,6 @@ export type PlacementFailureReason =
   | 'read-only'
   | 'missing-asset'
   | 'unknown-asset'
-  | 'locked-layer'
-  | 'hidden-layer'
-  | 'area-incompatible'
   | 'replace-confirmation-required';
 
 export type AssetPlacementCommandResult =
@@ -124,8 +121,6 @@ export function placeSelectedAsset(
       workspaceState: {
         ...scene.workspaceState,
         selectedCoordinate: { x: input.coordinate.x, y: input.coordinate.y },
-        saveStatus: 'dirty',
-        saveError: null,
       },
       metadata: {
         ...scene.metadata,
@@ -148,7 +143,6 @@ function evaluatePlacement(
   const assetId = scene.workspaceState.selectedAssetId;
   const asset = getAssetById(assetId);
   const cellContext = getCellContext(scene, coordinate);
-  const currentLevel = cellContext.buildingLevel;
   const existingInstances = cellContext.tileInstances;
   const effectiveRequiresSkill = Boolean(asset && requiresSkill && canAssetRequirePlacementSkill(asset));
   const skillLabel = getPlacementSkillLabel(asset, effectiveRequiresSkill);
@@ -165,30 +159,9 @@ function evaluatePlacement(
     return failure('unknown-asset', 'Unknown current asset', 'Choose a valid asset from the Asset Picker.');
   }
 
-  if (!currentLevel.visible) {
-    return failure('hidden-layer', 'Current layer is hidden', 'Show the building layer before placing.');
-  }
-
-  if (currentLevel.locked) {
-    return failure('locked-layer', 'Current layer is locked', 'Unlock the building layer before placing.');
-  }
-
-  if (!asset.applicableAreas.includes(cellContext.areaType)) {
-    return failure(
-      'area-incompatible',
-      `${asset.name} cannot be placed in ${cellContext.areaType}`,
-      `Choose a ${asset.applicableAreas.join(' or ')} cell or select another asset.`,
-    );
-  }
-
   const hasExistingInstances = existingInstances.length > 0;
-  const stackAllowed =
-    hasExistingInstances &&
-    asset.stackable &&
-    existingInstances.every((instance) => getAssetById(instance.assetId)?.stackable === true);
-  const replacementRequired = hasExistingInstances && !stackAllowed;
 
-  if (replacementRequired && !confirmReplace) {
+  if (hasExistingInstances && !confirmReplace) {
     return failure(
       'replace-confirmation-required',
       `Will replace ${existingInstances.length} item${existingInstances.length === 1 ? '' : 's'}`,
@@ -200,16 +173,12 @@ function evaluatePlacement(
   return {
     failureReason: null,
     preview: {
-      status: stackAllowed ? 'will-stack' : 'ready',
+      status: 'ready',
       canPlace: true,
-      message: stackAllowed
-        ? `Will stack with ${existingInstances.length} item${existingInstances.length === 1 ? '' : 's'}`
-        : 'Ready to place',
+      message: 'Ready to place',
       repairHint: 'Click or press Enter to place.',
       skillLabel,
-      overwriteLabel: stackAllowed
-        ? `${existingInstances.length} stackable item${existingInstances.length === 1 ? '' : 's'} at target`
-        : 'No overwrite',
+      overwriteLabel: 'No overwrite',
       asset,
       existingInstances,
     },

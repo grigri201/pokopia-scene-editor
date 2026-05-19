@@ -11,7 +11,7 @@ describe('SceneDocument v1 schema', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.scene.schemaVersion).toBe(1);
-      expect(result.scene.workspaceState.saveStatus).toBe('saved');
+      expect(result.scene.workspaceState.currentBuildingLevelId).toBe('level-0');
     }
   });
 
@@ -32,29 +32,44 @@ describe('SceneDocument v1 schema', () => {
     );
   });
 
-  it('rejects wrong types, enum values, and non-camelCase extras', () => {
+  it('rejects non-camelCase top-level extras', () => {
     const input = {
       ...createValidPayload(),
       scene_name: 'snake case should not be accepted',
-      workspaceState: {
-        ...createValidPayload().workspaceState,
-        saveStatus: 'saveError',
-        saveError: 'UI-only failure text',
-      },
     };
 
     const errors = validateSceneDocument(input);
 
     expect(errors.some((error) => error.fieldPath === '$')).toBe(true);
-    expect(errors.some((error) => error.fieldPath === 'workspaceState')).toBe(true);
-    expect(errors).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          fieldPath: 'workspaceState.saveStatus',
-          expected: 'dirty | saved',
-        }),
-      ]),
-    );
+  });
+
+  it('strips legacy MVP fields from nested payload objects', () => {
+    const payload = createValidPayload();
+    const result = parseSceneDocument({
+      ...payload,
+      buildingLevels: payload.buildingLevels.map((level) => ({
+        ...level,
+        visible: false,
+        locked: true,
+      })),
+      tileInstances: payload.tileInstances.map((instance) => ({
+        ...instance,
+        note: 'legacy note',
+      })),
+      workspaceState: {
+        ...payload.workspaceState,
+        saveStatus: 'saveError',
+        saveError: 'legacy UI failure text',
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(JSON.stringify(result.scene)).not.toContain('legacy');
+      expect(result.scene.workspaceState).not.toHaveProperty('saveStatus');
+      expect(result.scene.buildingLevels[0]).not.toHaveProperty('visible');
+      expect(result.scene.tileInstances[0]).not.toHaveProperty('note');
+    }
   });
 
   it('rejects unknown Pokemon and asset ids', () => {
@@ -155,6 +170,47 @@ describe('SceneDocument v1 schema', () => {
         }),
       ]),
     );
+  });
+
+  it('rejects duplicate tile instances on the same building layer coordinate', () => {
+    const payload = createValidPayload();
+    const input = {
+      ...payload,
+      tileInstances: [
+        payload.tileInstances[0],
+        {
+          ...payload.tileInstances[0],
+          instanceId: 'tile-duplicate-cell',
+          assetId: 'roof-tile',
+        },
+      ],
+    };
+
+    expect(validateSceneDocument(input)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'tileInstances[1].coordinate',
+          reason: 'Expected one tile instance per building level coordinate; duplicate with tileInstances[0]',
+        }),
+      ]),
+    );
+  });
+
+  it('allows the same coordinate to be occupied on different building layers', () => {
+    const payload = createValidPayload();
+    const input = {
+      ...payload,
+      tileInstances: [
+        payload.tileInstances[0],
+        {
+          ...payload.tileInstances[0],
+          instanceId: 'tile-cross-layer',
+          buildingLevelId: 'level-1',
+        },
+      ],
+    };
+
+    expect(validateSceneDocument(input)).toEqual([]);
   });
 
   it('rejects tile instances that reference a missing building level', () => {
@@ -278,7 +334,6 @@ function createValidPayload(): SceneDocumentV1 {
         requiresSkill: true,
         skillType: '树叶',
         skillNote: '',
-        note: '',
       }),
     ],
     workspaceState: {

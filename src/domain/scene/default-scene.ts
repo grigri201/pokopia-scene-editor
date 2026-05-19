@@ -74,8 +74,6 @@ export function createDefaultSceneDocument(
       currentBuildingLevelId: options.includeOpenDesignDemo ? 'level-1' : buildingLevels[0].id,
       selectedAssetId: options.includeOpenDesignDemo ? 'wooden-floor' : null,
       selectedCoordinate,
-      saveStatus: 'saved',
-      saveError: null,
     },
     metadata: {
       createdAt: now,

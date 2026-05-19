@@ -33,8 +33,6 @@ describe('default scene document', () => {
       currentBuildingLevelId: 'level-0',
       selectedAssetId: null,
       selectedCoordinate: null,
-      saveStatus: 'saved',
-      saveError: null,
     });
     expect(scene.metadata).toEqual({
       createdAt: now,

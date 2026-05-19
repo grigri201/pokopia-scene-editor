@@ -630,16 +630,6 @@ button:disabled {
   object-fit: contain;
 }
 
-.cell-stack-count {
-  position: absolute;
-  top: 3px;
-  right: 4px;
-  color: var(--color-selected-cell);
-  font-size: 9px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
 .cell-rotation-marker {
   position: absolute;
   top: 3px;

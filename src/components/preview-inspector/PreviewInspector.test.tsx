@@ -150,16 +150,10 @@ describe('PreviewInspector', () => {
     expect(JSON.stringify(scene)).toBe(snapshotBefore);
   });
 
-  it('excludes hidden current-layer instances while preserving all-visible preview mode', () => {
-    const hiddenScene = {
-      ...scene,
-      buildingLevels: scene.buildingLevels.map((level) =>
-        level.id === 'level-0' ? { ...level, visible: false } : level,
-      ),
-    };
+  it('keeps current-layer instances visible because hidden layer state is no longer persisted', () => {
     const { container } = render(
       <PreviewInspector
-        scene={hiddenScene}
+        scene={scene}
         activeBuildingLevelId="level-0"
         selectedCoordinate={{ x: 2, y: 3 }}
         selectedInstanceId="tile-preview"
@@ -167,12 +161,12 @@ describe('PreviewInspector', () => {
       />,
     );
 
-    expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('0 current-layer preview items');
+    expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('1 current-layer preview items');
     expect(container.querySelector('.top-cell[data-preview-coordinate="2,3"]')).toHaveAttribute(
       'data-preview-has-instance',
-      'false',
+      'true',
     );
-    expect(screen.getByLabelText('Front preview item summary')).toHaveTextContent('1 visible items projected across 2 layers');
+    expect(screen.getByLabelText('Front preview item summary')).toHaveTextContent('2 visible items projected across 3 layers');
     expect(container.querySelector('.front-cell[data-front-level-id="level-1"][data-front-x="2"]')).toHaveAttribute(
       'data-preview-asset-id',
       'roof-tile',

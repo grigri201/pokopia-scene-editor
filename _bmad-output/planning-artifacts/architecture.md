@@ -49,6 +49,22 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - Preview：左下 Preview Inspector 同屏展示俯视图和正视图、完整 7x7 展示、主体边界、当前层/全部可见层、网格和技能标记开关。
 - Properties, Save & Recovery：上下文/检查器字段、保存/自动保存、重新打开、恢复校验、SceneDocument 序列化和字段级错误提示；显式 JSON 导出/导入 UI 后置。
 
+### Approved Course Correction - 2026-05-19
+
+本 Architecture 已按 `sprint-change-proposal-2026-05-19.md` 更新 MVP 架构边界。任何旧段落中关于建筑层隐藏/锁定、手动保存、dirty/saved/saveError、撤销/重做、素材空状态恢复动作、素材适用区域阻断校验、素材堆叠、实例移动、普通实例备注、素材可旋转差异、预览网格/主体边界/技能标记显示开关，以及 Mobile 下键盘查看操作的架构要求均被本节覆盖。
+
+当前架构约束：
+
+- `SceneDocument` 仍是唯一业务事实来源，但 `workspaceState.saveStatus` 和普通实例备注 `note` 不再是 MVP payload 要求。
+- MVP 只保留自动保存和重新打开恢复；不提供手动保存 command/UI，也不展示 dirty/saved/saveError。
+- State management 使用 React reducer + typed command dispatcher；不提供 undo/redo history。
+- 建筑层模型不包含 hidden/locked 写操作；预览不需要 `selectVisibleLevels`，应使用当前层/全部层的派生 selector。
+- Asset catalog 可保留适用区域元数据和筛选，但 placement command 不得用适用区域阻断放置。
+- 同一建筑层同一坐标不支持堆叠；使用替换/删除语义。
+- 所有素材均支持 `rotationDegrees: 0 | 90 | 180 | 270`，不再维护 canRotate 分支。
+- Preview Inspector 固定不显示网格、主体边界和技能标记，也不持久化这类显示选项。
+- Mobile View-only Mode 下应用级 keyboard handler 必须 no-op；桌面/平板键盘快捷操作可保留但不是 MVP 强制要求。
+
 另有 28 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
@@ -65,7 +81,7 @@ Open Design UI 确认了新的工作台形态。架构上应支持一个桌面�
 
 - MVP 应采用客户端优先架构，先完成本地场景编辑、保存/自动保存、序列化和恢复闭环；显式 JSON 导出/导入 UI、账号、云同步、协作、公开方案库和分享链接不进入 MVP。
 - Scene document 必须是编辑数据的单一事实来源。画布、上下文/检查器字段、建筑层列表、预览和保存/恢复校验不得维护互相分叉的业务状态。
-- 所有会修改 scene document 的行为都应经过统一 command 层，便于撤销/重做、dirty state、只读模式、校验和自动化测试。
+- 所有会修改 scene document 的行为都应经过统一 command 层，便于只读模式、校验、自动保存和自动化测试；MVP 不提供撤销/重做。
 - `<768px` 的只读边界不能只靠隐藏按钮实现；command 层、canvas pointer handler 和 keyboard handler 都必须检查 `interactionMode`。
 - 建筑层、素材实例、染色/朝向/技能状态和保存/恢复 schema 是最重要的领域模型边界，应优先稳定。
 - 正视图在 MVP 中应是结构化高度关系预览，不做真实游戏视角和复杂遮挡模拟。
@@ -92,7 +108,7 @@ Open Design UI 确认了新的工作台形态。架构上应支持一个桌面�
 
 **Vite + React + TypeScript (`react-ts`)**
 
-适合作为默认方案。它提供快速开发服务器、生产构建、React 组件模型和 TypeScript 类型检查，同时保持客户端 SPA 架构简单。适合实现 Open Design 浮动工作台、画布组件、建筑层列表、选中检查器、双预览检查器、command 层、撤销/重做和只读模式权限边界。
+适合作为默认方案。它提供快速开发服务器、生产构建、React 组件模型和 TypeScript 类型检查，同时保持客户端 SPA 架构简单。适合实现 Open Design 浮动工作台、画布组件、建筑层列表、选中检查器、双预览检查器、command 层和只读模式权限边界。
 
 **Vite + Vanilla TypeScript (`vanilla-ts`)**
 
@@ -151,8 +167,8 @@ starter 不默认包含完整测试栈。后续实施应补充：
 初始化后应采用 feature/domain 分层，而不是把逻辑集中在单个 `App.tsx`：
 
 - `src/domain/scene/`：scene document 类型、area 计算、building level 规则、tile instance 规则。
-- `src/domain/assets/`：asset catalog 类型、搜索筛选和适用区域规则。
-- `src/state/`：scene state、command dispatch、undo/redo、dirty state、autosave state、interactionMode。
+- `src/domain/assets/`：asset catalog 类型、搜索筛选、适用区域展示/筛选元数据和默认技能规则。
+- `src/state/`：scene state、command dispatch、autosave state、interactionMode。
 - `src/components/`：Scene Canvas、Asset Picker、Building Level Panel、Selection Inspector、Preview Inspector、Pokemon Scene Controls、Recovery Validator。
 - `src/io/`：scene storage、scene serialization、schema validation、safe text handling。
 - `src/theme/`：动态宝可梦主题 tokens 和语义色 tokens。
@@ -177,7 +193,7 @@ Vite 提供快速 dev server、HMR、TypeScript/JSX 支持和静态构建。第�
 **Important Decisions (Shape Architecture)**
 
 - 领域类型使用 TypeScript 定义，保存/恢复 schema 使用 Zod 4.x。
-- MVP 状态管理使用 React `useReducer` + command dispatcher + undo/redo history，不默认引入 Redux 或 Zustand。
+- MVP 状态管理使用 React `useReducer` + command dispatcher，不默认引入 Redux、Zustand 或 undo/redo history。
 - MVP 保存/自动保存使用浏览器本地存储适配层和 SceneDocument 序列化；显式 JSON 文件导出/导入 UI 延后到 Post-MVP，但自动保存和后续显式导出必须共享同一个 SceneDocument v1 payload。
 - 测试栈采用 Vitest、React Testing Library 和 Playwright。
 - 部署目标是静态站点托管，CI 至少包含 typecheck、unit tests、build 和 Playwright smoke。
@@ -220,10 +236,9 @@ Vite 提供快速 dev server、HMR、TypeScript/JSX 支持和静态构建。第�
 - `workspaceState.currentBuildingLevelId`
 - `workspaceState.selectedAssetId`
 - `workspaceState.selectedCoordinate`
-- `workspaceState.saveStatus`
 - `rotationDegrees` on tile instances, constrained to `0 | 90 | 180 | 270`
 - `dyeColor` on tile instances, explicitly `null` when unset
-- metadata such as `createdAt`, `updatedAt`, `lastSavedAt` and `lastAutosavedAt`
+- metadata such as `createdAt`, `updatedAt` and `lastAutosavedAt`
 
 `SceneDocument` 应表达 PRD 中的固定 MVP 规则：`sceneSize = 5x5`、`canvasSize = 7x7`、`outerPadding = 1`。MVP 只接受当前 SceneDocument v1 的完整字段集合，缺失必需字段必须失败。
 
@@ -278,9 +293,9 @@ MVP schema 固定为 `1`。恢复流程应先读取 `schemaVersion`：
 核心数据流全部发生在浏览器内：
 
 - scene create/edit：内存 state
-- save/autosave：serialize `SceneDocument` through local scene storage; payload identical to future explicit export
-- reopen/recover：read saved SceneDocument data, parse, validate, then replace state only after success
-- local UI preferences：persist asset search/filter/favorite-only and preview display options to a separate localStorage namespace, outside `SceneDocument`
+- autosave：serialize `SceneDocument` through local scene storage; payload identical to future explicit export
+- reopen/recover：read autosaved SceneDocument data, parse, validate, then replace state only after success
+- local UI preferences：persist asset search/filter/favorite-only to a separate localStorage namespace, outside `SceneDocument`
 - asset catalog：MVP 使用 repo-local static data 或 bundled JSON/TS data
 
 **Decision: Internal operations use typed Result objects.**
@@ -302,11 +317,11 @@ MVP schema 固定为 `1`。恢复流程应先读取 `schemaVersion`：
 - Asset Picker reads asset catalog + selected asset state
 - Building Level Panel reads building levels + current level
 - Selection Inspector reads selected instance derived from scene
-- Preview Inspector derives front/top previews from scene and view options
-- Pokemon Scene Controls read selected Pokemon, scene name and dirty/saved state
+- Preview Inspector derives front/top previews from scene and layer range
+- Pokemon Scene Controls read selected Pokemon and scene name
 - Recovery Validator reads schema validation result
 
-组件可以拥有 local UI state，例如 hover cell、focused control、panel open state、search input text、filter controls、favorite-only、preview display options、zoom/pan 或 modal open state；这些 UI 偏好可以保存到 localStorage，但不能复制 `SceneDocument` 的业务字段作为独立 truth，也不能进入自动保存/导出 payload。
+组件可以拥有 local UI state，例如 hover cell、focused control、panel open state、search input text、filter controls、favorite-only、zoom/pan 或 modal open state；这些 UI 偏好可以保存到 localStorage，但不能复制 `SceneDocument` 的业务字段作为独立 truth，也不能进入自动保存/导出 payload。
 
 **Decision: State management uses React reducer and typed command layer.**
 
@@ -315,32 +330,26 @@ MVP 使用：
 - `SceneState`
 - `SceneCommand`
 - `executeSceneCommand(state, command, context): CommandResult`
-- reducer/history wrapper for undo/redo
+- reducer wrapper without undo/redo history
 
 每个 command 负责一个业务意图，例如：
 
 - `PLACE_TILE`
 - `DELETE_TILE`
-- `MOVE_TILE`
 - `UPDATE_TILE_SKILL`
 - `UPDATE_TILE_ROTATION`
 - `UPDATE_TILE_DYE`
 - `CREATE_LEVEL`
 - `DELETE_LEVEL`
 - `RENAME_LEVEL`
-- `SET_LEVEL_VISIBILITY`
-- `SET_LEVEL_LOCKED`
 - `RECOVER_SCENE`
 
 command layer 必须统一检查：
 
 - `interactionMode`
-- locked level
 - coordinate bounds
-- area compatibility
-- stackability
 - destructive confirmation
-- dirty state updates
+- autosave triggering
 
 **Decision: Routing is not part of MVP architecture.**
 
@@ -354,7 +363,7 @@ MVP 是单页工作台，不引入 React Router。未来如果加入方案库、
 type InteractionMode = "edit" | "readOnly";
 ```
 
-`<768px` 时进入 `readOnly`。只读模式允许改变查看状态，例如选中格子、当前查看建筑层、预览模式、缩放和平移；禁止改变 scene document、实例列表、建筑层、染色、技能标记、dirty flag、autosave state 和 undo/redo history。
+`<768px` 时进入 `readOnly`。只读模式允许通过指针改变查看状态，例如选中格子、当前查看建筑层、预览模式、缩放和平移；应用级键盘操作必须 no-op。只读模式禁止改变 scene document、实例列表、建筑层、染色、技能标记或 autosave state。
 
 ### Infrastructure & Deployment
 
@@ -389,8 +398,8 @@ Playwright 必须覆盖：
 
 1. Initialize Vite React TypeScript starter and scripts.
 2. Define domain types and Zod schema for `SceneDocument`, `BuildingLevel`, `TileInstance`, `AssetDefinition` and recovery errors.
-3. Implement pure domain functions: area calculation, level ordering, stackability, selected instance lookup and serialization.
-4. Implement command layer with `interactionMode`, locked-level checks, undo/redo and dirty state.
+3. Implement pure domain functions: area calculation, level ordering, selected instance lookup and serialization.
+4. Implement command layer with `interactionMode`, autosave boundaries and recovery validation.
 5. Build Scene Canvas, Asset Picker, Building Level Panel and Selection Inspector against the command layer.
 6. Add Preview Inspector with top-view and basic front-view derived from level order.
 7. Add Recovery Validator, scene storage/serializer and safe text rendering.
@@ -400,9 +409,9 @@ Playwright 必须覆盖：
 
 - Scene Canvas and Preview depend on the same scene selectors; they must not duplicate render ordering rules.
 - Selection Inspector and command layer must share field validation rules; inspector validation cannot differ from recovery validation.
-- Asset Picker and placement commands must share area compatibility and skill default handling.
-- Building Level Panel and command layer must share deletion, visibility, lock and current-level rules.
-- Mobile UI, canvas handlers and keyboard shortcuts all depend on the same `interactionMode` guard.
+- Asset Picker and placement commands must share skill default handling; area compatibility is display/filter metadata, not a placement blocker.
+- Building Level Panel and command layer must share deletion, copy, rename and current-level rules.
+- Mobile UI and canvas handlers depend on the same `interactionMode` guard; mobile application keyboard handlers must no-op.
 
 ## Implementation Patterns & Consistency Rules
 
@@ -447,8 +456,8 @@ MVP 没有后端 API，因此不定义 REST endpoint、GraphQL schema 或 server
 实现应按职责分层，不按页面临时堆叠：
 
 - `src/domain/scene/`：scene document 类型、area 计算、level ordering、tile instance 规则。
-- `src/domain/assets/`：asset catalog 类型、搜索筛选、适用区域和默认技能规则。
-- `src/state/`：scene reducer、command dispatcher、undo/redo、dirty state、autosave state、interaction mode。
+- `src/domain/assets/`：asset catalog 类型、搜索筛选、适用区域展示/筛选元数据和默认技能规则。
+- `src/state/`：scene reducer、command dispatcher、autosave state、interaction mode。
 - `src/components/`：React UI 组件。
 - `src/io/`：JSON parse、Zod schema、scene storage、serialization/recovery、safe text handling。
 - `src/theme/`：动态宝可梦主题 tokens、语义色 tokens 和 theme helpers。
@@ -483,13 +492,12 @@ type Result<T, E> =
 - JSON 字段使用 `camelCase`。
 - 日期使用 ISO 8601 string。
 - Boolean 使用 `true` / `false`。
-- 备注字段必须显式存在；未填写时使用空字符串。恢复 schema 不接受缺失字段并静默补齐。
+- 技能备注字段必须显式存在；未填写时使用空字符串。普通实例备注 `note` 不属于 MVP payload 必填字段。
 - `areaType` 只允许 `main | outer`。
 - `rotationDegrees` 只允许 `0 | 90 | 180 | 270`；默认 0 度必须显式保存为 `0`，但 UI 不显示额外旋转标记。
 - `dyeColor` 未设置时必须显式使用 `null`；支持染色且已选择颜色的实例必须保留可恢复颜色值。
 - `skillType` 在未设置时使用 `null`，已设置时只允许 `树叶`、`耕地`、`储水`；`skillNote` 使用空字符串。
 - `selectedAssetId`、`selectedCoordinate`、`dyeColor`、`skillType` 这类可空字段必须以显式 `null` 表达空状态，不允许缺失字段。
-- `workspaceState.saveStatus` 只允许 `dirty | saved`；保存、自动保存和未来显式导出成功后写出的 payload 应反映当前持久化状态。
 - `schemaVersion` 必须存在，MVP 使用 `1`。
 
 Recovery error 统一结构：
@@ -525,14 +533,14 @@ MVP 不引入全局 event bus。组件通信走 React props/context + command di
 - 业务派生数据必须通过 selector 统一计算，例如 `selectVisibleLevels`、`selectTileAtCell`、`selectPreviewTiles`。
 - selector 必须是 pure function，不读取 DOM，不触发 side effect。
 - reducer 必须 immutable update，不能原地 mutate 输入 state。
-- undo/redo history 只记录会修改 scene document 的 command；hover、selection、zoom、preview mode 不进入 scene history，除非后续 story 明确要求。
+- MVP 不维护 undo/redo history；hover、selection、zoom 和 preview mode 不进入 scene payload。
 
 ### Process Patterns
 
 **Error Handling Patterns**
 
 - 恢复失败：展示错误摘要和字段级列表，不覆盖当前 scene，不改变 dirty state。
-- command 被拒绝：返回 typed command error，例如 `READ_ONLY_VIEWPORT`、`LEVEL_LOCKED`、`OUT_OF_BOUNDS`、`STACKING_NOT_ALLOWED`。
+- command 被拒绝：返回 typed command error，例如 `READ_ONLY_VIEWPORT`、`OUT_OF_BOUNDS` 或 `DESTRUCTIVE_CONFIRMATION_REQUIRED`。
 - 用户可修复错误展示 recovery action。
 - programmer error 可以 throw，并由 React error boundary 或测试暴露。
 - 错误 UI 不得只靠红色，必须同时有文本、图标、边框或状态标签。
@@ -552,13 +560,13 @@ MVP 不引入全局 event bus。组件通信走 React props/context + command di
 
 - `interactionMode` 是权限边界，不是样式变量。
 - `<768px` 必须进入 `readOnly`。
-- read-only 允许 selection、preview mode、current visible level、zoom/pan 和查看详情。
-- read-only 禁止 place、move、delete、rotate、dye, skill toggle、level mutate、recover replace、save dirty changes、autosave、undo/redo mutation。
-- command layer、canvas pointer handler 和 keyboard handler 都必须检查只读边界。
+- read-only 允许通过指针 selection、preview mode、current viewed level、zoom/pan 和查看详情。
+- read-only 禁止 place、delete、rotate、dye, skill toggle、level mutate、recover replace 和 autosave。
+- command layer 和 canvas pointer handler 必须检查只读边界；mobile application keyboard handler 必须 no-op。
 
 **Safe Text Rendering Patterns**
 
-- 恢复数据或未来导入 JSON 的 `sceneName`、`assetName`、`note`、`skillNote` 等字段只能作为文本渲染。
+- 恢复数据或未来导入 JSON 的 `sceneName`、`assetName`、`skillNote` 等字段只能作为文本渲染。
 - 禁止 `dangerouslySetInnerHTML`。
 - 禁止把恢复字段传给 HTML parser。
 - 测试 fixture 必须覆盖 `<script>`、`<img onerror>` 和普通尖括号文本。
@@ -749,12 +757,12 @@ React components 负责 UI rendering、local UI state 和 dispatching commands�
 组件边界：
 
 - `app-shell/`：Open Design 工作台 layout、interaction mode wiring。
-- `pokemon-scene-controls/`：顶部 Pokemon 选择、场景 `Name`、dirty/saved 状态和保存入口。
-- `scene-canvas/`：7x7 canvas rendering、hover/selection UI、pointer/keyboard handler，但写操作必须 dispatch command。
+- `pokemon-scene-controls/`：顶部 Pokemon 选择和场景 `Name`。
+- `scene-canvas/`：7x7 canvas rendering、hover/selection UI、pointer handler 和桌面可选 keyboard handler，但写操作必须 dispatch command；mobile keyboard handler no-op。
 - `asset-picker/`：右侧浮动素材搜索、分类/喜好/区域/技能筛选、选中素材和本次放置默认技能状态。
-- `building-level-panel/`：左侧建筑层列表、当前层、可见/锁定状态、创建/删除/复制/重命名 command entry；视觉顺序高层到低层，数据顺序仍为 0 层到 n 层。
+- `building-level-panel/`：左侧建筑层列表、当前层、创建/删除/复制/重命名 command entry；视觉顺序高层到低层，数据顺序仍为 0 层到 n 层。
 - `selection-inspector/`：选中实例字段展示和字段 edit command entry。
-- `preview-inspector/`：左下正视图/俯视图、当前层/全部可见层、网格/边界/技能标记显示选项。
+- `preview-inspector/`：左下正视图/俯视图、当前层/全部层；不提供网格/边界/技能标记显示选项。
 - `recovery-validator/`：保存/恢复校验错误摘要和 recovery action。
 
 **Service Boundaries**
@@ -774,11 +782,11 @@ MVP 不使用 service/repository/database layer。跨组件业务操作统一集
 **Feature Mapping**
 
 - FR1-FR7 Scene & Canvas Model：`src/domain/scene/types.ts`、`area.ts`、`selectors.ts`、`components/scene-canvas/`。
-- FR8-FR18 Asset Placement & Editing：`src/domain/scene/tiles.ts`、`src/state/scene-commands.ts`、`components/scene-canvas/`、`components/selection-inspector/`。
-- FR19-FR27 Building Level Management：`src/domain/scene/levels.ts`、`src/state/scene-commands.ts`、`components/building-level-panel/`。
+- FR8-FR18 Asset Placement & Editing：`src/domain/scene/tiles.ts`、`src/state/scene-commands.ts`、`components/scene-canvas/`、`components/selection-inspector/`；FR13/14/15/17/18 已从 MVP 删除。
+- FR19-FR27 Building Level Management：`src/domain/scene/levels.ts`、`src/state/scene-commands.ts`、`components/building-level-panel/`；FR25/26 已从 MVP 删除。
 - FR28-FR35 and FR59 Asset Catalog & Selection：`src/domain/assets/types.ts`、`catalog.ts`、`filters.ts`、`components/asset-picker/`。
 - FR36-FR40 and FR60-FR62 Ditto Skill / Instance Visual State：`src/state/scene-commands.ts`、`src/domain/scene/tiles.ts`、`components/selection-inspector/`、`components/scene-canvas/`。
-- FR41-FR47 and FR63 Preview：`src/domain/scene/selectors.ts`、`components/preview-inspector/`、`components/scene-canvas/`。
+- FR41-FR47 and FR63 Preview：`src/domain/scene/selectors.ts`、`components/preview-inspector/`、`components/scene-canvas/`；FR43/47 已从 MVP 删除。
 - FR48-FR49 Properties：`components/selection-inspector/`、`src/domain/scene/selectors.ts`、`src/state/scene-commands.ts`。
 - FR50-FR55 Save & Recovery：`src/io/scene-schema.ts`、`scene-serializer.ts`、`scene-storage.ts`、`recover-scene.ts`、`components/recovery-validator/`。
 - FR56-FR58 Open Design Workbench Context：`components/app-shell/`、`components/pokemon-scene-controls/`、`src/theme/`、`src/state/scene-state.ts`。
@@ -798,7 +806,7 @@ MVP 不使用 service/repository/database layer。跨组件业务操作统一集
 UI components communicate through props/context and dispatch typed commands. Business mutations flow:
 
 ```text
-component event -> command dispatcher -> command guard -> domain helper -> reducer/history -> scene state -> selectors -> UI
+component event -> command dispatcher -> command guard -> domain helper -> reducer -> scene state -> selectors -> UI
 ```
 
 View-only state such as hover cell, selected panel tab, zoom/pan, asset search/filter/favorite-only, preview mode and current viewed level can live in React state and may be persisted in a separate localStorage UI-preferences namespace, but must not mutate `SceneDocument` and must not appear in autosave/export payloads.
@@ -807,8 +815,8 @@ View-only state such as hover cell, selected panel tab, zoom/pan, asset search/f
 
 MVP has no external service integrations. Browser APIs used:
 
-- localStorage or equivalent local scene storage adapter for MVP save/autosave and reopen.
-- localStorage UI-preferences namespace for asset search/filter/favorite-only and preview display options; this namespace is explicitly outside SceneDocument.
+- localStorage or equivalent local scene storage adapter for MVP autosave and reopen.
+- localStorage UI-preferences namespace for asset search/filter/favorite-only; this namespace is explicitly outside SceneDocument.
 - File input / drag-and-drop for future explicit import, outside current MVP UI.
 - Blob URL / download for future explicit export, outside current MVP UI.
 - `matchMedia` or resize observation for interaction mode, routed through a shared `interaction-mode` helper.
@@ -833,7 +841,7 @@ Saved SceneDocument data
         -> RECOVER_SCENE command
         -> state replacement only after success
 
-Save / autosave
+Autosave
         -> validate current SceneDocument
         -> serialize
         -> local scene storage

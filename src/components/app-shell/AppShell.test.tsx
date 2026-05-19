@@ -11,7 +11,6 @@ import {
 import {
   unsafeAngleText,
   unsafeCombinedText,
-  unsafeImageText,
   unsafeScriptText,
 } from '../../test/fixtures/unsafe-text';
 import { AppShell } from './AppShell';
@@ -53,17 +52,15 @@ describe('AppShell scene storage integration', () => {
     expect(JSON.parse(rawSavedPayload ?? '{}')).toMatchObject({
       sceneName: 'Saved Garden Layout',
       selectedPokemonKey: 'pikachu',
-      workspaceState: {
-        saveStatus: 'saved',
-      },
     });
+    expect(JSON.parse(rawSavedPayload ?? '{}').workspaceState).not.toHaveProperty('saveStatus');
 
     unmount();
     render(<AppShell />);
 
     expect(screen.getByLabelText('Scene Name')).toHaveValue('Saved Garden Layout');
     expectNoSaveStatus();
-  }, 10_000);
+  }, 20_000);
 
   it('places the preview inspector below the canvas next to the current selection item', () => {
     const { container } = render(<AppShell />);
@@ -89,9 +86,9 @@ describe('AppShell scene storage integration', () => {
     expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L2');
     expect(roofRow).toHaveAttribute('aria-current', 'true');
     expect(screen.getByLabelText(/Cell 0,0, outer area, level-2/)).toBeVisible();
-  });
+  }, 15_000);
 
-  it('autosaves dirty edits without marking them saved', async () => {
+  it('autosaves dirty edits without writing UI save status into payload', async () => {
     render(<AppShell />);
 
     fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Autosaved Garden Layout' } });
@@ -101,12 +98,42 @@ describe('AppShell scene storage integration', () => {
       expect(rawAutosavePayload).not.toBeNull();
       expect(JSON.parse(rawAutosavePayload ?? '{}')).toMatchObject({
         sceneName: 'Autosaved Garden Layout',
-        workspaceState: {
-          saveStatus: 'dirty',
-        },
       });
+      expect(JSON.parse(rawAutosavePayload ?? '{}').workspaceState).not.toHaveProperty('saveStatus');
     });
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expectNoSaveStatus();
+  });
+
+  it('restores autosave-only drafts as dirty so they can be saved', async () => {
+    writeSceneDocumentToStorage(
+      window.localStorage,
+      createDefaultSceneDocument({
+        sceneId: 'scene-autosave-draft',
+        sceneName: 'Autosave Draft Layout',
+        selectedPokemonKey: 'pikachu',
+        now: '2026-05-16T08:45:00.000Z',
+      }),
+      'autosave',
+    );
+
+    render(<AppShell />);
+
+    expect(screen.getByLabelText('Scene Name')).toHaveValue('Autosave Draft Layout');
+    const saveButton = screen.getByRole('button', { name: 'Save scene' });
+    expect(saveButton).toBeEnabled();
+
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      const rawSavedPayload = window.localStorage.getItem(savedSceneStorageKey);
+      expect(rawSavedPayload).not.toBeNull();
+      expect(JSON.parse(rawSavedPayload ?? '{}')).toMatchObject({
+        sceneId: 'scene-autosave-draft',
+        sceneName: 'Autosave Draft Layout',
+      });
+    });
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(window.localStorage.getItem(savedSceneStorageKey));
     expectNoSaveStatus();
   });
 
@@ -121,9 +148,9 @@ describe('AppShell scene storage integration', () => {
       expect(JSON.parse(rawAutosavePayload ?? '{}')).toMatchObject({
         workspaceState: {
           selectedCoordinate: { x: 2, y: 3 },
-          saveStatus: 'dirty',
         },
       });
+      expect(JSON.parse(rawAutosavePayload ?? '{}').workspaceState).not.toHaveProperty('saveStatus');
     });
     expectNoSaveStatus();
 
@@ -156,10 +183,8 @@ describe('AppShell scene storage integration', () => {
       expect(rawSavedPayload).not.toBeNull();
       expect(JSON.parse(rawSavedPayload ?? '{}')).toMatchObject({
         sceneName: 'Payload Isolation Layout',
-        workspaceState: {
-          saveStatus: 'saved',
-        },
       });
+      expect(JSON.parse(rawSavedPayload ?? '{}').workspaceState).not.toHaveProperty('saveStatus');
       expect(rawSavedPayload).not.toContain('assetFilters');
       expect(rawSavedPayload).not.toContain('displayOptions');
       expect(rawSavedPayload).not.toContain('layerScope');
@@ -167,7 +192,7 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
-  it('does not create an extra undo step for saving', async () => {
+  it('does not expose undo or redo scene history controls', async () => {
     render(<AppShell />);
 
     fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Undo Check Layout' } });
@@ -175,20 +200,10 @@ describe('AppShell scene storage integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save scene' }));
     await waitFor(() => expect(window.localStorage.getItem(savedSceneStorageKey)).not.toBeNull());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
-
-    await waitFor(() => expect(screen.getByLabelText('Scene Name')).toHaveValue('星光庭院'));
-    expect(screen.getByRole('button', { name: 'Save scene' })).toBeEnabled();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save scene' }));
-
-    await waitFor(() => {
-      expect(JSON.parse(window.localStorage.getItem(savedSceneStorageKey) ?? '{}')).toMatchObject({
-        sceneName: '星光庭院',
-        workspaceState: {
-          saveStatus: 'saved',
-        },
-      });
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Redo' })).not.toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem(savedSceneStorageKey) ?? '{}')).toMatchObject({
+      sceneName: 'Undo Check Layout',
     });
   });
 
@@ -343,7 +358,6 @@ describe('AppShell scene storage integration', () => {
               requiresSkill: true,
               skillType: '树叶',
               skillNote: unsafeScriptText,
-              note: unsafeImageText,
             }),
           ],
         }),

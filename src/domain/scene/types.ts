@@ -2,7 +2,6 @@ import type { AreaType, GridCoordinate, GridSize } from './area';
 import type { AssetSkillType, PokemonKey } from '../assets';
 
 export type SceneSchemaVersion = 1;
-export type SaveStatus = 'dirty' | 'saved' | 'saveError';
 export type RotationDegrees = 0 | 90 | 180 | 270;
 
 export interface SceneMetadata {
@@ -16,16 +15,12 @@ export interface BuildingLevel {
   id: string;
   levelNumber: number;
   name: string;
-  visible: boolean;
-  locked: boolean;
 }
 
 export interface WorkspaceState {
   currentBuildingLevelId: string;
   selectedAssetId: string | null;
   selectedCoordinate: GridCoordinate | null;
-  saveStatus: SaveStatus;
-  saveError: string | null;
 }
 
 export interface TileInstance {
@@ -39,7 +34,6 @@ export interface TileInstance {
   requiresSkill: boolean;
   skillType: AssetSkillType;
   skillNote: string;
-  note: string;
 }
 
 export interface SceneDocument {

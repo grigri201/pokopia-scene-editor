@@ -13,7 +13,6 @@ describe('tile instance rules', () => {
       requiresSkill: true,
       skillType: '树叶',
       skillNote: 'Needs Ditto skill',
-      note: 'Outer edge test',
     });
 
     expect(tile).toEqual({
@@ -27,7 +26,6 @@ describe('tile instance rules', () => {
       requiresSkill: true,
       skillType: '树叶',
       skillNote: 'Needs Ditto skill',
-      note: 'Outer edge test',
     });
   });
 
@@ -45,7 +43,6 @@ describe('tile instance rules', () => {
     expect(tile.requiresSkill).toBe(false);
     expect(tile.skillType).toBeNull();
     expect(tile.skillNote).toBe('');
-    expect(tile.note).toBe('');
   });
 
   it('rejects out-of-range tile coordinates through area calculation', () => {

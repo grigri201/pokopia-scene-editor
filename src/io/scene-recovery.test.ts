@@ -25,7 +25,6 @@ describe('scene recovery', () => {
           requiresSkill: true,
           skillType: '耕地',
           skillNote: 'restore skill',
-          note: 'restore note',
         }),
       ],
       workspaceState: {
@@ -33,8 +32,6 @@ describe('scene recovery', () => {
         currentBuildingLevelId: 'level-1',
         selectedAssetId: 'roof-tile',
         selectedCoordinate: { x: 0, y: 2 },
-        saveStatus: 'dirty',
-        saveError: 'UI-only failure text',
       },
     });
 
@@ -48,8 +45,6 @@ describe('scene recovery', () => {
       currentBuildingLevelId: 'level-1',
       selectedAssetId: 'roof-tile',
       selectedCoordinate: { x: 0, y: 2 },
-      saveStatus: 'dirty',
-      saveError: null,
     });
     expect(recovered.scene.tileInstances[0]).toMatchObject({
       instanceId: 'tile-recover',
@@ -60,8 +55,9 @@ describe('scene recovery', () => {
       requiresSkill: true,
       skillType: '耕地',
       skillNote: 'restore skill',
-      note: 'restore note',
     });
+    expect(recovered.scene.workspaceState).not.toHaveProperty('saveStatus');
+    expect(recovered.scene.tileInstances[0]).not.toHaveProperty('note');
   });
 
   it('returns validation errors without creating a partial scene', () => {
@@ -110,8 +106,6 @@ describe('scene recovery', () => {
       selectedPokemonKey: 'pikachu',
       workspaceState: {
         selectedCoordinate: { x: 3, y: 3 },
-        saveStatus: 'saved',
-        saveError: null,
       },
     });
   });
@@ -137,7 +131,7 @@ describe('scene recovery', () => {
     }
     expect(missingVersion.scene).toBe(currentScene);
     expect(unknownVersion.scene).toBe(currentScene);
-    expect(currentScene.workspaceState.saveStatus).toBe('dirty');
+    expect(currentScene.metadata.updatedAt).toBe('2026-05-16T08:05:00.000Z');
     expect(missingVersion.errors).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -167,10 +161,6 @@ describe('scene recovery', () => {
     );
     const invalidPayload = {
       ...validPayload,
-      workspaceState: {
-        ...validPayload.workspaceState,
-        saveStatus: 'saveError',
-      },
       tileInstances: [
         {
           instanceId: 'tile-bad-area',
@@ -183,7 +173,6 @@ describe('scene recovery', () => {
           requiresSkill: false,
           skillType: null,
           skillNote: '',
-          note: '',
         },
         {
           instanceId: 'tile-bad-coordinate',
@@ -196,7 +185,6 @@ describe('scene recovery', () => {
           requiresSkill: true,
           skillType: '树叶',
           skillNote: '',
-          note: '',
         },
       ],
     };
@@ -214,10 +202,6 @@ describe('scene recovery', () => {
     expect(result.availableActions).toEqual(['retry', 'cancel', 'view-details']);
     expect(result.errors).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          fieldPath: 'workspaceState.saveStatus',
-          expected: 'dirty | saved',
-        }),
         expect.objectContaining({
           fieldPath: 'tileInstances[0].rotationDegrees',
         }),
@@ -252,7 +236,6 @@ describe('scene recovery', () => {
           requiresSkill: false,
           skillType: null,
           skillNote: '',
-          note: '',
         },
       ],
     };
@@ -316,11 +299,6 @@ function createDirtyCurrentScene() {
 
   return {
     ...scene,
-    workspaceState: {
-      ...scene.workspaceState,
-      saveStatus: 'dirty' as const,
-      saveError: null,
-    },
     metadata: {
       ...scene.metadata,
       updatedAt: '2026-05-16T08:05:00.000Z',

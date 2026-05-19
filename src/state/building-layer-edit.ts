@@ -9,9 +9,7 @@ export type BuildingLayerEditFailureReason =
   | 'read-only'
   | 'missing-layer'
   | 'invalid-name'
-  | 'last-visible-layer'
   | 'last-layer'
-  | 'locked-layer'
   | 'delete-confirmation-required';
 
 export type BuildingLayerEditResult =
@@ -32,9 +30,7 @@ export type BuildingLayerEditInput =
   | { type: 'copy'; levelId: string; instanceIdPrefix: string; interactionMode: InteractionMode; now: string }
   | { type: 'delete'; levelId: string; confirmDelete?: boolean; interactionMode: InteractionMode; now: string }
   | { type: 'rename'; levelId: string; name: string; interactionMode: InteractionMode; now: string }
-  | { type: 'set-current'; levelId: string; interactionMode: InteractionMode; now: string }
-  | { type: 'set-visible'; levelId: string; visible: boolean; interactionMode: InteractionMode; now: string }
-  | { type: 'set-locked'; levelId: string; locked: boolean; interactionMode: InteractionMode; now: string };
+  | { type: 'set-current'; levelId: string; interactionMode: InteractionMode; now: string };
 
 export function editBuildingLayer(
   scene: SceneDocument,
@@ -62,32 +58,7 @@ export function editBuildingLayer(
       return updateLayer(scene, input.levelId, input.now, 'Current layer changed', (level) => level, {
         currentBuildingLevelId: input.levelId,
       });
-    case 'set-visible':
-      return setLayerVisible(scene, input.levelId, input.visible, input.now);
-    case 'set-locked':
-      return setLayerLocked(scene, input.levelId, input.locked, input.now);
   }
-}
-
-function setLayerLocked(
-  scene: SceneDocument,
-  levelId: string,
-  locked: boolean,
-  now: string,
-): BuildingLayerEditResult {
-  const targetLayer = scene.buildingLevels.find((level) => level.id === levelId);
-  if (!targetLayer) {
-    return failure('missing-layer', 'Unknown building layer', 'Choose an existing building layer.');
-  }
-
-  if (targetLayer.locked === locked) {
-    return { ok: true, scene, message: locked ? 'Layer already locked' : 'Layer already unlocked' };
-  }
-
-  return updateLayer(scene, levelId, now, locked ? 'Layer locked' : 'Layer unlocked', (level) => ({
-    ...level,
-    locked,
-  }));
 }
 
 function createLayer(scene: SceneDocument, now: string): BuildingLayerEditResult {
@@ -123,8 +94,6 @@ function copyLayer(
   const nextLevel = {
     ...createBuildingLevel(nextLevelNumber),
     name: `${sourceLayer.name} copy`,
-    visible: sourceLayer.visible,
-    locked: false,
   };
   const copiedInstances = scene.tileInstances
     .filter((instance) => instance.buildingLevelId === sourceLayer.id)
@@ -164,15 +133,7 @@ function deleteLayer(
     return failure('last-layer', 'Cannot delete the last building layer', 'Create another building layer before deleting this one.');
   }
 
-  if (targetLayer.locked) {
-    return failure('locked-layer', 'Cannot delete a locked building layer', 'Unlock the building layer before deleting it.');
-  }
-
   const remainingLevels = scene.buildingLevels.filter((level) => level.id !== levelId);
-  if (!remainingLevels.some((level) => level.visible)) {
-    return failure('last-visible-layer', 'Cannot delete the last visible layer', 'Show another layer before deleting this one.');
-  }
-
   const affectedInstances = scene.tileInstances.filter((instance) => instance.buildingLevelId === levelId);
   if (!confirmDelete) {
     return failure(
@@ -214,31 +175,6 @@ function renameLayer(scene: SceneDocument, levelId: string, name: string, now: s
   }
 
   return updateLayer(scene, levelId, now, 'Layer renamed', (level) => ({ ...level, name: nextName }));
-}
-
-function setLayerVisible(
-  scene: SceneDocument,
-  levelId: string,
-  visible: boolean,
-  now: string,
-): BuildingLayerEditResult {
-  if (!visible) {
-    const visibleLayerCount = scene.buildingLevels.filter((level) => level.visible).length;
-    const targetLayer = scene.buildingLevels.find((level) => level.id === levelId);
-    if (targetLayer?.visible && visibleLayerCount <= 1) {
-      return failure('last-visible-layer', 'Cannot hide the last visible layer', 'Show another layer before hiding this one.');
-    }
-  }
-
-  const targetLayer = scene.buildingLevels.find((level) => level.id === levelId);
-  if (targetLayer?.visible === visible) {
-    return { ok: true, scene, message: visible ? 'Layer already shown' : 'Layer already hidden' };
-  }
-
-  return updateLayer(scene, levelId, now, visible ? 'Layer shown' : 'Layer hidden', (level) => ({
-    ...level,
-    visible,
-  }));
 }
 
 function updateLayer(
@@ -293,8 +229,6 @@ function createUniqueCopiedInstanceId(
 function getFallbackLevelId(levels: SceneDocument['buildingLevels']): string {
   const sortedLevels = [...levels].sort((left, right) => right.levelNumber - left.levelNumber);
   return (
-    sortedLevels.find((level) => level.visible && !level.locked) ??
-    sortedLevels.find((level) => level.visible) ??
     sortedLevels[0]
   ).id;
 }
@@ -307,8 +241,6 @@ function markLayerSceneDirty(scene: SceneDocument, now: string, message: string)
       ...scene,
       workspaceState: {
         ...scene.workspaceState,
-        saveStatus: 'dirty',
-        saveError: null,
       },
       metadata: {
         ...scene.metadata,

@@ -4,7 +4,8 @@ import {
   pokemonThemeCatalog,
   type PokemonKey,
 } from '../../domain/assets';
-import type { SaveStatus } from '../../domain/scene';
+
+type SaveStatus = 'dirty' | 'saved' | 'saveError';
 
 interface PokemonSceneControlsProps {
   readOnly: boolean;

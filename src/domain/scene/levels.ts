@@ -9,8 +9,6 @@ export function createBuildingLevel(levelNumber: number): BuildingLevel {
     id: `level-${levelNumber}`,
     levelNumber,
     name: `${levelNumber} 层`,
-    visible: true,
-    locked: false,
   };
 }
 

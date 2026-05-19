@@ -40,9 +40,7 @@ const buildingLevelSchema = z.object({
   id: z.string().min(1),
   levelNumber: z.number().int().min(0),
   name: z.string(),
-  visible: z.boolean(),
-  locked: z.boolean(),
-}).strict();
+}).strip();
 
 const skillTypeSchema = z.enum(assetSkillTypes);
 const dyeColorSchema = z
@@ -61,15 +59,13 @@ const tileInstanceSchema = z.object({
   requiresSkill: z.boolean(),
   skillType: skillTypeSchema.nullable(),
   skillNote: z.string(),
-  note: z.string(),
-}).strict();
+}).strip();
 
 const workspaceStateSchema = z.object({
   currentBuildingLevelId: z.string().min(1),
   selectedAssetId: z.string().refine(isKnownAssetId, 'Expected known asset id').nullable(),
   selectedCoordinate: coordinateSchema.nullable(),
-  saveStatus: z.enum(['dirty', 'saved']),
-}).strict();
+}).strip();
 
 const metadataSchema = z.object({
   createdAt: isoDateTimeSchema,
@@ -119,6 +115,7 @@ export const sceneDocumentV1Schema = z.object({
     outerPadding: scene.outerPadding,
   };
   const instanceIds = new Set<string>();
+  const occupiedLevelCoordinates = new Map<string, number>();
 
   for (const [index, instance] of scene.tileInstances.entries()) {
     if (instanceIds.has(instance.instanceId)) {
@@ -130,6 +127,18 @@ export const sceneDocumentV1Schema = z.object({
     }
 
     instanceIds.add(instance.instanceId);
+
+    const occupiedKey = `${instance.buildingLevelId}:${instance.coordinate.x},${instance.coordinate.y}`;
+    const existingIndex = occupiedLevelCoordinates.get(occupiedKey);
+    if (existingIndex !== undefined) {
+      context.addIssue({
+        code: 'custom',
+        message: `Expected one tile instance per building level coordinate; duplicate with tileInstances[${existingIndex}]`,
+        path: ['tileInstances', index, 'coordinate'],
+      });
+    } else {
+      occupiedLevelCoordinates.set(occupiedKey, index);
+    }
 
     if (!levelIds.has(instance.buildingLevelId)) {
       context.addIssue({

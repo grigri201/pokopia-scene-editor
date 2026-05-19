@@ -66,41 +66,11 @@ describe('SceneCanvas', () => {
     expect(cells.every((cell) => !cell.hasAttribute('aria-disabled'))).toBe(true);
   });
 
-  it('marks cells as non-editable when the current layer is hidden or locked', () => {
-    const hiddenScene = {
-      ...scene,
-      buildingLevels: scene.buildingLevels.map((level) =>
-        level.id === scene.workspaceState.currentBuildingLevelId ? { ...level, visible: false } : level,
-      ),
-    };
-    const lockedScene = {
-      ...scene,
-      buildingLevels: scene.buildingLevels.map((level) =>
-        level.id === scene.workspaceState.currentBuildingLevelId ? { ...level, locked: true } : level,
-      ),
-    };
+  it('keeps all editable cells available because layer hidden/locked state is no longer a command boundary', () => {
+    render(<SceneCanvas {...defaultProps} readOnly={false} />);
 
-    const { rerender } = render(
-      <SceneCanvas
-        {...defaultProps}
-        cells={getCanvasCellContexts(hiddenScene)}
-        readOnly={false}
-      />,
-    );
-
-    expect(screen.getByLabelText('Cell 0,0, outer area, level-0, hidden layer')).toBeVisible();
-    expect(screen.getAllByTestId('scene-cell').every((cell) => cell.dataset.editable === 'false')).toBe(true);
-
-    rerender(
-      <SceneCanvas
-        {...defaultProps}
-        cells={getCanvasCellContexts(lockedScene)}
-        readOnly={false}
-      />,
-    );
-
-    expect(screen.getByLabelText('Cell 0,0, outer area, level-0, locked layer')).toBeVisible();
-    expect(screen.getAllByTestId('scene-cell').every((cell) => cell.dataset.editable === 'false')).toBe(true);
+    expect(screen.getByLabelText('Cell 0,0, outer area, level-0, placeable')).toBeVisible();
+    expect(screen.getAllByTestId('scene-cell').every((cell) => cell.dataset.editable === 'true')).toBe(true);
   });
 
   it('emits plain grid coordinates at the UI boundary', () => {
@@ -214,13 +184,13 @@ describe('SceneCanvas', () => {
     );
 
     const cell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, 小型灌木, 1 skill item in stack, top skill 小型灌木 树',
+      'Cell 2,3, main area, level-0, placeable, 小型灌木, Skill marker 小型灌木 树',
     );
     expect(cell).toHaveAttribute('data-has-instance', 'true');
     expect(cell).toHaveAttribute('data-requires-skill', 'true');
     expect(cell).toHaveAttribute('data-skill-marker-label', '树');
     expect(cell).toHaveTextContent('小型灌木');
-    const skillMarker = screen.getByLabelText('1 skill item in stack, top skill 小型灌木 树');
+    const skillMarker = screen.getByLabelText('Skill marker 小型灌木 树');
     expect(skillMarker).toHaveAttribute('data-tooltip', '树叶');
     expect(skillMarker).not.toHaveTextContent('树');
     expect(skillMarker.querySelector('img')).toHaveAttribute(
@@ -260,8 +230,8 @@ describe('SceneCanvas', () => {
     expect(document.querySelector('.cell-other-layer-count')).toBeNull();
   });
 
-  it('renders the latest stacked asset, stack count, and unknown asset fallback', () => {
-    const sceneWithStackedTiles = {
+  it('does not expose same-layer duplicate instances as stack UI', () => {
+    const sceneWithDuplicateTiles = {
       ...scene,
       tileInstances: [
         createTileInstance({
@@ -292,28 +262,29 @@ describe('SceneCanvas', () => {
     render(
       <SceneCanvas
         {...defaultProps}
-        cells={getCanvasCellContexts(sceneWithStackedTiles)}
+        cells={getCanvasCellContexts(sceneWithDuplicateTiles)}
         readOnly={false}
       />,
     );
 
-    const stackedCell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, 屋檐片段, 2 stacked items, rotated 90, dyed #56ccf2, 1 skill item in stack, top skill 屋檐片段 耕',
+    const duplicateCell = screen.getByLabelText(
+      'Cell 2,3, main area, level-0, placeable, 屋檐片段, rotated 90, dyed #56ccf2, Skill marker 屋檐片段 耕',
     );
-    expect(stackedCell).toHaveAttribute('data-instance-count', '2');
-    expect(stackedCell).toHaveAttribute('data-skill-marker-label', '耕');
-    expect(stackedCell).toHaveAttribute('data-rotation', '90');
-    expect(stackedCell).toHaveAttribute('data-dye-color', '#56ccf2');
-    expect(stackedCell).toHaveTextContent('屋檐片段');
-    expect(stackedCell).toHaveTextContent('2x');
-    const rotationMarker = stackedCell.querySelector('.cell-rotation-marker');
+    expect(duplicateCell).toHaveAttribute('data-instance-count', '1');
+    expect(duplicateCell).toHaveAttribute('data-skill-marker-label', '耕');
+    expect(duplicateCell).toHaveAttribute('data-rotation', '90');
+    expect(duplicateCell).toHaveAttribute('data-dye-color', '#56ccf2');
+    expect(duplicateCell).toHaveTextContent('屋檐片段');
+    expect(duplicateCell).not.toHaveTextContent('2x');
+    expect(document.querySelector('.cell-stack-count')).toBeNull();
+    const rotationMarker = duplicateCell.querySelector('.cell-rotation-marker');
     expect(rotationMarker).toHaveAttribute('aria-label', '旋转 90 度');
     expect(rotationMarker).toHaveAttribute('data-tooltip', '旋转 90 度');
     expect(rotationMarker?.querySelector('svg')).toBeInTheDocument();
     expect(screen.getByLabelText('Dye #56ccf2')).toBeVisible();
-    const stackedSkillMarker = screen.getByLabelText('1 skill item in stack, top skill 屋檐片段 耕');
-    expect(stackedSkillMarker).toHaveAttribute('data-tooltip', '耕地');
-    expect(stackedSkillMarker.querySelector('img')).toHaveAttribute(
+    const skillMarker = screen.getByLabelText('Skill marker 屋檐片段 耕');
+    expect(skillMarker).toHaveAttribute('data-tooltip', '耕地');
+    expect(skillMarker.querySelector('img')).toHaveAttribute(
       'src',
       expect.stringContaining('/assets/pokopia_image_sources/decorative_item_portraits/171-farm-soil-ridge.webp'),
     );
@@ -321,8 +292,8 @@ describe('SceneCanvas', () => {
     expect(screen.getByLabelText('Cell 4,4, main area, level-0, placeable, Unknown asset: missing-asset')).toBeVisible();
   });
 
-  it('labels stack-level skill markers without assigning them to the visible top asset', () => {
-    const sceneWithMixedSkillStack = {
+  it('does not surface skill markers from ignored duplicate same-layer instances', () => {
+    const sceneWithDuplicateSkill = {
       ...scene,
       tileInstances: [
         createTileInstance({
@@ -346,30 +317,25 @@ describe('SceneCanvas', () => {
     render(
       <SceneCanvas
         {...defaultProps}
-        cells={getCanvasCellContexts(sceneWithMixedSkillStack)}
+        cells={getCanvasCellContexts(sceneWithDuplicateSkill)}
         readOnly={false}
       />,
     );
 
     const cell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, 木质长椅, 2 stacked items, 1 skill item in stack, top skill 小型灌木 树',
+      'Cell 2,3, main area, level-0, placeable, 木质长椅',
     );
     expect(cell).toHaveTextContent('木质长椅');
-    expect(screen.getByLabelText('1 skill item in stack, top skill 小型灌木 树').querySelector('img')).toHaveAttribute(
-      'src',
-      expect.stringContaining('/assets/pokopia_image_sources/item_portraits/0050-leaf.png'),
-    );
+    expect(screen.queryByLabelText('Skill marker 小型灌木 树')).not.toBeInTheDocument();
+    expect(cell).toHaveAttribute('data-instance-count', '1');
   });
 
-  it('does not render instances when the current building layer is hidden', () => {
-    const hiddenScene = {
+  it('renders current layer instances because hidden layer state is no longer persisted', () => {
+    const sceneWithInstance = {
       ...scene,
-      buildingLevels: scene.buildingLevels.map((level) =>
-        level.id === 'level-0' ? { ...level, visible: false } : level,
-      ),
       tileInstances: [
         createTileInstance({
-          instanceId: 'tile-hidden',
+          instanceId: 'tile-visible',
           assetId: 'garden-plant',
           coordinate: { x: 2, y: 3 },
           buildingLevelId: 'level-0',
@@ -383,16 +349,18 @@ describe('SceneCanvas', () => {
     render(
       <SceneCanvas
         {...defaultProps}
-        cells={getCanvasCellContexts(hiddenScene)}
+        cells={getCanvasCellContexts(sceneWithInstance)}
         readOnly={false}
       />,
     );
 
-    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, hidden layer');
-    expect(cell).toHaveAttribute('data-has-instance', 'false');
-    expect(cell).toHaveAttribute('data-requires-skill', 'false');
-    expect(cell).not.toHaveTextContent('小型灌木');
-    expect(hiddenScene.tileInstances[0]).toMatchObject({
+    const cell = screen.getByLabelText(
+      'Cell 2,3, main area, level-0, placeable, 小型灌木, Skill marker 小型灌木 树',
+    );
+    expect(cell).toHaveAttribute('data-has-instance', 'true');
+    expect(cell).toHaveAttribute('data-requires-skill', 'true');
+    expect(cell).toHaveTextContent('小型灌木');
+    expect(sceneWithInstance.tileInstances[0]).toMatchObject({
       requiresSkill: true,
       skillType: '树叶',
       skillNote: 'kept while hidden',

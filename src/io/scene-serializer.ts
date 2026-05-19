@@ -33,7 +33,6 @@ export function createSceneDocumentV1PayloadInput(scene: SceneDocument): unknown
       requiresSkill: instance.requiresSkill,
       skillType: instance.skillType ?? null,
       skillNote: instance.skillNote ?? '',
-      note: instance.note ?? '',
     })),
     workspaceState: {
       currentBuildingLevelId: scene.workspaceState.currentBuildingLevelId,
@@ -41,7 +40,6 @@ export function createSceneDocumentV1PayloadInput(scene: SceneDocument): unknown
       selectedCoordinate: scene.workspaceState.selectedCoordinate
         ? { ...scene.workspaceState.selectedCoordinate }
         : null,
-      saveStatus: scene.workspaceState.saveStatus === 'saved' ? 'saved' : 'dirty',
     },
     metadata: { ...scene.metadata },
   };

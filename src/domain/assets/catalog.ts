@@ -17,8 +17,6 @@ export interface AssetDefinition {
   defaultRequiresSkill: boolean;
   defaultSkillType: AssetSkillType;
   skillCandidate: boolean;
-  rotatable: boolean;
-  stackable: boolean;
   dyeable: boolean;
   thumbnailUrl: string;
   thumbnailAlt: string;
@@ -67,8 +65,6 @@ export const assetCatalog: readonly AssetDefinition[] = [
     defaultRequiresSkill: false,
     defaultSkillType: null,
     skillCandidate: false,
-    rotatable: true,
-    stackable: false,
     dyeable: true,
     thumbnailUrl: getAssetThumbnailUrl('0684-wooden-fencing.png'),
     thumbnailAlt: '白木栅栏缩略图',
@@ -84,8 +80,6 @@ export const assetCatalog: readonly AssetDefinition[] = [
     defaultRequiresSkill: true,
     defaultSkillType: '树叶',
     skillCandidate: true,
-    rotatable: false,
-    stackable: true,
     dyeable: false,
     thumbnailUrl: getAssetThumbnailUrl('0345-leafy-plant.png'),
     thumbnailAlt: '小型灌木缩略图',
@@ -101,8 +95,6 @@ export const assetCatalog: readonly AssetDefinition[] = [
     defaultRequiresSkill: false,
     defaultSkillType: null,
     skillCandidate: false,
-    rotatable: true,
-    stackable: false,
     dyeable: true,
     thumbnailUrl: getAssetThumbnailUrl('0701-stepping-stones.png'),
     thumbnailAlt: '石板路径缩略图',
@@ -118,8 +110,6 @@ export const assetCatalog: readonly AssetDefinition[] = [
     defaultRequiresSkill: false,
     defaultSkillType: null,
     skillCandidate: true,
-    rotatable: true,
-    stackable: true,
     dyeable: false,
     thumbnailUrl: getAssetThumbnailUrl('0282-wooden-bench.png'),
     thumbnailAlt: '木质长椅缩略图',
@@ -135,8 +125,6 @@ export const assetCatalog: readonly AssetDefinition[] = [
     defaultRequiresSkill: false,
     defaultSkillType: null,
     skillCandidate: true,
-    rotatable: true,
-    stackable: false,
     dyeable: false,
     thumbnailUrl: getAssetThumbnailUrl('0756-stone-brick-wall.png'),
     thumbnailAlt: '矮墙边角缩略图',
@@ -152,8 +140,6 @@ export const assetCatalog: readonly AssetDefinition[] = [
     defaultRequiresSkill: false,
     defaultSkillType: null,
     skillCandidate: true,
-    rotatable: true,
-    stackable: true,
     dyeable: true,
     thumbnailUrl: getAssetThumbnailUrl('0675-brick-roof-decoration.png'),
     thumbnailAlt: '屋檐片段缩略图',

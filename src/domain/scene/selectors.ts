@@ -107,7 +107,7 @@ export function getCellContext(
   );
   const otherVisibleLevelIds = new Set(
     scene.buildingLevels
-      .filter((level) => level.id !== buildingLevel.id && level.visible)
+      .filter((level) => level.id !== buildingLevel.id)
       .map((level) => level.id),
   );
   const otherVisibleLayerInstances = scene.tileInstances.filter(
@@ -159,8 +159,8 @@ export function getBuildingLevelContexts(scene: SceneDocument): BuildingLevelCon
     levelNumber: level.levelNumber,
     name: level.name,
     instanceCount: countTileInstancesForLevel(scene, level.id),
-    visible: level.visible,
-    locked: level.locked,
+    visible: true,
+    locked: false,
     current: level.id === currentLevel.id,
   }));
 }
@@ -181,9 +181,7 @@ export function getPreviewInspectorContext(
 ): PreviewInspectorContext {
   const activeLevel = getCurrentBuildingLevel(scene, activeBuildingLevelId);
   const activeCells = getCanvasCellContexts(scene, activeBuildingLevelId);
-  const activeLayerInstances = activeLevel.visible
-    ? activeCells.flatMap((cell) => cell.tileInstances)
-    : [];
+  const activeLayerInstances = activeCells.flatMap((cell) => cell.tileInstances);
   const visibleLevels = getVisibleBuildingLevelContexts(scene);
   const visibleLevelIds = new Set(visibleLevels.map((level) => level.id));
   const visibleTileInstances = scene.tileInstances.filter((instance) =>
@@ -200,7 +198,7 @@ export function getPreviewInspectorContext(
 }
 
 export function getVisibleBuildingLevelContexts(scene: SceneDocument): PreviewLayerContext[] {
-  const visibleLevels = getBuildingLevelContexts(scene).filter((level) => level.visible);
+  const visibleLevels = getBuildingLevelContexts(scene);
   const maxLevelNumber = getMaxBuildingLevelNumber(scene.buildingLevels);
 
   return visibleLevels.map((level) => ({
@@ -270,7 +268,7 @@ export function getCurrentLayerPreviewCellContexts(
   }
 
   return getCanvasCellContexts(scene, activeBuildingLevelId).map((cell) => {
-    const visibleTileInstances = cell.buildingLevel.visible ? cell.tileInstances : [];
+    const visibleTileInstances = cell.tileInstances;
 
     return {
       id: cell.id,
@@ -278,7 +276,7 @@ export function getCurrentLayerPreviewCellContexts(
       areaType: cell.areaType,
       placeable: cell.placeable,
       mainBoundary: cell.mainBoundary,
-      hidden: !cell.buildingLevel.visible,
+      hidden: false,
       tileInstances: visibleTileInstances,
       instanceLayerContexts: visibleTileInstances.length > 0 ? [activeLevelContext] : [],
     };

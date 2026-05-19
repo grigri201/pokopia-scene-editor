@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultSceneDocument, createTileInstance, type SceneDocument } from '../domain/scene';
-import { unsafeImageText, unsafeScriptText } from '../test/fixtures/unsafe-text';
+import { unsafeScriptText } from '../test/fixtures/unsafe-text';
 import { roundtripSceneDocument } from './scene-roundtrip';
 
 describe('SceneDocument v1 roundtrip', () => {
@@ -27,7 +27,6 @@ describe('SceneDocument v1 roundtrip', () => {
         currentBuildingLevelId: 'level-0',
         selectedAssetId: null,
         selectedCoordinate: null,
-        saveStatus: 'saved',
       },
       metadata: {
         createdAt: '2026-05-16T09:00:00.000Z',
@@ -39,7 +38,7 @@ describe('SceneDocument v1 roundtrip', () => {
     expect(roundtrip.sourcePayload.tileInstances).toEqual([]);
   });
 
-  it('roundtrips workspace state and multiple building level states', () => {
+  it('roundtrips workspace state and multiple building levels', () => {
     const roundtrip = expectRoundtrip(createRichScene());
 
     expect(roundtrip.sourcePayload).toEqual(roundtrip.roundtrippedPayload);
@@ -47,30 +46,22 @@ describe('SceneDocument v1 roundtrip', () => {
       currentBuildingLevelId: 'level-2',
       selectedAssetId: 'roof-tile',
       selectedCoordinate: { x: 0, y: 2 },
-      saveStatus: 'dirty',
-      saveError: null,
     });
     expect(roundtrip.sourcePayload.buildingLevels).toEqual([
       {
         id: 'level-0',
         levelNumber: 0,
         name: 'Ground',
-        visible: true,
-        locked: false,
       },
       {
         id: 'level-1',
         levelNumber: 1,
         name: 'Canopy',
-        visible: false,
-        locked: true,
       },
       {
         id: 'level-2',
         levelNumber: 2,
         name: 'Roof',
-        visible: true,
-        locked: false,
       },
     ]);
   });
@@ -90,12 +81,11 @@ describe('SceneDocument v1 roundtrip', () => {
         requiresSkill: false,
         skillType: null,
         skillNote: '',
-        note: 'main floor note',
       }),
       expect.objectContaining({
         instanceId: 'tile-plant',
         assetId: 'garden-plant',
-        coordinate: { x: 2, y: 2 },
+        coordinate: { x: 3, y: 2 },
         areaType: 'main',
         buildingLevelId: 'level-0',
         rotationDegrees: 0,
@@ -103,7 +93,6 @@ describe('SceneDocument v1 roundtrip', () => {
         requiresSkill: true,
         skillType: '树叶',
         skillNote: 'leaf marker note',
-        note: 'stacked plant note',
       }),
       expect.objectContaining({
         instanceId: 'tile-roof',
@@ -116,7 +105,6 @@ describe('SceneDocument v1 roundtrip', () => {
         requiresSkill: true,
         skillType: '耕地',
         skillNote: 'soil roof note',
-        note: 'outer roof note',
       }),
     ]);
     expect(roundtrip.sourcePayload).toEqual(roundtrip.roundtrippedPayload);
@@ -144,7 +132,7 @@ describe('SceneDocument v1 roundtrip', () => {
     ]);
   });
 
-  it('roundtrips unsafe note and skillNote strings as plain data', () => {
+  it('roundtrips unsafe skillNote strings as plain data', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-unsafe-roundtrip',
       sceneName: 'Unsafe 5x5 Roundtrip',
@@ -161,7 +149,6 @@ describe('SceneDocument v1 roundtrip', () => {
           requiresSkill: true,
           skillType: '树叶',
           skillNote: unsafeScriptText,
-          note: unsafeImageText,
         }),
       ],
       workspaceState: {
@@ -173,10 +160,9 @@ describe('SceneDocument v1 roundtrip', () => {
     expect(roundtrip.sourcePayload).toEqual(roundtrip.roundtrippedPayload);
     expect(roundtrip.sourcePayload.tileInstances[0]).toMatchObject({
       skillNote: unsafeScriptText,
-      note: unsafeImageText,
     });
     expect(JSON.stringify(roundtrip.roundtrippedPayload)).toContain(unsafeScriptText);
-    expect(JSON.stringify(roundtrip.roundtrippedPayload)).toContain(unsafeImageText);
+    expect(roundtrip.sourcePayload.tileInstances[0]).not.toHaveProperty('note');
   });
 });
 
@@ -206,22 +192,16 @@ function createRichScene(): SceneDocument {
         id: 'level-0',
         levelNumber: 0,
         name: 'Ground',
-        visible: true,
-        locked: false,
       },
       {
         id: 'level-1',
         levelNumber: 1,
         name: 'Canopy',
-        visible: false,
-        locked: true,
       },
       {
         id: 'level-2',
         levelNumber: 2,
         name: 'Roof',
-        visible: true,
-        locked: false,
       },
     ],
     tileInstances: [
@@ -232,17 +212,15 @@ function createRichScene(): SceneDocument {
         buildingLevelId: 'level-0',
         rotationDegrees: 0,
         dyeColor: '#bb6bd9',
-        note: 'main floor note',
       }),
       createTileInstance({
         instanceId: 'tile-plant',
         assetId: 'garden-plant',
-        coordinate: { x: 2, y: 2 },
+        coordinate: { x: 3, y: 2 },
         buildingLevelId: 'level-0',
         requiresSkill: true,
         skillType: '树叶',
         skillNote: 'leaf marker note',
-        note: 'stacked plant note',
       }),
       createTileInstance({
         instanceId: 'tile-roof',
@@ -254,15 +232,12 @@ function createRichScene(): SceneDocument {
         requiresSkill: true,
         skillType: '耕地',
         skillNote: 'soil roof note',
-        note: 'outer roof note',
       }),
     ],
     workspaceState: {
       currentBuildingLevelId: 'level-2',
       selectedAssetId: 'roof-tile',
       selectedCoordinate: { x: 0, y: 2 },
-      saveStatus: 'dirty',
-      saveError: null,
     },
     metadata: {
       ...scene.metadata,

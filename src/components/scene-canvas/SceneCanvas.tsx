@@ -1,6 +1,6 @@
 import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
 import { getAssetById, getAssetSkillMarkerIconUrl, getAssetSkillMarkerLabel } from '../../domain/assets';
-import type { BuildingLevel, CanvasCellContext, GridCoordinate, GridSize } from '../../domain/scene';
+import type { CanvasCellContext, GridCoordinate, GridSize } from '../../domain/scene';
 import { moveCoordinate } from '../../state';
 
 interface SceneCanvasProps {
@@ -50,26 +50,24 @@ export function SceneCanvas({
           {row.map((cell) => {
             const coordinate = cell.coordinate;
             const placeable = cell.placeable;
-            const editable = isCellEditable(cell.buildingLevel, placeable, readOnly);
-            const stateLabel = getCellStateLabel(cell.buildingLevel, placeable, readOnly);
+            const editable = isCellEditable(placeable, readOnly);
+            const stateLabel = getCellStateLabel(placeable, readOnly);
             const selected = coordinatesEqual(selectedCoordinate, coordinate);
             const targeted = coordinatesEqual(targetCoordinate, coordinate);
-            const visibleInstances = cell.buildingLevel.visible ? cell.tileInstances : [];
+            const visibleInstances = cell.tileInstances;
             const topInstance = visibleInstances.at(-1) ?? null;
             const topAsset = getAssetById(topInstance?.assetId);
             const topAssetLabel = topInstance ? getInstanceDisplayLabel(topInstance.assetId) : null;
-            const stackCount = visibleInstances.length;
             const otherLayerInstanceCount = cell.otherVisibleLayerInstances.length;
-            const skillInstances = visibleInstances.filter((instance) => instance.requiresSkill);
-            const topSkillInstance = skillInstances.at(-1) ?? null;
-            const hasSkillInstance = skillInstances.length > 0;
+            const topSkillInstance = topInstance?.requiresSkill ? topInstance : null;
+            const hasSkillInstance = Boolean(topSkillInstance);
             const skillMarkerLabel = topSkillInstance ? getAssetSkillMarkerLabel(topSkillInstance.skillType) : null;
             const skillMarkerIconUrl = topSkillInstance
               ? getAssetSkillMarkerIconUrl(topSkillInstance.skillType)
               : null;
             const skillMarkerTooltip = topSkillInstance?.skillType ?? null;
-            const skillStackLabel = topSkillInstance
-              ? getSkillStackLabel(skillInstances.length, topSkillInstance.assetId, skillMarkerLabel)
+            const skillMarkerAriaLabel = topSkillInstance
+              ? getInstanceSkillMarkerLabel(topSkillInstance.assetId, skillMarkerLabel)
               : null;
             const rotationDegrees = topInstance?.rotationDegrees ?? 0;
             const rotationLabel = rotationDegrees ? `${rotationDegrees}` : null;
@@ -83,8 +81,6 @@ export function SceneCanvas({
                   'scene-cell',
                   `scene-cell--${cell.areaType}`,
                   cell.mainBoundary ? 'scene-cell--main-boundary' : '',
-                  !cell.buildingLevel.visible ? 'scene-cell--hidden-layer' : '',
-                  cell.buildingLevel.locked ? 'scene-cell--locked-layer' : '',
                   !editable ? 'scene-cell--non-editable' : '',
                   selected ? 'scene-cell--selected' : '',
                   targeted ? 'scene-cell--targeted' : '',
@@ -96,14 +92,14 @@ export function SceneCanvas({
                 aria-current={selected ? 'location' : undefined}
                 aria-label={`Cell ${coordinate.x},${coordinate.y}, ${cell.areaType} area, ${cell.buildingLevel.id}, ${stateLabel}${
                   topAssetLabel ? `, ${topAssetLabel}` : ''
-                }${stackCount > 1 ? `, ${stackCount} stacked items` : ''}${
+                }${
                   otherLayerInstanceCount > 0
                     ? `, ${otherLayerInstanceCount} item${otherLayerInstanceCount === 1 ? '' : 's'} on other visible layers`
                     : ''
                 }${
                   rotationLabel ? `, rotated ${rotationLabel}` : ''
                 }${dyeColor ? `, dyed ${dyeColor}` : ''}${
-                  skillStackLabel ? `, ${skillStackLabel}` : ''
+                  skillMarkerAriaLabel ? `, ${skillMarkerAriaLabel}` : ''
                 }`}
                 onClick={() =>
                   handleCellPointerSelect(readOnly, coordinate, onSelectCoordinate, onViewCoordinate)
@@ -137,7 +133,7 @@ export function SceneCanvas({
                 data-targeted={targeted}
                 data-main-boundary={cell.mainBoundary}
                 data-has-instance={Boolean(topInstance)}
-                data-instance-count={stackCount}
+                data-instance-count={topInstance ? 1 : 0}
                 data-other-layer-instance-count={otherLayerInstanceCount}
                 data-requires-skill={hasSkillInstance}
                 data-skill-marker-label={skillMarkerLabel ?? ''}
@@ -158,7 +154,6 @@ export function SceneCanvas({
                 ) : topAssetLabel ? (
                   <span className="cell-asset-label">{topAssetLabel}</span>
                 ) : null}
-                {stackCount > 1 ? <span className="cell-stack-count">{stackCount}x</span> : null}
                 {rotationLabel ? (
                   <span
                     className="cell-rotation-marker has-icon-tooltip"
@@ -191,7 +186,7 @@ export function SceneCanvas({
                 {hasSkillInstance ? (
                   <span
                     className="cell-skill-marker has-icon-tooltip"
-                    aria-label={skillStackLabel ?? 'Skill marker'}
+                    aria-label={skillMarkerAriaLabel ?? 'Skill marker'}
                     data-tooltip={skillMarkerTooltip ?? skillMarkerLabel ?? '技能'}
                     title={skillMarkerTooltip ?? skillMarkerLabel ?? '技能'}
                   >
@@ -309,11 +304,10 @@ function getInstanceDisplayLabel(assetId: string): string {
   return getAssetById(assetId)?.name ?? `Unknown asset: ${assetId}`;
 }
 
-function getSkillStackLabel(skillCount: number, assetId: string, markerLabel: string | null): string {
-  const skillItemText = `${skillCount} skill item${skillCount === 1 ? '' : 's'} in stack`;
+function getInstanceSkillMarkerLabel(assetId: string, markerLabel: string | null): string {
   const assetLabel = getInstanceDisplayLabel(assetId);
 
-  return `${skillItemText}, top skill ${assetLabel} ${markerLabel ?? '技'}`;
+  return `Skill marker ${assetLabel} ${markerLabel ?? '技'}`;
 }
 
 function setGridKeyboardTarget(cell: HTMLButtonElement, coordinate: GridCoordinate): void {
@@ -334,21 +328,13 @@ function getGridKeyboardTarget(cell: HTMLButtonElement): GridCoordinate | null {
   };
 }
 
-function isCellEditable(buildingLevel: BuildingLevel, placeable: boolean, readOnly: boolean): boolean {
-  return placeable && !readOnly && buildingLevel.visible && !buildingLevel.locked;
+function isCellEditable(placeable: boolean, readOnly: boolean): boolean {
+  return placeable && !readOnly;
 }
 
-function getCellStateLabel(buildingLevel: BuildingLevel, placeable: boolean, readOnly: boolean): string {
+function getCellStateLabel(placeable: boolean, readOnly: boolean): string {
   if (readOnly) {
     return 'read-only';
-  }
-
-  if (!buildingLevel.visible) {
-    return 'hidden layer';
-  }
-
-  if (buildingLevel.locked) {
-    return 'locked layer';
   }
 
   return placeable ? 'placeable' : 'not placeable';

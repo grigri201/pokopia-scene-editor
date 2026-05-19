@@ -26,8 +26,6 @@ describe('asset catalog', () => {
       expect(asset.thumbnailAlt).toContain('缩略图');
       expect(typeof asset.defaultRequiresSkill).toBe('boolean');
       expect(typeof asset.skillCandidate).toBe('boolean');
-      expect(typeof asset.rotatable).toBe('boolean');
-      expect(typeof asset.stackable).toBe('boolean');
       expect(typeof asset.dyeable).toBe('boolean');
     }
   });

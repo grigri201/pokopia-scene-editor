@@ -12,7 +12,6 @@ export interface CreateTileInstanceInput {
   requiresSkill?: boolean;
   skillType?: AssetSkillType;
   skillNote?: string;
-  note?: string;
 }
 
 export function createTileInstance(input: CreateTileInstanceInput): TileInstance {
@@ -27,6 +26,5 @@ export function createTileInstance(input: CreateTileInstanceInput): TileInstance
     requiresSkill: input.requiresSkill ?? false,
     skillType: input.skillType ?? null,
     skillNote: input.skillNote ?? '',
-    note: input.note ?? '',
   };
 }

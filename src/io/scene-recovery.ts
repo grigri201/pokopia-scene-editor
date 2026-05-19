@@ -94,13 +94,7 @@ export function applyRecoveredSceneDocument(
 }
 
 export function sceneFromPayload(payload: SceneDocumentV1): SceneDocument {
-  return {
-    ...payload,
-    workspaceState: {
-      ...payload.workspaceState,
-      saveError: null,
-    },
-  };
+  return payload;
 }
 
 export function parseSceneDocumentForRecovery(input: unknown): SceneDocumentParseResult {

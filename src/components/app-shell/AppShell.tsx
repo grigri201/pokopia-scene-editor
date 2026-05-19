@@ -31,25 +31,27 @@ import {
   applyRecoveredSceneDocument,
   autosavedSceneStorageKey,
   readLatestSceneDocumentFromStorage,
+  readSceneDocumentFromStorage,
   savedSceneStorageKey,
-  serializeSceneDocument,
   type RecoveryError,
+  type StoredSceneDocument,
   writeSceneDocumentToAllStorageSlots,
   writeSceneDocumentToStorage,
 } from '../../io';
 import { getPokemonTheme, toPokemonThemeStyle } from '../../theme';
 
+type LocalSaveStatus = 'dirty' | 'saved' | 'saveError';
+
 export function AppShell() {
   const [initialSceneState] = useState(createInitialSceneState);
   const [scene, setScene] = useState(initialSceneState.scene);
+  const [saveStatus, setSaveStatus] = useState<LocalSaveStatus>(initialSceneState.saveStatus);
   const [recoveryErrors, setRecoveryErrors] = useState<RecoveryError[]>(
     initialSceneState.recoveryErrors,
   );
   const [recoveryStatus, setRecoveryStatus] = useState<'idle' | 'error' | 'success' | 'canceled'>(
     initialSceneState.recoveryErrors.length > 0 ? 'error' : 'idle',
   );
-  const [undoStack, setUndoStack] = useState<SceneDocument[]>([]);
-  const [redoStack, setRedoStack] = useState<SceneDocument[]>([]);
   const autosaveReadyRef = useRef(false);
   const pendingSelectionMeasureRef = useRef<string | null>(null);
   const selectionMeasureCounterRef = useRef(0);
@@ -96,18 +98,12 @@ export function AppShell() {
       return;
     }
 
-    setUndoStack((pastScenes) => [...pastScenes.slice(-49), currentScene]);
-    setRedoStack([]);
     setScene(nextScene);
+    setSaveStatus('dirty');
   };
-  const dispatch = (action: SceneAction, recordHistory = false) => {
+  const dispatch = (action: SceneAction) => {
     const nextScene = sceneReducer(scene, action);
-    if (recordHistory) {
-      commitSceneEdit(nextScene);
-      return;
-    }
-
-    setScene(nextScene);
+    commitSceneEdit(nextScene);
   };
 
   useEffect(() => {
@@ -146,7 +142,7 @@ export function AppShell() {
   }, [isReadOnly, scene.workspaceState.currentBuildingLevelId, scene.workspaceState.selectedCoordinate]);
 
   useEffect(() => {
-    if (isReadOnly || scene.workspaceState.saveStatus === 'saveError') {
+    if (isReadOnly || saveStatus === 'saveError') {
       return;
     }
 
@@ -165,7 +161,7 @@ export function AppShell() {
     } catch {
       // Autosave is best-effort; explicit Save reports storage failures in the UI.
     }
-  }, [isReadOnly, scene]);
+  }, [isReadOnly, saveStatus, scene]);
 
   useEffect(() => {
     const measureId = pendingSelectionMeasureRef.current;
@@ -228,7 +224,7 @@ export function AppShell() {
       pokemonKey,
       interactionMode,
       now: getCurrentIsoTimestamp(),
-    }, true);
+    });
   };
 
   const updateSceneName = (sceneName: string) => {
@@ -237,7 +233,7 @@ export function AppShell() {
       sceneName,
       interactionMode,
       now: getCurrentIsoTimestamp(),
-    }, true);
+    });
   };
 
   const saveScene = () => {
@@ -249,13 +245,7 @@ export function AppShell() {
     const now = getCurrentIsoTimestamp();
 
     if (!storage) {
-      dispatch({
-        type: 'save-scene',
-        interactionMode,
-        now,
-        result: 'failure',
-        errorMessage: 'Local storage unavailable.',
-      });
+      setSaveStatus('saveError');
       return;
     }
 
@@ -268,16 +258,9 @@ export function AppShell() {
     try {
       writeSceneDocumentToAllStorageSlots(storage, savedScene);
       setScene(savedScene);
-    } catch (error) {
-      setScene(
-        sceneReducer(scene, {
-          type: 'save-scene',
-          interactionMode,
-          now,
-          result: 'failure',
-          errorMessage: getStorageErrorMessage(error),
-        }),
-      );
+      setSaveStatus('saved');
+    } catch {
+      setSaveStatus('saveError');
     }
   };
 
@@ -294,7 +277,7 @@ export function AppShell() {
       assetId,
       interactionMode,
       now: getCurrentIsoTimestamp(),
-    }, true);
+    });
   };
 
   const placeCurrentAsset = (coordinate: GridCoordinate) => {
@@ -352,59 +335,6 @@ export function AppShell() {
     }
   };
 
-  const deleteInstance = (instanceId: string) => {
-    if (isReadOnly) {
-      return;
-    }
-
-    const confirmed = window.confirm('Delete the selected asset instance?');
-    if (!confirmed) {
-      return;
-    }
-
-    handleInstanceEditResult(
-      editAssetInstance(scene, {
-        type: 'delete',
-        instanceId,
-        interactionMode,
-        now: getCurrentIsoTimestamp(),
-      }),
-    );
-  };
-
-  const changeInstanceAsset = (instanceId: string, assetId: string) => {
-    if (isReadOnly) {
-      return;
-    }
-
-    handleInstanceEditResult(
-      editAssetInstance(scene, {
-        type: 'asset',
-        instanceId,
-        assetId,
-        interactionMode,
-        now: getCurrentIsoTimestamp(),
-      }),
-    );
-  };
-
-  const moveInstance = (instanceId: string, coordinate: GridCoordinate, buildingLevelId: string) => {
-    if (isReadOnly) {
-      return;
-    }
-
-    handleInstanceEditResult(
-      editAssetInstance(scene, {
-        type: 'move',
-        instanceId,
-        coordinate,
-        buildingLevelId,
-        interactionMode,
-        now: getCurrentIsoTimestamp(),
-      }),
-    );
-  };
-
   const rotateInstance = (instanceId: string, rotationDegrees: 0 | 90 | 180 | 270) => {
     if (isReadOnly) {
       return;
@@ -415,38 +345,6 @@ export function AppShell() {
         type: 'rotate',
         instanceId,
         rotationDegrees,
-        interactionMode,
-        now: getCurrentIsoTimestamp(),
-      }),
-    );
-  };
-
-  const dyeInstance = (instanceId: string, dyeColor: string | null) => {
-    if (isReadOnly) {
-      return;
-    }
-
-    handleInstanceEditResult(
-      editAssetInstance(scene, {
-        type: 'dye',
-        instanceId,
-        dyeColor,
-        interactionMode,
-        now: getCurrentIsoTimestamp(),
-      }),
-    );
-  };
-
-  const saveInstanceNote = (instanceId: string, note: string) => {
-    if (isReadOnly) {
-      return;
-    }
-
-    handleInstanceEditResult(
-      editAssetInstance(scene, {
-        type: 'note',
-        instanceId,
-        note,
         interactionMode,
         now: getCurrentIsoTimestamp(),
       }),
@@ -580,40 +478,6 @@ export function AppShell() {
     );
   };
 
-  const undoSceneEdit = () => {
-    if (isReadOnly || undoStack.length === 0) {
-      return;
-    }
-
-    const previousScene = undoStack.at(-1);
-    if (!previousScene) {
-      return;
-    }
-
-    setUndoStack((pastScenes) => pastScenes.slice(0, -1));
-    setRedoStack((futureScenes) => [scene, ...futureScenes.slice(0, 49)]);
-    setScene(reconcileHistorySceneSaveStatus(previousScene));
-    setPlacementFeedback(null);
-    setBuildingLayerFeedback(null);
-  };
-
-  const redoSceneEdit = () => {
-    if (isReadOnly || redoStack.length === 0) {
-      return;
-    }
-
-    const nextScene = redoStack[0];
-    if (!nextScene) {
-      return;
-    }
-
-    setRedoStack((futureScenes) => futureScenes.slice(1));
-    setUndoStack((pastScenes) => [...pastScenes.slice(-49), scene]);
-    setScene(reconcileHistorySceneSaveStatus(nextScene));
-    setPlacementFeedback(null);
-    setBuildingLayerFeedback(null);
-  };
-
   const deleteCurrentScene = () => {
     if (isReadOnly) {
       return;
@@ -632,9 +496,8 @@ export function AppShell() {
     const storage = getBrowserStorage();
     storage?.removeItem(savedSceneStorageKey);
     storage?.removeItem(autosavedSceneStorageKey);
-    setUndoStack([]);
-    setRedoStack([]);
     setScene(nextScene);
+    setSaveStatus('saved');
     setRecoveryErrors([]);
     setRecoveryStatus('idle');
     setSelectedInstanceId(null);
@@ -675,8 +538,7 @@ export function AppShell() {
     }
 
     setScene(appliedRecovery.scene);
-    setUndoStack([]);
-    setRedoStack([]);
+    setSaveStatus(getRecoveredSceneSaveStatus(storage, storedScene));
     setRecoveryErrors([]);
     setRecoveryStatus('success');
     setPlacementFeedback(null);
@@ -706,7 +568,7 @@ export function AppShell() {
             aria-label="Save scene"
             data-tooltip="保存"
             title="保存"
-            disabled={isReadOnly || scene.workspaceState.saveStatus === 'saved'}
+            disabled={isReadOnly || saveStatus === 'saved'}
             onClick={saveScene}
           >
             <SaveIcon />
@@ -721,24 +583,6 @@ export function AppShell() {
             onClick={deleteCurrentScene}
           >
             <DeleteIcon />
-          </button>
-          <button
-            type="button"
-            className="sr-only"
-            aria-label="Undo"
-            disabled={isReadOnly || undoStack.length === 0}
-            onClick={undoSceneEdit}
-          >
-            Undo
-          </button>
-          <button
-            type="button"
-            className="sr-only"
-            aria-label="Redo"
-            disabled={isReadOnly || redoStack.length === 0}
-            onClick={redoSceneEdit}
-          >
-            Redo
           </button>
         </div>
       </header>
@@ -787,7 +631,7 @@ export function AppShell() {
             readOnly={isReadOnly}
             selectedPokemonKey={scene.selectedPokemonKey}
             sceneName={scene.sceneName}
-            saveStatus={scene.workspaceState.saveStatus}
+            saveStatus={saveStatus}
             onPokemonChange={updatePokemon}
             onSceneNameChange={updateSceneName}
             onSave={saveScene}
@@ -835,14 +679,8 @@ export function AppShell() {
               buildingLevels={scene.buildingLevels}
               tileInstances={scene.tileInstances}
               readOnly={isReadOnly}
-              onSelectedInstanceChange={setSelectedInstanceId}
-              onDeleteInstance={deleteInstance}
-              onChangeInstanceAsset={changeInstanceAsset}
-              onMoveInstance={moveInstance}
               onRotateInstance={rotateInstance}
-              onDyeInstance={dyeInstance}
               onSaveInstanceSkill={saveInstanceSkill}
-              onSaveInstanceNote={saveInstanceNote}
             />
             <PreviewInspector
               scene={scene}
@@ -897,6 +735,7 @@ function isLocalPreviewHost(hostname: string): boolean {
 
 interface InitialSceneState {
   scene: SceneDocument;
+  saveStatus: LocalSaveStatus;
   recoveryErrors: RecoveryError[];
 }
 
@@ -934,6 +773,7 @@ function createInitialSceneState(): InitialSceneState {
   if (isLocalPreviewHost(window.location.hostname) && navigator.webdriver && testWindow.__pokopiaInitialSceneSnapshot) {
     return {
       scene: testWindow.__pokopiaInitialSceneSnapshot,
+      saveStatus: 'saved',
       recoveryErrors: [],
     };
   }
@@ -942,6 +782,7 @@ function createInitialSceneState(): InitialSceneState {
   if (!storage) {
     return {
       scene: defaultScene,
+      saveStatus: 'saved',
       recoveryErrors: [],
     };
   }
@@ -950,6 +791,7 @@ function createInitialSceneState(): InitialSceneState {
   if (storedScene?.ok && initialInteractionMode !== 'readOnly') {
     return {
       scene: storedScene.scene,
+      saveStatus: getRecoveredSceneSaveStatus(storage, storedScene),
       recoveryErrors: [],
     };
   }
@@ -962,6 +804,7 @@ function createInitialSceneState(): InitialSceneState {
 
     return {
       scene: defaultScene,
+      saveStatus: 'saved',
       recoveryErrors: rejectedRecovery.ok ? [] : rejectedRecovery.errors,
     };
   }
@@ -969,14 +812,29 @@ function createInitialSceneState(): InitialSceneState {
   if (storedScene && !storedScene.ok) {
     return {
       scene: defaultScene,
+      saveStatus: 'saved',
       recoveryErrors: storedScene.errors,
     };
   }
 
   return {
     scene: defaultScene,
+    saveStatus: 'saved',
     recoveryErrors: [],
   };
+}
+
+function getRecoveredSceneSaveStatus(storage: Storage, storedScene: StoredSceneDocument): LocalSaveStatus {
+  if (storedScene.slot === 'saved') {
+    return 'saved';
+  }
+
+  const savedScene = readSceneDocumentFromStorage(storage, 'saved');
+  if (savedScene?.ok && JSON.stringify(savedScene.payload) === JSON.stringify(storedScene.payload)) {
+    return 'saved';
+  }
+
+  return 'dirty';
 }
 
 function getCurrentIsoTimestamp(): string {
@@ -989,14 +847,6 @@ function getBrowserStorage(): Storage | null {
   } catch {
     return null;
   }
-}
-
-function getStorageErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return `Local storage unavailable: ${error.message}`;
-  }
-
-  return 'Local storage unavailable.';
 }
 
 function createStorageUnavailableRecoveryError(): RecoveryError {
@@ -1039,49 +889,6 @@ function getRecoveryStatusMessage(status: 'idle' | 'error' | 'success' | 'cancel
   }
 
   return 'No recovery action is pending.';
-}
-
-function reconcileHistorySceneSaveStatus(scene: SceneDocument): SceneDocument {
-  const storage = getBrowserStorage();
-  const savedPayload = storage?.getItem(savedSceneStorageKey);
-
-  if (!savedPayload) {
-    return scene;
-  }
-
-  const sceneAsSaved = {
-    ...scene,
-    workspaceState: {
-      ...scene.workspaceState,
-      saveStatus: 'saved' as const,
-      saveError: null,
-    },
-  };
-
-  try {
-    if (JSON.stringify(serializeSceneDocument(sceneAsSaved)) === savedPayload) {
-      return sceneAsSaved;
-    }
-  } catch {
-    return markSceneDirtyAfterHistory(scene);
-  }
-
-  return markSceneDirtyAfterHistory(scene);
-}
-
-function markSceneDirtyAfterHistory(scene: SceneDocument): SceneDocument {
-  return {
-    ...scene,
-    workspaceState: {
-      ...scene.workspaceState,
-      saveStatus: 'dirty',
-      saveError: null,
-    },
-    metadata: {
-      ...scene.metadata,
-      updatedAt: getCurrentIsoTimestamp(),
-    },
-  };
 }
 
 function createTileInstanceId(): string {

@@ -10,6 +10,7 @@ inputDocuments:
   - _bmad-output/planning-artifacts/ux-design-specification.md
   - _bmad-output/planning-artifacts/ux-design-directions.html
   - _bmad-output/planning-artifacts/prd-validation-report.md
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-19.md
   - docs/需求文档.md
 ---
 
@@ -18,6 +19,12 @@ inputDocuments:
 ## Overview
 
 This document provides the complete epic and story breakdown for pokopia-scene-editor, decomposing the requirements from the PRD, UX Design if it exists, and Architecture requirements into implementable stories.
+
+## Approved Course Correction - 2026-05-19
+
+`sprint-change-proposal-2026-05-19.md` 已批准。Epic 1-4 保留为已完成历史，但其中涉及以下能力的验收点不再代表当前 MVP 目标：建筑层隐藏/显示/锁定/解锁、手动保存、dirty/saved/saveError 状态区分、Undo/Redo、素材空状态恢复动作、素材适用区域的放置阻断校验、同层素材堆叠、素材实例移动、普通实例备注 `note`、按素材区分是否可旋转、预览网格/主体边界/技能标记显示开关，以及 Mobile 下应用级键盘操作。
+
+当前计划新增 Epic 5 执行删减和回归验证。后续开发应先处理 Epic 5，再开始任何新功能。
 
 ## Requirements Inventory
 
@@ -502,6 +509,14 @@ FR64: Epic 4 - 将素材搜索/筛选/favorite-only/预览显示选项持久化�
 **FRs covered:** FR50, FR51, FR52, FR53, FR54, FR55, FR64.
 
 **Implementation notes:** 该 epic 承载 Recovery Validator、Zod runtime schema、`schemaVersion = 1`、areaType 重算比对、`rotationDegrees` 契约、localStorage UI 偏好边界、safe text rendering、roundtrip tests、dangerous text tests 和恢复失败保护。恢复失败不得覆盖当前 scene、不得创建 partial scene、不得修改 dirty state。显式 Import/Export Validator 可作为后续 UI 扩展，但不得引入不同于自动保存的 payload。
+
+### Epic 5: MVP 范围删减与交互清理
+
+用户可以使用一个更轻量的 Pokopia 布景编辑 MVP：保留 7×7 画布、建筑层、素材放置/删除/替换/旋转/染色、技能标记、双预览、自动保存和恢复；删除建筑层隐藏/锁定、手动保存、保存状态区分、Undo/Redo、素材空状态恢复动作、素材区域阻断校验、堆叠、实例移动、普通备注、可旋转性差异和预览覆盖开关。
+
+**FRs covered:** Approved Course Correction 2026-05-19, FR13 removed, FR14 removed, FR15 removed, FR17 removed, FR18 removed, FR25 removed, FR26 removed, FR47 removed, FR50 updated, FR53 updated, FR64 updated.
+
+**Implementation notes:** 该 epic 承接已批准的 course correction，不改写 Epic 1-4 的完成历史，而是通过 cleanup stories 删除已不属于 MVP 的数据字段、command、UI 入口和测试预期。
 
 ## Epic 1: 规则可见的 7×7 布景工作台
 
@@ -1488,3 +1503,91 @@ So that 我可以继续使用熟悉的工作台视图，而不会污染保存或
 **When** 应用启动并加载 SceneDocument v1
 **Then** 系统必须回退到默认 UI 偏好
 **And** 不得因此阻止 SceneDocument 恢复、不得修改 scene document、不得修改 dirty state。
+
+## Epic 5: MVP 范围删减与交互清理
+
+用户可以使用一个更轻量的 Pokopia 布景编辑 MVP：保留 7×7 画布、建筑层、素材放置/删除/替换/旋转/染色、技能标记、双预览、自动保存和恢复；删除建筑层隐藏/锁定、手动保存、保存状态区分、Undo/Redo、素材空状态恢复动作、素材区域阻断校验、堆叠、实例移动、普通备注、可旋转性差异和预览覆盖开关。
+
+### Story 5.1: 清理数据模型与 command 能力
+
+**Requirements covered:** Approved Course Correction 2026-05-19; FR13 removed, FR14 removed, FR15 removed, FR17 removed, FR18 removed, FR25 removed, FR26 removed, FR47 removed, FR50 updated, FR53 updated, FR64 updated, NFR18 updated.
+
+As a 布景编辑用户,
+I want 编辑器的数据模型和 command 层只保留当前 MVP 能力,
+So that 后续实现和验收不会继续维护已删除的复杂功能。
+
+**Acceptance Criteria:**
+
+**Given** dev agent 检查 `SceneDocument`、domain types、serializer、schema 和 roundtrip tests
+**When** Story 5.1 完成
+**Then** `workspaceState.saveStatus` 和普通实例备注 `note` 不再是 MVP payload 必填字段
+**And** `skillNote` 仍作为技能备注保留。
+
+**Given** dev agent 检查 command layer 和 reducer
+**When** Story 5.1 完成
+**Then** 不再存在或不再暴露素材实例移动、跨层移动、undo/redo history、建筑层 hidden/locked 写操作、同层堆叠、区域阻断校验或 canRotate 分支
+**And** 保留放置、删除、替换、旋转、染色、技能标记、技能备注、建筑层创建/删除/重命名/复制/切换、自动保存和恢复。
+
+**Given** 任意素材实例被旋转
+**When** 用户选择 0/90/180/270 度
+**Then** 所有素材都遵守同一旋转规则
+**And** 不再基于素材定义区分是否可旋转。
+
+**Given** 用户在主体区或外围区放置素材
+**When** 放置 command 执行
+**Then** 系统不因素材适用区域阻断放置
+**And** 适用区域仍可作为素材展示/筛选元数据保留。
+
+### Story 5.2: 清理工作台 UI 与预览交互
+
+**Requirements covered:** Approved Course Correction 2026-05-19; UX/PRD UI cleanup; FR47 removed; FR64 updated.
+
+As a 布景编辑用户,
+I want 工作台界面不再显示已删除功能入口,
+So that MVP 编辑流程更直接、更少误导。
+
+**Acceptance Criteria:**
+
+**Given** 用户打开桌面工作台
+**When** 页面渲染
+**Then** 不显示手动保存、撤销、重做、建筑层隐藏/锁定、实例移动、普通备注、素材堆叠数量、不可旋转提示、预览网格开关、预览主体边界开关或预览技能标记开关。
+
+**Given** 素材搜索或筛选没有结果
+**When** 空状态渲染
+**Then** 只显示明确空状态
+**And** 不提供清除筛选、显示全部或切换分类等恢复动作。
+
+**Given** 用户查看 Preview Inspector
+**When** 俯视图或正视图渲染
+**Then** 预览固定不显示网格、5×5 主体边界和技能标记
+**And** 不向 localStorage 写入这三类预览显示偏好。
+
+**Given** 用户选中素材实例
+**When** Selection Inspector 渲染
+**Then** 仍可查看坐标、区域、建筑层、素材、朝向、染色、技能标记和技能备注
+**And** 不提供普通备注或建筑层归属移动入口。
+
+### Story 5.3: Mobile 键盘屏蔽与回归测试
+
+**Requirements covered:** Approved Course Correction 2026-05-19; NFR18 updated; Mobile View-only Mode.
+
+As a mobile 查看用户,
+I want Mobile 模式下所有应用级键盘操作都无效,
+So that 窄视口只读契约不会被键盘路径绕过。
+
+**Acceptance Criteria:**
+
+**Given** 视口宽度小于 768px
+**When** 用户按方向键、Enter、Space、Escape、Delete、Backspace、Cmd/Ctrl+S 或任何现有应用级快捷键
+**Then** 应用级 keyboard handler 必须 no-op
+**And** 不得选择格子、切换建筑层、放置、删除、旋转、保存、恢复覆盖、撤销/重做或改变 scene/view command state。
+
+**Given** 视口宽度小于 768px
+**When** dev agent 执行 unit/component/Playwright 回归测试
+**Then** mobile keyboard 测试必须证明 scene JSON 在操作前后完全一致
+**And** 桌面/平板键盘支持不作为必须通过的功能验收项。
+
+**Given** Story 5.1 和 5.2 已完成
+**When** release gate 运行
+**Then** `npm run typecheck`、unit tests、`npm run build` 和 Playwright smoke 必须通过
+**And** smoke 覆盖自动保存/恢复、被删除 UI 入口不存在、预览覆盖信息不显示，以及 mobile 键盘 no-op。

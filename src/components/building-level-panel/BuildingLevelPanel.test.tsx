@@ -123,24 +123,17 @@ describe('BuildingLevelPanel', () => {
     expect(props.onRenameLayer).toHaveBeenCalledWith('level-2', '可编辑屋顶层');
   });
 
-  it('exposes hidden and locked state through row classes and action disabled reasons', () => {
-    const managedScene = {
-      ...scene,
-      buildingLevels: scene.buildingLevels.map((level) =>
-        level.id === 'level-1' ? { ...level, visible: false, locked: true } : level,
-      ),
-    };
+  it('renders building layers as visible and unlocked derived UI state', () => {
+    render(<BuildingLevelPanel {...defaultProps()} levels={getBuildingLevelContexts(scene)} readOnly={false} />);
 
-    render(<BuildingLevelPanel {...defaultProps()} levels={getBuildingLevelContexts(managedScene)} readOnly={false} />);
-
-    const lockedRow = screen.getByLabelText('L1, 1 层, 0 instances, hidden, locked');
-    expect(lockedRow).toHaveClass('level-row--hidden');
-    expect(lockedRow).toHaveClass('level-row--locked');
-    const deleteButton = within(lockedRow).getByRole('button', {
-      name: /Delete 1 层 \(L1\) disabled because layer is locked/,
+    const row = screen.getByLabelText('L1, 1 层, 0 instances, visible, unlocked');
+    expect(row).not.toHaveClass('level-row--hidden');
+    expect(row).not.toHaveClass('level-row--locked');
+    const deleteButton = within(row).getByRole('button', {
+      name: /Delete 1 层 \(L1\)/,
     });
-    expect(deleteButton).toBeDisabled();
-    expect(deleteButton).toHaveAttribute('data-disabled-reason', 'locked-layer');
+    expect(deleteButton).toBeEnabled();
+    expect(deleteButton).toHaveAttribute('data-disabled-reason', 'available');
   });
 });
 

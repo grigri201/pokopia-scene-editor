@@ -6,7 +6,7 @@ import { getAssetPlacementPreview, placeSelectedAsset } from './asset-placement'
 const now = '2026-05-16T08:00:00.000Z';
 
 describe('asset placement command', () => {
-  it('places the selected asset on the current building layer and marks the scene dirty', () => {
+  it('places the selected asset on the current building layer', () => {
     const scene = selectAsset(
       createDefaultSceneDocument({ sceneId: 'scene-test', now: '2026-05-16T07:00:00.000Z' }),
       'garden-plant',
@@ -34,7 +34,6 @@ describe('asset placement command', () => {
       requiresSkill: true,
       skillType: '树叶',
     });
-    expect(result.scene.workspaceState.saveStatus).toBe('dirty');
     expect(result.scene.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 2 });
   });
 
@@ -55,7 +54,6 @@ describe('asset placement command', () => {
     expect(result.reason).toBe('missing-asset');
     expect(result.preview.message).toBe('No current asset');
     expect(scene.tileInstances).toEqual([]);
-    expect(scene.workspaceState.saveStatus).toBe('saved');
   });
 
   it('blocks read-only placement at the command boundary', () => {
@@ -74,40 +72,25 @@ describe('asset placement command', () => {
     }
   });
 
-  it('blocks incompatible areas and locked layers without mutating scene state', () => {
+  it('does not use applicable area metadata as placement permission', () => {
     const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'ditto-doll', 'edit', now);
-    const lockedScene = {
-      ...scene,
-      buildingLevels: scene.buildingLevels.map((level) =>
-        level.id === 'level-0' ? { ...level, locked: true } : level,
-      ),
-    };
 
-    const incompatible = placeSelectedAsset(scene, {
+    const result = placeSelectedAsset(scene, {
       coordinate: { x: 0, y: 0 },
       interactionMode: 'edit',
       now,
-      instanceId: 'tile-incompatible',
-      requiresSkill: false,
-    });
-    const locked = placeSelectedAsset(lockedScene, {
-      coordinate: { x: 2, y: 2 },
-      interactionMode: 'edit',
-      now,
-      instanceId: 'tile-locked',
+      instanceId: 'tile-outer-doll',
       requiresSkill: false,
     });
 
-    expect(incompatible.ok).toBe(false);
-    if (!incompatible.ok) {
-      expect(incompatible.reason).toBe('area-incompatible');
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected placement success.');
     }
-    expect(locked.ok).toBe(false);
-    if (!locked.ok) {
-      expect(locked.reason).toBe('locked-layer');
-    }
-    expect(scene.tileInstances).toEqual([]);
-    expect(scene.workspaceState.saveStatus).toBe('dirty');
+    expect(result.scene.tileInstances[0]).toMatchObject({
+      assetId: 'ditto-doll',
+      areaType: 'outer',
+    });
   });
 
   it('requires confirmation before replacing a non-stackable target', () => {
@@ -192,7 +175,7 @@ describe('asset placement command', () => {
     );
   });
 
-  it('stacks compatible assets without replacement confirmation', () => {
+  it('requires replacement confirmation instead of stacking compatible assets', () => {
     const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'roof-tile', 'edit', now);
     const sceneWithTile = {
       ...scene,
@@ -214,17 +197,14 @@ describe('asset placement command', () => {
       requiresSkill: true,
     });
 
-    expect(preview?.status).toBe('will-stack');
-    expect(preview?.message).toBe('Will stack with 1 item');
-    expect(preview?.overwriteLabel).toBe('1 stackable item at target');
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
-      throw new Error('Expected stack placement success.');
+    expect(preview?.status).toBe('will-replace');
+    expect(preview?.message).toBe('Will replace 1 item');
+    expect(preview?.overwriteLabel).toBe('Will replace 1 item');
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('Expected replacement confirmation failure.');
     }
-    expect(result.scene.tileInstances.map((instance) => instance.instanceId)).toEqual([
-      'tile-existing',
-      'tile-stacked',
-    ]);
+    expect(result.reason).toBe('replace-confirmation-required');
   });
 
   it('ignores skill requirements for assets that are not placement skill candidates', () => {
