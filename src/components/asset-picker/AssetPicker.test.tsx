@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readUiPreferencesFromStorage } from '../../io';
+import { readUiPreferencesFromStorage, uiPreferencesStorageKey } from '../../io';
 import { AssetPicker } from './AssetPicker';
 
 describe('AssetPicker', () => {
@@ -150,7 +150,7 @@ describe('AssetPicker', () => {
     expect(getAssetSelectButton('garden-plant')).toBeVisible();
   });
 
-  it('persists compact category, query, and favorite filters separately from scene state', () => {
+  it('persists compact query, category, favorite, area, and skill filters separately from scene state', () => {
     const { unmount } = render(
       <AssetPicker
         readOnly={false}
@@ -166,14 +166,16 @@ describe('AssetPicker', () => {
     fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '屋顶' } });
     fireEvent.click(within(screen.getByRole('group', { name: 'Asset category filters' })).getByRole('button', { name: '屋顶' }));
     fireEvent.click(screen.getByLabelText('Show favorite assets'));
+    fireEvent.change(screen.getByLabelText('Asset area filter'), { target: { value: 'outer' } });
+    fireEvent.change(screen.getByLabelText('Asset skill filter'), { target: { value: 'skill-candidate' } });
 
     expect(screen.getByLabelText('Asset result count')).toHaveTextContent('001 results');
     expect(readUiPreferencesFromStorage(window.localStorage).assetFilters).toEqual({
       query: '屋顶',
       category: 'roof',
-      area: 'all',
+      area: 'outer',
       favoriteOnly: true,
-      skill: 'all',
+      skill: 'skill-candidate',
     });
 
     unmount();
@@ -193,10 +195,49 @@ describe('AssetPicker', () => {
     expect(within(screen.getByRole('group', { name: 'Asset category filters' })).getByRole('button', { name: '屋顶' }))
       .toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByLabelText('Show favorite assets')).toBeChecked();
+    expect(screen.getByLabelText('Asset area filter')).toHaveValue('outer');
+    expect(screen.getByLabelText('Asset skill filter')).toHaveValue('skill-candidate');
     expect(screen.getByLabelText('Asset result count')).toHaveTextContent('001 results');
   });
 
-  it('shows an empty state with recovery actions for unmatched filters', () => {
+  it('exposes restored area and skill filters so persisted constraints are editable', () => {
+    window.localStorage.setItem(
+      uiPreferencesStorageKey,
+      JSON.stringify({
+        schemaVersion: 1,
+        assetFilters: {
+          query: '',
+          category: 'all',
+          area: 'outer',
+          favoriteOnly: false,
+          skill: 'requires-skill',
+        },
+      }),
+    );
+
+    render(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId={null}
+        selectedPokemonKey="ditto"
+        currentBuildingLevelName="主体道具"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
+        onAssetSelect={() => undefined}
+      />,
+    );
+
+    expect(screen.getByLabelText('Asset area filter')).toHaveValue('outer');
+    expect(screen.getByLabelText('Asset skill filter')).toHaveValue('requires-skill');
+    fireEvent.change(screen.getByLabelText('Asset area filter'), { target: { value: 'all' } });
+    fireEvent.change(screen.getByLabelText('Asset skill filter'), { target: { value: 'all' } });
+    expect(readUiPreferencesFromStorage(window.localStorage).assetFilters).toMatchObject({
+      area: 'all',
+      skill: 'all',
+    });
+  });
+
+  it('shows an empty state without recovery actions for unmatched filters', () => {
     render(
       <AssetPicker
         readOnly={false}
@@ -213,11 +254,13 @@ describe('AssetPicker', () => {
 
     expect(screen.getByLabelText('Asset result count')).toHaveTextContent('000 results');
     expect(screen.getByLabelText('No matching assets')).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Show all' }));
-    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('006 results');
+    expect(screen.getByText('No assets match the current filters.')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show all' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument();
   });
 
-  it('offers a favorite-specific empty-state recovery action', () => {
+  it('does not offer favorite-specific empty-state recovery actions', () => {
     render(
       <AssetPicker
         readOnly={false}
@@ -234,8 +277,9 @@ describe('AssetPicker', () => {
     fireEvent.click(screen.getByRole('button', { name: '建筑' }));
 
     expect(screen.getByLabelText('No matching assets')).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Disable favorite' }));
-    expect(getAssetSelectButton('water-barrel')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Disable favorite' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'All categories' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument();
   });
 
   it('keeps read-only asset cards usable for detail viewing', () => {

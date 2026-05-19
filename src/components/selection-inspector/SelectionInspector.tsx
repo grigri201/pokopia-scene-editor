@@ -52,6 +52,9 @@ export function SelectionInspector({
     : context?.buildingLevel;
   const coordinate = selectedInstance?.coordinate ?? context?.coordinate ?? null;
   const nextRotation = getNextRotation(selectedInstance?.rotationDegrees ?? 0);
+  const skillMarkerLabel = selectedInstance?.requiresSkill
+    ? getSkillDisplayLabel(selectedInstance.skillType)
+    : 'None';
 
   return (
     <section className="selection-inspector" aria-label="Selection context">
@@ -69,6 +72,42 @@ export function SelectionInspector({
             </em>
           </div>
         </div>
+        {coordinate ? (
+          <dl className="selection-detail-list" aria-label="Selection details">
+            <div>
+              <dt>Coordinate</dt>
+              <dd>{coordinate.x},{coordinate.y}</dd>
+            </div>
+            <div>
+              <dt>Area</dt>
+              <dd>{context?.areaType ?? selectedInstance?.areaType ?? 'None'}</dd>
+            </div>
+            <div>
+              <dt>Building layer</dt>
+              <dd>{selectedLevel ? `L${selectedLevel.levelNumber} ${selectedLevel.name}` : 'None'}</dd>
+            </div>
+            <div>
+              <dt>Asset</dt>
+              <dd>{selectedInstance ? getAssetLabel(selectedInstance.assetId) : 'None'}</dd>
+            </div>
+            <div>
+              <dt>Rotation</dt>
+              <dd>{selectedInstance ? `${selectedInstance.rotationDegrees} deg` : 'None'}</dd>
+            </div>
+            <div>
+              <dt>Dye</dt>
+              <dd>{selectedInstance?.dyeColor ?? 'None'}</dd>
+            </div>
+            <div>
+              <dt>Skill marker</dt>
+              <dd>{skillMarkerLabel}</dd>
+            </div>
+            <div>
+              <dt>Skill note</dt>
+              <dd>{selectedInstance?.skillNote || 'None'}</dd>
+            </div>
+          </dl>
+        ) : null}
         {coordinate ? (
           <div className="current-selection-bar__actions" aria-label="Selection skill marker actions">
             {selectedInstance ? (
@@ -146,6 +185,22 @@ export function SelectionInspector({
       </div>
     </section>
   );
+}
+
+function getAssetLabel(assetId: string | undefined): string {
+  if (!assetId) {
+    return 'None';
+  }
+
+  return getAssetById(assetId)?.name ?? `Unknown asset: ${assetId}`;
+}
+
+function getSkillDisplayLabel(skillType: AssetSkillType): string {
+  if (!skillType) {
+    return 'None';
+  }
+
+  return skillType;
 }
 
 const selectionSkillActions: {

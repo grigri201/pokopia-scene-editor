@@ -2,18 +2,21 @@ import { useEffect, useId, useMemo, useState, type KeyboardEvent } from 'react';
 import {
   assetCatalog,
   assetCategoryLabels,
+  areaLabels,
   assetMatchesPokemonFavorite,
   assetRenderLimit,
+  assetSkillTypes,
   canAssetRequirePlacementSkill,
-  defaultAssetFilters,
   filterAssetCatalog,
   getAssetAreaLabel,
   getAssetById,
   getAssetSkillLabel,
+  type AssetAreaFilter,
   type AssetCategory,
   type AssetCategoryFilter,
   type AssetDefinition,
   type AssetFilterState,
+  type AssetSkillFilter,
   type PokemonKey,
 } from '../../domain/assets';
 import {
@@ -95,15 +98,6 @@ export function AssetPicker({
     });
   };
 
-  const resetFilters = () => {
-    writeAssetFilterPreferencesToStorage(getUiPreferencesStorage(), defaultAssetFilters);
-    setFilters(defaultAssetFilters);
-  };
-
-  const clearFavoriteFilter = () => {
-    updateFilters({ favoriteOnly: false });
-  };
-
   const showMoreAssets = () => {
     setRenderLimit((currentLimit) => currentLimit + assetRenderLimit);
   };
@@ -153,6 +147,36 @@ export function AssetPicker({
           </button>
         ))}
       </fieldset>
+      <div className="filter-row" aria-label="Asset advanced filters">
+        <label className="asset-filter-field">
+          <span>区域</span>
+          <select
+            aria-label="Asset area filter"
+            value={filters.area}
+            onChange={(event) => updateFilters({ area: event.target.value as AssetAreaFilter })}
+          >
+            {areaFilterOptions.map((option) => (
+              <option value={option.value} key={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="asset-filter-field">
+          <span>技能</span>
+          <select
+            aria-label="Asset skill filter"
+            value={filters.skill}
+            onChange={(event) => updateFilters({ skill: event.target.value as AssetSkillFilter })}
+          >
+            {skillFilterOptions.map((option) => (
+              <option value={option.value} key={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       <PlacementSkillToggle
         asset={selectedAsset}
         placementRequiresSkill={placementRequiresSkill}
@@ -210,16 +234,7 @@ export function AssetPicker({
           );
         })}
         {filterResult.filteredCount === 0 ? (
-          <AssetEmptyState
-            favoriteOnly={filters.favoriteOnly}
-            categoryActive={filters.category !== 'all'}
-            queryActive={Boolean(filters.query.trim())}
-            onClearFilters={resetFilters}
-            onShowAll={resetFilters}
-            onClearFavorite={clearFavoriteFilter}
-            onSwitchCategory={() => updateFilters({ category: 'all' })}
-            onClearQuery={() => updateFilters({ query: '' })}
-          />
+          <AssetEmptyState />
         ) : null}
       </div>
       <div className="sr-only">
@@ -229,81 +244,13 @@ export function AssetPicker({
   );
 }
 
-function AssetEmptyState({
-  favoriteOnly,
-  categoryActive,
-  queryActive,
-  onClearFilters,
-  onShowAll,
-  onClearFavorite,
-  onSwitchCategory,
-  onClearQuery,
-}: {
-  favoriteOnly: boolean;
-  categoryActive: boolean;
-  queryActive: boolean;
-  onClearFilters: () => void;
-  onShowAll: () => void;
-  onClearFavorite: () => void;
-  onSwitchCategory: () => void;
-  onClearQuery: () => void;
-}) {
-  const secondaryRecovery = getSecondaryRecoveryAction({
-    favoriteOnly,
-    categoryActive,
-    queryActive,
-    onClearFavorite,
-    onSwitchCategory,
-    onClearQuery,
-  });
-
+function AssetEmptyState() {
   return (
     <section className="asset-empty-state" aria-label="No matching assets">
       <strong>No assets match</strong>
-      <span>Adjust filters to restore the asset list.</span>
-      <div className="asset-empty-actions">
-        <button type="button" onClick={onClearFilters}>
-          Clear filters
-        </button>
-        <button type="button" onClick={onShowAll}>
-          Show all
-        </button>
-        <button type="button" onClick={secondaryRecovery.onClick}>
-          {secondaryRecovery.label}
-        </button>
-      </div>
+      <span>No assets match the current filters.</span>
     </section>
   );
-}
-
-function getSecondaryRecoveryAction({
-  favoriteOnly,
-  categoryActive,
-  queryActive,
-  onClearFavorite,
-  onSwitchCategory,
-  onClearQuery,
-}: {
-  favoriteOnly: boolean;
-  categoryActive: boolean;
-  queryActive: boolean;
-  onClearFavorite: () => void;
-  onSwitchCategory: () => void;
-  onClearQuery: () => void;
-}) {
-  if (favoriteOnly) {
-    return { label: 'Disable favorite', onClick: onClearFavorite };
-  }
-
-  if (categoryActive) {
-    return { label: 'All categories', onClick: onSwitchCategory };
-  }
-
-  if (queryActive) {
-    return { label: 'Clear search', onClick: onClearQuery };
-  }
-
-  return { label: 'Reset filters', onClick: onSwitchCategory };
 }
 
 function PlacementSkillToggle({
@@ -412,6 +359,24 @@ const categoryFilterOptions: readonly { value: AssetCategoryFilter; label: strin
   ...Object.entries(assetCategoryLabels).map(([value, label]) => ({
     value: value as AssetCategory,
     label,
+  })),
+];
+
+const areaFilterOptions: readonly { value: AssetAreaFilter; label: string }[] = [
+  { value: 'all', label: '全部区域' },
+  ...Object.entries(areaLabels).map(([value, label]) => ({
+    value: value as AssetAreaFilter,
+    label,
+  })),
+];
+
+const skillFilterOptions: readonly { value: AssetSkillFilter; label: string }[] = [
+  { value: 'all', label: '全部技能' },
+  { value: 'requires-skill', label: '默认需技能' },
+  { value: 'skill-candidate', label: '可标技能' },
+  ...assetSkillTypes.map((skillType) => ({
+    value: skillType,
+    label: skillType,
   })),
 ];
 

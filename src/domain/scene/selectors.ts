@@ -31,8 +31,6 @@ export interface BuildingLevelContext {
   levelNumber: number;
   name: string;
   instanceCount: number;
-  visible: boolean;
-  locked: boolean;
   current: boolean;
 }
 
@@ -159,8 +157,6 @@ export function getBuildingLevelContexts(scene: SceneDocument): BuildingLevelCon
     levelNumber: level.levelNumber,
     name: level.name,
     instanceCount: countTileInstancesForLevel(scene, level.id),
-    visible: true,
-    locked: false,
     current: level.id === currentLevel.id,
   }));
 }

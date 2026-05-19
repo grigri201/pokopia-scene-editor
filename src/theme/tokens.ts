@@ -26,7 +26,6 @@ export const semanticTokens = {
   outerArea: 'var(--color-outer-area)',
   selectedCell: 'var(--color-selected-cell)',
   hoverCell: 'var(--color-hover-cell)',
-  lockedLayer: 'var(--color-locked-layer)',
   skillMarker: 'var(--color-skill-marker)',
   error: 'var(--color-error)',
 } as const;

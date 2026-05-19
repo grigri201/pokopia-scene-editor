@@ -5,30 +5,20 @@ import {
   type PokemonKey,
 } from '../../domain/assets';
 
-type SaveStatus = 'dirty' | 'saved' | 'saveError';
-
 interface PokemonSceneControlsProps {
   readOnly: boolean;
   selectedPokemonKey: PokemonKey;
   sceneName: string;
-  saveStatus: SaveStatus;
-  canUndo?: boolean;
-  canRedo?: boolean;
   onPokemonChange: (pokemonKey: PokemonKey) => void;
   onSceneNameChange: (sceneName: string) => void;
-  onSave: () => void;
-  onUndo?: () => void;
-  onRedo?: () => void;
 }
 
 export function PokemonSceneControls({
   readOnly,
   selectedPokemonKey,
   sceneName,
-  saveStatus,
   onPokemonChange,
   onSceneNameChange,
-  onSave,
 }: PokemonSceneControlsProps) {
   const sceneNameErrorId = useId();
   const [sceneNameDraft, setSceneNameDraft] = useState(sceneName);
@@ -116,15 +106,6 @@ export function PokemonSceneControls({
             </span>
           ) : null}
         </label>
-        <button
-          type="button"
-          className="scene-controls__save"
-          aria-label="Save scene from scene controls"
-          disabled={readOnly || saveStatus === 'saved' || sceneNameEmpty}
-          onClick={onSave}
-        >
-          保存
-        </button>
       </div>
     </section>
   );

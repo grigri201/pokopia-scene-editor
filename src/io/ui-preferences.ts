@@ -13,37 +13,15 @@ export const uiPreferencesStorageKey = 'pokopia.uiPreferences.v1';
 
 const uiPreferencesSchemaVersion = 1;
 
-export type PreviewLayerScope = 'current-layer' | 'all-visible-layers';
-
-export interface PreviewDisplayOptions {
-  grid: boolean;
-  mainBoundary: boolean;
-  skillMarkers: boolean;
-}
-
-export interface PreviewUiPreferences {
-  displayOptions: PreviewDisplayOptions;
-  layerScope: PreviewLayerScope;
-}
-
 export interface UiPreferences {
   schemaVersion: typeof uiPreferencesSchemaVersion;
   assetFilters: AssetFilterState;
-  preview: PreviewUiPreferences;
 }
 
 export function getDefaultUiPreferences(): UiPreferences {
   return {
     schemaVersion: uiPreferencesSchemaVersion,
     assetFilters: { ...defaultAssetFilters },
-    preview: {
-      displayOptions: {
-        grid: true,
-        mainBoundary: true,
-        skillMarkers: true,
-      },
-      layerScope: 'current-layer',
-    },
   };
 }
 
@@ -76,7 +54,13 @@ export function readUiPreferencesFromStorage(storage: Storage | null): UiPrefere
   }
 
   try {
-    return normalizeUiPreferences(JSON.parse(rawPreferences));
+    const parsedPreferences = JSON.parse(rawPreferences);
+    const normalizedPreferences = normalizeUiPreferences(parsedPreferences);
+    if (shouldPersistNormalizedPreferences(parsedPreferences, normalizedPreferences)) {
+      writeUiPreferencesToStorage(storage, normalizedPreferences);
+    }
+
+    return normalizedPreferences;
   } catch {
     return getDefaultUiPreferences();
   }
@@ -90,45 +74,6 @@ export function writeAssetFilterPreferencesToStorage(
   const nextPreferences = {
     ...currentPreferences,
     assetFilters: normalizeAssetFilters(assetFilters, currentPreferences.assetFilters),
-  };
-
-  writeUiPreferencesToStorage(storage, nextPreferences);
-
-  return nextPreferences;
-}
-
-export function writePreviewDisplayOptionsToStorage(
-  storage: Storage | null,
-  displayOptions: PreviewDisplayOptions,
-): UiPreferences {
-  const currentPreferences = readUiPreferencesFromStorage(storage);
-  const nextPreferences = {
-    ...currentPreferences,
-    preview: {
-      ...currentPreferences.preview,
-      displayOptions: normalizePreviewDisplayOptions(
-        displayOptions,
-        currentPreferences.preview.displayOptions,
-      ),
-    },
-  };
-
-  writeUiPreferencesToStorage(storage, nextPreferences);
-
-  return nextPreferences;
-}
-
-export function writePreviewLayerScopePreferenceToStorage(
-  storage: Storage | null,
-  layerScope: PreviewLayerScope,
-): UiPreferences {
-  const currentPreferences = readUiPreferencesFromStorage(storage);
-  const nextPreferences = {
-    ...currentPreferences,
-    preview: {
-      ...currentPreferences.preview,
-      layerScope: isPreviewLayerScope(layerScope) ? layerScope : currentPreferences.preview.layerScope,
-    },
   };
 
   writeUiPreferencesToStorage(storage, nextPreferences);
@@ -158,8 +103,15 @@ function normalizeUiPreferences(value: unknown): UiPreferences {
   return {
     schemaVersion: uiPreferencesSchemaVersion,
     assetFilters: normalizeAssetFilters(value.assetFilters, defaultPreferences.assetFilters),
-    preview: normalizePreviewPreferences(value.preview, defaultPreferences.preview),
   };
+}
+
+function shouldPersistNormalizedPreferences(value: unknown, normalizedPreferences: UiPreferences): boolean {
+  if (!isRecord(value) || value.schemaVersion !== uiPreferencesSchemaVersion) {
+    return false;
+  }
+
+  return JSON.stringify(value) !== JSON.stringify(normalizedPreferences);
 }
 
 function normalizeAssetFilters(
@@ -179,38 +131,6 @@ function normalizeAssetFilters(
   };
 }
 
-function normalizePreviewPreferences(
-  value: unknown,
-  fallback: PreviewUiPreferences,
-): PreviewUiPreferences {
-  if (!isRecord(value)) {
-    return {
-      displayOptions: { ...fallback.displayOptions },
-      layerScope: fallback.layerScope,
-    };
-  }
-
-  return {
-    displayOptions: normalizePreviewDisplayOptions(value.displayOptions, fallback.displayOptions),
-    layerScope: isPreviewLayerScope(value.layerScope) ? value.layerScope : fallback.layerScope,
-  };
-}
-
-function normalizePreviewDisplayOptions(
-  value: unknown,
-  fallback: PreviewDisplayOptions,
-): PreviewDisplayOptions {
-  if (!isRecord(value)) {
-    return { ...fallback };
-  }
-
-  return {
-    grid: typeof value.grid === 'boolean' ? value.grid : fallback.grid,
-    mainBoundary: typeof value.mainBoundary === 'boolean' ? value.mainBoundary : fallback.mainBoundary,
-    skillMarkers: typeof value.skillMarkers === 'boolean' ? value.skillMarkers : fallback.skillMarkers,
-  };
-}
-
 function isAssetCategoryFilter(value: unknown): value is AssetCategoryFilter {
   return value === 'all' || (typeof value === 'string' && hasOwnKey(assetCategoryLabels, value));
 }
@@ -226,10 +146,6 @@ function isAssetSkillFilter(value: unknown): value is AssetSkillFilter {
     value === 'skill-candidate' ||
     (typeof value === 'string' && assetSkillTypes.includes(value as never))
   );
-}
-
-function isPreviewLayerScope(value: unknown): value is PreviewLayerScope {
-  return value === 'current-layer' || value === 'all-visible-layers';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

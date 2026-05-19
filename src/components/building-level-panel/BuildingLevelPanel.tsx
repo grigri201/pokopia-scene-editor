@@ -90,16 +90,12 @@ export function BuildingLevelPanel({
             className={[
               'level-row',
               level.current ? 'level-row--current' : '',
-              !level.visible ? 'level-row--hidden' : '',
-              level.locked ? 'level-row--locked' : '',
             ]
               .filter(Boolean)
               .join(' ')}
             role="listitem"
             aria-current={level.current ? 'true' : undefined}
-            aria-label={`${level.displayId}, ${level.name}, ${level.instanceCount} instances, ${
-              level.visible ? 'visible' : 'hidden'
-            }, ${level.locked ? 'locked' : 'unlocked'}${
+            aria-label={`${level.displayId}, ${level.name}, ${level.instanceCount} instances${
               level.current ? (readOnly ? ', viewing layer' : ', current editing layer') : ''
             }`}
             data-testid="building-level-row"
@@ -107,8 +103,6 @@ export function BuildingLevelPanel({
             data-level-number={level.levelNumber}
             data-display-id={level.displayId}
             data-current={level.current}
-            data-visible={level.visible}
-            data-locked={level.locked}
             tabIndex={0}
             key={level.id}
             onClick={(event: MouseEvent<HTMLElement>) => selectLevelFromRow(level.id, event.target)}
@@ -163,16 +157,10 @@ export function BuildingLevelPanel({
               <button
                 type="button"
                 className="level-action-button level-action-button--danger has-icon-tooltip"
-                disabled={readOnly || level.locked}
-                data-disabled-reason={readOnly ? 'read-only' : level.locked ? 'locked-layer' : 'available'}
+                disabled={readOnly}
+                data-disabled-reason={readOnly ? 'read-only' : 'available'}
                 data-tooltip="删除建筑层"
-                aria-label={`Delete ${level.name} (${level.displayId})${
-                  readOnly
-                    ? ' disabled in read-only mode'
-                    : level.locked
-                      ? ' disabled because layer is locked'
-                      : ''
-                }`}
+                aria-label={`Delete ${level.name} (${level.displayId})${readOnly ? ' disabled in read-only mode' : ''}`}
                 title="删除建筑层"
                 onClick={() => onDeleteLayer(level.id)}
               >

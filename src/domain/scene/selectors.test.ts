@@ -119,8 +119,8 @@ describe('scene selectors', () => {
     expect(cells.filter((cell) => cell.mainBoundary)).toHaveLength(16);
     expect(levels.map((level) => level.displayId)).toEqual(['L2', 'L1', 'L0']);
     expect(levels.map((level) => level.instanceCount)).toEqual([1, 0, 1]);
-    expect(levels.map((level) => level.visible)).toEqual([true, true, true]);
-    expect(levels.map((level) => level.locked)).toEqual([false, false, false]);
+    expect(levels.every((level) => !('visible' in level))).toBe(true);
+    expect(levels.every((level) => !('locked' in level))).toBe(true);
     expect(getCurrentBuildingLevelContext(sceneWithTiles).displayId).toBe('L0');
   });
 

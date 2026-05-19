@@ -8,12 +8,6 @@ import {
   type SceneDocument,
 } from '../../domain/scene';
 import { getAssetById, getAssetSkillMarkerLabel } from '../../domain/assets';
-import {
-  getUiPreferencesStorage,
-  readUiPreferencesFromStorage,
-  writePreviewDisplayOptionsToStorage,
-  type PreviewDisplayOptions,
-} from '../../io';
 
 interface PreviewInspectorProps {
   scene: SceneDocument;
@@ -34,12 +28,6 @@ export function PreviewInspector({
     canScrollUp: false,
     canScrollDown: false,
   });
-  const [initialPreviewPreferences] = useState(() =>
-    readUiPreferencesFromStorage(getUiPreferencesStorage()).preview,
-  );
-  const [displayOptions, setDisplayOptions] = useState<PreviewDisplayOptions>(
-    initialPreviewPreferences.displayOptions,
-  );
   const currentLayerCells = getCurrentLayerPreviewCellContexts(scene, activeBuildingLevelId);
   const frontProjectionCells = getAllVisibleFrontProjectionCellContexts(scene);
   const frontProjectionLevelCount = new Set(frontProjectionCells.map((cell) => cell.buildingLevel.id)).size;
@@ -54,18 +42,6 @@ export function PreviewInspector({
     (total, cell) => total + cell.tileInstances.length,
     0,
   )} visible items projected across ${frontProjectionLevelCount} layers`;
-
-  const persistDisplayOption = (key: keyof PreviewDisplayOptions) => {
-    setDisplayOptions((currentOptions) => {
-      const updatedOptions = {
-        ...currentOptions,
-        [key]: !currentOptions[key],
-      };
-      writePreviewDisplayOptionsToStorage(getUiPreferencesStorage(), updatedOptions);
-
-      return updatedOptions;
-    });
-  };
 
   const syncFrontScrollHints = useCallback(() => {
     const scrollElement = frontScrollRef.current;
@@ -109,9 +85,6 @@ export function PreviewInspector({
     syncFrontScrollHints,
     frontProjectionCells.length,
     frontProjectionLevelCount,
-    displayOptions.grid,
-    displayOptions.mainBoundary,
-    displayOptions.skillMarkers,
   ]);
 
   return (
@@ -119,32 +92,6 @@ export function PreviewInspector({
       <div className="floating-preview-head">
         <h2>检查器</h2>
         <span className="sr-only">{readOnly ? 'View only' : 'Top / Front'}</span>
-      </div>
-      <div className="preview-hidden-controls sr-only" aria-label="Preview display options">
-        <button
-          type="button"
-          aria-label="Show preview grid"
-          aria-pressed={displayOptions.grid}
-          onClick={() => persistDisplayOption('grid')}
-        >
-          网格
-        </button>
-        <button
-          type="button"
-          aria-label="Show preview main boundary"
-          aria-pressed={displayOptions.mainBoundary}
-          onClick={() => persistDisplayOption('mainBoundary')}
-        >
-          边界
-        </button>
-        <button
-          type="button"
-          aria-label="Show preview skill markers"
-          aria-pressed={displayOptions.skillMarkers}
-          onClick={() => persistDisplayOption('skillMarkers')}
-        >
-          技能
-        </button>
       </div>
       <div className="preview-pair">
         <section className="preview-pane is-scrollable">
@@ -171,7 +118,6 @@ export function PreviewInspector({
               <FrontProjectionGrid
                 ariaLabel="正视图预览"
                 cells={frontProjectionCells}
-                displayOptions={displayOptions}
               />
             </div>
             <span className="preview-scroll-cue preview-scroll-cue--down" aria-hidden="true">
@@ -186,7 +132,6 @@ export function PreviewInspector({
             className="top-preview"
             cellClassName="top-cell"
             cells={currentLayerCells}
-            displayOptions={displayOptions}
           />
         </section>
       </div>
@@ -239,19 +184,14 @@ function ScrollArrowDownIcon() {
 function FrontProjectionGrid({
   ariaLabel,
   cells,
-  displayOptions,
 }: {
   ariaLabel: string;
   cells: FrontProjectionCellContext[];
-  displayOptions: PreviewDisplayOptions;
 }) {
   return (
     <div
       className="front-preview"
       aria-label={ariaLabel}
-      data-preview-grid-visible={displayOptions.grid}
-      data-preview-main-boundary-visible={displayOptions.mainBoundary}
-      data-preview-skill-markers-visible={displayOptions.skillMarkers}
     >
       {cells.map((cell) => {
         const projectionInstance = cell.projectedInstance;
@@ -269,7 +209,6 @@ function FrontProjectionGrid({
               'front-cell',
               cell.areaType === 'outer' ? 'outer' : '',
               projectionInstance ? 'fill' : '',
-              cell.skillInstance && displayOptions.skillMarkers ? 'skill' : '',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -280,7 +219,6 @@ function FrontProjectionGrid({
             data-front-projected-y={projectionInstance?.coordinate.y ?? ''}
             data-preview-area={cell.areaType}
             data-preview-main-boundary={cell.mainBoundary}
-            data-preview-main-boundary-visible={displayOptions.mainBoundary && cell.mainBoundary}
             data-preview-has-instance={cell.tileInstances.length > 0}
             data-preview-instance-count={cell.tileInstances.length}
             data-preview-asset-id={projectionInstance?.assetId ?? ''}
@@ -306,21 +244,16 @@ function PreviewGrid({
   className,
   cellClassName,
   cells,
-  displayOptions,
 }: {
   ariaLabel: string;
   className: string;
   cellClassName: string;
   cells: PreviewCanvasCellContext[];
-  displayOptions: PreviewDisplayOptions;
 }) {
   return (
     <div
       className={className}
       aria-label={ariaLabel}
-      data-preview-grid-visible={displayOptions.grid}
-      data-preview-main-boundary-visible={displayOptions.mainBoundary}
-      data-preview-skill-markers-visible={displayOptions.skillMarkers}
     >
       {cells.map((cell) => {
         const visibleCellInstances = cell.hidden ? [] : cell.tileInstances;
@@ -340,7 +273,6 @@ function PreviewGrid({
               cellClassName,
               cell.areaType === 'outer' ? 'outer' : '',
               topInstance ? 'fill' : '',
-              skillInstance && displayOptions.skillMarkers ? 'skill' : '',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -348,7 +280,6 @@ function PreviewGrid({
             data-preview-coordinate={`${cell.coordinate.x},${cell.coordinate.y}`}
             data-preview-area={cell.areaType}
             data-preview-main-boundary={cell.mainBoundary}
-            data-preview-main-boundary-visible={displayOptions.mainBoundary && cell.mainBoundary}
             data-preview-has-instance={visibleCellInstances.length > 0}
             data-preview-instance-count={visibleCellInstances.length}
             data-preview-asset-id={topInstance?.assetId ?? ''}

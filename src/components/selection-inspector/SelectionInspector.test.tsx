@@ -33,14 +33,8 @@ const defaultInspectorProps = {
   sceneDimensions,
   buildingLevels: scene.buildingLevels,
   tileInstances: scene.tileInstances,
-  onSelectedInstanceChange: () => undefined,
-  onDeleteInstance: () => undefined,
-  onChangeInstanceAsset: () => undefined,
-  onMoveInstance: () => undefined,
   onRotateInstance: () => undefined,
-  onDyeInstance: () => undefined,
   onSaveInstanceSkill: () => undefined,
-  onSaveInstanceNote: () => undefined,
 };
 
 describe('SelectionInspector', () => {
@@ -99,6 +93,23 @@ describe('SelectionInspector', () => {
 
     expect(screen.getByLabelText('Selected instance')).toHaveTextContent('屋檐片段');
     expect(screen.getByLabelText('Selected coordinate')).toHaveTextContent('x2 y2 · L0');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Coordinate');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('2,2');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Area');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('main');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Building layer');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('L0 0 层');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Asset');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('屋檐片段');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Rotation');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('90 deg');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Dye');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('None');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Skill marker');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('None');
+    expect(screen.queryByRole('textbox', { name: /note/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /building layer/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '旋转 90' }));
@@ -164,8 +175,57 @@ describe('SelectionInspector', () => {
 
     const skillButton = screen.getByRole('button', { name: '设置技能标记：树叶' });
     expect(skillButton).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Skill marker');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('树叶');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Skill note');
+    expect(screen.getByLabelText('Selection details')).toHaveTextContent('legacy note');
     fireEvent.click(screen.getByRole('button', { name: '清除技能标记' }));
     expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-skill', false, '树叶', 'legacy note');
+  });
+
+  it('shows retained selected-instance fields without note or move editors', () => {
+    const richScene = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-rich',
+          assetId: 'roof-tile',
+          coordinate: { x: 0, y: 2 },
+          buildingLevelId: 'level-2',
+          rotationDegrees: 270,
+          dyeColor: '#56ccf2',
+          requiresSkill: true,
+          skillType: '耕地',
+          skillNote: 'soil roof note',
+        }),
+      ],
+    };
+    const richContext = getCellContext(richScene, { x: 0, y: 2 }, 'level-2');
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={richContext}
+        selectedInstance={richContext.tileInstances[0]}
+        selectedInstanceId="tile-rich"
+        buildingLevels={richScene.buildingLevels}
+        tileInstances={richScene.tileInstances}
+        readOnly={false}
+      />,
+    );
+
+    const details = screen.getByLabelText('Selection details');
+    expect(details).toHaveTextContent('0,2');
+    expect(details).toHaveTextContent('outer');
+    expect(details).toHaveTextContent('L2 2 层');
+    expect(details).toHaveTextContent('屋檐片段');
+    expect(details).toHaveTextContent('270 deg');
+    expect(details).toHaveTextContent('#56ccf2');
+    expect(details).toHaveTextContent('耕地');
+    expect(details).toHaveTextContent('soil roof note');
+    expect(screen.queryByRole('textbox', { name: /note/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /building layer/i })).not.toBeInTheDocument();
   });
 
   it('uses the water skill icon button to save the canonical 储水 skill type', () => {

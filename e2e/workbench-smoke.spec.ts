@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const savedSceneStorageKey = 'pokopia.sceneDocument.v1';
 const autosavedSceneStorageKey = 'pokopia.sceneDocument.autosave.v1';
+const savedSceneStorageKey = 'pokopia.sceneDocument.v1';
+const uiPreferencesStorageKey = 'pokopia.uiPreferences.v1';
 const densePreviewAssetIds = ['wooden-floor', 'garden-plant', 'outer-wall', 'ditto-doll', 'water-barrel', 'roof-tile'];
 const densePreviewSkillTypes = ['树叶', '耕地', '储水'];
 
@@ -20,6 +21,12 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByTestId('scene-cell')).toHaveCount(49);
   await expect(page.getByLabel('Cell 3,2, main area, level-1, placeable, 白木栅栏, rotated 90')).toBeVisible();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save scene' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Undo' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Redo' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Show preview main boundary' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Show preview skill markers' })).toHaveCount(0);
 
   const snapshot = await readSceneSnapshot(page);
   expect(snapshot.sceneName).toBe('星光庭院');
@@ -31,7 +38,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   expectScenePayloadHasNoLegacyFields(snapshot);
 });
 
-test('saves and autosaves SceneDocument v1 without UI-only state', async ({ page }) => {
+test('autosaves SceneDocument v1 without UI-only state or manual save entrypoints', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
 
@@ -39,15 +46,8 @@ test('saves and autosaves SceneDocument v1 without UI-only state', async ({ page
   const autosavedPayload = await waitForStoredPayload(page, autosavedSceneStorageKey);
   expect(autosavedPayload.sceneName).toBe('Smoke Payload Boundary');
   expectScenePayloadHasNoLegacyFields(autosavedPayload);
+  await expect(page.getByRole('button', { name: 'Save scene' })).toHaveCount(0);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
-
-  await page.getByRole('button', { name: 'Save scene', exact: true }).click();
-  const savedPayload = await waitForStoredPayload(page, savedSceneStorageKey);
-  expect(savedPayload.sceneName).toBe('Smoke Payload Boundary');
-  expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBe(
-    await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey),
-  );
-  expectScenePayloadHasNoLegacyFields(savedPayload);
 });
 
 test('keeps retained edit commands wired through the workbench shell', async ({ page }) => {
@@ -90,6 +90,10 @@ test('keeps retained edit commands wired through the workbench shell', async ({ 
   await expect
     .poll(async () => getStoredBuildingLevelCount(page))
     .toBe(4);
+
+  await expect(page.getByRole('textbox', { name: 'Instance note' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Move instance' })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Building layer' })).toHaveCount(0);
 });
 
 test('updates dense preview inside the browser-visible performance budget', async ({ page }) => {
@@ -106,11 +110,74 @@ test('updates dense preview inside the browser-visible performance budget', asyn
   await expect(page.getByLabel('Front preview item summary')).toHaveText('490 visible items projected across 10 layers');
   await expect(topPreview.locator('[data-preview-coordinate]')).toHaveCount(49);
   await expect(frontPreview.locator('[data-front-level-id="level-0"]')).toHaveCount(7);
+  await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Show preview main boundary' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Show preview skill markers' })).toHaveCount(0);
+  await expect(topPreview).not.toHaveAttribute('data-preview-grid-visible');
+  await expect(frontPreview).not.toHaveAttribute('data-preview-grid-visible');
+  await expect(frontPreview).not.toHaveAttribute('data-preview-main-boundary-visible');
+  await expect(frontPreview).not.toHaveAttribute('data-preview-skill-markers-visible');
+  await expect(frontPreview.locator('.front-cell.skill')).toHaveCount(0);
+  await expect(topPreview.locator('.top-cell.skill')).toHaveCount(0);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
 
   await expect(frontPreview.locator('[data-front-level-id]')).toHaveCount(70);
   const selectionDuration = await measureSelectionDuration(page, '[data-coordinate="3,3"]');
   expect(selectionDuration).toBeLessThan(250);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('migrates legacy preview display preferences without hidden preview controls', async ({ page }) => {
+  await page.addInitScript((storageKey) => {
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        schemaVersion: 1,
+        assetFilters: {
+          query: '',
+          category: 'all',
+          area: 'outer',
+          favoriteOnly: false,
+          skill: 'skill-candidate',
+        },
+        preview: {
+          displayOptions: {
+            grid: true,
+            mainBoundary: true,
+            skillMarkers: true,
+          },
+        },
+      }),
+    );
+  }, uiPreferencesStorageKey);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+
+  await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveCount(0);
+  await expect(page.getByLabel('Asset area filter')).toHaveValue('outer');
+  await expect(page.getByLabel('Asset skill filter')).toHaveValue('skill-candidate');
+
+  const rawPreferences = await page.evaluate((storageKey) => window.localStorage.getItem(storageKey), uiPreferencesStorageKey);
+  expect(rawPreferences).not.toBeNull();
+  expect(rawPreferences).not.toContain('preview');
+  expect(rawPreferences).not.toContain('displayOptions');
+  expect(rawPreferences).toContain('"area":"outer"');
+  expect(rawPreferences).toContain('"skill":"skill-candidate"');
+});
+
+test('shows asset empty state without recovery actions', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+
+  await page.getByLabel('Search assets').fill('no-matching-asset-smoke');
+
+  await expect(page.getByLabel('No matching assets')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Clear filters' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Show all' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Disable favorite' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'All categories' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Clear search' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reset filters' })).toHaveCount(0);
 });
 
 test('switches scaffold controls to read-only below the mobile breakpoint', async ({ page }) => {

@@ -32,8 +32,8 @@ describe('BuildingLevelPanel', () => {
   it('keeps only copy and delete actions visible in read-only mode', () => {
     render(<BuildingLevelPanel {...defaultProps()} levels={getBuildingLevelContexts(scene)} readOnly />);
 
-    const currentRow = screen.getByLabelText('L0, 0 层, 0 instances, visible, unlocked, viewing layer');
-    const standbyRow = screen.getByLabelText('L1, 1 层, 0 instances, visible, unlocked');
+    const currentRow = screen.getByLabelText('L0, 0 层, 0 instances, viewing layer');
+    const standbyRow = screen.getByLabelText('L1, 1 层, 0 instances');
 
     expect(screen.getByLabelText('Building layer edit mode')).toHaveTextContent(
       'Mobile View-only Mode · Layer edits disabled',
@@ -52,7 +52,7 @@ describe('BuildingLevelPanel', () => {
     const props = defaultProps();
     render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(scene)} readOnly={false} />);
 
-    const standbyRow = screen.getByLabelText('L1, 1 层, 0 instances, visible, unlocked');
+    const standbyRow = screen.getByLabelText('L1, 1 层, 0 instances');
     const copyButton = within(standbyRow).getByRole('button', { name: /Copy 1 层 \(L1\)/ });
     const deleteButton = within(standbyRow).getByRole('button', { name: /Delete 1 层 \(L1\)/ });
 
@@ -81,7 +81,7 @@ describe('BuildingLevelPanel', () => {
     const props = defaultProps();
     render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(scene)} readOnly={false} />);
 
-    const standbyRow = screen.getByLabelText('L1, 1 层, 0 instances, visible, unlocked');
+    const standbyRow = screen.getByLabelText('L1, 1 层, 0 instances');
     const nameInput = within(standbyRow).getByLabelText('Rename 1 层');
     const copyButton = within(standbyRow).getByRole('button', { name: /Copy 1 层 \(L1\)/ });
     const deleteButton = within(standbyRow).getByRole('button', { name: /Delete 1 层 \(L1\)/ });
@@ -123,12 +123,15 @@ describe('BuildingLevelPanel', () => {
     expect(props.onRenameLayer).toHaveBeenCalledWith('level-2', '可编辑屋顶层');
   });
 
-  it('renders building layers as visible and unlocked derived UI state', () => {
+  it('does not expose removed visible or locked layer UI state', () => {
     render(<BuildingLevelPanel {...defaultProps()} levels={getBuildingLevelContexts(scene)} readOnly={false} />);
 
-    const row = screen.getByLabelText('L1, 1 层, 0 instances, visible, unlocked');
+    const row = screen.getByLabelText('L1, 1 层, 0 instances');
     expect(row).not.toHaveClass('level-row--hidden');
     expect(row).not.toHaveClass('level-row--locked');
+    expect(row).not.toHaveAttribute('data-visible');
+    expect(row).not.toHaveAttribute('data-locked');
+    expect(within(row).queryByRole('button', { name: /Hide|Show|Lock|Unlock/ })).not.toBeInTheDocument();
     const deleteButton = within(row).getByRole('button', {
       name: /Delete 1 层 \(L1\)/,
     });

@@ -4,8 +4,6 @@ import {
   readUiPreferencesFromStorage,
   uiPreferencesStorageKey,
   writeAssetFilterPreferencesToStorage,
-  writePreviewDisplayOptionsToStorage,
-  writePreviewLayerScopePreferenceToStorage,
 } from './ui-preferences';
 
 describe('UI preferences storage', () => {
@@ -66,35 +64,29 @@ describe('UI preferences storage', () => {
     expect(readUiPreferencesFromStorage(window.localStorage).assetFilters).toEqual(preferences.assetFilters);
   });
 
-  it('merges preview display options and layer scope without replacing asset filters', () => {
-    writeAssetFilterPreferencesToStorage(window.localStorage, {
+  it('stores only asset filters and omits preview display preferences', () => {
+    const preferences = writeAssetFilterPreferencesToStorage(window.localStorage, {
       query: 'plant',
       category: 'decor',
       area: 'main',
       favoriteOnly: false,
       skill: '树叶',
     });
-    writePreviewDisplayOptionsToStorage(window.localStorage, {
-      grid: false,
-      mainBoundary: false,
-      skillMarkers: true,
-    });
-    const preferences = writePreviewLayerScopePreferenceToStorage(window.localStorage, 'all-visible-layers');
+    const rawPreferences = window.localStorage.getItem(uiPreferencesStorageKey);
 
-    expect(preferences.assetFilters).toMatchObject({
+    expect(preferences.assetFilters).toEqual({
       query: 'plant',
       category: 'decor',
       area: 'main',
+      favoriteOnly: false,
       skill: '树叶',
     });
-    expect(preferences.preview).toEqual({
-      displayOptions: {
-        grid: false,
-        mainBoundary: false,
-        skillMarkers: true,
-      },
-      layerScope: 'all-visible-layers',
-    });
+    expect(rawPreferences).not.toBeNull();
+    expect(rawPreferences).not.toContain('preview');
+    expect(rawPreferences).not.toContain('displayOptions');
+    expect(rawPreferences).not.toContain('grid');
+    expect(rawPreferences).not.toContain('mainBoundary');
+    expect(rawPreferences).not.toContain('skillMarkers');
   });
 
   it('falls back to defaults for invalid JSON and expired schema versions', () => {
@@ -134,7 +126,8 @@ describe('UI preferences storage', () => {
       }),
     );
 
-    expect(readUiPreferencesFromStorage(window.localStorage)).toMatchObject({
+    expect(readUiPreferencesFromStorage(window.localStorage)).toEqual({
+      schemaVersion: 1,
       assetFilters: {
         query: 'wall',
         category: 'all',
@@ -142,15 +135,55 @@ describe('UI preferences storage', () => {
         favoriteOnly: false,
         skill: 'all',
       },
-      preview: {
-        displayOptions: {
-          grid: false,
-          mainBoundary: true,
-          skillMarkers: false,
+    });
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).not.toContain('preview');
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).not.toContain('displayOptions');
+  });
+
+  it('migrates legacy preview display preferences to asset-filter-only storage on read', () => {
+    window.localStorage.setItem(
+      uiPreferencesStorageKey,
+      JSON.stringify({
+        schemaVersion: 1,
+        assetFilters: {
+          query: 'bench',
+          category: 'furniture',
+          area: 'outer',
+          favoriteOnly: false,
+          skill: 'skill-candidate',
         },
-        layerScope: 'current-layer',
+        preview: {
+          displayOptions: {
+            grid: true,
+            mainBoundary: true,
+            skillMarkers: false,
+          },
+        },
+      }),
+    );
+
+    expect(readUiPreferencesFromStorage(window.localStorage)).toEqual({
+      schemaVersion: 1,
+      assetFilters: {
+        query: 'bench',
+        category: 'furniture',
+        area: 'outer',
+        favoriteOnly: false,
+        skill: 'skill-candidate',
       },
     });
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBe(
+      JSON.stringify({
+        schemaVersion: 1,
+        assetFilters: {
+          query: 'bench',
+          category: 'furniture',
+          area: 'outer',
+          favoriteOnly: false,
+          skill: 'skill-candidate',
+        },
+      }),
+    );
   });
 });
 

@@ -77,7 +77,7 @@ describe('PreviewInspector', () => {
     expect(screen.getByLabelText('Top preview selection summary')).toHaveTextContent('2,3');
   });
 
-  it('keeps preview scope and display options in UI preferences only', () => {
+  it('renders fixed preview overlays without display preference controls or storage writes', () => {
     const snapshotBefore = JSON.stringify(scene);
     const { container, unmount } = render(
       <PreviewInspector
@@ -89,19 +89,27 @@ describe('PreviewInspector', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show preview grid' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Show preview main boundary' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Show preview skill markers' }));
-
-    expect(readUiPreferencesFromStorage(window.localStorage).preview).toEqual({
-      displayOptions: {
-        grid: false,
-        mainBoundary: false,
-        skillMarkers: false,
+    expect(screen.queryByRole('button', { name: 'Show preview grid' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show preview main boundary' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show preview skill markers' })).not.toBeInTheDocument();
+    expect(readUiPreferencesFromStorage(window.localStorage)).toEqual({
+      schemaVersion: 1,
+      assetFilters: {
+        query: '',
+        category: 'all',
+        area: 'all',
+        favoriteOnly: false,
+        skill: 'all',
       },
-      layerScope: 'current-layer',
     });
-    expect(container.querySelector('.front-preview')).toHaveAttribute('data-preview-grid-visible', 'false');
+    expect(window.localStorage.getItem('pokopia.uiPreferences.v1')).toBeNull();
+    expect(container.querySelector('.front-preview')).not.toHaveAttribute('data-preview-grid-visible');
+    expect(container.querySelector('.front-preview')).not.toHaveAttribute('data-preview-main-boundary-visible');
+    expect(container.querySelector('.front-preview')).not.toHaveAttribute('data-preview-skill-markers-visible');
+    expect(container.querySelector('.top-preview')).not.toHaveAttribute('data-preview-grid-visible');
+    expect(container.querySelector('.front-cell.skill')).toBeNull();
+    expect(container.querySelector('.top-cell.skill')).toBeNull();
+    expect(container.querySelector('[data-preview-main-boundary-visible="true"]')).toBeNull();
     expect(container.querySelector('.front-cell[data-front-level-id="level-1"][data-front-x="2"]')).toHaveAttribute(
       'data-preview-asset-id',
       'roof-tile',
@@ -124,8 +132,8 @@ describe('PreviewInspector', () => {
     );
 
     expect(screen.queryByRole('button', { name: 'Preview all visible layers' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Show preview grid' })).toHaveAttribute('aria-pressed', 'false');
-    expect(restored.container.querySelector('.front-preview')).toHaveAttribute('data-preview-grid-visible', 'false');
+    expect(screen.queryByRole('button', { name: 'Show preview grid' })).not.toBeInTheDocument();
+    expect(restored.container.querySelector('.front-preview')).not.toHaveAttribute('data-preview-grid-visible');
     expect(screen.getByLabelText('Top preview scope')).toHaveTextContent('Current layer top projection');
   });
 

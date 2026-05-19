@@ -31,27 +31,22 @@ import {
   applyRecoveredSceneDocument,
   autosavedSceneStorageKey,
   readLatestSceneDocumentFromStorage,
-  readSceneDocumentFromStorage,
   savedSceneStorageKey,
   type RecoveryError,
-  type StoredSceneDocument,
-  writeSceneDocumentToAllStorageSlots,
   writeSceneDocumentToStorage,
 } from '../../io';
 import { getPokemonTheme, toPokemonThemeStyle } from '../../theme';
 
-type LocalSaveStatus = 'dirty' | 'saved' | 'saveError';
-
 export function AppShell() {
   const [initialSceneState] = useState(createInitialSceneState);
   const [scene, setScene] = useState(initialSceneState.scene);
-  const [saveStatus, setSaveStatus] = useState<LocalSaveStatus>(initialSceneState.saveStatus);
   const [recoveryErrors, setRecoveryErrors] = useState<RecoveryError[]>(
     initialSceneState.recoveryErrors,
   );
   const [recoveryStatus, setRecoveryStatus] = useState<'idle' | 'error' | 'success' | 'canceled'>(
     initialSceneState.recoveryErrors.length > 0 ? 'error' : 'idle',
   );
+  const [autosaveError, setAutosaveError] = useState<string | null>(null);
   const autosaveReadyRef = useRef(false);
   const pendingSelectionMeasureRef = useRef<string | null>(null);
   const selectionMeasureCounterRef = useRef(0);
@@ -99,7 +94,6 @@ export function AppShell() {
     }
 
     setScene(nextScene);
-    setSaveStatus('dirty');
   };
   const dispatch = (action: SceneAction) => {
     const nextScene = sceneReducer(scene, action);
@@ -142,7 +136,8 @@ export function AppShell() {
   }, [isReadOnly, scene.workspaceState.currentBuildingLevelId, scene.workspaceState.selectedCoordinate]);
 
   useEffect(() => {
-    if (isReadOnly || saveStatus === 'saveError') {
+    if (isReadOnly) {
+      setAutosaveError(null);
       return;
     }
 
@@ -153,15 +148,17 @@ export function AppShell() {
 
     const storage = getBrowserStorage();
     if (!storage) {
+      setAutosaveError('Autosave is unavailable. Your latest edits are not stored locally.');
       return;
     }
 
     try {
       writeSceneDocumentToStorage(storage, scene, 'autosave');
+      setAutosaveError(null);
     } catch {
-      // Autosave is best-effort; explicit Save reports storage failures in the UI.
+      setAutosaveError('Autosave failed. Your latest edits are not stored locally.');
     }
-  }, [isReadOnly, saveStatus, scene]);
+  }, [isReadOnly, scene]);
 
   useEffect(() => {
     const measureId = pendingSelectionMeasureRef.current;
@@ -234,34 +231,6 @@ export function AppShell() {
       interactionMode,
       now: getCurrentIsoTimestamp(),
     });
-  };
-
-  const saveScene = () => {
-    if (isReadOnly) {
-      return;
-    }
-
-    const storage = getBrowserStorage();
-    const now = getCurrentIsoTimestamp();
-
-    if (!storage) {
-      setSaveStatus('saveError');
-      return;
-    }
-
-    const savedScene = sceneReducer(scene, {
-      type: 'save-scene',
-      interactionMode,
-      now,
-    });
-
-    try {
-      writeSceneDocumentToAllStorageSlots(storage, savedScene);
-      setScene(savedScene);
-      setSaveStatus('saved');
-    } catch {
-      setSaveStatus('saveError');
-    }
   };
 
   const selectAsset = (assetId: string) => {
@@ -497,9 +466,9 @@ export function AppShell() {
     storage?.removeItem(savedSceneStorageKey);
     storage?.removeItem(autosavedSceneStorageKey);
     setScene(nextScene);
-    setSaveStatus('saved');
     setRecoveryErrors([]);
     setRecoveryStatus('idle');
+    setAutosaveError(null);
     setSelectedInstanceId(null);
     setPlacementRequiresSkill(false);
     setPlacementFeedback(null);
@@ -538,9 +507,9 @@ export function AppShell() {
     }
 
     setScene(appliedRecovery.scene);
-    setSaveStatus(getRecoveredSceneSaveStatus(storage, storedScene));
     setRecoveryErrors([]);
     setRecoveryStatus('success');
+    setAutosaveError(null);
     setPlacementFeedback(null);
     setBuildingLayerFeedback(null);
   };
@@ -564,17 +533,6 @@ export function AppShell() {
         <div className="app-header__actions" aria-label="Scene file actions">
           <button
             type="button"
-            className="icon-button has-icon-tooltip"
-            aria-label="Save scene"
-            data-tooltip="保存"
-            title="保存"
-            disabled={isReadOnly || saveStatus === 'saved'}
-            onClick={saveScene}
-          >
-            <SaveIcon />
-          </button>
-          <button
-            type="button"
             className="icon-button icon-button--danger has-icon-tooltip"
             aria-label="Delete scene"
             data-tooltip="删除"
@@ -586,6 +544,17 @@ export function AppShell() {
           </button>
         </div>
       </header>
+      {autosaveError ? (
+        <section
+          className="autosave-warning"
+          role="alert"
+          aria-label="Autosave warning"
+          data-autosave-status="error"
+        >
+          <strong>Autosave paused</strong>
+          <span>{autosaveError}</span>
+        </section>
+      ) : null}
       {recoveryStatus !== 'idle' ? (
         <section
           className="recovery-validator"
@@ -631,10 +600,8 @@ export function AppShell() {
             readOnly={isReadOnly}
             selectedPokemonKey={scene.selectedPokemonKey}
             sceneName={scene.sceneName}
-            saveStatus={saveStatus}
             onPokemonChange={updatePokemon}
             onSceneNameChange={updateSceneName}
-            onSave={saveScene}
           />
           <BuildingLevelPanel
             levels={displayedBuildingLevelContexts}
@@ -735,18 +702,7 @@ function isLocalPreviewHost(hostname: string): boolean {
 
 interface InitialSceneState {
   scene: SceneDocument;
-  saveStatus: LocalSaveStatus;
   recoveryErrors: RecoveryError[];
-}
-
-function SaveIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M5 4h12l2 2v14H5z" />
-      <path d="M8 4v6h8V4" />
-      <path d="M8 20v-7h8v7" />
-    </svg>
-  );
 }
 
 function DeleteIcon() {
@@ -773,7 +729,6 @@ function createInitialSceneState(): InitialSceneState {
   if (isLocalPreviewHost(window.location.hostname) && navigator.webdriver && testWindow.__pokopiaInitialSceneSnapshot) {
     return {
       scene: testWindow.__pokopiaInitialSceneSnapshot,
-      saveStatus: 'saved',
       recoveryErrors: [],
     };
   }
@@ -782,7 +737,6 @@ function createInitialSceneState(): InitialSceneState {
   if (!storage) {
     return {
       scene: defaultScene,
-      saveStatus: 'saved',
       recoveryErrors: [],
     };
   }
@@ -791,7 +745,6 @@ function createInitialSceneState(): InitialSceneState {
   if (storedScene?.ok && initialInteractionMode !== 'readOnly') {
     return {
       scene: storedScene.scene,
-      saveStatus: getRecoveredSceneSaveStatus(storage, storedScene),
       recoveryErrors: [],
     };
   }
@@ -804,7 +757,6 @@ function createInitialSceneState(): InitialSceneState {
 
     return {
       scene: defaultScene,
-      saveStatus: 'saved',
       recoveryErrors: rejectedRecovery.ok ? [] : rejectedRecovery.errors,
     };
   }
@@ -812,29 +764,14 @@ function createInitialSceneState(): InitialSceneState {
   if (storedScene && !storedScene.ok) {
     return {
       scene: defaultScene,
-      saveStatus: 'saved',
       recoveryErrors: storedScene.errors,
     };
   }
 
   return {
     scene: defaultScene,
-    saveStatus: 'saved',
     recoveryErrors: [],
   };
-}
-
-function getRecoveredSceneSaveStatus(storage: Storage, storedScene: StoredSceneDocument): LocalSaveStatus {
-  if (storedScene.slot === 'saved') {
-    return 'saved';
-  }
-
-  const savedScene = readSceneDocumentFromStorage(storage, 'saved');
-  if (savedScene?.ok && JSON.stringify(savedScene.payload) === JSON.stringify(storedScene.payload)) {
-    return 'saved';
-  }
-
-  return 'dirty';
 }
 
 function getCurrentIsoTimestamp(): string {
