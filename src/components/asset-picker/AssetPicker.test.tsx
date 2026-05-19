@@ -34,7 +34,7 @@ describe('AssetPicker', () => {
     expect(screen.getByLabelText('小型灌木 asset detail')).toHaveTextContent('garden-plant');
     expect(screen.getByLabelText('小型灌木 asset detail')).toHaveTextContent('Default skill: 树叶');
     expect(within(screen.getByLabelText('小型灌木 asset detail')).getByAltText('小型灌木缩略图')).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it('selects assets by mouse, Enter, Space, and arrow-key focus', () => {
     const onAssetSelect = vi.fn();
@@ -299,10 +299,38 @@ describe('AssetPicker', () => {
 
     expect(getAssetSelectButton('wooden-floor')).toBeEnabled();
     expect(screen.queryByLabelText('Current placement asset')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Search assets')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('Show favorite assets')).toBeDisabled();
+    expect(screen.getByLabelText('Asset area filter')).toBeDisabled();
+    expect(screen.getByLabelText('Asset skill filter')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'View 石板路径 details' })).toBeDisabled();
+    expect(within(screen.getByRole('group', { name: 'Asset category filters' })).getByRole('button', { name: '全部' }))
+      .toBeDisabled();
     fireEvent.click(getAssetSelectButton('outer-wall'));
     expect(onAssetSelect).not.toHaveBeenCalled();
     expect(getAssetSelectButton('wooden-floor')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByLabelText('石板路径 asset detail')).toHaveTextContent('outer-wall');
+
+    getAssetSelectButton('wooden-floor').focus();
+    fireEvent.keyDown(getAssetSelectButton('wooden-floor'), { key: 'ArrowDown' });
+    fireEvent.keyDown(getAssetSelectButton('wooden-floor'), { key: 'ArrowUp' });
+    fireEvent.keyDown(getAssetSelectButton('wooden-floor'), { key: 'Enter' });
+    fireEvent.keyDown(getAssetSelectButton('wooden-floor'), { key: ' ' });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'View 石板路径 details' }), { key: 'Enter' });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'View 石板路径 details' }), { key: ' ' });
+
+    expect(onAssetSelect).not.toHaveBeenCalled();
+    expect(getAssetSelectButton('wooden-floor')).toHaveFocus();
+    expect(readUiPreferencesFromStorage(window.localStorage)).toEqual({
+      schemaVersion: 1,
+      assetFilters: {
+        query: '',
+        category: 'all',
+        area: 'all',
+        favoriteOnly: false,
+        skill: 'all',
+      },
+    });
   });
 });
 

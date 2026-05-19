@@ -44,6 +44,7 @@ export function SceneCanvas({
       aria-rowcount={canvasSize.height}
       aria-colcount={canvasSize.width}
       data-testid="scene-canvas"
+      data-read-only={readOnly}
     >
       {rows.map((row, rowIndex) => (
         <div className="scene-row" role="row" aria-rowindex={rowIndex + 1} key={rowIndex}>
@@ -109,8 +110,14 @@ export function SceneCanvas({
                     handleCellPointerSelect(true, coordinate, onSelectCoordinate, onViewCoordinate);
                   }
                 }}
-                onFocus={(event) => handleCellFocus(event, coordinate, onFocusCoordinate)}
-                onBlur={() => onFocusCoordinate(null)}
+                onFocus={(event) =>
+                  readOnly ? undefined : handleCellFocus(event, coordinate, onFocusCoordinate)
+                }
+                onBlur={() => {
+                  if (!readOnly) {
+                    onFocusCoordinate(null);
+                  }
+                }}
                 onMouseEnter={() => onHoverCoordinate(toGridCoordinate(coordinate))}
                 onMouseLeave={() => onHoverCoordinate(null)}
                 onKeyDown={(event) =>
@@ -215,8 +222,10 @@ function handleCellKeyDown(
   onViewCoordinate: (coordinate: GridCoordinate) => void,
   onFocusCoordinate: (coordinate: GridCoordinate | null) => void,
 ): void {
-  if (readOnly && isBlockedReadOnlyEditKey(event)) {
-    event.preventDefault();
+  if (readOnly) {
+    if (isReadOnlyApplicationKey(event)) {
+      event.preventDefault();
+    }
     return;
   }
 
@@ -340,10 +349,18 @@ function getCellStateLabel(placeable: boolean, readOnly: boolean): string {
   return placeable ? 'placeable' : 'not placeable';
 }
 
-function isBlockedReadOnlyEditKey(event: KeyboardEvent<HTMLButtonElement>): boolean {
+function isReadOnlyApplicationKey(event: KeyboardEvent<HTMLButtonElement>): boolean {
   const normalizedKey = event.key.toLowerCase();
 
   return (
+    normalizedKey === 'arrowup' ||
+    normalizedKey === 'arrowdown' ||
+    normalizedKey === 'arrowleft' ||
+    normalizedKey === 'arrowright' ||
+    normalizedKey === 'enter' ||
+    normalizedKey === ' ' ||
+    normalizedKey === 'spacebar' ||
+    normalizedKey === 'escape' ||
     normalizedKey === 'delete' ||
     normalizedKey === 'backspace' ||
     ((event.metaKey || event.ctrlKey) && normalizedKey === 's')

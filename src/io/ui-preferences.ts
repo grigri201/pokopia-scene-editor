@@ -37,7 +37,10 @@ export function getUiPreferencesStorage(): Storage | null {
   }
 }
 
-export function readUiPreferencesFromStorage(storage: Storage | null): UiPreferences {
+export function readUiPreferencesFromStorage(
+  storage: Storage | null,
+  options: { persistNormalized?: boolean } = {},
+): UiPreferences {
   if (!storage) {
     return getDefaultUiPreferences();
   }
@@ -56,7 +59,7 @@ export function readUiPreferencesFromStorage(storage: Storage | null): UiPrefere
   try {
     const parsedPreferences = JSON.parse(rawPreferences);
     const normalizedPreferences = normalizeUiPreferences(parsedPreferences);
-    if (shouldPersistNormalizedPreferences(parsedPreferences, normalizedPreferences)) {
+    if (options.persistNormalized !== false && shouldPersistNormalizedPreferences(parsedPreferences, normalizedPreferences)) {
       writeUiPreferencesToStorage(storage, normalizedPreferences);
     }
 

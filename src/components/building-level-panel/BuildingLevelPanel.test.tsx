@@ -30,7 +30,8 @@ describe('BuildingLevelPanel', () => {
   });
 
   it('keeps only copy and delete actions visible in read-only mode', () => {
-    render(<BuildingLevelPanel {...defaultProps()} levels={getBuildingLevelContexts(scene)} readOnly />);
+    const props = defaultProps();
+    render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(scene)} readOnly />);
 
     const currentRow = screen.getByLabelText('L0, 0 层, 0 instances, viewing layer');
     const standbyRow = screen.getByLabelText('L1, 1 层, 0 instances');
@@ -46,6 +47,14 @@ describe('BuildingLevelPanel', () => {
     expect(within(currentRow).queryByRole('button', { name: /Lock 0 层/ })).not.toBeInTheDocument();
     expect(within(currentRow).getByRole('button', { name: /Copy 0 层.*read-only mode/ })).toBeDisabled();
     expect(within(currentRow).getByRole('button', { name: /Delete 0 层.*read-only mode/ })).toBeDisabled();
+    for (const keyEvent of readOnlyApplicationKeyEvents) {
+      fireEvent.keyDown(standbyRow, keyEvent);
+    }
+    expect(props.onSelectLayer).not.toHaveBeenCalled();
+    expect(props.onCreateLayer).not.toHaveBeenCalled();
+    expect(props.onCopyLayer).not.toHaveBeenCalled();
+    expect(props.onDeleteLayer).not.toHaveBeenCalled();
+    expect(props.onRenameLayer).not.toHaveBeenCalled();
   });
 
   it('emits building layer management actions in desktop edit mode', () => {
@@ -150,3 +159,13 @@ function defaultProps() {
     onDeleteLayer: vi.fn(),
   };
 }
+
+const readOnlyApplicationKeyEvents = [
+  { key: 'Enter' },
+  { key: ' ' },
+  { key: 'Escape' },
+  { key: 'Delete' },
+  { key: 'Backspace' },
+  { key: 's', metaKey: true },
+  { key: 's', ctrlKey: true },
+] as const;

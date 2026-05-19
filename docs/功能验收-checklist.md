@@ -31,7 +31,7 @@
 - [*] Tab / Shift+Tab 可以访问主要控件。
 - [*] 方向键可以在画布格子间移动焦点。
 - [?] Enter / Space 可以确认选择或放置。
-- [-] 只读模式下 Delete / Backspace / Ctrl+S / Cmd+S 等编辑快捷键不会修改场景。
+- [*] Mobile 只读模式下方向键、Enter、Space、Escape、Delete、Backspace、Ctrl+S / Cmd+S 等应用级键盘操作不会修改场景或查看命令状态。
 - [ ] 主要按钮、输入框、筛选控件、建筑层操作、预览控件有可访问名称。
 - [*] 图标按钮有 tooltip 或可访问名称。
 

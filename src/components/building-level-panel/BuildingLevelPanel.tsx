@@ -49,6 +49,11 @@ export function BuildingLevelPanel({
       return;
     }
 
+    if (readOnly) {
+      event.preventDefault();
+      return;
+    }
+
     if (isInteractiveLevelControl(event.target)) {
       return;
     }

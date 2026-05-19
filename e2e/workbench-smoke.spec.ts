@@ -50,6 +50,29 @@ test('autosaves SceneDocument v1 without UI-only state or manual save entrypoint
   expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
 });
 
+test('restores autosaved SceneDocument v1 on desktop startup', async ({ page }) => {
+  await page.addInitScript(({ key, scene }) => {
+    window.localStorage.setItem(key, JSON.stringify(scene));
+  }, { key: autosavedSceneStorageKey, scene: createRestoredScene() });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+
+  await expect(page.getByLabel('Scene Name')).toHaveValue('Restored Smoke Layout');
+
+  const snapshot = await readSceneSnapshot(page);
+  expect(snapshot).toMatchObject({
+    sceneId: 'scene-restored-smoke',
+    sceneName: 'Restored Smoke Layout',
+    workspaceState: {
+      currentBuildingLevelId: 'level-1',
+      selectedAssetId: 'garden-plant',
+      selectedCoordinate: { x: 4, y: 4 },
+    },
+  });
+  expectScenePayloadHasNoLegacyFields(snapshot);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
+});
+
 test('keeps retained edit commands wired through the workbench shell', async ({ page }) => {
   await page.addInitScript((scene) => {
     (window as unknown as { __pokopiaInitialSceneSnapshot?: unknown }).__pokopiaInitialSceneSnapshot = scene;
@@ -189,13 +212,37 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('Scene Name')).toHaveAttribute('readonly', '');
   await expect(page.getByRole('button', { name: '新建层' })).toBeDisabled();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
+  const beforeKeyboardSnapshot = JSON.stringify(await readSceneSnapshot(page));
+  const beforeCurrentLevel = await page.getByLabel('Current building level').textContent();
+  const selectedCell = page.getByLabel('Cell 3,2, main area, level-1, read-only, 白木栅栏, rotated 90');
 
-  await page.getByLabel('Cell 3,2, main area, level-1, read-only, 白木栅栏, rotated 90').click();
-  await expect(page.getByLabel('Cell 3,2, main area, level-1, read-only, 白木栅栏, rotated 90')).toHaveAttribute(
+  await selectedCell.focus();
+  for (const key of mobileApplicationKeys) {
+    await page.keyboard.press(key);
+  }
+  await page.getByLabel('L2, 屋顶与遮挡, 5 instances').focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Space');
+  await page.locator('[data-asset-id="garden-plant"] .asset-select-button').focus();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  for (const key of mobileApplicationKeys) {
+    await page.keyboard.press(key);
+  }
+
+  expect(JSON.stringify(await readSceneSnapshot(page))).toBe(beforeKeyboardSnapshot);
+  await expect(page.getByLabel('Current building level')).toHaveText(beforeCurrentLevel ?? '');
+  await expect(selectedCell).toHaveAttribute('aria-selected', 'true');
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
+
+  await selectedCell.click();
+  await expect(selectedCell).toHaveAttribute(
     'aria-selected',
     'true',
   );
   expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
   expectScenePayloadHasNoLegacyFields(await readSceneSnapshot(page));
 });
 
@@ -279,6 +326,20 @@ function getShellTransitionDuration(page: Page): Promise<string> {
     .evaluate((element) => getComputedStyle(element).transitionDuration);
 }
 
+const mobileApplicationKeys = [
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Enter',
+  'Space',
+  'Escape',
+  'Delete',
+  'Backspace',
+  'Meta+S',
+  'Control+S',
+] as const;
+
 function createEditableScene() {
   const now = '2026-05-16T10:20:00.000Z';
 
@@ -306,6 +367,39 @@ function createEditableScene() {
       updatedAt: now,
       lastSavedAt: now,
       lastAutosavedAt: null,
+    },
+  };
+}
+
+function createRestoredScene() {
+  return {
+    ...createEditableScene(),
+    sceneId: 'scene-restored-smoke',
+    sceneName: 'Restored Smoke Layout',
+    tileInstances: [
+      {
+        instanceId: 'tile-restored-smoke',
+        assetId: 'garden-plant',
+        coordinate: { x: 4, y: 4 },
+        areaType: 'main',
+        buildingLevelId: 'level-1',
+        rotationDegrees: 0,
+        dyeColor: null,
+        requiresSkill: true,
+        skillType: '树叶',
+        skillNote: 'restore smoke',
+      },
+    ],
+    workspaceState: {
+      currentBuildingLevelId: 'level-1',
+      selectedAssetId: 'garden-plant',
+      selectedCoordinate: { x: 4, y: 4 },
+    },
+    metadata: {
+      createdAt: '2026-05-16T10:20:00.000Z',
+      updatedAt: '2026-05-16T10:45:00.000Z',
+      lastSavedAt: null,
+      lastAutosavedAt: '2026-05-16T10:45:00.000Z',
     },
   };
 }

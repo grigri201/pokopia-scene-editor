@@ -45,7 +45,10 @@ export function AssetPicker({
 }: AssetPickerProps) {
   const assetPickerId = useId();
   const [filters, setFilters] = useState<AssetFilterState>(
-    () => readUiPreferencesFromStorage(getUiPreferencesStorage()).assetFilters,
+    () =>
+      readUiPreferencesFromStorage(getUiPreferencesStorage(), {
+        persistNormalized: !readOnly,
+      }).assetFilters,
   );
   const [renderLimit, setRenderLimit] = useState(assetRenderLimit);
   const [viewedAssetId, setViewedAssetId] = useState<string | null>(selectedAssetId);
@@ -67,6 +70,11 @@ export function AssetPicker({
   }, [filters, selectedPokemonKey]);
 
   const handleAssetKeyDown = (event: KeyboardEvent<HTMLButtonElement>, assetId: string) => {
+    if (readOnly && isAssetApplicationKey(event)) {
+      event.preventDefault();
+      return;
+    }
+
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       focusSiblingAsset(event.currentTarget, event.key === 'ArrowDown' ? 1 : -1);
@@ -90,6 +98,10 @@ export function AssetPicker({
   };
 
   const updateFilters = (nextFilters: Partial<AssetFilterState>) => {
+    if (readOnly) {
+      return;
+    }
+
     setFilters((currentFilters) => {
       const updatedFilters = { ...currentFilters, ...nextFilters };
       writeAssetFilterPreferencesToStorage(getUiPreferencesStorage(), updatedFilters);
@@ -99,6 +111,10 @@ export function AssetPicker({
   };
 
   const showMoreAssets = () => {
+    if (readOnly) {
+      return;
+    }
+
     setRenderLimit((currentLimit) => currentLimit + assetRenderLimit);
   };
 
@@ -111,6 +127,7 @@ export function AssetPicker({
             type="checkbox"
             aria-label="Show favorite assets"
             checked={filters.favoriteOnly}
+            disabled={readOnly}
             onChange={(event) => updateFilters({ favoriteOnly: event.target.checked })}
           />
           只显示喜好
@@ -131,6 +148,7 @@ export function AssetPicker({
           aria-label="Search assets"
           placeholder="围栏"
           value={filters.query}
+          readOnly={readOnly}
           onChange={(event) => updateFilters({ query: event.target.value })}
         />
       </label>
@@ -140,6 +158,7 @@ export function AssetPicker({
           <button
             type="button"
             aria-pressed={filters.category === option.value}
+            disabled={readOnly}
             onClick={() => updateFilters({ category: option.value })}
             key={option.value}
           >
@@ -153,6 +172,7 @@ export function AssetPicker({
           <select
             aria-label="Asset area filter"
             value={filters.area}
+            disabled={readOnly}
             onChange={(event) => updateFilters({ area: event.target.value as AssetAreaFilter })}
           >
             {areaFilterOptions.map((option) => (
@@ -167,6 +187,7 @@ export function AssetPicker({
           <select
             aria-label="Asset skill filter"
             value={filters.skill}
+            disabled={readOnly}
             onChange={(event) => updateFilters({ skill: event.target.value as AssetSkillFilter })}
           >
             {skillFilterOptions.map((option) => (
@@ -186,7 +207,7 @@ export function AssetPicker({
       {filterResult.renderLimited ? (
         <p className="asset-limit-note" role="status">
           Showing first {filterResult.renderedAssets.length} results.
-          <button type="button" onClick={showMoreAssets}>
+          <button type="button" disabled={readOnly} onClick={showMoreAssets}>
             Show more
           </button>
         </p>
@@ -226,6 +247,7 @@ export function AssetPicker({
                 type="button"
                 className="sr-only"
                 aria-label={`View ${asset.name} details`}
+                disabled={readOnly}
                 onClick={() => setViewedAssetId(asset.assetId)}
               >
                 Details
@@ -241,6 +263,18 @@ export function AssetPicker({
         <AssetDetail asset={viewedAsset} selectedPokemonKey={selectedPokemonKey} />
       </div>
     </aside>
+  );
+}
+
+function isAssetApplicationKey(event: KeyboardEvent<HTMLButtonElement>): boolean {
+  const normalizedKey = event.key.toLowerCase();
+
+  return (
+    normalizedKey === 'arrowup' ||
+    normalizedKey === 'arrowdown' ||
+    normalizedKey === 'enter' ||
+    normalizedKey === ' ' ||
+    normalizedKey === 'spacebar'
   );
 }
 

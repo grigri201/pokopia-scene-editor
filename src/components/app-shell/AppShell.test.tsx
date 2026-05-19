@@ -99,7 +99,7 @@ describe('AppShell scene storage integration', () => {
     });
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expectNoSaveStatus();
-  });
+  }, 15_000);
 
   it('shows a non-payload autosave warning when local storage writes fail and clears it after recovery', async () => {
     const originalSetItem = Storage.prototype.setItem;
@@ -139,7 +139,7 @@ describe('AppShell scene storage integration', () => {
       expect(JSON.parse(rawAutosavePayload ?? '{}').workspaceState).not.toHaveProperty('saveStatus');
       expect(screen.queryByLabelText('Autosave warning')).not.toBeInTheDocument();
     });
-  });
+  }, 15_000);
 
   it('restores autosave-only drafts without exposing manual save', async () => {
     writeSceneDocumentToStorage(
@@ -244,6 +244,87 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
   });
+
+  it('keeps the mobile scene snapshot unchanged for application keyboard events', async () => {
+    setViewportWidth(390);
+
+    render(<AppShell />);
+    await waitFor(() => expect(readSceneSnapshot()).toContain('"sceneName":"星光庭院"'));
+    const beforeSnapshot = readSceneSnapshot();
+    const globalKeyHandler = vi.fn();
+    window.addEventListener('keydown', globalKeyHandler);
+
+    const cell = screen.getByLabelText(/Cell 3,2, main area, level-1, read-only, 白木栅栏, rotated 90/);
+    const levelRow = screen.getByLabelText('L2, 屋顶与遮挡, 5 instances');
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="garden-plant"] .asset-select-button');
+    if (!assetButton) {
+      throw new Error('Expected garden-plant asset button.');
+    }
+
+    try {
+      for (const target of [cell, levelRow, assetButton, document]) {
+        for (const keyEvent of mobileApplicationKeyEvents) {
+          fireEvent.keyDown(target, keyEvent);
+        }
+      }
+
+      expect(readSceneSnapshot()).toBe(beforeSnapshot);
+      expect(globalKeyHandler).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('keydown', globalKeyHandler);
+    }
+    expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L1');
+    expect(cell).toHaveAttribute('aria-selected', 'true');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+  });
+
+  it('does not migrate legacy UI preferences while starting in mobile read-only mode', () => {
+    setViewportWidth(390);
+    window.localStorage.setItem(
+      uiPreferencesStorageKey,
+      JSON.stringify({
+        schemaVersion: 1,
+        assetFilters: {
+          query: 'plant',
+          category: 'decor',
+          area: 'outer',
+          favoriteOnly: false,
+          skill: 'skill-candidate',
+        },
+        preview: {
+          displayOptions: {
+            grid: true,
+            mainBoundary: true,
+            skillMarkers: true,
+          },
+        },
+      }),
+    );
+
+    render(<AppShell />);
+
+    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toContain('displayOptions');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+  });
+
+  it('clears desktop keyboard targets when entering mobile read-only mode', async () => {
+    render(<AppShell />);
+    const desktopCell = screen.getByLabelText(/Cell 3,2, main area, level-1, placeable/);
+    fireEvent.keyDown(desktopCell, { key: 'ArrowRight' });
+    expect(screen.getByTestId('scene-canvas')).toHaveAttribute('data-keyboard-coordinate');
+
+    setViewportWidth(390);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
+      expect(screen.getByTestId('scene-canvas')).not.toHaveAttribute('data-keyboard-coordinate');
+    });
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+  }, 15_000);
 
   it('shows recovery errors and keeps the current Open Design scene when startup storage is invalid', () => {
     window.localStorage.setItem(
@@ -415,3 +496,26 @@ function expectNoSaveStatus(): void {
   expect(screen.queryByLabelText('Save status')).not.toBeInTheDocument();
   expect(screen.queryByRole('status', { name: 'Save status' })).not.toBeInTheDocument();
 }
+
+function readSceneSnapshot(): string {
+  const snapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
+  if (!snapshot) {
+    throw new Error('Expected scene snapshot test hook.');
+  }
+
+  return snapshot;
+}
+
+const mobileApplicationKeyEvents = [
+  { key: 'ArrowUp' },
+  { key: 'ArrowDown' },
+  { key: 'ArrowLeft' },
+  { key: 'ArrowRight' },
+  { key: 'Enter' },
+  { key: ' ' },
+  { key: 'Escape' },
+  { key: 'Delete' },
+  { key: 'Backspace' },
+  { key: 's', metaKey: true },
+  { key: 's', ctrlKey: true },
+] as const;

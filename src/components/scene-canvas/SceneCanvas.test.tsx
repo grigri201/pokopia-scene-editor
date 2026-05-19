@@ -90,30 +90,51 @@ describe('SceneCanvas', () => {
     expect(onSelectCoordinate.mock.calls[0][0]).not.toHaveProperty('areaType');
   });
 
-  it('allows read-only view selection but blocks edit shortcut keys', () => {
+  it('allows pointer view selection but blocks all read-only application keyboard paths', () => {
     const onSelectCoordinate = vi.fn();
     const onViewCoordinate = vi.fn();
+    const onFocusCoordinate = vi.fn();
     render(
       <SceneCanvas
         {...defaultProps}
         readOnly
         onSelectCoordinate={onSelectCoordinate}
         onViewCoordinate={onViewCoordinate}
+        onFocusCoordinate={onFocusCoordinate}
       />,
     );
 
     const cell = screen.getByLabelText('Cell 2,3, main area, level-0, read-only');
+    const grid = screen.getByTestId('scene-canvas');
     fireEvent.pointerDown(cell);
     fireEvent.click(cell);
-    fireEvent.keyDown(cell, { key: 'Enter' });
-    fireEvent.keyDown(cell, { key: 'Delete' });
-    fireEvent.keyDown(cell, { key: 's', metaKey: true });
-
     expect(onSelectCoordinate).not.toHaveBeenCalled();
-    expect(onViewCoordinate).toHaveBeenCalledTimes(3);
+    expect(onViewCoordinate).toHaveBeenCalledTimes(2);
     expect(onViewCoordinate).toHaveBeenNthCalledWith(1, { x: 2, y: 3 });
     expect(onViewCoordinate).toHaveBeenNthCalledWith(2, { x: 2, y: 3 });
-    expect(onViewCoordinate).toHaveBeenNthCalledWith(3, { x: 2, y: 3 });
+
+    onViewCoordinate.mockClear();
+    fireEvent.focus(cell);
+    for (const keyEvent of [
+      { key: 'ArrowUp' },
+      { key: 'ArrowDown' },
+      { key: 'ArrowLeft' },
+      { key: 'ArrowRight' },
+      { key: 'Enter' },
+      { key: ' ' },
+      { key: 'Escape' },
+      { key: 'Delete' },
+      { key: 'Backspace' },
+      { key: 's', metaKey: true },
+      { key: 's', ctrlKey: true },
+    ]) {
+      fireEvent.keyDown(cell, keyEvent);
+    }
+
+    expect(onSelectCoordinate).not.toHaveBeenCalled();
+    expect(onViewCoordinate).not.toHaveBeenCalled();
+    expect(onFocusCoordinate).not.toHaveBeenCalled();
+    expect(grid).not.toHaveAttribute('data-keyboard-coordinate');
   });
 
   it('moves the placement target before confirming with Enter', () => {

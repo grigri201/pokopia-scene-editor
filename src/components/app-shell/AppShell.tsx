@@ -110,6 +110,25 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
+    if (!isReadOnly) {
+      return undefined;
+    }
+
+    const blockReadOnlyApplicationKey = (event: KeyboardEvent) => {
+      if (!isMobileReadOnlyApplicationKey(event)) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    };
+
+    window.addEventListener('keydown', blockReadOnlyApplicationKey, { capture: true });
+    return () => window.removeEventListener('keydown', blockReadOnlyApplicationKey, { capture: true });
+  }, [isReadOnly]);
+
+  useEffect(() => {
     if (!isLocalPreviewHost(window.location.hostname)) {
       return undefined;
     }
@@ -138,6 +157,11 @@ export function AppShell() {
   useEffect(() => {
     if (isReadOnly) {
       setAutosaveError(null);
+      setHoveredCoordinate(null);
+      setFocusedCoordinate(null);
+      document
+        .querySelectorAll<HTMLElement>('[data-testid="scene-canvas"][data-read-only="true"]')
+        .forEach((grid) => grid.removeAttribute('data-keyboard-coordinate'));
       return;
     }
 
@@ -776,6 +800,24 @@ function createInitialSceneState(): InitialSceneState {
 
 function getCurrentIsoTimestamp(): string {
   return new Date().toISOString();
+}
+
+function isMobileReadOnlyApplicationKey(event: KeyboardEvent): boolean {
+  const normalizedKey = event.key.toLowerCase();
+
+  return (
+    normalizedKey === 'arrowup' ||
+    normalizedKey === 'arrowdown' ||
+    normalizedKey === 'arrowleft' ||
+    normalizedKey === 'arrowright' ||
+    normalizedKey === 'enter' ||
+    normalizedKey === ' ' ||
+    normalizedKey === 'spacebar' ||
+    normalizedKey === 'escape' ||
+    normalizedKey === 'delete' ||
+    normalizedKey === 'backspace' ||
+    ((event.metaKey || event.ctrlKey) && normalizedKey === 's')
+  );
 }
 
 function getBrowserStorage(): Storage | null {
