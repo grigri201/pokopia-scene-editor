@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createDefaultSceneDocument, createTileInstance, getCellContext } from '../../domain/scene';
+import { createBuildingLevel, createDefaultSceneDocument, createTileInstance, getCellContext } from '../../domain/scene';
 import { SelectionInspector } from './SelectionInspector';
 
 const scene = {
@@ -11,7 +11,7 @@ const scene = {
   tileInstances: [
     createTileInstance({
       instanceId: 'tile-edit',
-      assetId: 'roof-tile',
+      assetId: 'brick-roof-decoration',
       coordinate: { x: 2, y: 2 },
       buildingLevelId: 'level-0',
       rotationDegrees: 90,
@@ -50,8 +50,13 @@ describe('SelectionInspector', () => {
     );
 
     expect(screen.getByLabelText('Current selection actions')).toBeVisible();
-    expect(screen.getByLabelText('Selected instance')).toHaveTextContent('No selection');
-    expect(screen.getByLabelText('Selected coordinate')).toHaveTextContent('Choose an item or grid cell');
+    expect(screen.getByLabelText('No selected grid cell')).toHaveTextContent('点击一个编辑格查看或放置素材');
+    expect(screen.getByLabelText('No selected grid cell')).not.toHaveTextContent('没有选中格子');
+    expect(screen.getByLabelText('No selected grid cell').querySelector('img')).toBeNull();
+    expect(screen.getByLabelText('No selected grid cell')).toHaveStyle({
+      '--selection-empty-image': 'url("/assets/pokopia_image_sources/pokemon_portraits/063-ditto.png")',
+    });
+    expectSelectionCopyRemoved('No selection', 'Choose an item or grid cell');
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
@@ -68,11 +73,29 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    expect(screen.getByLabelText('Selected instance')).toHaveTextContent('3,3');
+    expectSelectionCopyRemoved('3,3', 'x3 y3', 'Coordinate', 'Building layer');
     expect(screen.getByRole('button', { name: '清除技能标记' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '设置技能标记：耕地' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '设置技能标记：蓄水' })).toBeDisabled();
+  });
+
+  it('ignores hover target context until a grid cell is selected', () => {
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        targetContext={selectedContext}
+        selectedContext={null}
+        selectedInstance={null}
+        selectedInstanceId={null}
+        readOnly={false}
+      />,
+    );
+
+    expect(screen.getByLabelText('No selected grid cell')).toHaveTextContent('点击一个编辑格查看或放置素材');
+    expect(screen.getByLabelText('No selected grid cell')).not.toHaveTextContent('没有选中格子');
+    expect(screen.getByLabelText('Current selection actions')).not.toHaveTextContent('2,2');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('shows selected asset context and emits compact rotate and skill marker actions', () => {
@@ -91,22 +114,19 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    expect(screen.getByLabelText('Selected instance')).toHaveTextContent('屋檐片段');
-    expect(screen.getByLabelText('Selected coordinate')).toHaveTextContent('x2 y2 · L0');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Coordinate');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('2,2');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Area');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('main');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Building layer');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('L0 0 层');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Asset');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('屋檐片段');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Rotation');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('90 deg');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Dye');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('None');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Skill marker');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('None');
+    expectSelectionCopyRemoved(
+      '砖瓦屋顶装饰',
+      'x2 y2',
+      'Coordinate',
+      'Area',
+      'Building layer',
+      'Asset',
+      'Rotation',
+      'Dye',
+      'Skill marker',
+      'Skill note',
+      '90 deg',
+    );
     expect(screen.queryByRole('textbox', { name: /note/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: /building layer/i })).not.toBeInTheDocument();
@@ -151,7 +171,7 @@ describe('SelectionInspector', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-skill',
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
           requiresSkill: true,
@@ -175,10 +195,7 @@ describe('SelectionInspector', () => {
 
     const skillButton = screen.getByRole('button', { name: '设置技能标记：树叶' });
     expect(skillButton).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Skill marker');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('树叶');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('Skill note');
-    expect(screen.getByLabelText('Selection details')).toHaveTextContent('legacy note');
+    expectSelectionCopyRemoved('Skill marker', '树叶', 'Skill note', 'legacy note');
     fireEvent.click(screen.getByRole('button', { name: '清除技能标记' }));
     expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-skill', false, '树叶', 'legacy note');
   });
@@ -186,10 +203,11 @@ describe('SelectionInspector', () => {
   it('shows retained selected-instance fields without note or move editors', () => {
     const richScene = {
       ...scene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-rich',
-          assetId: 'roof-tile',
+          assetId: 'brick-roof-decoration',
           coordinate: { x: 0, y: 2 },
           buildingLevelId: 'level-2',
           rotationDegrees: 270,
@@ -214,15 +232,7 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    const details = screen.getByLabelText('Selection details');
-    expect(details).toHaveTextContent('0,2');
-    expect(details).toHaveTextContent('outer');
-    expect(details).toHaveTextContent('L2 2 层');
-    expect(details).toHaveTextContent('屋檐片段');
-    expect(details).toHaveTextContent('270 deg');
-    expect(details).toHaveTextContent('#56ccf2');
-    expect(details).toHaveTextContent('耕地');
-    expect(details).toHaveTextContent('soil roof note');
+    expectSelectionCopyRemoved('0,2', 'outer', 'L2 2层', '砖瓦屋顶装饰', '270 deg', '#56ccf2', '耕地', 'soil roof note');
     expect(screen.queryByRole('textbox', { name: /note/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: /building layer/i })).not.toBeInTheDocument();
@@ -247,3 +257,15 @@ describe('SelectionInspector', () => {
     expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-edit', true, '储水', '');
   });
 });
+
+function expectSelectionCopyRemoved(...fragments: string[]): void {
+  const bar = screen.getByLabelText('Current selection actions');
+
+  expect(screen.queryByLabelText('Selected instance')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Selected coordinate')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Selection details')).not.toBeInTheDocument();
+
+  for (const fragment of fragments) {
+    expect(bar).not.toHaveTextContent(fragment);
+  }
+}

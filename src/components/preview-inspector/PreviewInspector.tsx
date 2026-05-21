@@ -89,10 +89,7 @@ export function PreviewInspector({
 
   return (
     <aside className="panel preview-panel inspector-panel" aria-label="检查器预览">
-      <div className="floating-preview-head">
-        <h2>检查器</h2>
-        <span className="sr-only">{readOnly ? 'View only' : 'Top / Front'}</span>
-      </div>
+      <span className="sr-only">{readOnly ? 'View only' : 'Top / Front'}</span>
       <div className="preview-pair">
         <section className="preview-pane is-scrollable">
           <h3>正视图</h3>

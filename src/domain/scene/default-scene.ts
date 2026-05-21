@@ -6,8 +6,8 @@ import {
   sceneSize,
   type GridCoordinate,
 } from './area';
-import { assertKnownPokemonKey, type PokemonKey } from '../assets';
-import { createDefaultBuildingLevels } from './levels';
+import { assertKnownPokemonKey, getPokemonThemeDefinition, type PokemonKey } from '../assets';
+import { createBuildingLevel, createDefaultBuildingLevels } from './levels';
 import { createTileInstance } from './tile-instance';
 import type { SceneDocument } from './types';
 
@@ -28,18 +28,22 @@ export function createDefaultSceneDocument(
   const now = options.now ?? new Date().toISOString();
   assertIsoDateTime(now);
 
-  const sceneName = options.sceneName ?? (options.includeOpenDesignDemo ? '星光庭院' : 'Ditto 5x5 布景草稿');
-  assertSceneNameLabelsSceneSize(sceneName);
-
   const selectedPokemonKey =
     options.selectedPokemonKey ?? (options.includeOpenDesignDemo ? 'pikachu' : defaultSelectedPokemonKey);
   assertKnownPokemonKey(selectedPokemonKey);
+  const sceneName =
+    options.sceneName ??
+    (options.includeOpenDesignDemo ? '星光庭院' : `${getPokemonThemeDefinition(selectedPokemonKey).name}的布景`);
+  assertSceneNameLabelsSceneSize(sceneName);
 
   if (options.selectedCoordinate) {
     assertCanvasCoordinate(options.selectedCoordinate, defaultSceneDimensions);
   }
 
-  const buildingLevels = createDefaultBuildingLevels().map((level) => {
+  const baseBuildingLevels = options.includeOpenDesignDemo
+    ? [0, 1, 2].map((levelNumber) => createBuildingLevel(levelNumber))
+    : createDefaultBuildingLevels();
+  const buildingLevels = baseBuildingLevels.map((level) => {
     if (!options.includeOpenDesignDemo) {
       return level;
     }
@@ -72,7 +76,7 @@ export function createDefaultSceneDocument(
     tileInstances: openDesignDemoInstances,
     workspaceState: {
       currentBuildingLevelId: options.includeOpenDesignDemo ? 'level-1' : buildingLevels[0].id,
-      selectedAssetId: options.includeOpenDesignDemo ? 'wooden-floor' : null,
+      selectedAssetId: options.includeOpenDesignDemo ? 'wooden-fencing' : null,
       selectedCoordinate,
     },
     metadata: {
@@ -105,26 +109,26 @@ export function assertSceneNameLabelsSceneSize(sceneName: string): void {
 function createOpenDesignDemoInstances() {
   return [
     ...[
-      ['demo-ground-0', 'outer-wall', 1, 1],
-      ['demo-ground-1', 'outer-wall', 2, 1],
-      ['demo-ground-2', 'outer-wall', 3, 1],
-      ['demo-ground-3', 'outer-wall', 1, 2],
-      ['demo-ground-4', 'outer-wall', 3, 3],
-      ['demo-ground-5', 'outer-wall', 2, 5],
-      ['demo-ground-6', 'outer-wall', 3, 5],
-      ['demo-ground-7', 'outer-wall', 4, 5],
-      ['demo-ground-8', 'ditto-doll', 4, 1],
-      ['demo-ground-9', 'ditto-doll', 5, 1],
-      ['demo-ground-10', 'ditto-doll', 0, 3],
-      ['demo-ground-11', 'ditto-doll', 6, 3],
-      ['demo-ground-12', 'garden-plant', 0, 6],
-      ['demo-ground-13', 'garden-plant', 1, 6],
-      ['demo-ground-14', 'garden-plant', 2, 6],
-      ['demo-ground-15', 'garden-plant', 3, 6],
-      ['demo-ground-16', 'garden-plant', 4, 6],
-      ['demo-ground-17', 'garden-plant', 5, 6],
-      ['demo-ground-18', 'garden-plant', 6, 6],
-      ['demo-ground-19', 'outer-wall', 5, 5],
+      ['demo-ground-0', 'stepping-stones', 1, 1],
+      ['demo-ground-1', 'stepping-stones', 2, 1],
+      ['demo-ground-2', 'stepping-stones', 3, 1],
+      ['demo-ground-3', 'stepping-stones', 1, 2],
+      ['demo-ground-4', 'stepping-stones', 3, 3],
+      ['demo-ground-5', 'stepping-stones', 2, 5],
+      ['demo-ground-6', 'stepping-stones', 3, 5],
+      ['demo-ground-7', 'stepping-stones', 4, 5],
+      ['demo-ground-8', 'wooden-bench', 4, 1],
+      ['demo-ground-9', 'wooden-bench', 5, 1],
+      ['demo-ground-10', 'wooden-bench', 0, 3],
+      ['demo-ground-11', 'wooden-bench', 6, 3],
+      ['demo-ground-12', 'leafy-plant', 0, 6],
+      ['demo-ground-13', 'leafy-plant', 1, 6],
+      ['demo-ground-14', 'leafy-plant', 2, 6],
+      ['demo-ground-15', 'leafy-plant', 3, 6],
+      ['demo-ground-16', 'leafy-plant', 4, 6],
+      ['demo-ground-17', 'leafy-plant', 5, 6],
+      ['demo-ground-18', 'leafy-plant', 6, 6],
+      ['demo-ground-19', 'stepping-stones', 5, 5],
     ].map(([instanceId, assetId, x, y]) =>
       createTileInstance({
         instanceId: String(instanceId),
@@ -134,18 +138,18 @@ function createOpenDesignDemoInstances() {
       }),
     ),
     ...[
-      ['demo-main-0', 'wooden-floor', 0, 2, 270, null, false],
-      ['demo-main-1', 'wooden-floor', 3, 2, 90, null, true],
-      ['demo-main-2', 'wooden-floor', 6, 2, 270, null, false],
-      ['demo-main-3', 'garden-plant', 0, 3, 0, null, false],
-      ['demo-main-4', 'garden-plant', 1, 3, 0, null, false],
-      ['demo-main-5', 'garden-plant', 5, 3, 0, null, true],
-      ['demo-main-6', 'garden-plant', 6, 3, 0, null, true],
-      ['demo-main-7', 'water-barrel', 2, 2, 0, null, false],
-      ['demo-main-8', 'water-barrel', 4, 2, 0, null, false],
-      ['demo-main-9', 'ditto-doll', 3, 3, 0, null, false],
-      ['demo-main-10', 'wooden-floor', 1, 4, 0, '#d59a61', false],
-      ['demo-main-11', 'wooden-floor', 5, 4, 0, '#d59a61', false],
+      ['demo-main-0', 'wooden-fencing', 0, 2, 270, null, false],
+      ['demo-main-1', 'wooden-fencing', 3, 2, 90, null, true],
+      ['demo-main-2', 'wooden-fencing', 6, 2, 270, null, false],
+      ['demo-main-3', 'leafy-plant', 0, 3, 0, null, false],
+      ['demo-main-4', 'leafy-plant', 1, 3, 0, null, false],
+      ['demo-main-5', 'leafy-plant', 5, 3, 0, null, true],
+      ['demo-main-6', 'leafy-plant', 6, 3, 0, null, true],
+      ['demo-main-7', 'stone-brick-wall', 2, 2, 0, null, false],
+      ['demo-main-8', 'stone-brick-wall', 4, 2, 0, null, false],
+      ['demo-main-9', 'wooden-bench', 3, 3, 0, null, false],
+      ['demo-main-10', 'wooden-fencing', 1, 4, 0, '#d59a61', false],
+      ['demo-main-11', 'wooden-fencing', 5, 4, 0, '#d59a61', false],
     ].map(([instanceId, assetId, x, y, rotationDegrees, dyeColor, requiresSkill]) =>
       createTileInstance({
         instanceId: String(instanceId),
@@ -159,11 +163,11 @@ function createOpenDesignDemoInstances() {
       }),
     ),
     ...[
-      ['demo-roof-0', 'roof-tile', 2, 4, 90],
-      ['demo-roof-1', 'roof-tile', 3, 4, 180],
-      ['demo-roof-2', 'roof-tile', 4, 4, 270],
-      ['demo-roof-3', 'roof-tile', 2, 5, 0],
-      ['demo-roof-4', 'roof-tile', 4, 5, 0],
+      ['demo-roof-0', 'brick-roof-decoration', 2, 4, 90],
+      ['demo-roof-1', 'brick-roof-decoration', 3, 4, 180],
+      ['demo-roof-2', 'brick-roof-decoration', 4, 4, 270],
+      ['demo-roof-3', 'brick-roof-decoration', 2, 5, 0],
+      ['demo-roof-4', 'brick-roof-decoration', 4, 5, 0],
     ].map(([instanceId, assetId, x, y, rotationDegrees]) =>
       createTileInstance({
         instanceId: String(instanceId),

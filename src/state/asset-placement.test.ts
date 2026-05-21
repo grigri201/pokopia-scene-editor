@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultSceneDocument, createTileInstance } from '../domain/scene';
+import { createBuildingLevel, createDefaultSceneDocument, createTileInstance } from '../domain/scene';
 import { selectAsset } from './scene-reducer';
 import { getAssetPlacementPreview, placeSelectedAsset } from './asset-placement';
 
@@ -9,7 +9,7 @@ describe('asset placement command', () => {
   it('places the selected asset on the current building layer', () => {
     const scene = selectAsset(
       createDefaultSceneDocument({ sceneId: 'scene-test', now: '2026-05-16T07:00:00.000Z' }),
-      'garden-plant',
+      'leafy-plant',
       'edit',
       now,
     );
@@ -28,11 +28,11 @@ describe('asset placement command', () => {
     expect(result.scene.tileInstances).toHaveLength(1);
     expect(result.scene.tileInstances[0]).toMatchObject({
       instanceId: 'tile-placed',
-      assetId: 'garden-plant',
+      assetId: 'leafy-plant',
       coordinate: { x: 2, y: 2 },
       buildingLevelId: 'level-0',
       requiresSkill: true,
-      skillType: '树叶',
+      skillType: null,
     });
     expect(result.scene.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 2 });
   });
@@ -57,7 +57,7 @@ describe('asset placement command', () => {
   });
 
   it('blocks read-only placement at the command boundary', () => {
-    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'garden-plant', 'edit', now);
+    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'leafy-plant', 'edit', now);
     const result = placeSelectedAsset(scene, {
       coordinate: { x: 2, y: 2 },
       interactionMode: 'readOnly',
@@ -94,13 +94,13 @@ describe('asset placement command', () => {
   });
 
   it('requires confirmation before replacing a non-stackable target', () => {
-    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'outer-wall', 'edit', now);
+    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'stepping-stones', 'edit', now);
     const sceneWithTile = {
       ...scene,
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-existing',
-          assetId: 'outer-wall',
+          assetId: 'stepping-stones',
           coordinate: { x: 0, y: 0 },
           buildingLevelId: 'level-0',
         }),
@@ -136,17 +136,18 @@ describe('asset placement command', () => {
   it('allows the same coordinate to hold independent instances on different building layers', () => {
     const selectedScene = selectAsset(
       createDefaultSceneDocument({ sceneId: 'scene-test', now }),
-      'wooden-floor',
+      'wooden-fencing',
       'edit',
       now,
     );
     const scene = {
       ...selectedScene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
       workspaceState: { ...selectedScene.workspaceState, currentBuildingLevelId: 'level-1' },
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-level-0',
-          assetId: 'wooden-floor',
+          assetId: 'wooden-fencing',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
         }),
@@ -176,13 +177,13 @@ describe('asset placement command', () => {
   });
 
   it('requires replacement confirmation instead of stacking compatible assets', () => {
-    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'roof-tile', 'edit', now);
+    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'brick-roof-decoration', 'edit', now);
     const sceneWithTile = {
       ...scene,
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-existing',
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
         }),
@@ -207,8 +208,8 @@ describe('asset placement command', () => {
     expect(result.reason).toBe('replace-confirmation-required');
   });
 
-  it('ignores skill requirements for assets that are not placement skill candidates', () => {
-    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'wooden-floor', 'edit', now);
+  it('stores requested placement skill requirements as instance-only data', () => {
+    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'wooden-fencing', 'edit', now);
     const result = placeSelectedAsset(scene, {
       coordinate: { x: 2, y: 2 },
       interactionMode: 'edit',
@@ -222,17 +223,17 @@ describe('asset placement command', () => {
       throw new Error('Expected placement success.');
     }
     expect(result.scene.tileInstances[0]).toMatchObject({
-      requiresSkill: false,
+      requiresSkill: true,
       skillType: null,
     });
   });
 
   it('describes hover placement context before the user places an asset', () => {
-    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'garden-plant', 'edit', now);
+    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'leafy-plant', 'edit', now);
     const preview = getAssetPlacementPreview(scene, { x: 2, y: 2 }, 'edit', true);
 
     expect(preview?.message).toBe('Ready to place');
-    expect(preview?.skillLabel).toBe('Skill required: 树叶');
+    expect(preview?.skillLabel).toBe('Skill required');
     expect(preview?.overwriteLabel).toBe('No overwrite');
   });
 });

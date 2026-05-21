@@ -10,10 +10,11 @@ const scene = {
     selectedCoordinate: { x: 2, y: 3 },
     now: '2026-05-16T10:00:00.000Z',
   }),
+  buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
   tileInstances: [
     createTileInstance({
       instanceId: 'tile-preview',
-      assetId: 'garden-plant',
+      assetId: 'leafy-plant',
       coordinate: { x: 2, y: 3 },
       buildingLevelId: 'level-0',
       requiresSkill: true,
@@ -21,7 +22,7 @@ const scene = {
     }),
     createTileInstance({
       instanceId: 'tile-upper',
-      assetId: 'roof-tile',
+      assetId: 'brick-roof-decoration',
       coordinate: { x: 2, y: 3 },
       buildingLevelId: 'level-1',
     }),
@@ -49,7 +50,8 @@ describe('PreviewInspector', () => {
     );
 
     expect(screen.getByRole('complementary', { name: '检查器预览' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: '检查器' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: '检查器' })).not.toBeInTheDocument();
+    expect(container.querySelector('.floating-preview-head')).toBeNull();
     expect(screen.getByLabelText('正视图预览')).toBeVisible();
     expect(screen.getByLabelText('俯视图预览')).toBeVisible();
     expect(container.querySelectorAll('.front-cell')).toHaveLength(21);
@@ -57,7 +59,7 @@ describe('PreviewInspector', () => {
     expect(container.querySelectorAll('[data-preview-coordinate="2,3"]')).toHaveLength(1);
     expect(container.querySelector('.top-cell[data-preview-coordinate="2,3"]')).toHaveAttribute(
       'data-preview-asset-id',
-      'garden-plant',
+      'leafy-plant',
     );
     expect(container.querySelector('.top-cell[data-preview-coordinate="2,3"]')).toHaveAttribute(
       'data-preview-skill-marker-label',
@@ -69,7 +71,7 @@ describe('PreviewInspector', () => {
     );
     expect(container.querySelector('.front-cell[data-front-level-id="level-1"][data-front-x="2"]')).toHaveAttribute(
       'data-preview-asset-id',
-      'roof-tile',
+      'brick-roof-decoration',
     );
     expect(screen.getByLabelText('Top preview scope')).toHaveTextContent('Current layer top projection');
     expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('1 current-layer preview items');
@@ -97,9 +99,7 @@ describe('PreviewInspector', () => {
       assetFilters: {
         query: '',
         category: 'all',
-        area: 'all',
         favoriteOnly: false,
-        skill: 'all',
       },
     });
     expect(window.localStorage.getItem('pokopia.uiPreferences.v1')).toBeNull();
@@ -112,11 +112,11 @@ describe('PreviewInspector', () => {
     expect(container.querySelector('[data-preview-main-boundary-visible="true"]')).toBeNull();
     expect(container.querySelector('.front-cell[data-front-level-id="level-1"][data-front-x="2"]')).toHaveAttribute(
       'data-preview-asset-id',
-      'roof-tile',
+      'brick-roof-decoration',
     );
     expect(container.querySelector('.top-cell[data-preview-coordinate="2,3"]')).toHaveAttribute(
       'data-preview-asset-id',
-      'garden-plant',
+      'leafy-plant',
     );
     expect(JSON.stringify(scene)).toBe(snapshotBefore);
 
@@ -177,7 +177,7 @@ describe('PreviewInspector', () => {
     expect(screen.getByLabelText('Front preview item summary')).toHaveTextContent('2 visible items projected across 3 layers');
     expect(container.querySelector('.front-cell[data-front-level-id="level-1"][data-front-x="2"]')).toHaveAttribute(
       'data-preview-asset-id',
-      'roof-tile',
+      'brick-roof-decoration',
     );
   });
 

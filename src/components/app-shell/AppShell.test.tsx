@@ -23,20 +23,23 @@ describe('AppShell scene storage integration', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     window.localStorage.clear();
   });
 
   it('autosaves the editable Open Design scene and restores it after remount', async () => {
     const { unmount } = render(<AppShell />);
-    const deleteButton = screen.getByRole('button', { name: 'Delete scene' });
+    const exportButton = screen.getByRole('button', { name: '导出' });
+    const deleteButton = screen.getByRole('button', { name: '删除' });
 
-    expect(deleteButton.querySelector('svg')).toBeInTheDocument();
-    expect(deleteButton).toHaveAttribute('data-tooltip', '删除');
-    expect(deleteButton).not.toHaveTextContent('D');
+    expect(exportButton).toBeVisible();
+    expect(deleteButton).toBeVisible();
+    expect(deleteButton.querySelector('svg')).not.toBeInTheDocument();
+    expect(deleteButton).toHaveTextContent('删除');
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save scene from scene controls' })).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Autosaved Garden Layout' } });
+    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Autosaved Garden Layout' } });
     expectNoSaveStatus();
 
     let rawAutosavePayload: string | null = null;
@@ -47,16 +50,50 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(JSON.parse(rawAutosavePayload ?? '{}')).toMatchObject({
       sceneName: 'Autosaved Garden Layout',
-      selectedPokemonKey: 'pikachu',
+      selectedPokemonKey: 'ditto',
     });
     expect(JSON.parse(rawAutosavePayload ?? '{}').workspaceState).not.toHaveProperty('saveStatus');
 
     unmount();
     render(<AppShell />);
 
-    expect(screen.getByLabelText('Scene Name')).toHaveValue('Autosaved Garden Layout');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('Autosaved Garden Layout');
     expectNoSaveStatus();
   }, 20_000);
+
+  it('exports the current scene as a SceneDocument JSON file', async () => {
+    const createObjectURL = vi.fn((blob: Blob) => {
+      void blob;
+      return 'blob:scene-export';
+    });
+    const revokeObjectURL = vi.fn();
+    let downloadLink: { href: string; download: string } | null = null;
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL,
+      revokeObjectURL,
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function clickAnchor(this: HTMLAnchorElement) {
+      downloadLink = {
+        href: this.href,
+        download: this.download,
+      };
+    });
+
+    render(<AppShell />);
+    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Export / Scene' } });
+    fireEvent.click(screen.getByRole('button', { name: '导出' }));
+
+    expect(downloadLink).toEqual({
+      href: 'blob:scene-export',
+      download: 'Export-Scene.pokopia-scene.json',
+    });
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    const exportedBlob = createObjectURL.mock.calls[0]?.[0] as Blob;
+    await expect(exportedBlob.text()).resolves.toContain('"sceneName": "Export / Scene"');
+    await expect(exportedBlob.text()).resolves.not.toContain('assetFilters');
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:scene-export');
+  });
 
   it('places the preview inspector below the canvas next to the current selection item', () => {
     const { container } = render(<AppShell />);
@@ -69,7 +106,49 @@ describe('AppShell scene storage integration', () => {
     expect(container.querySelector('.workbench-left .preview-panel')).toBeNull();
   });
 
+  it('keeps the workbench theme stable when Pokemon selection changes', () => {
+    render(<AppShell />);
+
+    const workbench = screen.getByLabelText('Pokopia scene editor workbench') as HTMLElement;
+    const pokemonSelect = screen.getByLabelText('Current Pokemon');
+
+    expect(workbench.style.getPropertyValue('--pokemon-background')).toBe('');
+    expect(workbench.style.getPropertyValue('--pokemon-background-ink')).toBe('');
+    expect(workbench.style.getPropertyValue('--pokemon-accent')).toBe('');
+
+    fireEvent.change(pokemonSelect, { target: { value: 'eevee' } });
+
+    expect(pokemonSelect).toHaveValue('eevee');
+    expect(workbench.style.getPropertyValue('--pokemon-background')).toBe('');
+    expect(workbench.style.getPropertyValue('--pokemon-background-ink')).toBe('');
+    expect(workbench.style.getPropertyValue('--pokemon-accent')).toBe('');
+  });
+
+  it('starts new scene data with only empty 0层', () => {
+    render(<AppShell />);
+
+    const snapshot = JSON.parse(readSceneSnapshot());
+    expect(snapshot.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '0层' }]);
+    expect(snapshot.tileInstances).toEqual([]);
+    expect(snapshot.workspaceState).toMatchObject({
+      currentBuildingLevelId: 'level-0',
+      selectedAssetId: null,
+      selectedCoordinate: null,
+    });
+    expect(screen.getByLabelText('L0, 0层, 0 instances, current editing layer')).toBeVisible();
+    expect(screen.queryByLabelText(/L1,/)).not.toBeInTheDocument();
+  });
+
   it('switches the active editing layer when a building level row is clicked', () => {
+    writeSceneDocumentToStorage(
+      window.localStorage,
+      createDefaultSceneDocument({
+        sceneId: 'scene-open-design-demo',
+        now: '2026-05-16T08:20:00.000Z',
+        includeOpenDesignDemo: true,
+      }),
+      'autosave',
+    );
     render(<AppShell />);
 
     const roofRow = screen.getByLabelText('L2, 屋顶与遮挡, 5 instances');
@@ -87,7 +166,7 @@ describe('AppShell scene storage integration', () => {
   it('autosaves dirty edits without writing UI save status into payload', async () => {
     render(<AppShell />);
 
-    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Autosaved Garden Layout' } });
+    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Autosaved Garden Layout' } });
 
     await waitFor(() => {
       const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
@@ -100,6 +179,31 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expectNoSaveStatus();
   }, 15_000);
+
+  it('clears the current placement asset when the selected asset is clicked again', async () => {
+    render(<AppShell />);
+
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    if (!assetButton) {
+      throw new Error('Expected leppa-berry asset button.');
+    }
+
+    fireEvent.click(assetButton);
+    await waitFor(() => {
+      const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
+      expect(rawAutosavePayload).not.toBeNull();
+      expect(JSON.parse(rawAutosavePayload ?? '{}').workspaceState.selectedAssetId).toBe('leppa-berry');
+      expect(assetButton).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    fireEvent.click(assetButton);
+    await waitFor(() => {
+      const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
+      expect(rawAutosavePayload).not.toBeNull();
+      expect(JSON.parse(rawAutosavePayload ?? '{}').workspaceState.selectedAssetId).toBeNull();
+      expect(assetButton).toHaveAttribute('aria-pressed', 'false');
+    });
+  });
 
   it('shows a non-payload autosave warning when local storage writes fail and clears it after recovery', async () => {
     const originalSetItem = Storage.prototype.setItem;
@@ -118,7 +222,7 @@ describe('AppShell scene storage integration', () => {
 
     render(<AppShell />);
 
-    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Blocked Autosave Layout' } });
+    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Blocked Autosave Layout' } });
 
     await waitFor(() => {
       expect(screen.getByLabelText('Autosave warning')).toHaveAttribute('data-autosave-status', 'error');
@@ -128,7 +232,7 @@ describe('AppShell scene storage integration', () => {
     expectNoSaveStatus();
 
     failAutosave = false;
-    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Recovered Autosave Layout' } });
+    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Recovered Autosave Layout' } });
 
     await waitFor(() => {
       const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
@@ -155,7 +259,7 @@ describe('AppShell scene storage integration', () => {
 
     render(<AppShell />);
 
-    expect(screen.getByLabelText('Scene Name')).toHaveValue('Autosave Draft Layout');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('Autosave Draft Layout');
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}')).toMatchObject({
@@ -165,10 +269,10 @@ describe('AppShell scene storage integration', () => {
     expectNoSaveStatus();
   });
 
-  it('autosaves a default selected-asset placement on the current Open Design layer', async () => {
+  it('autosaves an empty default layer selection without placing an asset', async () => {
     const { unmount } = render(<AppShell />);
 
-    fireEvent.click(screen.getByLabelText('Cell 2,3, main area, level-1, placeable'));
+    fireEvent.click(screen.getByLabelText('Cell 2,3, main area, level-0, placeable'));
 
     await waitFor(() => {
       const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
@@ -178,6 +282,7 @@ describe('AppShell scene storage integration', () => {
           selectedCoordinate: { x: 2, y: 3 },
         },
       });
+      expect(JSON.parse(rawAutosavePayload ?? '{}').tileInstances).toEqual([]);
       expect(JSON.parse(rawAutosavePayload ?? '{}').workspaceState).not.toHaveProperty('saveStatus');
     });
     expectNoSaveStatus();
@@ -185,9 +290,137 @@ describe('AppShell scene storage integration', () => {
     unmount();
     render(<AppShell />);
 
-    const restoredCell = screen.getByLabelText(/Cell 2,3, main area, level-1, placeable, 白木栅栏/);
+    const restoredCell = screen.getByLabelText(/Cell 2,3, main area, level-0, placeable$/);
     expect(restoredCell).toBeVisible();
     expect(restoredCell).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('clears the selected coordinate when the selected cell is clicked again', async () => {
+    render(<AppShell />);
+
+    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
+    fireEvent.click(cell);
+    await waitFor(() => {
+      const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
+      expect(rawAutosavePayload).not.toBeNull();
+      expect(JSON.parse(rawAutosavePayload ?? '{}').workspaceState.selectedCoordinate).toEqual({ x: 2, y: 3 });
+      expect(cell).toHaveAttribute('aria-selected', 'true');
+    });
+
+    fireEvent.click(cell);
+    await waitFor(() => {
+      const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
+      expect(rawAutosavePayload).not.toBeNull();
+      expect(JSON.parse(rawAutosavePayload ?? '{}').workspaceState.selectedCoordinate).toBeNull();
+      expect(cell).toHaveAttribute('aria-selected', 'false');
+    });
+  });
+
+  it('places a single-use selected asset into the selected cell and then clears the asset selection', async () => {
+    render(<AppShell />);
+
+    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    if (!assetButton) {
+      throw new Error('Expected leppa-berry asset button.');
+    }
+
+    fireEvent.click(cell);
+    fireEvent.click(assetButton);
+    fireEvent.click(cell);
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.workspaceState.selectedAssetId).toBeNull();
+      expect(payload.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 3 });
+      expect(payload.tileInstances).toHaveLength(1);
+      expect(payload.tileInstances[0]).toMatchObject({
+        assetId: 'leppa-berry',
+        coordinate: { x: 2, y: 3 },
+      });
+      expect(cell).toHaveAttribute('aria-selected', 'true');
+      expect(assetButton).toHaveAttribute('aria-pressed', 'false');
+    });
+  });
+
+  it('keeps double-clicked asset selection active for continuous placement until clicked again', async () => {
+    render(<AppShell />);
+
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    if (!assetButton) {
+      throw new Error('Expected leppa-berry asset button.');
+    }
+
+    fireEvent.doubleClick(assetButton);
+    fireEvent.click(screen.getByLabelText('Cell 2,2, main area, level-0, placeable'));
+    fireEvent.click(screen.getByLabelText('Cell 2,3, main area, level-0, placeable'));
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.workspaceState.selectedAssetId).toBe('leppa-berry');
+      expect(payload.tileInstances).toHaveLength(2);
+      expect(assetButton).toHaveAttribute('aria-pressed', 'true');
+      expect(assetButton.closest('[data-asset-id="leppa-berry"]')).toHaveAttribute(
+        'data-selection-mode',
+        'continuous',
+      );
+      expect(assetButton.closest('[data-asset-id="leppa-berry"]')).toHaveClass('asset-row--continuous');
+    });
+
+    fireEvent.click(assetButton);
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.workspaceState.selectedAssetId).toBeNull();
+      expect(payload.tileInstances).toHaveLength(2);
+      expect(assetButton).toHaveAttribute('aria-pressed', 'false');
+      expect(assetButton.closest('[data-asset-id="leppa-berry"]')).toHaveAttribute('data-selection-mode', 'none');
+    });
+  });
+
+  it('prompts once for replacement and reuses confirmation for 15 seconds', async () => {
+    const confirmReplacement = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<AppShell />);
+
+    const cell = screen.getByLabelText('Cell 2,2, main area, level-0, placeable');
+    const leppaBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    const chestoBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="chesto-berry"] .asset-select-button');
+    const rawstBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="rawst-berry"] .asset-select-button');
+    if (!leppaBerryButton || !chestoBerryButton || !rawstBerryButton) {
+      throw new Error('Expected first-page asset buttons.');
+    }
+
+    fireEvent.click(leppaBerryButton);
+    fireEvent.click(cell);
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toHaveLength(1);
+      expect(payload.tileInstances[0].assetId).toBe('leppa-berry');
+      expect(payload.workspaceState.selectedAssetId).toBeNull();
+    });
+
+    fireEvent.click(chestoBerryButton);
+    fireEvent.click(cell);
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toHaveLength(1);
+      expect(payload.tileInstances[0].assetId).toBe('chesto-berry');
+      expect(payload.workspaceState.selectedAssetId).toBeNull();
+    });
+
+    fireEvent.click(rawstBerryButton);
+    fireEvent.click(cell);
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toHaveLength(1);
+      expect(payload.tileInstances[0].assetId).toBe('rawst-berry');
+      expect(payload.workspaceState.selectedAssetId).toBeNull();
+      expect(cell).toHaveAttribute('aria-selected', 'true');
+    });
+    expect(confirmReplacement).toHaveBeenCalledTimes(1);
   });
 
   it('stores asset filter preferences separately without dirtying or polluting autosaved SceneDocument payloads', async () => {
@@ -202,7 +435,7 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
 
-    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Payload Isolation Layout' } });
+    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Payload Isolation Layout' } });
 
     await waitFor(() => {
       const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
@@ -222,7 +455,7 @@ describe('AppShell scene storage integration', () => {
   it('does not expose undo or redo scene history controls', async () => {
     render(<AppShell />);
 
-    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Undo Check Layout' } });
+    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Undo Check Layout' } });
     await waitFor(() => expect(window.localStorage.getItem(autosavedSceneStorageKey)).not.toBeNull());
 
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
@@ -249,16 +482,16 @@ describe('AppShell scene storage integration', () => {
     setViewportWidth(390);
 
     render(<AppShell />);
-    await waitFor(() => expect(readSceneSnapshot()).toContain('"sceneName":"星光庭院"'));
+    await waitFor(() => expect(readSceneSnapshot()).toContain('"sceneName":"百变怪的布景"'));
     const beforeSnapshot = readSceneSnapshot();
     const globalKeyHandler = vi.fn();
     window.addEventListener('keydown', globalKeyHandler);
 
-    const cell = screen.getByLabelText(/Cell 3,2, main area, level-1, read-only, 白木栅栏, rotated 90/);
-    const levelRow = screen.getByLabelText('L2, 屋顶与遮挡, 5 instances');
-    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="garden-plant"] .asset-select-button');
+    const cell = screen.getByLabelText(/Cell 3,2, main area, level-0, read-only$/);
+    const levelRow = screen.getByLabelText('L0, 0层, 0 instances, viewing layer');
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
     if (!assetButton) {
-      throw new Error('Expected garden-plant asset button.');
+      throw new Error('Expected leppa-berry asset button.');
     }
 
     try {
@@ -273,8 +506,8 @@ describe('AppShell scene storage integration', () => {
     } finally {
       window.removeEventListener('keydown', globalKeyHandler);
     }
-    expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L1');
-    expect(cell).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L0');
+    expect(cell).not.toHaveAttribute('aria-selected', 'true');
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
   });
@@ -287,10 +520,8 @@ describe('AppShell scene storage integration', () => {
         schemaVersion: 1,
         assetFilters: {
           query: 'plant',
-          category: 'decor',
-          area: 'outer',
+          category: 'misc',
           favoriteOnly: false,
-          skill: 'skill-candidate',
         },
         preview: {
           displayOptions: {
@@ -312,9 +543,11 @@ describe('AppShell scene storage integration', () => {
 
   it('clears desktop keyboard targets when entering mobile read-only mode', async () => {
     render(<AppShell />);
-    const desktopCell = screen.getByLabelText(/Cell 3,2, main area, level-1, placeable/);
+    const desktopCell = screen.getByLabelText(/Cell 3,2, main area, level-0, placeable/);
     fireEvent.keyDown(desktopCell, { key: 'ArrowRight' });
     expect(screen.getByTestId('scene-canvas')).toHaveAttribute('data-keyboard-coordinate');
+    await waitFor(() => expect(window.localStorage.getItem(autosavedSceneStorageKey)).not.toBeNull());
+    window.localStorage.clear();
 
     setViewportWidth(390);
 
@@ -339,14 +572,14 @@ describe('AppShell scene storage integration', () => {
 
     expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
     expect(screen.getByLabelText('Recovery error details')).toHaveTextContent('schemaVersion');
-    expect(screen.getByLabelText('Scene Name')).toHaveValue('星光庭院');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('百变怪的布景');
     expectNoSaveStatus();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'canceled');
     expect(screen.getByLabelText('Recovery Validator')).toHaveTextContent('Recovery canceled');
-    expect(screen.getByLabelText('Scene Name')).toHaveValue('星光庭院');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('百变怪的布景');
   });
 
   it('retries recovery and replaces the scene only after storage becomes valid', async () => {
@@ -376,7 +609,7 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'success');
-      expect(screen.getByLabelText('Scene Name')).toHaveValue('Retry Recovery');
+      expect(screen.getByLabelText('布景名称')).toHaveValue('Retry Recovery');
       const recoveredCell = screen.getByLabelText(/Cell 3,3, main area, level-0, placeable$/);
       expect(recoveredCell).toBeVisible();
       expect(recoveredCell).toHaveAttribute('aria-selected', 'true');
@@ -401,13 +634,13 @@ describe('AppShell scene storage integration', () => {
     expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
     expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
     expect(screen.getByLabelText('Recovery error details')).toHaveTextContent('Read-only mode cannot replace');
-    expect(screen.getByLabelText('Scene Name')).toHaveValue('星光庭院');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('百变怪的布景');
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     await waitFor(() => {
       expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
-      expect(screen.getByLabelText('Scene Name')).toHaveValue('星光庭院');
+      expect(screen.getByLabelText('布景名称')).toHaveValue('百变怪的布景');
       expectNoSaveStatus();
     });
   });
@@ -431,17 +664,17 @@ describe('AppShell scene storage integration', () => {
     expect(details).toHaveTextContent(unsafeCombinedText);
     expect(details.querySelector('script')).toBeNull();
     expect(details.querySelector('img')).toBeNull();
-    expect(screen.getByLabelText('Scene Name')).toHaveValue('星光庭院');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('百变怪的布景');
     expectNoSaveStatus();
 
-    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: 'Current Dirty Layout' } });
+    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Current Dirty Layout' } });
     await waitFor(() => expect(window.localStorage.getItem(autosavedSceneStorageKey)).not.toBeNull());
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'canceled');
-    expect(screen.getByLabelText('Scene Name')).toHaveValue('Current Dirty Layout');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('Current Dirty Layout');
     expectNoSaveStatus();
   });
 
@@ -460,7 +693,7 @@ describe('AppShell scene storage integration', () => {
           tileInstances: [
             createTileInstance({
               instanceId: 'tile-unsafe-note',
-              assetId: 'garden-plant',
+              assetId: 'leafy-plant',
               coordinate: { x: 2, y: 2 },
               buildingLevelId: 'level-0',
               requiresSkill: true,
@@ -475,8 +708,8 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Scene Name')).toHaveValue(`Unsafe ${unsafeAngleText}`);
-      expect(screen.getByLabelText('Selected instance')).toHaveTextContent('小型灌木');
+      expect(screen.getByLabelText('布景名称')).toHaveValue(`Unsafe ${unsafeAngleText}`);
+      expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toHaveAttribute('aria-pressed', 'true');
       expect(document.querySelector('script')).toBeNull();
       expect(document.querySelector('img[src="x"]')).toBeNull();
     });

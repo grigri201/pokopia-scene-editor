@@ -1,6 +1,6 @@
 import type { BuildingLevel } from './types';
 
-export const defaultBuildingLevelNumbers = [0, 1, 2] as const;
+export const defaultBuildingLevelNumbers = [0] as const;
 
 export function createBuildingLevel(levelNumber: number): BuildingLevel {
   assertBuildingLevelNumber(levelNumber);
@@ -8,7 +8,7 @@ export function createBuildingLevel(levelNumber: number): BuildingLevel {
   return {
     id: `level-${levelNumber}`,
     levelNumber,
-    name: `${levelNumber} 层`,
+    name: `${levelNumber}层`,
   };
 }
 

@@ -1,4 +1,5 @@
 import type { SceneDocument } from '../domain/scene';
+import { getPokemonThemeDefinition } from '../domain/assets';
 import {
   parseSceneDocument,
   type SceneDocumentParseResult,
@@ -94,8 +95,17 @@ export function applyRecoveredSceneDocument(
 }
 
 export function sceneFromPayload(payload: SceneDocumentV1): SceneDocument {
-  return payload;
+  if (payload.sceneName !== legacyDefaultSceneName) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    sceneName: `${getPokemonThemeDefinition(payload.selectedPokemonKey).name}的布景`,
+  };
 }
+
+const legacyDefaultSceneName = 'Ditto 5x5 布景草稿';
 
 export function parseSceneDocumentForRecovery(input: unknown): SceneDocumentParseResult {
   return parseSceneDocument(input);

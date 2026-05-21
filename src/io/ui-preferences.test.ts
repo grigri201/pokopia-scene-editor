@@ -36,10 +36,8 @@ describe('UI preferences storage', () => {
     expect(() =>
       writeAssetFilterPreferencesToStorage(throwingWriteStorage, {
         query: 'roof',
-        category: 'roof',
-        area: 'outer',
+        category: 'buildings',
         favoriteOnly: true,
-        skill: 'skill-candidate',
       }),
     ).not.toThrow();
   });
@@ -47,18 +45,14 @@ describe('UI preferences storage', () => {
   it('writes and restores asset filter preferences from an isolated namespace', () => {
     const preferences = writeAssetFilterPreferencesToStorage(window.localStorage, {
       query: 'roof',
-      category: 'roof',
-      area: 'outer',
+      category: 'buildings',
       favoriteOnly: true,
-      skill: 'skill-candidate',
     });
 
     expect(preferences.assetFilters).toEqual({
       query: 'roof',
-      category: 'roof',
-      area: 'outer',
+      category: 'buildings',
       favoriteOnly: true,
-      skill: 'skill-candidate',
     });
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).not.toBeNull();
     expect(readUiPreferencesFromStorage(window.localStorage).assetFilters).toEqual(preferences.assetFilters);
@@ -67,19 +61,15 @@ describe('UI preferences storage', () => {
   it('stores only asset filters and omits preview display preferences', () => {
     const preferences = writeAssetFilterPreferencesToStorage(window.localStorage, {
       query: 'plant',
-      category: 'decor',
-      area: 'main',
+      category: 'misc',
       favoriteOnly: false,
-      skill: '树叶',
     });
     const rawPreferences = window.localStorage.getItem(uiPreferencesStorageKey);
 
     expect(preferences.assetFilters).toEqual({
       query: 'plant',
-      category: 'decor',
-      area: 'main',
+      category: 'misc',
       favoriteOnly: false,
-      skill: '树叶',
     });
     expect(rawPreferences).not.toBeNull();
     expect(rawPreferences).not.toContain('preview');
@@ -87,6 +77,8 @@ describe('UI preferences storage', () => {
     expect(rawPreferences).not.toContain('grid');
     expect(rawPreferences).not.toContain('mainBoundary');
     expect(rawPreferences).not.toContain('skillMarkers');
+    expect(rawPreferences).not.toContain('area');
+    expect(rawPreferences).not.toContain('skill');
   });
 
   it('falls back to defaults for invalid JSON and expired schema versions', () => {
@@ -131,9 +123,7 @@ describe('UI preferences storage', () => {
       assetFilters: {
         query: 'wall',
         category: 'all',
-        area: 'outer',
         favoriteOnly: false,
-        skill: 'all',
       },
     });
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).not.toContain('preview');
@@ -167,9 +157,7 @@ describe('UI preferences storage', () => {
       assetFilters: {
         query: 'bench',
         category: 'furniture',
-        area: 'outer',
         favoriteOnly: false,
-        skill: 'skill-candidate',
       },
     });
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBe(
@@ -178,9 +166,7 @@ describe('UI preferences storage', () => {
         assetFilters: {
           query: 'bench',
           category: 'furniture',
-          area: 'outer',
           favoriteOnly: false,
-          skill: 'skill-candidate',
         },
       }),
     );

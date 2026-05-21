@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createDefaultSceneDocument, createTileInstance, type SceneDocument } from '../domain/scene';
+import { createBuildingLevel, createDefaultSceneDocument, createTileInstance, type SceneDocument } from '../domain/scene';
 import {
   autosavedSceneStorageKey,
   readLatestSceneDocumentFromStorage,
@@ -18,7 +18,7 @@ describe('scene storage', () => {
     const scene = createScene({
       workspaceState: {
         currentBuildingLevelId: 'level-1',
-        selectedAssetId: 'roof-tile',
+        selectedAssetId: 'brick-roof-decoration',
         selectedCoordinate: { x: 0, y: 2 },
       },
     });
@@ -31,7 +31,7 @@ describe('scene storage', () => {
     expect(rawPayload).not.toContain('saveError');
     expect(payload.workspaceState).not.toHaveProperty('saveStatus');
     expect(payload.tileInstances[0]).toMatchObject({
-      assetId: 'roof-tile',
+      assetId: 'brick-roof-decoration',
       areaType: 'outer',
       rotationDegrees: 90,
       dyeColor: '#56ccf2',
@@ -73,7 +73,7 @@ describe('scene storage', () => {
       updatedAt: '2026-05-16T08:05:00.000Z',
       workspaceState: {
         currentBuildingLevelId: 'level-1',
-        selectedAssetId: 'roof-tile',
+        selectedAssetId: 'brick-roof-decoration',
         selectedCoordinate: { x: 0, y: 2 },
       },
     });
@@ -89,7 +89,7 @@ describe('scene storage', () => {
     }
     expect(latest.slot).toBe('autosave');
     expect(latest.scene.sceneName).toBe('Autosaved 5x5 scene');
-    expect(latest.scene.workspaceState.selectedAssetId).toBe('roof-tile');
+    expect(latest.scene.workspaceState.selectedAssetId).toBe('brick-roof-decoration');
   });
 
   it('surfaces invalid autosave instead of silently falling back to saved scene', () => {
@@ -152,10 +152,11 @@ function createScene(options: CreateSceneOptions = {}): SceneDocument {
 
   return {
     ...scene,
+    buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
     tileInstances: [
       createTileInstance({
         instanceId: 'tile-storage',
-        assetId: 'roof-tile',
+        assetId: 'brick-roof-decoration',
         coordinate: { x: 0, y: 2 },
         buildingLevelId: 'level-1',
         rotationDegrees: 90,
@@ -167,7 +168,7 @@ function createScene(options: CreateSceneOptions = {}): SceneDocument {
     ],
     workspaceState: {
       currentBuildingLevelId: 'level-1',
-      selectedAssetId: 'roof-tile',
+      selectedAssetId: 'brick-roof-decoration',
       selectedCoordinate: { x: 0, y: 2 },
     },
     metadata: {

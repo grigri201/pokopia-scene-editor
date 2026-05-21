@@ -44,7 +44,7 @@ describe('SceneDocument v1 roundtrip', () => {
     expect(roundtrip.sourcePayload).toEqual(roundtrip.roundtrippedPayload);
     expect(roundtrip.recoveredScene.workspaceState).toEqual({
       currentBuildingLevelId: 'level-2',
-      selectedAssetId: 'roof-tile',
+      selectedAssetId: 'brick-roof-decoration',
       selectedCoordinate: { x: 0, y: 2 },
     });
     expect(roundtrip.sourcePayload.buildingLevels).toEqual([
@@ -72,7 +72,7 @@ describe('SceneDocument v1 roundtrip', () => {
     expect(roundtrip.sourcePayload.tileInstances).toEqual([
       expect.objectContaining({
         instanceId: 'tile-floor',
-        assetId: 'wooden-floor',
+        assetId: 'stone-brick-wall',
         coordinate: { x: 2, y: 2 },
         areaType: 'main',
         buildingLevelId: 'level-0',
@@ -84,7 +84,7 @@ describe('SceneDocument v1 roundtrip', () => {
       }),
       expect.objectContaining({
         instanceId: 'tile-plant',
-        assetId: 'garden-plant',
+        assetId: 'leafy-plant',
         coordinate: { x: 3, y: 2 },
         areaType: 'main',
         buildingLevelId: 'level-0',
@@ -96,7 +96,7 @@ describe('SceneDocument v1 roundtrip', () => {
       }),
       expect.objectContaining({
         instanceId: 'tile-roof',
-        assetId: 'roof-tile',
+        assetId: 'brick-roof-decoration',
         coordinate: { x: 0, y: 2 },
         areaType: 'outer',
         buildingLevelId: 'level-2',
@@ -143,7 +143,7 @@ describe('SceneDocument v1 roundtrip', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-unsafe-roundtrip',
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
           requiresSkill: true,
@@ -207,7 +207,7 @@ function createRichScene(): SceneDocument {
     tileInstances: [
       createTileInstance({
         instanceId: 'tile-floor',
-        assetId: 'wooden-floor',
+        assetId: 'stone-brick-wall',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: 'level-0',
         rotationDegrees: 0,
@@ -215,7 +215,7 @@ function createRichScene(): SceneDocument {
       }),
       createTileInstance({
         instanceId: 'tile-plant',
-        assetId: 'garden-plant',
+        assetId: 'leafy-plant',
         coordinate: { x: 3, y: 2 },
         buildingLevelId: 'level-0',
         requiresSkill: true,
@@ -224,7 +224,7 @@ function createRichScene(): SceneDocument {
       }),
       createTileInstance({
         instanceId: 'tile-roof',
-        assetId: 'roof-tile',
+        assetId: 'brick-roof-decoration',
         coordinate: { x: 0, y: 2 },
         buildingLevelId: 'level-2',
         rotationDegrees: 90,
@@ -236,7 +236,7 @@ function createRichScene(): SceneDocument {
     ],
     workspaceState: {
       currentBuildingLevelId: 'level-2',
-      selectedAssetId: 'roof-tile',
+      selectedAssetId: 'brick-roof-decoration',
       selectedCoordinate: { x: 0, y: 2 },
     },
     metadata: {

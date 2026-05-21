@@ -1,38 +1,50 @@
-export const knownPokemonKeys = ['ditto', 'eevee', 'pikachu'] as const;
+import { sourcePokemonPortraits } from './source-pokemon-portraits';
 
-export type PokemonKey = (typeof knownPokemonKeys)[number];
+export type PokemonKey = (typeof sourcePokemonPortraits)[number]['key'];
 
 export interface PokemonThemeDefinition {
   key: PokemonKey;
   name: string;
+  englishName: string;
   background: string;
   accent: string;
   portraitUrl: string;
 }
 
-export const pokemonThemeCatalog: readonly PokemonThemeDefinition[] = [
-  {
-    key: 'ditto',
-    name: '百变怪',
+export const knownPokemonKeys = sourcePokemonPortraits.map((pokemon) => pokemon.key) as readonly PokemonKey[];
+
+const defaultPokemonTheme = {
+  background: '#efe6d5',
+  accent: '#6e604b',
+};
+
+const pokemonThemeOverrides: Partial<Record<PokemonKey, { background: string; accent: string }>> = {
+  ditto: {
     background: '#e6d1df',
     accent: '#7d4a74',
-    portraitUrl: getPokemonPortraitUrl('063-ditto.png'),
   },
-  {
-    key: 'eevee',
-    name: '伊布',
+  eevee: {
     background: '#d8c3a4',
     accent: '#855f37',
-    portraitUrl: getPokemonPortraitUrl('077-eevee.png'),
   },
-  {
-    key: 'pikachu',
-    name: '皮卡丘',
+  pikachu: {
     background: '#f4dc67',
     accent: '#9c6b13',
-    portraitUrl: getPokemonPortraitUrl('213-pikachu.png'),
   },
-] as const;
+};
+
+export const pokemonThemeCatalog: readonly PokemonThemeDefinition[] = sourcePokemonPortraits.map((pokemon) => {
+  const theme = pokemonThemeOverrides[pokemon.key] ?? defaultPokemonTheme;
+
+  return {
+    key: pokemon.key,
+    name: pokemon.name,
+    englishName: pokemon.englishName,
+    background: theme.background,
+    accent: theme.accent,
+    portraitUrl: getPokemonPortraitUrl(pokemon.portraitFileName),
+  };
+});
 
 const knownPokemonKeySet = new Set<string>(knownPokemonKeys);
 
@@ -54,7 +66,10 @@ export function getPokemonThemeDefinition(value: string | null | undefined): Pok
 export function findPokemonKeyByQuery(query: string): PokemonKey | null {
   const normalizedQuery = query.trim().toLowerCase();
   const exactMatch = pokemonThemeCatalog.find(
-    (pokemon) => pokemon.key === normalizedQuery || pokemon.name.toLowerCase() === normalizedQuery,
+    (pokemon) =>
+      pokemon.key === normalizedQuery ||
+      pokemon.name.toLowerCase() === normalizedQuery ||
+      pokemon.englishName.toLowerCase() === normalizedQuery,
   );
 
   if (exactMatch) {
@@ -64,7 +79,8 @@ export function findPokemonKeyByQuery(query: string): PokemonKey | null {
   const partialMatches = pokemonThemeCatalog.filter(
     (pokemon) =>
       pokemon.key.startsWith(normalizedQuery) ||
-      pokemon.name.toLowerCase().startsWith(normalizedQuery),
+      pokemon.name.toLowerCase().startsWith(normalizedQuery) ||
+      pokemon.englishName.toLowerCase().startsWith(normalizedQuery),
   );
 
   return normalizedQuery && partialMatches.length === 1 ? partialMatches[0].key : null;

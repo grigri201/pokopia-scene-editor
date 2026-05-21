@@ -21,12 +21,20 @@ describe('PokemonSceneControls', () => {
       'src',
       '/assets/pokopia_image_sources/pokemon_portraits/213-pikachu.png',
     );
+    expect(screen.getAllByRole('option')).toHaveLength(311);
+    expect(screen.getByRole('option', { name: '凯西' })).toHaveValue('abra');
     expect(screen.getByRole('option', { name: '百变怪' })).toHaveValue('ditto');
     expect(screen.getByRole('option', { name: '伊布' })).toHaveValue('eevee');
     expect(screen.getByRole('option', { name: '皮卡丘' })).toHaveValue('pikachu');
+    expect(screen.getByRole('option', { name: '超音蝠' })).toHaveValue('zubat');
+    const fieldLabels = Array.from(container.querySelectorAll('.scene-controls__fields > label'));
+    expect(fieldLabels).toHaveLength(2);
+    expect(fieldLabels[0]?.querySelector('input')).toHaveAccessibleName('布景名称');
+    expect(fieldLabels[1]?.childNodes[0]?.textContent?.trim()).toBe('宝可梦');
+    expect(fieldLabels[1]?.querySelector('select')).toHaveAccessibleName('Current Pokemon');
 
     fireEvent.change(screen.getByLabelText('Current Pokemon'), { target: { value: 'eevee' } });
-    fireEvent.change(screen.getByLabelText('Scene Name'), { target: { value: '月光庭院' } });
+    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: '月光庭院' } });
 
     expect(onPokemonChange).toHaveBeenCalledWith('eevee');
     expect(onSceneNameChange).toHaveBeenCalledWith('月光庭院');
@@ -47,12 +55,12 @@ describe('PokemonSceneControls', () => {
       />,
     );
 
-    const sceneNameInput = screen.getByLabelText('Scene Name');
+    const sceneNameInput = screen.getByLabelText('布景名称');
     fireEvent.change(sceneNameInput, { target: { value: '   ' } });
     fireEvent.blur(sceneNameInput);
 
     expect(sceneNameInput).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByText('Name is required.')).toBeVisible();
+    expect(screen.getByText('请输入布景名称。')).toBeVisible();
     expect(screen.queryByRole('button', { name: /Save scene/ })).not.toBeInTheDocument();
     expect(onSceneNameChange).not.toHaveBeenCalled();
   });
@@ -85,7 +93,7 @@ describe('PokemonSceneControls', () => {
     );
 
     expect(screen.getByLabelText('Current Pokemon')).toBeDisabled();
-    expect(screen.getByLabelText('Scene Name')).toHaveAttribute('readonly', '');
+    expect(screen.getByLabelText('布景名称')).toHaveAttribute('readonly', '');
     expect(screen.queryByRole('button', { name: /Save scene/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Save status')).not.toBeInTheDocument();
   });

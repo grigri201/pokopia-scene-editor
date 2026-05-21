@@ -33,6 +33,12 @@ export type SceneAction =
       now: string;
     }
   | {
+      type: 'set-selected-asset';
+      assetId: string | null;
+      interactionMode: InteractionMode;
+      now: string;
+    }
+  | {
       type: 'save-scene';
       interactionMode: InteractionMode;
       now: string;
@@ -48,6 +54,8 @@ export function sceneReducer(scene: SceneDocument, action: SceneAction): SceneDo
       return selectPokemon(scene, action.pokemonKey, action.interactionMode, action.now);
     case 'select-asset':
       return selectAsset(scene, action.assetId, action.interactionMode, action.now);
+    case 'set-selected-asset':
+      return setSelectedAsset(scene, action.assetId, action.interactionMode, action.now);
     case 'save-scene':
       return saveScene(scene, action.interactionMode, action.now);
   }
@@ -67,12 +75,17 @@ export function selectCoordinate(
     canvasSize: scene.canvasSize,
     outerPadding: scene.outerPadding,
   });
+  const currentCoordinate = scene.workspaceState.selectedCoordinate;
+  const nextSelectedCoordinate =
+    currentCoordinate && currentCoordinate.x === coordinate.x && currentCoordinate.y === coordinate.y
+      ? null
+      : { x: coordinate.x, y: coordinate.y };
 
   return {
     ...scene,
     workspaceState: {
       ...scene.workspaceState,
-      selectedCoordinate: { x: coordinate.x, y: coordinate.y },
+      selectedCoordinate: nextSelectedCoordinate,
     },
   };
 }
@@ -138,6 +151,34 @@ export function selectAsset(
   }
 
   assertKnownAssetId(assetId);
+  const nextSelectedAssetId = assetId === scene.workspaceState.selectedAssetId ? null : assetId;
+
+  return markSceneDirty(
+    {
+      ...scene,
+      workspaceState: {
+        ...scene.workspaceState,
+        selectedAssetId: nextSelectedAssetId,
+      },
+    },
+    now,
+  );
+}
+
+export function setSelectedAsset(
+  scene: SceneDocument,
+  assetId: string | null,
+  interactionMode: InteractionMode,
+  now: string,
+): SceneDocument {
+  if (interactionMode === 'readOnly') {
+    return scene;
+  }
+
+  if (assetId) {
+    assertKnownAssetId(assetId);
+  }
+
   if (assetId === scene.workspaceState.selectedAssetId) {
     return scene;
   }

@@ -7,6 +7,7 @@ import {
   selectAsset,
   selectCoordinate,
   selectPokemon,
+  setSelectedAsset,
   updateSceneName,
 } from './scene-reducer';
 
@@ -19,7 +20,7 @@ describe('scene reducer selection rules', () => {
     const tileInstances = [
       createTileInstance({
         instanceId: 'tile-1',
-        assetId: 'wooden-floor',
+        assetId: 'wooden-fencing',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: 'level-0',
       }),
@@ -43,6 +44,19 @@ describe('scene reducer selection rules', () => {
     expect(selected.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 3 });
   });
 
+  it('clears the selected coordinate when the current coordinate is selected again', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      selectedCoordinate: { x: 2, y: 3 },
+      now: '2026-05-16T07:00:00.000Z',
+    });
+    const cleared = selectCoordinate(scene, { x: 2, y: 3 }, 'edit');
+
+    expect(cleared.workspaceState.selectedCoordinate).toBeNull();
+    expect(cleared.tileInstances).toBe(scene.tileInstances);
+    expect(cleared.buildingLevels).toBe(scene.buildingLevels);
+  });
+
   it('guards scene selection writes in read-only mode', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-test',
@@ -51,7 +65,7 @@ describe('scene reducer selection rules', () => {
     const tileInstances = [
       createTileInstance({
         instanceId: 'tile-1',
-        assetId: 'wooden-floor',
+        assetId: 'wooden-fencing',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: 'level-0',
       }),
@@ -108,17 +122,44 @@ describe('scene reducer selection rules', () => {
       sceneId: 'scene-test',
       now: '2026-05-16T07:00:00.000Z',
     });
-    const selected = selectAsset(scene, 'garden-plant', 'edit', '2026-05-16T08:00:00.000Z');
+    const selected = selectAsset(scene, 'leafy-plant', 'edit', '2026-05-16T08:00:00.000Z');
     const reduced = sceneReducer(scene, {
       type: 'select-asset',
-      assetId: 'wooden-floor',
+      assetId: 'wooden-fencing',
       interactionMode: 'edit',
       now: '2026-05-16T08:01:00.000Z',
     });
 
-    expect(selected.workspaceState.selectedAssetId).toBe('garden-plant');
+    expect(selected.workspaceState.selectedAssetId).toBe('leafy-plant');
     expect(selected.tileInstances).toEqual([]);
-    expect(reduced.workspaceState.selectedAssetId).toBe('wooden-floor');
+    expect(reduced.workspaceState.selectedAssetId).toBe('wooden-fencing');
+  });
+
+  it('clears the placement asset when the current asset is selected again', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+    const selected = selectAsset(scene, 'wooden-fencing', 'edit', '2026-05-16T08:00:00.000Z');
+    const cleared = selectAsset(selected, 'wooden-fencing', 'edit', '2026-05-16T08:01:00.000Z');
+
+    expect(cleared.workspaceState.selectedAssetId).toBeNull();
+    expect(cleared.metadata.updatedAt).toBe('2026-05-16T08:01:00.000Z');
+  });
+
+  it('sets or clears the placement asset without toggle semantics', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+    const selected = setSelectedAsset(scene, 'wooden-fencing', 'edit', '2026-05-16T08:00:00.000Z');
+    const repeated = setSelectedAsset(selected, 'wooden-fencing', 'edit', '2026-05-16T08:01:00.000Z');
+    const cleared = setSelectedAsset(repeated, null, 'edit', '2026-05-16T08:02:00.000Z');
+
+    expect(selected.workspaceState.selectedAssetId).toBe('wooden-fencing');
+    expect(repeated).toBe(selected);
+    expect(cleared.workspaceState.selectedAssetId).toBeNull();
+    expect(cleared.metadata.updatedAt).toBe('2026-05-16T08:02:00.000Z');
   });
 
   it('guards selected asset writes in read-only mode and rejects unknown assets', () => {
@@ -127,8 +168,12 @@ describe('scene reducer selection rules', () => {
       now: '2026-05-16T07:00:00.000Z',
     });
 
-    expect(selectAsset(scene, 'garden-plant', 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
+    expect(selectAsset(scene, 'leafy-plant', 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
+    expect(setSelectedAsset(scene, 'leafy-plant', 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
     expect(() => selectAsset(scene, 'missing-asset', 'edit', '2026-05-16T08:00:00.000Z')).toThrow(
+      RangeError,
+    );
+    expect(() => setSelectedAsset(scene, 'missing-asset', 'edit', '2026-05-16T08:00:00.000Z')).toThrow(
       RangeError,
     );
   });

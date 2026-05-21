@@ -1,24 +1,19 @@
-import type { AreaType } from '../scene';
 import type {
   AssetCategory,
   AssetDefinition,
-  AssetSkillType,
 } from './catalog';
+import { assetCategoryLabels } from './catalog';
 import { assetMatchesPokemonFavorite } from './catalog';
 import type { PokemonKey } from './pokemon';
 
-export const assetRenderLimit = 100;
+export const assetPageSize = 10;
 
 export type AssetCategoryFilter = 'all' | AssetCategory;
-export type AssetAreaFilter = 'all' | AreaType;
-export type AssetSkillFilter = 'all' | 'requires-skill' | 'skill-candidate' | Exclude<AssetSkillType, null>;
 
 export interface AssetFilterState {
   query: string;
   category: AssetCategoryFilter;
-  area: AssetAreaFilter;
   favoriteOnly: boolean;
-  skill: AssetSkillFilter;
 }
 
 export interface AssetFilterResult {
@@ -26,32 +21,41 @@ export interface AssetFilterResult {
   renderedAssets: readonly AssetDefinition[];
   filteredCount: number;
   totalCount: number;
-  renderLimited: boolean;
+  currentPage: number;
+  pageCount: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }
 
 export const defaultAssetFilters: AssetFilterState = {
   query: '',
   category: 'all',
-  area: 'all',
   favoriteOnly: false,
-  skill: 'all',
 };
 
 export function filterAssetCatalog(
   assets: readonly AssetDefinition[],
   filters: AssetFilterState,
   pokemonKey: PokemonKey,
-  renderLimit = assetRenderLimit,
+  page = 1,
+  pageSize = assetPageSize,
 ): AssetFilterResult {
   const filteredAssets = assets.filter((asset) => assetMatchesFilters(asset, filters, pokemonKey));
-  const renderedAssets = filteredAssets.slice(0, renderLimit);
+  const normalizedPageSize = normalizePageSize(pageSize);
+  const pageCount = Math.max(1, Math.ceil(filteredAssets.length / normalizedPageSize));
+  const currentPage = clampPage(page, pageCount);
+  const pageStart = (currentPage - 1) * normalizedPageSize;
+  const renderedAssets = filteredAssets.slice(pageStart, pageStart + normalizedPageSize);
 
   return {
     filteredAssets,
     renderedAssets,
     filteredCount: filteredAssets.length,
     totalCount: assets.length,
-    renderLimited: filteredAssets.length > renderedAssets.length,
+    currentPage,
+    pageCount,
+    hasPreviousPage: currentPage > 1,
+    hasNextPage: currentPage < pageCount,
   };
 }
 
@@ -59,9 +63,7 @@ export function hasActiveAssetFilters(filters: AssetFilterState): boolean {
   return (
     Boolean(filters.query.trim()) ||
     filters.category !== 'all' ||
-    filters.area !== 'all' ||
-    filters.favoriteOnly ||
-    filters.skill !== 'all'
+    filters.favoriteOnly
   );
 }
 
@@ -73,10 +75,24 @@ function assetMatchesFilters(
   return (
     assetMatchesQuery(asset, filters.query) &&
     assetMatchesCategory(asset, filters.category) &&
-    assetMatchesArea(asset, filters.area) &&
-    assetMatchesFavorite(asset, filters.favoriteOnly, pokemonKey) &&
-    assetMatchesSkill(asset, filters.skill)
+    assetMatchesFavorite(asset, filters.favoriteOnly, pokemonKey)
   );
+}
+
+function clampPage(page: number, pageCount: number): number {
+  if (!Number.isFinite(page)) {
+    return 1;
+  }
+
+  return Math.min(Math.max(1, Math.trunc(page)), pageCount);
+}
+
+function normalizePageSize(pageSize: number): number {
+  if (!Number.isFinite(pageSize) || pageSize < 1) {
+    return assetPageSize;
+  }
+
+  return Math.trunc(pageSize);
 }
 
 function assetMatchesQuery(asset: AssetDefinition, query: string): boolean {
@@ -91,16 +107,14 @@ function assetMatchesQuery(asset: AssetDefinition, query: string): boolean {
     asset.assetId.toLowerCase().includes(normalizedQuery) ||
     asset.officialId.toLowerCase().includes(normalizedQuery) ||
     asset.category.toLowerCase().includes(normalizedQuery) ||
-    asset.tags.some((tag) => tag.toLowerCase().includes(normalizedQuery))
+    assetCategoryLabels[asset.category].toLowerCase().includes(normalizedQuery) ||
+    asset.tags.some((tag) => tag.toLowerCase().includes(normalizedQuery)) ||
+    asset.searchKeywords.some((keyword) => keyword.toLowerCase().includes(normalizedQuery))
   );
 }
 
 function assetMatchesCategory(asset: AssetDefinition, category: AssetCategoryFilter): boolean {
   return category === 'all' || asset.category === category;
-}
-
-function assetMatchesArea(asset: AssetDefinition, area: AssetAreaFilter): boolean {
-  return area === 'all' || asset.applicableAreas.includes(area);
 }
 
 function assetMatchesFavorite(
@@ -109,20 +123,4 @@ function assetMatchesFavorite(
   pokemonKey: PokemonKey,
 ): boolean {
   return !favoriteOnly || assetMatchesPokemonFavorite(asset, pokemonKey);
-}
-
-function assetMatchesSkill(asset: AssetDefinition, skill: AssetSkillFilter): boolean {
-  if (skill === 'all') {
-    return true;
-  }
-
-  if (skill === 'requires-skill') {
-    return asset.defaultRequiresSkill;
-  }
-
-  if (skill === 'skill-candidate') {
-    return asset.skillCandidate;
-  }
-
-  return asset.defaultSkillType === skill;
 }

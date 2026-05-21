@@ -3,48 +3,72 @@ import {
   assetCatalog,
   assertKnownAssetId,
   filterAssetsByFavorite,
-  getAssetAreaLabel,
   getAssetById,
   getAssetSkillMarkerIconUrl,
   getAssetSkillMarkerLabel,
-  getAssetSkillLabel,
   isAssetSkillType,
   toAssetSkillType,
 } from './catalog';
+import { knownPokemonKeys } from './pokemon';
+import { sourceItemPreferenceTerms, sourcePokemonPreferences } from './source-pokemon-preferences';
 
 describe('asset catalog', () => {
   it('provides complete static metadata for each seed asset', () => {
-    expect(assetCatalog.length).toBeGreaterThanOrEqual(6);
+    expect(assetCatalog).toHaveLength(1160);
 
     for (const asset of assetCatalog) {
       expect(asset.assetId).not.toBe('');
       expect(asset.officialId).toMatch(/^\d{3,4}$/);
       expect(asset.name).not.toBe('');
-      expect(asset.tags.length).toBeGreaterThan(0);
-      expect(asset.applicableAreas.length).toBeGreaterThan(0);
+      expect(asset.name).not.toContain('套件');
+      expect(asset.tags).not.toContain('套件');
+      expect(asset.searchKeywords.length).toBeGreaterThan(0);
       expect(asset.thumbnailUrl).toMatch(/^\/assets\/pokopia_image_sources\/item_portraits\/.+\.(png|webp)$/);
       expect(asset.thumbnailAlt).toContain('缩略图');
-      expect(typeof asset.defaultRequiresSkill).toBe('boolean');
-      expect(typeof asset.skillCandidate).toBe('boolean');
+      expect('applicableAreas' in asset).toBe(false);
+      expect('defaultRequiresSkill' in asset).toBe(false);
+      expect('defaultSkillType' in asset).toBe(false);
+      expect('skillCandidate' in asset).toBe(false);
       expect(typeof asset.dyeable).toBe('boolean');
     }
   });
 
   it('looks up assets and rejects unknown ids', () => {
-    expect(getAssetById('garden-plant')?.name).toBe('小型灌木');
+    expect(getAssetById('leafy-plant')?.name).toBe('绿叶植物');
     expect(getAssetById(null)).toBeNull();
     expect(() => assertKnownAssetId('missing-asset')).toThrow(RangeError);
+    expect(getAssetById('leaf-den-kit')).toBeNull();
+    expect(() => assertKnownAssetId('leaf-den-kit')).toThrow(RangeError);
+    expect(getAssetById('bouldery-badge')).toBeNull();
+    expect(() => assertKnownAssetId('bouldery-badge')).toThrow(RangeError);
+    expect(getAssetById('wooden-bench')?.officialId).toBe('047');
+    expect(getAssetById('wooden-bench')?.name).toBe('木长椅');
+    expect(getAssetById('ditto-doll')?.officialId).toBe('979');
+    expect(getAssetById('ditto-doll')?.name).toBe('百变怪玩偶');
   });
 
-  it('formats area and skill labels for picker display', () => {
-    const gardenPlant = getAssetById('garden-plant');
-    const woodenFloor = getAssetById('wooden-floor');
+  it('uses Chinese item names while retaining source names for search', () => {
+    const leppaBerry = getAssetById('leppa-berry');
+    const chestoBerry = getAssetById('chesto-berry');
+
+    expect(leppaBerry).toMatchObject({
+      officialId: '197',
+      name: '苹野果',
+      tags: ['食物'],
+      thumbnailAlt: '苹野果缩略图',
+    });
+    expect(leppaBerry?.searchKeywords).toContain('Leppa Berry');
+    expect(chestoBerry?.name).toBe('零余果');
+  });
+
+  it('uses source display metadata without seed overrides', () => {
+    const gardenPlant = getAssetById('leafy-plant');
+    const woodenFloor = getAssetById('wooden-fencing');
 
     expect(gardenPlant).not.toBeNull();
     expect(woodenFloor).not.toBeNull();
-    expect(getAssetAreaLabel(gardenPlant!)).toBe('主体 / 外围');
-    expect(getAssetSkillLabel(gardenPlant!)).toBe('Default skill: 树叶');
-    expect(getAssetSkillLabel(woodenFloor!)).toBe('No default skill');
+    expect(gardenPlant).toMatchObject({ officialId: '1052', name: '绿叶植物', category: 'misc' });
+    expect(woodenFloor).toMatchObject({ officialId: '390', name: '木制栅栏', category: 'buildings' });
   });
 
   it('normalizes Ditto skill vocabulary and one-character markers', () => {
@@ -71,12 +95,32 @@ describe('asset catalog', () => {
   it('filters favorite assets by current Pokemon', () => {
     const eeveeFavorites = filterAssetsByFavorite(assetCatalog, 'eevee', true);
     const allAssets = filterAssetsByFavorite(assetCatalog, 'eevee', false);
+    const eeveeFavoriteIds = eeveeFavorites.map((asset) => asset.assetId);
 
-    expect(eeveeFavorites.map((asset) => asset.assetId)).toEqual([
-      'wooden-floor',
-      'garden-plant',
-      'roof-tile',
-    ]);
+    expect(eeveeFavorites).toHaveLength(249);
+    expect(eeveeFavoriteIds).toEqual(expect.arrayContaining([
+      'ditto-doll',
+      'wooden-bench',
+      'stone-brick-wall',
+      'pecha-berry',
+      'stone',
+    ]));
+    expect(eeveeFavoriteIds).not.toContain('wooden-fencing');
+    expect(eeveeFavoriteIds).not.toContain('leafy-plant');
+    expect(eeveeFavoriteIds).not.toContain('stepping-stones');
+    expect(eeveeFavoriteIds).not.toContain('brick-roof-decoration');
+    expect(eeveeFavoriteIds).not.toContain('leppa-berry');
     expect(allAssets).toBe(assetCatalog);
+  });
+
+  it('uses imported PokopiaDex preference terms for all Pokemon', () => {
+    const abraFavoriteIds = filterAssetsByFavorite(assetCatalog, 'abra', true).map((asset) => asset.assetId);
+
+    expect(sourcePokemonPreferences).toHaveLength(knownPokemonKeys.length);
+    expect(sourcePokemonPreferences.every((entry) => knownPokemonKeys.includes(entry.key))).toBe(true);
+    expect(sourceItemPreferenceTerms).toHaveLength(553);
+    expect(sourcePokemonPreferences.find((entry) => entry.key === 'ditto')?.preferenceTerms).toEqual([]);
+    expect(abraFavoriteIds).toEqual(expect.arrayContaining(['fluff', 'alarm-clock']));
+    expect(abraFavoriteIds).not.toContain('leppa-berry');
   });
 });

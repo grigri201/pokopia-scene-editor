@@ -7,16 +7,16 @@ import {
 } from './levels';
 
 describe('building level rules', () => {
-  it('creates default 0, 1, and 2 building levels in data order', () => {
+  it('creates only the default 0 building level for a new empty scene', () => {
     const levels = createDefaultBuildingLevels();
 
-    expect(levels.map((level) => level.levelNumber)).toEqual([0, 1, 2]);
-    expect(levels.map((level) => level.id)).toEqual(['level-0', 'level-1', 'level-2']);
-    expect(levels.map((level) => level.name)).toEqual(['0 层', '1 层', '2 层']);
+    expect(levels.map((level) => level.levelNumber)).toEqual([0]);
+    expect(levels.map((level) => level.id)).toEqual(['level-0']);
+    expect(levels.map((level) => level.name)).toEqual(['0层']);
   });
 
   it('allocates the next building level number from the current maximum', () => {
-    expect(getNextBuildingLevelNumber(createDefaultBuildingLevels())).toBe(3);
+    expect(getNextBuildingLevelNumber(createDefaultBuildingLevels())).toBe(1);
     expect(getNextBuildingLevelNumber([createBuildingLevel(0), createBuildingLevel(7)])).toBe(8);
     expect(getNextBuildingLevelNumber([])).toBe(0);
   });
@@ -28,7 +28,7 @@ describe('building level rules', () => {
   });
 
   it('sorts building levels for display from high to low without mutating data order', () => {
-    const levels = createDefaultBuildingLevels();
+    const levels = [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)];
     const sorted = sortBuildingLevelsForDisplay(levels);
 
     expect(sorted.map((level) => level.levelNumber)).toEqual([2, 1, 0]);

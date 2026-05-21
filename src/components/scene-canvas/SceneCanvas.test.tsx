@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createDefaultSceneDocument, createTileInstance, getCanvasCellContexts } from '../../domain/scene';
+import { createBuildingLevel, createDefaultSceneDocument, createTileInstance, getCanvasCellContexts } from '../../domain/scene';
 import { SceneCanvas } from './SceneCanvas';
 
 const scene = createDefaultSceneDocument({
@@ -109,9 +109,8 @@ describe('SceneCanvas', () => {
     fireEvent.pointerDown(cell);
     fireEvent.click(cell);
     expect(onSelectCoordinate).not.toHaveBeenCalled();
-    expect(onViewCoordinate).toHaveBeenCalledTimes(2);
+    expect(onViewCoordinate).toHaveBeenCalledTimes(1);
     expect(onViewCoordinate).toHaveBeenNthCalledWith(1, { x: 2, y: 3 });
-    expect(onViewCoordinate).toHaveBeenNthCalledWith(2, { x: 2, y: 3 });
 
     onViewCoordinate.mockClear();
     fireEvent.focus(cell);
@@ -187,7 +186,7 @@ describe('SceneCanvas', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-1',
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           coordinate: { x: 2, y: 3 },
           buildingLevelId: 'level-0',
           requiresSkill: true,
@@ -205,13 +204,13 @@ describe('SceneCanvas', () => {
     );
 
     const cell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, 小型灌木, Skill marker 小型灌木 树',
+      'Cell 2,3, main area, level-0, placeable, 绿叶植物, Skill marker 绿叶植物 树',
     );
     expect(cell).toHaveAttribute('data-has-instance', 'true');
     expect(cell).toHaveAttribute('data-requires-skill', 'true');
     expect(cell).toHaveAttribute('data-skill-marker-label', '树');
-    expect(cell).toHaveTextContent('小型灌木');
-    const skillMarker = screen.getByLabelText('Skill marker 小型灌木 树');
+    expect(cell).toHaveTextContent('绿叶植物');
+    const skillMarker = screen.getByLabelText('Skill marker 绿叶植物 树');
     expect(skillMarker).toHaveAttribute('data-tooltip', '树叶');
     expect(skillMarker).not.toHaveTextContent('树');
     expect(skillMarker.querySelector('img')).toHaveAttribute(
@@ -223,10 +222,11 @@ describe('SceneCanvas', () => {
   it('shows other visible layer context without marking the current layer as occupied', () => {
     const sceneWithCrossLayerTile = {
       ...scene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-other-layer',
-          assetId: 'roof-tile',
+          assetId: 'brick-roof-decoration',
           coordinate: { x: 2, y: 3 },
           buildingLevelId: 'level-1',
         }),
@@ -257,13 +257,13 @@ describe('SceneCanvas', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-1',
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           coordinate: { x: 2, y: 3 },
           buildingLevelId: 'level-0',
         }),
         createTileInstance({
           instanceId: 'tile-2',
-          assetId: 'roof-tile',
+          assetId: 'brick-roof-decoration',
           coordinate: { x: 2, y: 3 },
           buildingLevelId: 'level-0',
           rotationDegrees: 90,
@@ -289,13 +289,13 @@ describe('SceneCanvas', () => {
     );
 
     const duplicateCell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, 屋檐片段, rotated 90, dyed #56ccf2, Skill marker 屋檐片段 耕',
+      'Cell 2,3, main area, level-0, placeable, 砖瓦屋顶装饰, rotated 90, dyed #56ccf2, Skill marker 砖瓦屋顶装饰 耕',
     );
     expect(duplicateCell).toHaveAttribute('data-instance-count', '1');
     expect(duplicateCell).toHaveAttribute('data-skill-marker-label', '耕');
     expect(duplicateCell).toHaveAttribute('data-rotation', '90');
     expect(duplicateCell).toHaveAttribute('data-dye-color', '#56ccf2');
-    expect(duplicateCell).toHaveTextContent('屋檐片段');
+    expect(duplicateCell).toHaveTextContent('砖瓦屋顶装饰');
     expect(duplicateCell).not.toHaveTextContent('2x');
     expect(document.querySelector('.cell-stack-count')).toBeNull();
     const rotationMarker = duplicateCell.querySelector('.cell-rotation-marker');
@@ -303,7 +303,7 @@ describe('SceneCanvas', () => {
     expect(rotationMarker).toHaveAttribute('data-tooltip', '旋转 90 度');
     expect(rotationMarker?.querySelector('svg')).toBeInTheDocument();
     expect(screen.getByLabelText('Dye #56ccf2')).toBeVisible();
-    const skillMarker = screen.getByLabelText('Skill marker 屋檐片段 耕');
+    const skillMarker = screen.getByLabelText('Skill marker 砖瓦屋顶装饰 耕');
     expect(skillMarker).toHaveAttribute('data-tooltip', '耕地');
     expect(skillMarker.querySelector('img')).toHaveAttribute(
       'src',
@@ -319,7 +319,7 @@ describe('SceneCanvas', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-skill-bottom',
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           coordinate: { x: 2, y: 3 },
           buildingLevelId: 'level-0',
           requiresSkill: true,
@@ -327,7 +327,7 @@ describe('SceneCanvas', () => {
         }),
         createTileInstance({
           instanceId: 'tile-plain-top',
-          assetId: 'ditto-doll',
+          assetId: 'wooden-bench',
           coordinate: { x: 2, y: 3 },
           buildingLevelId: 'level-0',
           requiresSkill: false,
@@ -344,10 +344,10 @@ describe('SceneCanvas', () => {
     );
 
     const cell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, 木质长椅',
+      'Cell 2,3, main area, level-0, placeable, 木长椅',
     );
-    expect(cell).toHaveTextContent('木质长椅');
-    expect(screen.queryByLabelText('Skill marker 小型灌木 树')).not.toBeInTheDocument();
+    expect(cell).toHaveTextContent('木长椅');
+    expect(screen.queryByLabelText('Skill marker 绿叶植物 树')).not.toBeInTheDocument();
     expect(cell).toHaveAttribute('data-instance-count', '1');
   });
 
@@ -357,7 +357,7 @@ describe('SceneCanvas', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-visible',
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           coordinate: { x: 2, y: 3 },
           buildingLevelId: 'level-0',
           requiresSkill: true,
@@ -376,11 +376,11 @@ describe('SceneCanvas', () => {
     );
 
     const cell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, 小型灌木, Skill marker 小型灌木 树',
+      'Cell 2,3, main area, level-0, placeable, 绿叶植物, Skill marker 绿叶植物 树',
     );
     expect(cell).toHaveAttribute('data-has-instance', 'true');
     expect(cell).toHaveAttribute('data-requires-skill', 'true');
-    expect(cell).toHaveTextContent('小型灌木');
+    expect(cell).toHaveTextContent('绿叶植物');
     expect(sceneWithInstance.tileInstances[0]).toMatchObject({
       requiresSkill: true,
       skillType: '树叶',

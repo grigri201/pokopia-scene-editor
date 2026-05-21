@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultSceneDocument, createTileInstance, type SceneDocument } from '../domain/scene';
+import { createBuildingLevel, createDefaultSceneDocument, createTileInstance, type SceneDocument } from '../domain/scene';
 import { parseSceneDocument } from './scene-schema';
 import { serializeSceneDocument, stringifySceneDocument } from './scene-serializer';
 
@@ -8,7 +8,7 @@ describe('SceneDocument v1 serializer', () => {
     const scene = createSceneWithInstances({
       workspaceState: {
         currentBuildingLevelId: 'level-1',
-        selectedAssetId: 'garden-plant',
+        selectedAssetId: 'leafy-plant',
         selectedCoordinate: { x: 2, y: 3 },
       },
     });
@@ -25,7 +25,7 @@ describe('SceneDocument v1 serializer', () => {
       outerPadding: 1,
       workspaceState: {
         currentBuildingLevelId: 'level-1',
-        selectedAssetId: 'garden-plant',
+        selectedAssetId: 'leafy-plant',
         selectedCoordinate: { x: 2, y: 3 },
       },
       metadata: {
@@ -65,14 +65,14 @@ describe('SceneDocument v1 serializer', () => {
     expect(payload.tileInstances).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           dyeColor: null,
           requiresSkill: true,
           skillType: '树叶',
           skillNote: '',
         }),
         expect.objectContaining({
-          assetId: 'wooden-floor',
+          assetId: 'stone-brick-wall',
           dyeColor: '#bb6bd9',
           requiresSkill: false,
           skillType: null,
@@ -91,7 +91,7 @@ describe('SceneDocument v1 serializer', () => {
       tileInstances: [
         {
           ...scene.tileInstances[0],
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           dyeColor: '#56ccf2',
         },
         {
@@ -129,10 +129,11 @@ function createSceneWithInstances(overrides: Partial<SceneDocument> = {}): Scene
 
   return {
     ...scene,
+    buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
     tileInstances: [
       createTileInstance({
         instanceId: 'tile-skill',
-        assetId: 'garden-plant',
+        assetId: 'leafy-plant',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: 'level-1',
         requiresSkill: true,
@@ -141,7 +142,7 @@ function createSceneWithInstances(overrides: Partial<SceneDocument> = {}): Scene
       }),
       createTileInstance({
         instanceId: 'tile-dye',
-        assetId: 'wooden-floor',
+        assetId: 'stone-brick-wall',
         coordinate: { x: 3, y: 3 },
         buildingLevelId: 'level-0',
         dyeColor: '#bb6bd9',

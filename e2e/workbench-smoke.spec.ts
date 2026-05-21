@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 const autosavedSceneStorageKey = 'pokopia.sceneDocument.autosave.v1';
 const savedSceneStorageKey = 'pokopia.sceneDocument.v1';
 const uiPreferencesStorageKey = 'pokopia.uiPreferences.v1';
-const densePreviewAssetIds = ['wooden-floor', 'garden-plant', 'outer-wall', 'ditto-doll', 'water-barrel', 'roof-tile'];
+const densePreviewAssetIds = ['wooden-fencing', 'leafy-plant', 'stepping-stones', 'ditto-doll', 'stone-brick-wall', 'brick-roof-decoration'];
 const densePreviewSkillTypes = ['树叶', '耕地', '储水'];
 
 test('renders the Open Design workbench as the first screen', async ({ page }) => {
@@ -14,35 +14,73 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Pokopia scene editor workbench')).toBeVisible();
   expect(await getShellTransitionDuration(page)).toBe('0s');
   await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
-  await expect(page.getByLabel('Current Pokemon')).toHaveValue('pikachu');
-  await expect(page.getByLabel('Scene Name')).toHaveValue('星光庭院');
+  await expect(page.getByLabel('Current Pokemon')).toHaveValue('ditto');
+  await expect(page.getByLabel('布景名称')).toHaveValue('百变怪的布景');
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
+  await expect(page.locator('.asset-row')).toHaveCount(10);
+  await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('苹野果');
+  await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('食物');
+  await expect(page.getByLabel('Asset page status')).toHaveText('1 / 116');
+  await expect(page.getByText('Showing first')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Show more' })).toHaveCount(0);
   await expect(page.getByRole('complementary', { name: '检查器预览' })).toBeVisible();
   await expect(page.getByTestId('scene-cell')).toHaveCount(49);
-  await expect(page.getByLabel('Cell 3,2, main area, level-1, placeable, 白木栅栏, rotated 90')).toBeVisible();
+  await expect(page.getByLabel('Cell 3,2, main area, level-0, placeable')).toBeVisible();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Save scene' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '导出' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '删除' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Undo' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Redo' })).toHaveCount(0);
+  await expect.poll(() => getSelectionEmptyPromptHeightRatio(page)).toBeCloseTo(1, 1);
+  await expect.poll(() => getSelectionEmptySilhouetteHeightRatio(page)).toBeCloseTo(0.8, 1);
+  await expect.poll(() => getSelectionEmptyTextHeightRatio(page)).toBeCloseTo(1, 1);
   await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show preview main boundary' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show preview skill markers' })).toHaveCount(0);
+  await expect
+    .poll(async () =>
+      Promise.all([
+        getCellBorderStyle(page, '0,0'),
+        getCellBorderStyle(page, '1,1'),
+        getCellBorderStyle(page, '2,2'),
+      ]),
+    )
+    .toEqual([
+      { color: 'rgba(35, 31, 26, 0.22)', style: 'dashed', width: '1px' },
+      { color: 'rgba(35, 31, 26, 0.22)', style: 'dashed', width: '1px' },
+      { color: 'rgba(35, 31, 26, 0.22)', style: 'dashed', width: '1px' },
+    ]);
 
   const snapshot = await readSceneSnapshot(page);
-  expect(snapshot.sceneName).toBe('星光庭院');
+  expect(snapshot.sceneName).toBe('百变怪的布景');
+  expect(snapshot.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '0层' }]);
+  expect(snapshot.tileInstances).toEqual([]);
   expect(snapshot.workspaceState).toMatchObject({
-    currentBuildingLevelId: 'level-1',
-    selectedAssetId: 'wooden-floor',
-    selectedCoordinate: { x: 3, y: 2 },
+    currentBuildingLevelId: 'level-0',
+    selectedAssetId: null,
+    selectedCoordinate: null,
   });
   expectScenePayloadHasNoLegacyFields(snapshot);
+
+  const cell = page.getByLabel('Cell 2,3, main area, level-0, placeable');
+  await cell.click();
+  await expect(cell).toHaveAttribute('aria-selected', 'true');
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
+    .toMatchObject({ selectedCoordinate: { x: 2, y: 3 } });
+  await cell.click();
+  await expect(cell).toHaveAttribute('aria-selected', 'false');
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
+    .toMatchObject({ selectedCoordinate: null });
 });
 
 test('autosaves SceneDocument v1 without UI-only state or manual save entrypoints', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
 
-  await page.getByLabel('Scene Name').fill('Smoke Payload Boundary');
+  await page.getByLabel('布景名称').fill('Smoke Payload Boundary');
   const autosavedPayload = await waitForStoredPayload(page, autosavedSceneStorageKey);
   expect(autosavedPayload.sceneName).toBe('Smoke Payload Boundary');
   expectScenePayloadHasNoLegacyFields(autosavedPayload);
@@ -57,7 +95,7 @@ test('restores autosaved SceneDocument v1 on desktop startup', async ({ page }) 
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
 
-  await expect(page.getByLabel('Scene Name')).toHaveValue('Restored Smoke Layout');
+  await expect(page.getByLabel('布景名称')).toHaveValue('Restored Smoke Layout');
 
   const snapshot = await readSceneSnapshot(page);
   expect(snapshot).toMatchObject({
@@ -65,7 +103,7 @@ test('restores autosaved SceneDocument v1 on desktop startup', async ({ page }) 
     sceneName: 'Restored Smoke Layout',
     workspaceState: {
       currentBuildingLevelId: 'level-1',
-      selectedAssetId: 'garden-plant',
+      selectedAssetId: 'leafy-plant',
       selectedCoordinate: { x: 4, y: 4 },
     },
   });
@@ -80,11 +118,24 @@ test('keeps retained edit commands wired through the workbench shell', async ({ 
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
 
-  await page.locator('[data-asset-id="garden-plant"] .asset-select-button').click();
+  const leppaBerryButton = page.locator('[data-asset-id="leppa-berry"] .asset-select-button');
+  await leppaBerryButton.click();
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
+    .toMatchObject({ selectedAssetId: 'leppa-berry' });
+  await leppaBerryButton.click();
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
+    .toMatchObject({ selectedAssetId: null });
+  await expect(leppaBerryButton).toHaveAttribute('aria-pressed', 'false');
+  await leppaBerryButton.click();
   await page.locator('[data-coordinate="2,2"]').click();
   await expect
     .poll(async () => getFirstStoredTileField(page, 'assetId'))
-    .toBe('garden-plant');
+    .toBe('leppa-berry');
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
+    .toMatchObject({ selectedAssetId: null, selectedCoordinate: { x: 2, y: 2 } });
 
   await page.getByRole('button', { name: '旋转 90' }).click();
   await expect
@@ -99,15 +150,33 @@ test('keeps retained edit commands wired through the workbench shell', async ({ 
     .poll(async () => getFirstStoredTileField(page, 'skillType'))
     .toBe('树叶');
 
-  await page.locator('[data-asset-id="roof-tile"] .asset-select-button').click();
+  await page.locator('[data-asset-id="chesto-berry"] .asset-select-button').click();
   page.once('dialog', (dialog) => dialog.accept());
+  await page.locator('[data-coordinate="2,2"]').click();
   await page.locator('[data-coordinate="2,2"]').click();
   await expect
     .poll(async () => getStoredTileCount(page))
     .toBe(1);
   await expect
     .poll(async () => getFirstStoredTileField(page, 'assetId'))
-    .toBe('roof-tile');
+    .toBe('chesto-berry');
+
+  await page.locator('[data-asset-id="rawst-berry"] .asset-select-button').dblclick();
+  await expect(page.locator('[data-asset-id="rawst-berry"]')).toHaveAttribute('data-selection-mode', 'continuous');
+  await expect(page.locator('[data-asset-id="rawst-berry"]')).toHaveClass(/asset-row--continuous/);
+  await page.locator('[data-coordinate="2,3"]').click();
+  await page.locator('[data-coordinate="2,4"]').click();
+  await expect
+    .poll(async () => getStoredTileCount(page))
+    .toBe(3);
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
+    .toMatchObject({ selectedAssetId: 'rawst-berry', selectedCoordinate: { x: 2, y: 4 } });
+  await page.locator('[data-asset-id="rawst-berry"] .asset-select-button').click();
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
+    .toMatchObject({ selectedAssetId: null });
+  await expect(page.locator('[data-asset-id="rawst-berry"]')).toHaveAttribute('data-selection-mode', 'none');
 
   await page.getByRole('button', { name: '新建层' }).click();
   await expect
@@ -117,6 +186,47 @@ test('keeps retained edit commands wired through the workbench shell', async ({ 
   await expect(page.getByRole('textbox', { name: 'Instance note' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Move instance' })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: 'Building layer' })).toHaveCount(0);
+});
+
+test('keeps tall placed asset thumbnails contained inside canvas cells', async ({ page }) => {
+  await page.addInitScript((scene) => {
+    (window as unknown as { __pokopiaInitialSceneSnapshot?: unknown }).__pokopiaInitialSceneSnapshot = scene;
+  }, createTallThumbnailScene());
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+
+  const tallAssetCell = page.locator('[data-coordinate="4,2"]');
+  await expect(tallAssetCell).toHaveAttribute('data-has-instance', 'true');
+  await expect(page.getByLabel('Cell 4,2, main area, level-0, placeable, 罗丝雷朵茶')).toBeVisible();
+
+  const bounds = await tallAssetCell.evaluate((cell) => {
+    const token = cell.querySelector('.cell-asset-token')?.getBoundingClientRect();
+    const image = cell.querySelector('.cell-asset-thumb')?.getBoundingClientRect();
+
+    if (!token || !image) {
+      return null;
+    }
+
+    return {
+      imageBottom: image.bottom,
+      imageLeft: image.left,
+      imageRight: image.right,
+      imageTop: image.top,
+      tokenBottom: token.bottom,
+      tokenLeft: token.left,
+      tokenRight: token.right,
+      tokenTop: token.top,
+    };
+  });
+
+  if (!bounds) {
+    throw new Error('Expected tall placed asset thumbnail bounds.');
+  }
+
+  expect(bounds.imageTop).toBeGreaterThanOrEqual(bounds.tokenTop);
+  expect(bounds.imageLeft).toBeGreaterThanOrEqual(bounds.tokenLeft);
+  expect(bounds.imageBottom).toBeLessThanOrEqual(bounds.tokenBottom);
+  expect(bounds.imageRight).toBeLessThanOrEqual(bounds.tokenRight);
 });
 
 test('updates dense preview inside the browser-visible performance budget', async ({ page }) => {
@@ -150,7 +260,7 @@ test('updates dense preview inside the browser-visible performance budget', asyn
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
-test('migrates legacy preview display preferences without hidden preview controls', async ({ page }) => {
+test('migrates legacy UI preferences without hidden preview or advanced asset controls', async ({ page }) => {
   await page.addInitScript((storageKey) => {
     window.localStorage.setItem(
       storageKey,
@@ -177,15 +287,16 @@ test('migrates legacy preview display preferences without hidden preview control
   await page.goto('/');
 
   await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveCount(0);
-  await expect(page.getByLabel('Asset area filter')).toHaveValue('outer');
-  await expect(page.getByLabel('Asset skill filter')).toHaveValue('skill-candidate');
+  await expect(page.getByLabel('Asset advanced filters')).toHaveCount(0);
+  await expect(page.getByLabel('Asset area filter')).toHaveCount(0);
+  await expect(page.getByLabel('Asset skill filter')).toHaveCount(0);
 
   const rawPreferences = await page.evaluate((storageKey) => window.localStorage.getItem(storageKey), uiPreferencesStorageKey);
   expect(rawPreferences).not.toBeNull();
   expect(rawPreferences).not.toContain('preview');
   expect(rawPreferences).not.toContain('displayOptions');
-  expect(rawPreferences).toContain('"area":"outer"');
-  expect(rawPreferences).toContain('"skill":"skill-candidate"');
+  expect(rawPreferences).not.toContain('"area"');
+  expect(rawPreferences).not.toContain('"skill"');
 });
 
 test('shows asset empty state without recovery actions', async ({ page }) => {
@@ -209,21 +320,21 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
 
   await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile read-only mode');
   await expect(page.getByLabel('Current Pokemon')).toBeDisabled();
-  await expect(page.getByLabel('Scene Name')).toHaveAttribute('readonly', '');
+  await expect(page.getByLabel('布景名称')).toHaveAttribute('readonly', '');
   await expect(page.getByRole('button', { name: '新建层' })).toBeDisabled();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
   const beforeKeyboardSnapshot = JSON.stringify(await readSceneSnapshot(page));
   const beforeCurrentLevel = await page.getByLabel('Current building level').textContent();
-  const selectedCell = page.getByLabel('Cell 3,2, main area, level-1, read-only, 白木栅栏, rotated 90');
+  const selectedCell = page.getByLabel('Cell 3,2, main area, level-0, read-only');
 
   await selectedCell.focus();
   for (const key of mobileApplicationKeys) {
     await page.keyboard.press(key);
   }
-  await page.getByLabel('L2, 屋顶与遮挡, 5 instances').focus();
+  await page.getByLabel('L0, 0层, 0 instances, viewing layer').focus();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Space');
-  await page.locator('[data-asset-id="garden-plant"] .asset-select-button').focus();
+  await page.locator('[data-asset-id="leppa-berry"] .asset-select-button').focus();
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   for (const key of mobileApplicationKeys) {
@@ -232,15 +343,12 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
 
   expect(JSON.stringify(await readSceneSnapshot(page))).toBe(beforeKeyboardSnapshot);
   await expect(page.getByLabel('Current building level')).toHaveText(beforeCurrentLevel ?? '');
-  await expect(selectedCell).toHaveAttribute('aria-selected', 'true');
+  await expect(selectedCell).not.toHaveAttribute('aria-selected', 'true');
   expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
   expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
 
   await selectedCell.click();
-  await expect(selectedCell).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
+  await expect(selectedCell).toHaveAttribute('aria-selected', 'true');
   expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
   expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
   expectScenePayloadHasNoLegacyFields(await readSceneSnapshot(page));
@@ -289,6 +397,47 @@ async function getFirstStoredTileField(page: Page, field: string): Promise<unkno
 async function getStoredBuildingLevelCount(page: Page): Promise<number> {
   const payload = await readStoredPayload(page, autosavedSceneStorageKey);
   return Array.isArray(payload?.buildingLevels) ? payload.buildingLevels.length : -1;
+}
+
+async function getCellBorderStyle(
+  page: Page,
+  coordinate: string,
+): Promise<{ color: string; style: string; width: string }> {
+  return page.locator(`[data-coordinate="${coordinate}"]`).evaluate((cell) => {
+    const style = getComputedStyle(cell);
+    return {
+      color: style.borderTopColor,
+      style: style.borderTopStyle,
+      width: style.borderTopWidth,
+    };
+  });
+}
+
+async function getSelectionEmptySilhouetteHeightRatio(page: Page): Promise<number> {
+  return page.getByLabel('No selected grid cell').evaluate((element) => {
+    const promptHeight = element.getBoundingClientRect().height;
+    const silhouetteHeight = Number.parseFloat(getComputedStyle(element, '::before').height);
+
+    return promptHeight > 0 ? silhouetteHeight / promptHeight : 0;
+  });
+}
+
+async function getSelectionEmptyPromptHeightRatio(page: Page): Promise<number> {
+  return page.getByLabel('No selected grid cell').evaluate((element) => {
+    const barHeight = element.closest('.current-selection-bar')?.getBoundingClientRect().height ?? 0;
+    const promptHeight = element.getBoundingClientRect().height;
+
+    return barHeight > 0 ? promptHeight / barHeight : 0;
+  });
+}
+
+async function getSelectionEmptyTextHeightRatio(page: Page): Promise<number> {
+  return page.getByLabel('No selected grid cell').evaluate((element) => {
+    const promptHeight = element.getBoundingClientRect().height;
+    const textHeight = element.querySelector('span')?.getBoundingClientRect().height ?? 0;
+
+    return promptHeight > 0 ? textHeight / promptHeight : 0;
+  });
 }
 
 async function measureSelectionDuration(page: Page, cellSelector: string): Promise<number> {
@@ -352,15 +501,15 @@ function createEditableScene() {
     canvasSize: { width: 7, height: 7 },
     outerPadding: 1,
     buildingLevels: [
-      { id: 'level-0', levelNumber: 0, name: '0 层' },
-      { id: 'level-1', levelNumber: 1, name: '1 层' },
-      { id: 'level-2', levelNumber: 2, name: '2 层' },
+      { id: 'level-0', levelNumber: 0, name: '0层' },
+      { id: 'level-1', levelNumber: 1, name: '1层' },
+      { id: 'level-2', levelNumber: 2, name: '2层' },
     ],
     tileInstances: [],
     workspaceState: {
       currentBuildingLevelId: 'level-0',
       selectedAssetId: null,
-      selectedCoordinate: { x: 2, y: 2 },
+      selectedCoordinate: null,
     },
     metadata: {
       createdAt: now,
@@ -379,7 +528,7 @@ function createRestoredScene() {
     tileInstances: [
       {
         instanceId: 'tile-restored-smoke',
-        assetId: 'garden-plant',
+        assetId: 'leafy-plant',
         coordinate: { x: 4, y: 4 },
         areaType: 'main',
         buildingLevelId: 'level-1',
@@ -392,7 +541,7 @@ function createRestoredScene() {
     ],
     workspaceState: {
       currentBuildingLevelId: 'level-1',
-      selectedAssetId: 'garden-plant',
+      selectedAssetId: 'leafy-plant',
       selectedCoordinate: { x: 4, y: 4 },
     },
     metadata: {
@@ -404,12 +553,39 @@ function createRestoredScene() {
   };
 }
 
+function createTallThumbnailScene() {
+  return {
+    ...createEditableScene(),
+    sceneId: 'scene-tall-thumbnail',
+    sceneName: 'Tall Thumbnail Smoke',
+    tileInstances: [
+      {
+        instanceId: 'tile-roserade-tea',
+        assetId: 'roserade-tea',
+        coordinate: { x: 4, y: 2 },
+        areaType: 'main',
+        buildingLevelId: 'level-0',
+        rotationDegrees: 0,
+        dyeColor: null,
+        requiresSkill: false,
+        skillType: null,
+        skillNote: '',
+      },
+    ],
+    workspaceState: {
+      currentBuildingLevelId: 'level-0',
+      selectedAssetId: null,
+      selectedCoordinate: { x: 4, y: 2 },
+    },
+  };
+}
+
 function createDenseScene() {
   const now = '2026-05-16T10:32:30.000Z';
   const buildingLevels = Array.from({ length: 10 }, (_, levelNumber) => ({
     id: `level-${levelNumber}`,
     levelNumber,
-    name: `${levelNumber} 层`,
+    name: `${levelNumber}层`,
   }));
   const tileInstances = buildingLevels.flatMap((level) =>
     Array.from({ length: 49 }, (_, index) => {

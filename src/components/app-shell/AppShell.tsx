@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { getAssetById, type AssetSkillType, type PokemonKey } from '../../domain/assets';
-import { AssetPicker } from '../asset-picker/AssetPicker';
+import { type AssetSkillType, type PokemonKey } from '../../domain/assets';
+import { AssetPicker, type AssetSelectionMode } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
 import { PokemonSceneControls } from '../pokemon-scene-controls/PokemonSceneControls';
 import { PreviewInspector } from '../preview-inspector/PreviewInspector';
@@ -32,10 +32,12 @@ import {
   autosavedSceneStorageKey,
   readLatestSceneDocumentFromStorage,
   savedSceneStorageKey,
+  stringifySceneDocument,
   type RecoveryError,
   writeSceneDocumentToStorage,
 } from '../../io';
-import { getPokemonTheme, toPokemonThemeStyle } from '../../theme';
+
+const replacementConfirmationWindowMs = 15_000;
 
 export function AppShell() {
   const [initialSceneState] = useState(createInitialSceneState);
@@ -50,10 +52,12 @@ export function AppShell() {
   const autosaveReadyRef = useRef(false);
   const pendingSelectionMeasureRef = useRef<string | null>(null);
   const selectionMeasureCounterRef = useRef(0);
+  const replacementConfirmationExpiresAtRef = useRef(0);
   const [readOnlySelectedCoordinate, setReadOnlySelectedCoordinate] = useState<GridCoordinate | null>(null);
   const [hoveredCoordinate, setHoveredCoordinate] = useState<GridCoordinate | null>(null);
   const [focusedCoordinate, setFocusedCoordinate] = useState<GridCoordinate | null>(null);
   const [placementRequiresSkill, setPlacementRequiresSkill] = useState(false);
+  const [assetSelectionMode, setAssetSelectionMode] = useState<AssetSelectionMode>('single');
   const [placementFeedback, setPlacementFeedback] = useState<AssetPlacementPreview | null>(null);
   const [buildingLayerFeedback, setBuildingLayerFeedback] = useState<string | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
@@ -86,7 +90,6 @@ export function AppShell() {
   const targetPlacementPreview = targetCoordinate
     ? getAssetPlacementPreview(scene, targetCoordinate, interactionMode, placementRequiresSkill)
     : placementFeedback;
-  const pokemonThemeStyle = toPokemonThemeStyle(getPokemonTheme(scene.selectedPokemonKey));
   const commitSceneEdit = (nextScene: SceneDocument, currentScene = scene) => {
     if (nextScene === currentScene) {
       setScene(nextScene);
@@ -236,7 +239,11 @@ export function AppShell() {
     const nextCoordinate = { x: coordinate.x, y: coordinate.y };
     pendingSelectionMeasureRef.current = markSelectionStart(selectionMeasureCounterRef.current);
     selectionMeasureCounterRef.current += 1;
-    setReadOnlySelectedCoordinate(nextCoordinate);
+    setReadOnlySelectedCoordinate((currentCoordinate) =>
+      currentCoordinate?.x === nextCoordinate.x && currentCoordinate.y === nextCoordinate.y
+        ? null
+        : nextCoordinate,
+    );
   };
 
   const updatePokemon = (pokemonKey: PokemonKey) => {
@@ -257,14 +264,25 @@ export function AppShell() {
     });
   };
 
-  const selectAsset = (assetId: string) => {
+  const selectAsset = (assetId: string, mode: AssetSelectionMode) => {
     if (isReadOnly) {
       return;
     }
 
-    const asset = getAssetById(assetId);
-    setPlacementRequiresSkill(Boolean(asset?.defaultRequiresSkill));
+    setPlacementRequiresSkill(false);
     setPlacementFeedback(null);
+    setAssetSelectionMode(mode);
+
+    if (mode === 'continuous') {
+      dispatch({
+        type: 'set-selected-asset',
+        assetId,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      });
+      return;
+    }
+
     dispatch({
       type: 'select-asset',
       assetId,
@@ -274,16 +292,18 @@ export function AppShell() {
   };
 
   const placeCurrentAsset = (coordinate: GridCoordinate) => {
+    const canReplaceWithoutPrompt = replacementConfirmationExpiresAtRef.current > Date.now();
     const result = placeSelectedAsset(scene, {
       coordinate,
       interactionMode,
       now: getCurrentIsoTimestamp(),
       instanceId: createTileInstanceId(),
       requiresSkill: placementRequiresSkill,
+      confirmReplace: canReplaceWithoutPrompt,
     });
 
     if (result.ok) {
-      commitSceneEdit(result.scene);
+      commitPlacedScene(result.scene);
       setPlacementFeedback(result.preview);
       return;
     }
@@ -298,6 +318,7 @@ export function AppShell() {
         return;
       }
 
+      replacementConfirmationExpiresAtRef.current = Date.now() + replacementConfirmationWindowMs;
       const confirmedResult = placeSelectedAsset(scene, {
         coordinate,
         interactionMode,
@@ -308,7 +329,7 @@ export function AppShell() {
       });
 
       if (confirmedResult.ok) {
-        commitSceneEdit(confirmedResult.scene);
+        commitPlacedScene(confirmedResult.scene);
         setPlacementFeedback(confirmedResult.preview);
         return;
       }
@@ -318,6 +339,22 @@ export function AppShell() {
     }
 
     setPlacementFeedback(result.preview);
+  };
+
+  const commitPlacedScene = (nextScene: SceneDocument) => {
+    if (assetSelectionMode === 'continuous') {
+      commitSceneEdit(nextScene);
+      return;
+    }
+
+    setAssetSelectionMode('single');
+    commitSceneEdit({
+      ...nextScene,
+      workspaceState: {
+        ...nextScene.workspaceState,
+        selectedAssetId: null,
+      },
+    });
   };
 
   const handleInstanceEditResult = (result: AssetInstanceEditResult) => {
@@ -484,7 +521,6 @@ export function AppShell() {
     const nextScene = createDefaultSceneDocument({
       sceneId: 'scene-default',
       now: getCurrentIsoTimestamp(),
-      includeOpenDesignDemo: true,
     });
     const storage = getBrowserStorage();
     storage?.removeItem(savedSceneStorageKey);
@@ -495,8 +531,25 @@ export function AppShell() {
     setAutosaveError(null);
     setSelectedInstanceId(null);
     setPlacementRequiresSkill(false);
+    setAssetSelectionMode('single');
+    replacementConfirmationExpiresAtRef.current = 0;
     setPlacementFeedback(null);
     setBuildingLayerFeedback(null);
+  };
+
+  const exportCurrentScene = () => {
+    const blob = new Blob([stringifySceneDocument(scene, 2)], {
+      type: 'application/json',
+    });
+    const objectUrl = URL.createObjectURL(blob);
+    const downloadLink = document.createElement('a');
+    downloadLink.href = objectUrl;
+    downloadLink.download = `${toExportFileBaseName(scene.sceneName)}.pokopia-scene.json`;
+    downloadLink.rel = 'noopener';
+    document.body.append(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
+    URL.revokeObjectURL(objectUrl);
   };
 
   const retrySceneRecovery = () => {
@@ -535,6 +588,8 @@ export function AppShell() {
     setRecoveryStatus('success');
     setAutosaveError(null);
     setPlacementFeedback(null);
+    setAssetSelectionMode('single');
+    replacementConfirmationExpiresAtRef.current = 0;
     setBuildingLayerFeedback(null);
   };
 
@@ -547,7 +602,6 @@ export function AppShell() {
     <main
       className="app-shell"
       aria-label="Pokopia scene editor workbench"
-      style={pokemonThemeStyle}
     >
       <header className="app-header" aria-label="Application header">
         <div className="app-brand" aria-label="Pokopia Scene Editor">
@@ -557,14 +611,19 @@ export function AppShell() {
         <div className="app-header__actions" aria-label="Scene file actions">
           <button
             type="button"
-            className="icon-button icon-button--danger has-icon-tooltip"
-            aria-label="Delete scene"
-            data-tooltip="删除"
-            title="删除"
+            className="app-action-button"
+            onClick={exportCurrentScene}
+          >
+            导出
+          </button>
+          <button
+            type="button"
+            className="app-action-button app-action-button--danger"
+            title="删除场景"
             disabled={isReadOnly}
             onClick={deleteCurrentScene}
           >
-            <DeleteIcon />
+            删除
           </button>
         </div>
       </header>
@@ -685,6 +744,7 @@ export function AppShell() {
         <AssetPicker
           readOnly={isReadOnly}
           selectedAssetId={selectedAssetId}
+          selectedAssetMode={assetSelectionMode}
           selectedPokemonKey={scene.selectedPokemonKey}
           currentBuildingLevelName={currentBuildingLevel?.name ?? 'No building layer'}
           placementRequiresSkill={placementRequiresSkill}
@@ -724,28 +784,24 @@ function isLocalPreviewHost(hostname: string): boolean {
   return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]';
 }
 
+function toExportFileBaseName(sceneName: string): string {
+  const normalizedName = sceneName
+    .trim()
+    .replace(/[\\/:*?"<>|\s]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return normalizedName || 'pokopia-scene';
+}
+
 interface InitialSceneState {
   scene: SceneDocument;
   recoveryErrors: RecoveryError[];
-}
-
-function DeleteIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M4 7h16" />
-      <path d="M9 7V4h6v3" />
-      <path d="M7 7l1 13h8l1-13" />
-      <path d="M10 11v5" />
-      <path d="M14 11v5" />
-    </svg>
-  );
 }
 
 function createInitialSceneState(): InitialSceneState {
   const defaultScene = createDefaultSceneDocument({
     sceneId: 'scene-default',
     now: '2026-05-16T07:00:00.000Z',
-    includeOpenDesignDemo: true,
   });
   const initialInteractionMode = getInteractionMode(window.innerWidth);
   const testWindow = window as unknown as { __pokopiaInitialSceneSnapshot?: SceneDocument };

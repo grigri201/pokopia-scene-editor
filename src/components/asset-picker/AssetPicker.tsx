@@ -1,22 +1,14 @@
-import { useEffect, useId, useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import {
   assetCatalog,
+  assetCategories,
   assetCategoryLabels,
-  areaLabels,
   assetMatchesPokemonFavorite,
-  assetRenderLimit,
-  assetSkillTypes,
-  canAssetRequirePlacementSkill,
   filterAssetCatalog,
-  getAssetAreaLabel,
   getAssetById,
-  getAssetSkillLabel,
-  type AssetAreaFilter,
-  type AssetCategory,
   type AssetCategoryFilter,
   type AssetDefinition,
   type AssetFilterState,
-  type AssetSkillFilter,
   type PokemonKey,
 } from '../../domain/assets';
 import {
@@ -28,16 +20,20 @@ import {
 interface AssetPickerProps {
   readOnly: boolean;
   selectedAssetId: string | null;
+  selectedAssetMode?: AssetSelectionMode;
   selectedPokemonKey: PokemonKey;
   currentBuildingLevelName: string;
   placementRequiresSkill: boolean;
   onPlacementRequiresSkillChange: (requiresSkill: boolean) => void;
-  onAssetSelect: (assetId: string) => void;
+  onAssetSelect: (assetId: string, placementMode: AssetSelectionMode) => void;
 }
+
+export type AssetSelectionMode = 'single' | 'continuous';
 
 export function AssetPicker({
   readOnly,
   selectedAssetId,
+  selectedAssetMode = 'single',
   selectedPokemonKey,
   placementRequiresSkill,
   onPlacementRequiresSkillChange,
@@ -50,13 +46,13 @@ export function AssetPicker({
         persistNormalized: !readOnly,
       }).assetFilters,
   );
-  const [renderLimit, setRenderLimit] = useState(assetRenderLimit);
+  const [currentPage, setCurrentPage] = useState(1);
   const [viewedAssetId, setViewedAssetId] = useState<string | null>(selectedAssetId);
   const selectedAsset = getAssetById(selectedAssetId);
   const viewedAsset = getAssetById(viewedAssetId) ?? selectedAsset;
   const filterResult = useMemo(
-    () => filterAssetCatalog(assetCatalog, filters, selectedPokemonKey, renderLimit),
-    [filters, renderLimit, selectedPokemonKey],
+    () => filterAssetCatalog(assetCatalog, filters, selectedPokemonKey, currentPage),
+    [filters, currentPage, selectedPokemonKey],
   );
 
   useEffect(() => {
@@ -66,7 +62,7 @@ export function AssetPicker({
   }, [selectedAssetId]);
 
   useEffect(() => {
-    setRenderLimit(assetRenderLimit);
+    setCurrentPage(1);
   }, [filters, selectedPokemonKey]);
 
   const handleAssetKeyDown = (event: KeyboardEvent<HTMLButtonElement>, assetId: string) => {
@@ -83,18 +79,26 @@ export function AssetPicker({
 
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      handleAssetActivation(assetId);
+      handleAssetActivation(assetId, 'single');
     }
   };
 
-  const handleAssetActivation = (assetId: string) => {
+  const handleAssetClick = (event: MouseEvent<HTMLButtonElement>, assetId: string) => {
+    if (event.detail > 1) {
+      return;
+    }
+
+    handleAssetActivation(assetId, 'single');
+  };
+
+  const handleAssetActivation = (assetId: string, placementMode: AssetSelectionMode) => {
     setViewedAssetId(assetId);
 
     if (readOnly) {
       return;
     }
 
-    onAssetSelect(assetId);
+    onAssetSelect(assetId, placementMode);
   };
 
   const updateFilters = (nextFilters: Partial<AssetFilterState>) => {
@@ -110,12 +114,12 @@ export function AssetPicker({
     });
   };
 
-  const showMoreAssets = () => {
+  const goToAssetPage = (page: number) => {
     if (readOnly) {
       return;
     }
 
-    setRenderLimit((currentLimit) => currentLimit + assetRenderLimit);
+    setCurrentPage(page);
   };
 
   return (
@@ -139,7 +143,7 @@ export function AssetPicker({
           aria-atomic="true"
           aria-label="Asset result count"
         >
-          {String(filterResult.filteredCount).padStart(3, '0')} results
+          {filterResult.filteredCount} results
         </span>
       </div>
       <label className="asset-search">
@@ -166,62 +170,53 @@ export function AssetPicker({
           </button>
         ))}
       </fieldset>
-      <div className="filter-row" aria-label="Asset advanced filters">
-        <label className="asset-filter-field">
-          <span>区域</span>
-          <select
-            aria-label="Asset area filter"
-            value={filters.area}
-            disabled={readOnly}
-            onChange={(event) => updateFilters({ area: event.target.value as AssetAreaFilter })}
-          >
-            {areaFilterOptions.map((option) => (
-              <option value={option.value} key={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="asset-filter-field">
-          <span>技能</span>
-          <select
-            aria-label="Asset skill filter"
-            value={filters.skill}
-            disabled={readOnly}
-            onChange={(event) => updateFilters({ skill: event.target.value as AssetSkillFilter })}
-          >
-            {skillFilterOptions.map((option) => (
-              <option value={option.value} key={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
       <PlacementSkillToggle
         asset={selectedAsset}
         placementRequiresSkill={placementRequiresSkill}
         onPlacementRequiresSkillChange={onPlacementRequiresSkillChange}
         readOnly={readOnly}
       />
-      {filterResult.renderLimited ? (
-        <p className="asset-limit-note" role="status">
-          Showing first {filterResult.renderedAssets.length} results.
-          <button type="button" disabled={readOnly} onClick={showMoreAssets}>
-            Show more
+      {filterResult.pageCount > 1 ? (
+        <nav className="asset-pagination" aria-label="Asset pagination">
+          <button
+            type="button"
+            aria-label="Previous asset page"
+            disabled={readOnly || !filterResult.hasPreviousPage}
+            onClick={() => goToAssetPage(filterResult.currentPage - 1)}
+          >
+            &lt;
           </button>
-        </p>
+          <span aria-label="Asset page status">
+            {filterResult.currentPage} / {filterResult.pageCount}
+          </span>
+          <button
+            type="button"
+            aria-label="Next asset page"
+            disabled={readOnly || !filterResult.hasNextPage}
+            onClick={() => goToAssetPage(filterResult.currentPage + 1)}
+          >
+            &gt;
+          </button>
+        </nav>
       ) : null}
       <div className="asset-list" aria-label="Asset results">
         {filterResult.renderedAssets.map((asset) => {
           const selected = asset.assetId === selectedAssetId;
+          const selectedContinuously = selected && selectedAssetMode === 'continuous';
           const ids = getAssetRowIds(assetPickerId, asset.assetId);
 
           return (
             <article
-              className={selected ? 'asset-row asset-row--selected' : 'asset-row'}
+              className={[
+                'asset-row',
+                selected ? 'asset-row--selected' : '',
+                selectedContinuously ? 'asset-row--continuous' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
               data-asset-id={asset.assetId}
               data-selected={selected}
+              data-selection-mode={selected ? selectedAssetMode : 'none'}
               key={asset.assetId}
             >
               <button
@@ -229,14 +224,15 @@ export function AssetPicker({
                 className="asset-select-button"
                 aria-pressed={selected}
                 aria-labelledby={`${ids.name} ${ids.meta}`}
-                onClick={() => handleAssetActivation(asset.assetId)}
+                onClick={(event) => handleAssetClick(event, asset.assetId)}
+                onDoubleClick={() => handleAssetActivation(asset.assetId, 'continuous')}
                 onKeyDown={(event) => handleAssetKeyDown(event, asset.assetId)}
               >
                 <img src={asset.thumbnailUrl} alt="" className="asset-thumb" />
                 <span className="asset-row__body">
                   <strong id={ids.name}>{asset.name}</strong>
                   <span className="asset-row__meta" id={ids.meta}>
-                    {assetCategoryLabels[asset.category]} · {asset.tags.slice(0, 1).join('')}
+                    {formatAssetTags(asset.tags)}
                   </span>
                 </span>
                 <span className="asset-row__official-id">
@@ -298,15 +294,13 @@ function PlacementSkillToggle({
   onPlacementRequiresSkillChange: (requiresSkill: boolean) => void;
   readOnly: boolean;
 }) {
-  const canConfigurePlacementSkill = Boolean(asset && canAssetRequirePlacementSkill(asset));
-
   return (
     <label className="placement-skill-toggle sr-only">
       <input
         type="checkbox"
-        checked={Boolean(asset && canConfigurePlacementSkill && placementRequiresSkill)}
-        disabled={readOnly || !asset || !canConfigurePlacementSkill}
-        onChange={(event) => onPlacementRequiresSkillChange(canConfigurePlacementSkill && event.target.checked)}
+        checked={Boolean(asset && placementRequiresSkill)}
+        disabled={readOnly || !asset}
+        onChange={(event) => onPlacementRequiresSkillChange(event.target.checked)}
       />
       Requires Ditto skill
     </label>
@@ -349,19 +343,11 @@ function AssetDetail({
         </div>
         <div>
           <dt>Tags</dt>
-          <dd>{asset.tags.join(', ')}</dd>
-        </div>
-        <div>
-          <dt>Area</dt>
-          <dd>{getAssetAreaLabel(asset)}</dd>
+          <dd>{formatAssetTags(asset.tags)}</dd>
         </div>
         <div>
           <dt>Favorite</dt>
           <dd>{assetMatchesPokemonFavorite(asset, selectedPokemonKey) ? selectedPokemonKey : 'No match'}</dd>
-        </div>
-        <div>
-          <dt>Skill</dt>
-          <dd>{getAssetSkillLabel(asset)}</dd>
         </div>
         <div>
           <dt>Dyeable</dt>
@@ -390,29 +376,15 @@ function focusSiblingAsset(currentButton: HTMLButtonElement, offset: number): vo
 
 const categoryFilterOptions: readonly { value: AssetCategoryFilter; label: string }[] = [
   { value: 'all', label: '全部' },
-  ...Object.entries(assetCategoryLabels).map(([value, label]) => ({
-    value: value as AssetCategory,
-    label,
+  ...assetCategories.map((value) => ({
+    value,
+    label: assetCategoryLabels[value],
   })),
 ];
 
-const areaFilterOptions: readonly { value: AssetAreaFilter; label: string }[] = [
-  { value: 'all', label: '全部区域' },
-  ...Object.entries(areaLabels).map(([value, label]) => ({
-    value: value as AssetAreaFilter,
-    label,
-  })),
-];
-
-const skillFilterOptions: readonly { value: AssetSkillFilter; label: string }[] = [
-  { value: 'all', label: '全部技能' },
-  { value: 'requires-skill', label: '默认需技能' },
-  { value: 'skill-candidate', label: '可标技能' },
-  ...assetSkillTypes.map((skillType) => ({
-    value: skillType,
-    label: skillType,
-  })),
-];
+function formatAssetTags(tags: readonly string[]): string {
+  return tags.length > 0 ? tags.join(' · ') : '无标签';
+}
 
 function getAssetRowIds(assetPickerId: string, assetId: string) {
   const safeAssetId = assetId.replace(/[^a-z0-9_-]/gi, '-');
@@ -421,8 +393,6 @@ function getAssetRowIds(assetPickerId: string, assetId: string) {
     name: `${assetPickerId}-${safeAssetId}-name`,
     meta: `${assetPickerId}-${safeAssetId}-meta`,
     tags: `${assetPickerId}-${safeAssetId}-tags`,
-    skill: `${assetPickerId}-${safeAssetId}-skill`,
-    candidate: `${assetPickerId}-${safeAssetId}-candidate`,
     favorite: `${assetPickerId}-${safeAssetId}-favorite`,
   };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultSceneDocument, createTileInstance } from '../domain/scene';
+import { createBuildingLevel, createDefaultSceneDocument, createTileInstance } from '../domain/scene';
 import { serializeSceneDocument } from './scene-serializer';
 import { applyRecoveredSceneDocument, recoverSceneDocument } from './scene-recovery';
 
@@ -14,10 +14,11 @@ describe('scene recovery', () => {
     });
     const payload = serializeSceneDocument({
       ...scene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-recover',
-          assetId: 'roof-tile',
+          assetId: 'brick-roof-decoration',
           coordinate: { x: 0, y: 2 },
           buildingLevelId: 'level-1',
           rotationDegrees: 90,
@@ -30,7 +31,7 @@ describe('scene recovery', () => {
       workspaceState: {
         ...scene.workspaceState,
         currentBuildingLevelId: 'level-1',
-        selectedAssetId: 'roof-tile',
+        selectedAssetId: 'brick-roof-decoration',
         selectedCoordinate: { x: 0, y: 2 },
       },
     });
@@ -43,12 +44,12 @@ describe('scene recovery', () => {
     }
     expect(recovered.scene.workspaceState).toEqual({
       currentBuildingLevelId: 'level-1',
-      selectedAssetId: 'roof-tile',
+      selectedAssetId: 'brick-roof-decoration',
       selectedCoordinate: { x: 0, y: 2 },
     });
     expect(recovered.scene.tileInstances[0]).toMatchObject({
       instanceId: 'tile-recover',
-      assetId: 'roof-tile',
+      assetId: 'brick-roof-decoration',
       areaType: 'outer',
       rotationDegrees: 90,
       dyeColor: '#56ccf2',
@@ -77,6 +78,32 @@ describe('scene recovery', () => {
         }),
       ]),
     );
+  });
+
+  it('migrates only the legacy generated scene name to the current Pokemon-based default', () => {
+    const legacyDefaultScene = createDefaultSceneDocument({
+      sceneId: 'scene-legacy-default-name',
+      sceneName: 'Ditto 5x5 布景草稿',
+      selectedPokemonKey: 'eevee',
+      now: '2026-05-16T08:00:00.000Z',
+    });
+    const customScene = createDefaultSceneDocument({
+      sceneId: 'scene-custom-name',
+      sceneName: 'Ditto 5x5 serialization',
+      selectedPokemonKey: 'eevee',
+      now: '2026-05-16T08:00:00.000Z',
+    });
+
+    const migrated = recoverSceneDocument(serializeSceneDocument(legacyDefaultScene));
+    const custom = recoverSceneDocument(serializeSceneDocument(customScene));
+
+    expect(migrated.ok).toBe(true);
+    expect(custom.ok).toBe(true);
+    if (!migrated.ok || !custom.ok) {
+      throw new Error('Expected valid payloads to recover.');
+    }
+    expect(migrated.scene.sceneName).toBe('伊布的布景');
+    expect(custom.scene.sceneName).toBe('Ditto 5x5 serialization');
   });
 
   it('applies a valid recovered payload only after validation succeeds', () => {
@@ -164,7 +191,7 @@ describe('scene recovery', () => {
       tileInstances: [
         {
           instanceId: 'tile-bad-area',
-          assetId: 'wooden-floor',
+          assetId: 'wooden-fencing',
           coordinate: { x: 0, y: 2 },
           areaType: 'main',
           buildingLevelId: 'level-0',
@@ -176,7 +203,7 @@ describe('scene recovery', () => {
         },
         {
           instanceId: 'tile-bad-coordinate',
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           coordinate: { x: 7, y: 0 },
           areaType: 'outer',
           buildingLevelId: 'level-0',
@@ -227,7 +254,7 @@ describe('scene recovery', () => {
       tileInstances: [
         {
           instanceId: 'tile-bad-area',
-          assetId: 'outer-wall',
+          assetId: 'stepping-stones',
           coordinate: { x: 0, y: 2 },
           areaType: 'main',
           buildingLevelId: 'level-0',

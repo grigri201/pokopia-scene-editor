@@ -105,11 +105,6 @@ export function SceneCanvas({
                 onClick={() =>
                   handleCellPointerSelect(readOnly, coordinate, onSelectCoordinate, onViewCoordinate)
                 }
-                onPointerDown={() => {
-                  if (readOnly) {
-                    handleCellPointerSelect(true, coordinate, onSelectCoordinate, onViewCoordinate);
-                  }
-                }}
                 onFocus={(event) =>
                   readOnly ? undefined : handleCellFocus(event, coordinate, onFocusCoordinate)
                 }

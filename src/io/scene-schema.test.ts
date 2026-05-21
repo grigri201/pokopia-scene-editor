@@ -181,7 +181,7 @@ describe('SceneDocument v1 schema', () => {
         {
           ...payload.tileInstances[0],
           instanceId: 'tile-duplicate-cell',
-          assetId: 'roof-tile',
+          assetId: 'brick-roof-decoration',
         },
       ],
     };
@@ -200,6 +200,10 @@ describe('SceneDocument v1 schema', () => {
     const payload = createValidPayload();
     const input = {
       ...payload,
+      buildingLevels: [
+        ...payload.buildingLevels,
+        { id: 'level-1', levelNumber: 1, name: '1层' },
+      ],
       tileInstances: [
         payload.tileInstances[0],
         {
@@ -291,7 +295,7 @@ describe('SceneDocument v1 schema', () => {
       tileInstances: [
         {
           ...payload.tileInstances[0],
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           dyeColor: '#56ccf2',
         },
       ],
@@ -328,7 +332,7 @@ function createValidPayload(): SceneDocumentV1 {
     tileInstances: [
       createTileInstance({
         instanceId: 'tile-1',
-        assetId: 'garden-plant',
+        assetId: 'leafy-plant',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: 'level-0',
         requiresSkill: true,
@@ -338,7 +342,7 @@ function createValidPayload(): SceneDocumentV1 {
     ],
     workspaceState: {
       ...scene.workspaceState,
-      selectedAssetId: 'garden-plant',
+      selectedAssetId: 'leafy-plant',
       selectedCoordinate: { x: 2, y: 2 },
     },
   });

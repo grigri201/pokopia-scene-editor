@@ -4,7 +4,6 @@ import {
   type TileInstance,
 } from '../domain/scene';
 import {
-  canAssetRequirePlacementSkill,
   getAssetById,
   isAssetSkillType,
   toAssetSkillType,
@@ -18,7 +17,6 @@ export type InstanceEditFailureReason =
   | 'missing-layer'
   | 'unknown-asset'
   | 'not-dyeable'
-  | 'not-skill-capable'
   | 'invalid-skill-type';
 
 export type AssetInstanceEditResult =
@@ -145,16 +143,13 @@ function changeInstanceAsset(
     return failure('unknown-asset', 'Unknown replacement asset', 'Choose a valid asset from the Asset Picker.');
   }
 
-  const nextCanUseSkill = canAssetRequirePlacementSkill(nextAsset);
-  const nextRequiresSkill = instance.requiresSkill && nextCanUseSkill;
-
   return updateInstance(scene, instance, now, 'Asset updated', (current) => ({
     ...current,
     assetId: nextAsset.assetId,
     dyeColor: nextAsset.dyeable ? current.dyeColor : null,
-    requiresSkill: nextRequiresSkill,
-    skillType: nextRequiresSkill ? toAssetSkillType(current.skillType) ?? nextAsset.defaultSkillType : null,
-    skillNote: nextRequiresSkill ? current.skillNote : '',
+    requiresSkill: current.requiresSkill,
+    skillType: current.requiresSkill ? toAssetSkillType(current.skillType) : null,
+    skillNote: current.requiresSkill ? current.skillNote : '',
   }));
 }
 

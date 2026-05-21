@@ -6,7 +6,7 @@ import {
   type SceneDocument,
   type TileInstance,
 } from '../domain/scene';
-import { canAssetRequirePlacementSkill, getAssetById, type AssetDefinition } from '../domain/assets';
+import { getAssetById, type AssetDefinition } from '../domain/assets';
 import type { InteractionMode } from './interaction-mode';
 
 export type PlacementStatus = 'ready' | 'blocked' | 'will-replace' | 'no-asset' | 'read-only';
@@ -92,14 +92,13 @@ export function placeSelectedAsset(
   }
 
   const currentLevel = getCurrentBuildingLevel(scene);
-  const effectiveRequiresSkill = input.requiresSkill && canAssetRequirePlacementSkill(asset);
   const tileInstance = createTileInstance({
     instanceId: input.instanceId,
     assetId: asset.assetId,
     coordinate: input.coordinate,
     buildingLevelId: currentLevel.id,
-    requiresSkill: effectiveRequiresSkill,
-    skillType: effectiveRequiresSkill ? asset.defaultSkillType : null,
+    requiresSkill: input.requiresSkill,
+    skillType: null,
   });
   const nextTileInstances = input.confirmReplace
     ? scene.tileInstances.filter(
@@ -144,8 +143,7 @@ function evaluatePlacement(
   const asset = getAssetById(assetId);
   const cellContext = getCellContext(scene, coordinate);
   const existingInstances = cellContext.tileInstances;
-  const effectiveRequiresSkill = Boolean(asset && requiresSkill && canAssetRequirePlacementSkill(asset));
-  const skillLabel = getPlacementSkillLabel(asset, effectiveRequiresSkill);
+  const skillLabel = getPlacementSkillLabel(Boolean(asset && requiresSkill));
 
   if (interactionMode === 'readOnly') {
     return failure('read-only', 'Read-only mode', 'Use desktop edit mode to place assets.');
@@ -211,10 +209,10 @@ function evaluatePlacement(
   }
 }
 
-function getPlacementSkillLabel(asset: AssetDefinition | null, requiresSkill: boolean): string {
+function getPlacementSkillLabel(requiresSkill: boolean): string {
   if (!requiresSkill) {
     return 'No skill required';
   }
 
-  return `Skill required${asset?.defaultSkillType ? `: ${asset.defaultSkillType}` : ''}`;
+  return 'Skill required';
 }

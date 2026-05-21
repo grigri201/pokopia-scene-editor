@@ -5,7 +5,7 @@ describe('tile instance rules', () => {
   it('derives area type from coordinate and fills the SceneDocument v1 instance fields', () => {
     const tile = createTileInstance({
       instanceId: 'tile-1',
-      assetId: 'wooden-floor',
+      assetId: 'wooden-fencing',
       coordinate: { x: 0, y: 3 },
       buildingLevelId: 'level-1',
       rotationDegrees: 90,
@@ -17,7 +17,7 @@ describe('tile instance rules', () => {
 
     expect(tile).toEqual({
       instanceId: 'tile-1',
-      assetId: 'wooden-floor',
+      assetId: 'wooden-fencing',
       coordinate: { x: 0, y: 3 },
       areaType: 'outer',
       buildingLevelId: 'level-1',
@@ -32,7 +32,7 @@ describe('tile instance rules', () => {
   it('uses safe defaults for optional tile instance fields', () => {
     const tile = createTileInstance({
       instanceId: 'tile-1',
-      assetId: 'wooden-floor',
+      assetId: 'wooden-fencing',
       coordinate: { x: 3, y: 3 },
       buildingLevelId: 'level-0',
     });
@@ -49,7 +49,7 @@ describe('tile instance rules', () => {
     expect(() =>
       createTileInstance({
         instanceId: 'tile-1',
-        assetId: 'wooden-floor',
+        assetId: 'wooden-fencing',
         coordinate: { x: 7, y: 0 },
         buildingLevelId: 'level-0',
       }),

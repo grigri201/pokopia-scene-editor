@@ -1,40 +1,45 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createDefaultSceneDocument, getBuildingLevelContexts } from '../../domain/scene';
+import { createBuildingLevel, createDefaultSceneDocument, getBuildingLevelContexts } from '../../domain/scene';
 import { BuildingLevelPanel } from './BuildingLevelPanel';
 
 const scene = createDefaultSceneDocument({
   sceneId: 'scene-test',
   now: '2026-05-16T07:00:00.000Z',
 });
+const multiLevelScene = {
+  ...scene,
+  buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
+};
 
 describe('BuildingLevelPanel', () => {
   it('renders the Open Design building levels from high to low', () => {
-    render(<BuildingLevelPanel {...defaultProps()} levels={getBuildingLevelContexts(scene)} readOnly={false} />);
+    render(<BuildingLevelPanel {...defaultProps()} levels={getBuildingLevelContexts(multiLevelScene)} readOnly={false} />);
 
     const rows = screen.getAllByTestId('building-level-row');
 
     expect(screen.getByRole('heading', { name: '建筑层' })).toBeVisible();
     const createLayerButton = screen.getByRole('button', { name: '新建层' });
     expect(createLayerButton).toBeEnabled();
-    expect(createLayerButton.querySelector('svg')).not.toBeNull();
+    expect(createLayerButton).toHaveTextContent('+');
+    expect(createLayerButton.querySelector('svg')).toBeNull();
     expect(createLayerButton).toHaveAttribute('data-tooltip', '新建层');
     expect(createLayerButton).not.toHaveTextContent('新建层');
     expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L0');
     expect(rows).toHaveLength(3);
     expect(rows.map((row) => row.dataset.displayId)).toEqual(['L2', 'L1', 'L0']);
     expect(rows.map((row) => row.dataset.current)).toEqual(['false', 'false', 'true']);
-    expect(screen.getByDisplayValue('0 层')).toBeVisible();
+    expect(screen.getByDisplayValue('0层')).toBeVisible();
     expect(screen.getAllByLabelText(/^Rename /)).toHaveLength(3);
-    expect(screen.getByLabelText('Rename 2 层')).toBeEnabled();
+    expect(screen.getByLabelText('Rename 2层')).toBeEnabled();
   });
 
   it('keeps only copy and delete actions visible in read-only mode', () => {
     const props = defaultProps();
-    render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(scene)} readOnly />);
+    render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(multiLevelScene)} readOnly />);
 
-    const currentRow = screen.getByLabelText('L0, 0 层, 0 instances, viewing layer');
-    const standbyRow = screen.getByLabelText('L1, 1 层, 0 instances');
+    const currentRow = screen.getByLabelText('L0, 0层, 0 instances, viewing layer');
+    const standbyRow = screen.getByLabelText('L1, 1层, 0 instances');
 
     expect(screen.getByLabelText('Building layer edit mode')).toHaveTextContent(
       'Mobile View-only Mode · Layer edits disabled',
@@ -42,11 +47,11 @@ describe('BuildingLevelPanel', () => {
     expect(screen.getByRole('button', { name: '新建层' })).toBeDisabled();
     expect(within(currentRow).getAllByRole('button')).toHaveLength(2);
     expect(within(standbyRow).getAllByRole('button')).toHaveLength(2);
-    expect(within(currentRow).queryByRole('button', { name: /View 0 层/ })).not.toBeInTheDocument();
-    expect(within(currentRow).queryByRole('button', { name: /Hide 0 层/ })).not.toBeInTheDocument();
-    expect(within(currentRow).queryByRole('button', { name: /Lock 0 层/ })).not.toBeInTheDocument();
-    expect(within(currentRow).getByRole('button', { name: /Copy 0 层.*read-only mode/ })).toBeDisabled();
-    expect(within(currentRow).getByRole('button', { name: /Delete 0 层.*read-only mode/ })).toBeDisabled();
+    expect(within(currentRow).queryByRole('button', { name: /View 0层/ })).not.toBeInTheDocument();
+    expect(within(currentRow).queryByRole('button', { name: /Hide 0层/ })).not.toBeInTheDocument();
+    expect(within(currentRow).queryByRole('button', { name: /Lock 0层/ })).not.toBeInTheDocument();
+    expect(within(currentRow).getByRole('button', { name: /Copy 0层.*read-only mode/ })).toBeDisabled();
+    expect(within(currentRow).getByRole('button', { name: /Delete 0层.*read-only mode/ })).toBeDisabled();
     for (const keyEvent of readOnlyApplicationKeyEvents) {
       fireEvent.keyDown(standbyRow, keyEvent);
     }
@@ -59,11 +64,11 @@ describe('BuildingLevelPanel', () => {
 
   it('emits building layer management actions in desktop edit mode', () => {
     const props = defaultProps();
-    render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(scene)} readOnly={false} />);
+    render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(multiLevelScene)} readOnly={false} />);
 
-    const standbyRow = screen.getByLabelText('L1, 1 层, 0 instances');
-    const copyButton = within(standbyRow).getByRole('button', { name: /Copy 1 层 \(L1\)/ });
-    const deleteButton = within(standbyRow).getByRole('button', { name: /Delete 1 层 \(L1\)/ });
+    const standbyRow = screen.getByLabelText('L1, 1层, 0 instances');
+    const copyButton = within(standbyRow).getByRole('button', { name: /Copy 1层 \(L1\)/ });
+    const deleteButton = within(standbyRow).getByRole('button', { name: /Delete 1层 \(L1\)/ });
 
     fireEvent.click(screen.getByRole('button', { name: '新建层' }));
     expect(within(standbyRow).getAllByRole('button')).toHaveLength(2);
@@ -75,7 +80,7 @@ describe('BuildingLevelPanel', () => {
     expect(deleteButton).not.toHaveTextContent('D');
     fireEvent.click(copyButton);
     fireEvent.click(deleteButton);
-    const nameInput = within(standbyRow).getByLabelText('Rename 1 层');
+    const nameInput = within(standbyRow).getByLabelText('Rename 1层');
     fireEvent.change(nameInput, { target: { value: '屋顶层' } });
     fireEvent.blur(nameInput);
 
@@ -88,12 +93,12 @@ describe('BuildingLevelPanel', () => {
 
   it('selects a building level from the row surface without hijacking row controls', () => {
     const props = defaultProps();
-    render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(scene)} readOnly={false} />);
+    render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(multiLevelScene)} readOnly={false} />);
 
-    const standbyRow = screen.getByLabelText('L1, 1 层, 0 instances');
-    const nameInput = within(standbyRow).getByLabelText('Rename 1 层');
-    const copyButton = within(standbyRow).getByRole('button', { name: /Copy 1 层 \(L1\)/ });
-    const deleteButton = within(standbyRow).getByRole('button', { name: /Delete 1 层 \(L1\)/ });
+    const standbyRow = screen.getByLabelText('L1, 1层, 0 instances');
+    const nameInput = within(standbyRow).getByLabelText('Rename 1层');
+    const copyButton = within(standbyRow).getByRole('button', { name: /Copy 1层 \(L1\)/ });
+    const deleteButton = within(standbyRow).getByRole('button', { name: /Delete 1层 \(L1\)/ });
 
     expect(standbyRow).toHaveAttribute('tabindex', '0');
 
@@ -117,13 +122,13 @@ describe('BuildingLevelPanel', () => {
   it('keeps an in-progress layer name draft editable across parent rerenders', () => {
     const props = defaultProps();
     const { rerender } = render(
-      <BuildingLevelPanel {...props} levels={getBuildingLevelContexts(scene)} readOnly={false} />,
+      <BuildingLevelPanel {...props} levels={getBuildingLevelContexts(multiLevelScene)} readOnly={false} />,
     );
-    const roofNameInput = screen.getByLabelText('Rename 2 层');
+    const roofNameInput = screen.getByLabelText('Rename 2层');
 
     fireEvent.focus(roofNameInput);
     fireEvent.change(roofNameInput, { target: { value: '可编辑屋顶层' } });
-    rerender(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts({ ...scene })} readOnly={false} />);
+    rerender(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts({ ...multiLevelScene })} readOnly={false} />);
 
     expect(roofNameInput).toHaveValue('可编辑屋顶层');
 
@@ -133,16 +138,16 @@ describe('BuildingLevelPanel', () => {
   });
 
   it('does not expose removed visible or locked layer UI state', () => {
-    render(<BuildingLevelPanel {...defaultProps()} levels={getBuildingLevelContexts(scene)} readOnly={false} />);
+    render(<BuildingLevelPanel {...defaultProps()} levels={getBuildingLevelContexts(multiLevelScene)} readOnly={false} />);
 
-    const row = screen.getByLabelText('L1, 1 层, 0 instances');
+    const row = screen.getByLabelText('L1, 1层, 0 instances');
     expect(row).not.toHaveClass('level-row--hidden');
     expect(row).not.toHaveClass('level-row--locked');
     expect(row).not.toHaveAttribute('data-visible');
     expect(row).not.toHaveAttribute('data-locked');
     expect(within(row).queryByRole('button', { name: /Hide|Show|Lock|Unlock/ })).not.toBeInTheDocument();
     const deleteButton = within(row).getByRole('button', {
-      name: /Delete 1 层 \(L1\)/,
+      name: /Delete 1层 \(L1\)/,
     });
     expect(deleteButton).toBeEnabled();
     expect(deleteButton).toHaveAttribute('data-disabled-reason', 'available');

@@ -15,14 +15,31 @@ describe('default scene document', () => {
 
     expect(scene.schemaVersion).toBe(1);
     expect(scene.sceneId).toBe('scene-test');
-    expect(scene.sceneName).toContain('5x5');
+    expect(scene.sceneName).toBe('百变怪的布景');
     expect(scene.selectedPokemonKey).toBe(defaultSelectedPokemonKey);
     expect(scene.sceneSize).toEqual({ width: 5, height: 5 });
     expect(scene.canvasSize).toEqual({ width: 7, height: 7 });
     expect(scene.outerPadding).toBe(1);
     expect(scene.tileInstances).toEqual([]);
-    expect(scene.buildingLevels.map((level) => level.levelNumber)).toEqual([0, 1, 2]);
+    expect(scene.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '0层' }]);
+  });
+
+  it('keeps the Open Design demo scene explicit instead of using it as new-scene default', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-demo',
+      now: '2026-05-16T06:20:00.000Z',
+      includeOpenDesignDemo: true,
+    });
+
+    expect(scene.sceneName).toBe('星光庭院');
+    expect(scene.selectedPokemonKey).toBe('pikachu');
     expect(scene.buildingLevels.map((level) => level.id)).toEqual(['level-0', 'level-1', 'level-2']);
+    expect(scene.tileInstances.length).toBeGreaterThan(0);
+    expect(scene.workspaceState).toMatchObject({
+      currentBuildingLevelId: 'level-1',
+      selectedAssetId: 'wooden-fencing',
+      selectedCoordinate: { x: 3, y: 2 },
+    });
   });
 
   it('initializes workspace state and metadata from a single timestamp', () => {
@@ -55,6 +72,15 @@ describe('default scene document', () => {
     expect(scene.sceneName).toBe('Eevee 5x5 orchard');
     expect(scene.selectedPokemonKey).toBe('eevee');
     expect(scene.workspaceState.selectedCoordinate).toEqual({ x: 3, y: 4 });
+  });
+
+  it('builds the default scene name from the selected Pokemon when no name is provided', () => {
+    const scene = createDefaultSceneDocument({
+      selectedPokemonKey: 'eevee',
+      now: '2026-05-16T06:20:00.000Z',
+    });
+
+    expect(scene.sceneName).toBe('伊布的布景');
   });
 
   it('keeps the default Pokemon key inside the known Decor Dex seed keys', () => {

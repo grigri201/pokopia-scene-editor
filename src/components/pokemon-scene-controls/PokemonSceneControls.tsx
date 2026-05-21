@@ -66,8 +66,25 @@ export function PokemonSceneControls({
   return (
     <section className="scene-controls" aria-label="Pokemon scene controls">
       <div className="scene-controls__fields">
+        <label>
+          布景名称
+          <input
+            aria-label="布景名称"
+            aria-invalid={sceneNameEmpty}
+            aria-describedby={sceneNameEmpty ? sceneNameErrorId : undefined}
+            value={sceneNameDraft}
+            onBlur={handleSceneNameCommit}
+            onChange={(event) => handleSceneNameChange(event.target.value)}
+            readOnly={readOnly}
+          />
+          {sceneNameEmpty ? (
+            <span id={sceneNameErrorId} className="field-error">
+              请输入布景名称。
+            </span>
+          ) : null}
+        </label>
         <label className="scene-field scene-field--pokemon">
-          Pokemon
+          宝可梦
           <span className="pokemon-select-control">
             <img
               src={selectedPokemon.portraitUrl}
@@ -88,23 +105,6 @@ export function PokemonSceneControls({
               ))}
             </select>
           </span>
-        </label>
-        <label>
-          Name
-          <input
-            aria-label="Scene Name"
-            aria-invalid={sceneNameEmpty}
-            aria-describedby={sceneNameEmpty ? sceneNameErrorId : undefined}
-            value={sceneNameDraft}
-            onBlur={handleSceneNameCommit}
-            onChange={(event) => handleSceneNameChange(event.target.value)}
-            readOnly={readOnly}
-          />
-          {sceneNameEmpty ? (
-            <span id={sceneNameErrorId} className="field-error">
-              Name is required.
-            </span>
-          ) : null}
         </label>
       </div>
     </section>

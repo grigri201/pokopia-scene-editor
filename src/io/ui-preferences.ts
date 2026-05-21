@@ -1,12 +1,8 @@
 import {
-  areaLabels,
   assetCategoryLabels,
-  assetSkillTypes,
   defaultAssetFilters,
-  type AssetAreaFilter,
   type AssetCategoryFilter,
   type AssetFilterState,
-  type AssetSkillFilter,
 } from '../domain/assets';
 
 export const uiPreferencesStorageKey = 'pokopia.uiPreferences.v1';
@@ -128,27 +124,12 @@ function normalizeAssetFilters(
   return {
     query: typeof value.query === 'string' ? value.query : fallback.query,
     category: isAssetCategoryFilter(value.category) ? value.category : fallback.category,
-    area: isAssetAreaFilter(value.area) ? value.area : fallback.area,
     favoriteOnly: typeof value.favoriteOnly === 'boolean' ? value.favoriteOnly : fallback.favoriteOnly,
-    skill: isAssetSkillFilter(value.skill) ? value.skill : fallback.skill,
   };
 }
 
 function isAssetCategoryFilter(value: unknown): value is AssetCategoryFilter {
   return value === 'all' || (typeof value === 'string' && hasOwnKey(assetCategoryLabels, value));
-}
-
-function isAssetAreaFilter(value: unknown): value is AssetAreaFilter {
-  return value === 'all' || (typeof value === 'string' && hasOwnKey(areaLabels, value));
-}
-
-function isAssetSkillFilter(value: unknown): value is AssetSkillFilter {
-  return (
-    value === 'all' ||
-    value === 'requires-skill' ||
-    value === 'skill-candidate' ||
-    (typeof value === 'string' && assetSkillTypes.includes(value as never))
-  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

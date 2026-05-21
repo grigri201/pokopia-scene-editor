@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultSceneDocument, createTileInstance } from '../domain/scene';
+import { createBuildingLevel, createDefaultSceneDocument, createTileInstance } from '../domain/scene';
 import { editBuildingLayer } from './building-layer-edit';
 
 const now = '2026-05-16T08:25:00.000Z';
@@ -14,15 +14,15 @@ describe('building layer edit command', () => {
       throw new Error('Expected create success.');
     }
     expect(created.scene.buildingLevels.at(-1)).toEqual({
-      id: 'level-3',
-      levelNumber: 3,
-      name: '3 层',
+      id: 'level-1',
+      levelNumber: 1,
+      name: '1层',
     });
-    expect(created.scene.workspaceState.currentBuildingLevelId).toBe('level-3');
+    expect(created.scene.workspaceState.currentBuildingLevelId).toBe('level-1');
 
     const renamed = editBuildingLayer(created.scene, {
       type: 'rename',
-      levelId: 'level-3',
+      levelId: 'level-1',
       name: '屋顶层',
       interactionMode: 'edit',
       now,
@@ -91,10 +91,11 @@ describe('building layer edit command', () => {
   it('copies a building layer with preserved instance fields and new ids', () => {
     const scene = {
       ...createDefaultSceneDocument({ sceneId: 'scene-test', now }),
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-source',
-          assetId: 'roof-tile',
+          assetId: 'brick-roof-decoration',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-1',
           rotationDegrees: 90,
@@ -120,13 +121,13 @@ describe('building layer edit command', () => {
     expect(result.scene.buildingLevels.at(-1)).toEqual({
       id: 'level-3',
       levelNumber: 3,
-      name: '1 层 copy',
+      name: '1层 copy',
     });
     expect(result.scene.workspaceState.currentBuildingLevelId).toBe('level-3');
     expect(result.scene.tileInstances).toHaveLength(2);
     expect(result.scene.tileInstances[1]).toMatchObject({
       instanceId: 'copy-level-1-1',
-      assetId: 'roof-tile',
+      assetId: 'brick-roof-decoration',
       coordinate: { x: 2, y: 2 },
       buildingLevelId: 'level-3',
       rotationDegrees: 90,
@@ -140,22 +141,23 @@ describe('building layer edit command', () => {
   it('avoids copied instance id collisions with existing scene instances', () => {
     const scene = {
       ...createDefaultSceneDocument({ sceneId: 'scene-test', now }),
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
       tileInstances: [
         createTileInstance({
           instanceId: 'copy-level-1-1',
-          assetId: 'wooden-floor',
+          assetId: 'wooden-fencing',
           coordinate: { x: 1, y: 1 },
           buildingLevelId: 'level-0',
         }),
         createTileInstance({
           instanceId: 'copy-level-1-1-2',
-          assetId: 'wooden-floor',
+          assetId: 'wooden-fencing',
           coordinate: { x: 1, y: 2 },
           buildingLevelId: 'level-0',
         }),
         createTileInstance({
           instanceId: 'tile-source',
-          assetId: 'roof-tile',
+          assetId: 'brick-roof-decoration',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-1',
         }),
@@ -183,6 +185,7 @@ describe('building layer edit command', () => {
     const baseScene = createDefaultSceneDocument({ sceneId: 'scene-test', now });
     const scene = {
       ...baseScene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
       workspaceState: {
         ...baseScene.workspaceState,
         currentBuildingLevelId: 'level-1',
@@ -190,7 +193,7 @@ describe('building layer edit command', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-source',
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-1',
         }),

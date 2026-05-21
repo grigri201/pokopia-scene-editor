@@ -78,7 +78,7 @@ export function BuildingLevelPanel({
           disabled={readOnly}
           onClick={onCreateLayer}
         >
-          <AddLayerIcon />
+          <span aria-hidden="true">+</span>
         </button>
       </div>
       <div className="level-toolbar">
@@ -190,17 +190,6 @@ function CopyIcon() {
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <rect x="8" y="8" width="10" height="10" rx="2" />
       <path d="M6 14H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1" />
-    </svg>
-  );
-}
-
-function AddLayerIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="m12 3 8 4-8 4-8-4 8-4Z" />
-      <path d="m4 12 8 4 8-4" />
-      <path d="M12 16v5" />
-      <path d="M9.5 18.5h5" />
     </svg>
   );
 }

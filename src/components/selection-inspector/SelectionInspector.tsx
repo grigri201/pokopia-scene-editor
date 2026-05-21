@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import {
   getAssetById,
   getAssetSkillMarkerIconUrl,
@@ -37,14 +38,12 @@ interface SelectionInspectorProps {
 export function SelectionInspector({
   selectedContext,
   selectedInstance,
-  targetContext,
-  targetPlacement,
   buildingLevels,
   readOnly,
   onRotateInstance,
   onSaveInstanceSkill,
 }: SelectionInspectorProps) {
-  const context = selectedContext ?? targetContext;
+  const context = selectedContext;
   const asset = getAssetById(selectedInstance?.assetId);
   const canEditSelectedSkill = Boolean(selectedInstance && asset);
   const selectedLevel = selectedInstance
@@ -52,62 +51,39 @@ export function SelectionInspector({
     : context?.buildingLevel;
   const coordinate = selectedInstance?.coordinate ?? context?.coordinate ?? null;
   const nextRotation = getNextRotation(selectedInstance?.rotationDegrees ?? 0);
-  const skillMarkerLabel = selectedInstance?.requiresSkill
-    ? getSkillDisplayLabel(selectedInstance.skillType)
-    : 'None';
+  const selectionSummary = [
+    asset?.name ?? (coordinate ? `${coordinate.x},${coordinate.y}` : 'No selection'),
+    coordinate ? `x${coordinate.x} y${coordinate.y}` : null,
+    selectedLevel ? `L${selectedLevel.levelNumber}` : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
+  const emptyPromptStyle = {
+    '--selection-empty-image': `url("${dittoPromptImageUrl}")`,
+  } as CSSProperties;
 
   return (
     <section className="selection-inspector" aria-label="Selection context">
-      <div className="current-selection-bar" aria-label="Current selection actions">
-        <div className="current-selection-bar__asset">
-          {asset ? <img src={asset.thumbnailUrl} alt="" /> : <span aria-hidden="true" />}
-          <div>
-            <strong aria-label="Selected instance">
-              {asset?.name ?? (coordinate ? `${coordinate.x},${coordinate.y}` : 'No selection')}
-            </strong>
-            <em aria-label="Selected coordinate">
-              {coordinate
-                ? `x${coordinate.x} y${coordinate.y} · ${selectedLevel ? `L${selectedLevel.levelNumber}` : 'No layer'}`
-                : targetPlacement?.message ?? 'Choose an item or grid cell'}
-            </em>
-          </div>
-        </div>
+      <div
+        className={[
+          'current-selection-bar',
+          coordinate ? '' : 'current-selection-bar--empty',
+        ].filter(Boolean).join(' ')}
+        aria-label="Current selection actions"
+      >
         {coordinate ? (
-          <dl className="selection-detail-list" aria-label="Selection details">
-            <div>
-              <dt>Coordinate</dt>
-              <dd>{coordinate.x},{coordinate.y}</dd>
-            </div>
-            <div>
-              <dt>Area</dt>
-              <dd>{context?.areaType ?? selectedInstance?.areaType ?? 'None'}</dd>
-            </div>
-            <div>
-              <dt>Building layer</dt>
-              <dd>{selectedLevel ? `L${selectedLevel.levelNumber} ${selectedLevel.name}` : 'None'}</dd>
-            </div>
-            <div>
-              <dt>Asset</dt>
-              <dd>{selectedInstance ? getAssetLabel(selectedInstance.assetId) : 'None'}</dd>
-            </div>
-            <div>
-              <dt>Rotation</dt>
-              <dd>{selectedInstance ? `${selectedInstance.rotationDegrees} deg` : 'None'}</dd>
-            </div>
-            <div>
-              <dt>Dye</dt>
-              <dd>{selectedInstance?.dyeColor ?? 'None'}</dd>
-            </div>
-            <div>
-              <dt>Skill marker</dt>
-              <dd>{skillMarkerLabel}</dd>
-            </div>
-            <div>
-              <dt>Skill note</dt>
-              <dd>{selectedInstance?.skillNote || 'None'}</dd>
-            </div>
-          </dl>
-        ) : null}
+          <div className="current-selection-bar__asset" aria-label={selectionSummary}>
+            {asset ? <img src={asset.thumbnailUrl} alt="" /> : <span aria-hidden="true" />}
+          </div>
+        ) : (
+          <div
+            className="selection-empty-prompt"
+            aria-label="No selected grid cell"
+            style={emptyPromptStyle}
+          >
+            <span>点击一个编辑格查看或放置素材</span>
+          </div>
+        )}
         {coordinate ? (
           <div className="current-selection-bar__actions" aria-label="Selection skill marker actions">
             {selectedInstance ? (
@@ -187,21 +163,7 @@ export function SelectionInspector({
   );
 }
 
-function getAssetLabel(assetId: string | undefined): string {
-  if (!assetId) {
-    return 'None';
-  }
-
-  return getAssetById(assetId)?.name ?? `Unknown asset: ${assetId}`;
-}
-
-function getSkillDisplayLabel(skillType: AssetSkillType): string {
-  if (!skillType) {
-    return 'None';
-  }
-
-  return skillType;
-}
+const dittoPromptImageUrl = `${normalizeBaseUrl(import.meta.env.BASE_URL)}assets/pokopia_image_sources/pokemon_portraits/063-ditto.png`;
 
 const selectionSkillActions: {
   skillType: ConcreteAssetSkillType;
@@ -262,4 +224,8 @@ function getNextRotation(rotationDegrees: RotationDegrees): RotationDegrees {
   }
 
   return 0;
+}
+
+function normalizeBaseUrl(baseUrl: string): string {
+  return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 }

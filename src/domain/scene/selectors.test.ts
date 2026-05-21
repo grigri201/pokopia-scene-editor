@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { assetCatalog, assetSkillTypes, assertKnownAssetId } from '../assets';
 import {
+  createBuildingLevel,
   createDefaultSceneDocument,
   createTileInstance,
   getAllVisibleFrontProjectionCellContexts,
@@ -41,22 +42,23 @@ describe('scene selectors', () => {
     });
     const sceneWithCrossLayerTiles = {
       ...scene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-current',
-          assetId: 'wooden-floor',
+          assetId: 'wooden-fencing',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
         }),
         createTileInstance({
           instanceId: 'tile-other-1',
-          assetId: 'roof-tile',
+          assetId: 'brick-roof-decoration',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-1',
         }),
         createTileInstance({
           instanceId: 'tile-other-2',
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-2',
         }),
@@ -89,16 +91,17 @@ describe('scene selectors', () => {
     });
     const sceneWithTiles = {
       ...scene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-1',
-          assetId: 'wooden-floor',
+          assetId: 'wooden-fencing',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
         }),
         createTileInstance({
           instanceId: 'tile-2',
-          assetId: 'garden-plant',
+          assetId: 'leafy-plant',
           coordinate: { x: 3, y: 3 },
           buildingLevelId: 'level-2',
         }),
@@ -135,14 +138,14 @@ describe('scene selectors', () => {
     };
     const sceneWithDuplicateLevel = {
       ...scene,
-      buildingLevels: [scene.buildingLevels[0], { ...scene.buildingLevels[0], name: 'Duplicate 0 层' }],
+      buildingLevels: [scene.buildingLevels[0], { ...scene.buildingLevels[0], name: 'Duplicate 0层' }],
     };
     const sceneWithOrphanTile = {
       ...scene,
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-orphan',
-          assetId: 'wooden-floor',
+          assetId: 'wooden-fencing',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-missing',
         }),
@@ -228,22 +231,23 @@ function createPreviewScene() {
 
   return {
     ...scene,
+    buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
     tileInstances: [
       createTileInstance({
         instanceId: 'tile-low',
-        assetId: 'wooden-floor',
+        assetId: 'wooden-fencing',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: 'level-0',
       }),
       createTileInstance({
         instanceId: 'tile-mid',
-        assetId: 'roof-tile',
+        assetId: 'brick-roof-decoration',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: 'level-1',
       }),
       createTileInstance({
         instanceId: 'tile-high',
-        assetId: 'garden-plant',
+        assetId: 'leafy-plant',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: 'level-2',
         requiresSkill: true,
@@ -261,7 +265,7 @@ function createDensePreviewScene() {
   const buildingLevels = Array.from({ length: 10 }, (_, levelNumber) => ({
     id: `level-${levelNumber}`,
     levelNumber,
-    name: `${levelNumber} 层`,
+    name: `${levelNumber}层`,
   }));
   const assetIds = assetCatalog.map((asset) => asset.assetId);
   const skillTypes = assetSkillTypes;

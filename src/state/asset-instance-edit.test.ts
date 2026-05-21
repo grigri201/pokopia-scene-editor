@@ -167,7 +167,7 @@ function createScene(): SceneDocument {
     tileInstances: [
       createTileInstance({
         instanceId: 'tile-floor',
-        assetId: 'wooden-floor',
+        assetId: 'stone-brick-wall',
         coordinate: { x: 0, y: 2 },
         buildingLevelId: 'level-0',
         rotationDegrees: 270,
@@ -175,7 +175,7 @@ function createScene(): SceneDocument {
       }),
       createTileInstance({
         instanceId: 'tile-plant',
-        assetId: 'garden-plant',
+        assetId: 'leafy-plant',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: 'level-0',
         requiresSkill: true,
