@@ -123,6 +123,9 @@ test('previews and downloads an image export without mutating scene storage', as
   await page.getByRole('button', { name: '下载预览' }).click();
 
   await expect(page.getByRole('dialog', { name: '图片导出预览' })).toBeVisible();
+  await expect
+    .poll(async () => page.locator('.export-preview').evaluate((element) => Math.round(element.getBoundingClientRect().width)))
+    .toBe(590);
   await expect(page.locator('.export-preview__body > :first-child')).toHaveAttribute('aria-label', '整体使用素材清单');
   await expect(page.locator('.export-preview__layers > .export-layer').first()).toContainText('L0 · 0层');
   await expect(page.locator('.export-preview__layers')).not.toContainText('placed items');

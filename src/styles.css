@@ -400,7 +400,7 @@ button:disabled {
 .export-preview {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  width: min(1180px, 100%);
+  width: min(590px, 100%);
   max-height: min(860px, calc(100vh - 48px));
   border: 1px solid rgba(64, 45, 38, 0.28);
   border-radius: 8px;
