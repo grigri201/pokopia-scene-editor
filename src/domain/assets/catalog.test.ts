@@ -85,9 +85,7 @@ describe('asset catalog', () => {
     expect(getAssetSkillMarkerLabel('储水')).toBe('水');
     expect(getAssetSkillMarkerLabel(null)).toBe('技');
     expect(getAssetSkillMarkerIconUrl('树叶')).toContain('/assets/pokopia_image_sources/item_portraits/0050-leaf.png');
-    expect(getAssetSkillMarkerIconUrl('耕地')).toContain(
-      '/assets/pokopia_image_sources/decorative_item_portraits/171-farm-soil-ridge.webp',
-    );
+    expect(getAssetSkillMarkerIconUrl('耕地')).toContain('/assets/pokopia_image_sources/ability_icons/rototiller.png');
     expect(getAssetSkillMarkerIconUrl('water')).toContain('/assets/pokopia_image_sources/specialty_icons/water.png');
     expect(getAssetSkillMarkerIconUrl(null)).toBeNull();
   });

@@ -341,7 +341,7 @@ describe('SceneCanvas', () => {
     expect(skillMarker).toHaveAttribute('data-tooltip', '耕地');
     expect(skillMarker.querySelector('img')).toHaveAttribute(
       'src',
-      expect.stringContaining('/assets/pokopia_image_sources/decorative_item_portraits/171-farm-soil-ridge.webp'),
+      expect.stringContaining('/assets/pokopia_image_sources/ability_icons/rototiller.png'),
     );
 
     expect(screen.getByLabelText('Cell 4,4, main area, level-0, placeable, Unknown asset: missing-asset')).toBeVisible();

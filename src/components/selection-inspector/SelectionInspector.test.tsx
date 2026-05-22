@@ -139,7 +139,12 @@ describe('SelectionInspector', () => {
     expect(screen.getByRole('button', { name: '清除选中格子中的素材' })).toHaveAttribute('data-tooltip', '清除素材');
     expect(screen.getByRole('button', { name: '设置技能标记：树叶' }).querySelector('img')).not.toBeNull();
     expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toHaveAttribute('data-tooltip', '树叶');
-    expect(screen.getByRole('button', { name: '设置技能标记：耕地' })).toHaveAttribute('data-tooltip', '耕地');
+    const soilSkillButton = screen.getByRole('button', { name: '设置技能标记：耕地' });
+    expect(soilSkillButton).toHaveAttribute('data-tooltip', '耕地');
+    expect(soilSkillButton.querySelector('img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/assets/pokopia_image_sources/ability_icons/rototiller.png'),
+    );
     expect(screen.getByRole('button', { name: '设置技能标记：蓄水' })).toHaveAttribute('data-tooltip', '储水');
     expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(screen.getByRole('button', { name: '设置技能标记：树叶' }));

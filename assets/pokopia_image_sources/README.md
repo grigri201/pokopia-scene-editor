@@ -29,6 +29,9 @@ Current project location:
 - `pokemon_portraits/`
   - Local Pokemon portraits for the `pokemon_images.csv` rows.
   - `manifest.csv` contains filename, relative path, source URL, content type, bytes, SHA-256, status, and source metadata.
+- `ability_icons/`
+  - Local Pokopia ability icons used for skill markers that should not reuse placeable item thumbnails.
+  - `rototiller.png` comes from PokopiaDex `https://pokopiadex.com/images/abilities/ui/rototiller.png` for the Rototiller/耕地 ability.
 - `specialty_icons/`
   - Local Pokopia specialty icons used for skill markers that should not reuse placeable item thumbnails.
   - `water.png` comes from PokopiaDex `https://pokopiadex.com/images/specialties/ui/water.png` for the Water/储水 specialty.
