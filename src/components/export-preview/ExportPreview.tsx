@@ -1,0 +1,220 @@
+import { useEffect, useRef, type KeyboardEvent } from 'react';
+import type {
+  ExportLayerMaterialSummary,
+  ExportTileInstanceSummary,
+  ImageExportCellSummary,
+  ImageExportLayerSummary,
+  ImageExportSummary,
+} from '../../domain/scene';
+
+interface ExportPreviewProps {
+  summary: ImageExportSummary;
+  downloadDisabled?: boolean;
+  onClose: () => void;
+  onDownloadImage?: () => void;
+}
+
+export function ExportPreview({
+  summary,
+  downloadDisabled = false,
+  onClose,
+  onDownloadImage,
+}: ExportPreviewProps) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const isDownloadDisabled = downloadDisabled || !onDownloadImage;
+
+  useEffect(() => {
+    const previouslyFocusedElement = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+
+    closeButtonRef.current?.focus();
+
+    return () => {
+      if (previouslyFocusedElement?.isConnected) {
+        previouslyFocusedElement.focus();
+      }
+    };
+  }, []);
+
+  const handleDialogKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+
+    if (event.key !== 'Tab') {
+      return;
+    }
+
+    const focusableElements = getFocusableElements(dialogRef.current);
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements.at(-1);
+
+    if (!firstElement || !lastElement) {
+      event.preventDefault();
+      return;
+    }
+
+    if (event.shiftKey && document.activeElement === firstElement) {
+      event.preventDefault();
+      lastElement.focus();
+      return;
+    }
+
+    if (!event.shiftKey && document.activeElement === lastElement) {
+      event.preventDefault();
+      firstElement.focus();
+    }
+  };
+
+  return (
+    <div className="export-preview-backdrop">
+      <section
+        ref={dialogRef}
+        className="export-preview"
+        role="dialog"
+        aria-modal="true"
+        aria-label="图片导出预览"
+        tabIndex={-1}
+        onKeyDown={handleDialogKeyDown}
+      >
+        <header className="export-preview__header">
+          <div>
+            <p className="eyebrow">Image Export Preview</p>
+            <h2>{summary.sceneName}</h2>
+            <p>{summary.canvasSize.width}x{summary.canvasSize.height} canvas · {summary.layers.length} building layers</p>
+          </div>
+          <div className="export-preview__actions">
+            <button
+              type="button"
+              className="app-action-button"
+              disabled={isDownloadDisabled}
+              onClick={onDownloadImage}
+            >
+              下载图片
+            </button>
+            <button ref={closeButtonRef} type="button" className="app-action-button" onClick={onClose}>
+              关闭
+            </button>
+          </div>
+        </header>
+
+        <section className="export-preview__body" aria-label="Export image content">
+          <section className="export-preview__summary" aria-label="整体使用素材清单">
+            <h3>整体使用素材</h3>
+            {summary.overallMaterials.length > 0 ? (
+              <MaterialList materials={summary.overallMaterials} />
+            ) : (
+              <p className="export-preview__empty">未放置素材</p>
+            )}
+          </section>
+
+          <section className="export-preview__layers" aria-label="逐层图形和素材清单">
+            {summary.layers.map((layer) => (
+              <LayerPreview key={layer.id} layer={layer} />
+            ))}
+          </section>
+        </section>
+      </section>
+    </div>
+  );
+}
+
+function getFocusableElements(root: HTMLElement | null): HTMLElement[] {
+  if (!root) {
+    return [];
+  }
+
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true');
+}
+
+function LayerPreview({ layer }: { layer: ImageExportLayerSummary }) {
+  return (
+    <article className="export-layer" aria-label={`${layer.displayId} ${layer.name}`}>
+      <header className="export-layer__header">
+        <div>
+          <h3>{layer.displayId} · {layer.name}</h3>
+          <p>{layer.materialCount} placed items</p>
+        </div>
+        {layer.empty ? <span className="status-pill">空层</span> : null}
+      </header>
+      <div className="export-layer__content">
+        <div className="export-layer-grid" aria-label={`${layer.displayId} 7x7 图形`}>
+          {layer.cells.map((cell) => (
+            <ExportCell key={cell.id} cell={cell} />
+          ))}
+        </div>
+        <section className="export-layer__materials" aria-label={`${layer.displayId} 使用素材清单`}>
+          {layer.materials.length > 0 ? (
+            <MaterialList materials={layer.materials} includeInstanceDetails />
+          ) : (
+            <p className="export-preview__empty">该层没有素材</p>
+          )}
+        </section>
+      </div>
+    </article>
+  );
+}
+
+function ExportCell({ cell }: { cell: ImageExportCellSummary }) {
+  const firstInstance = cell.tileInstances[0] ?? null;
+  const label = firstInstance
+    ? `${cell.coordinate.x},${cell.coordinate.y}: ${cell.tileInstances.map((instance) => instance.assetName).join(', ')}`
+    : `${cell.coordinate.x},${cell.coordinate.y}: empty`;
+
+  return (
+    <div
+      className="export-layer-cell"
+      data-area={cell.areaType}
+      data-empty={cell.empty}
+      aria-label={label}
+    >
+      {firstInstance ? <span title={firstInstance.assetName}>{firstInstance.assetName.slice(0, 2)}</span> : null}
+    </div>
+  );
+}
+
+function MaterialList({
+  materials,
+  includeInstanceDetails = false,
+}: {
+  materials: readonly (ExportLayerMaterialSummary | ImageExportSummary['overallMaterials'][number])[];
+  includeInstanceDetails?: boolean;
+}) {
+  return (
+    <ul className="export-material-list">
+      {materials.map((material) => (
+        <li key={material.assetId}>
+          <div className="export-material-list__row">
+            <strong>{material.assetName}</strong>
+            <span>No. {material.officialId ?? material.assetId}</span>
+            <span>x{'count' in material ? material.count : material.totalCount}</span>
+          </div>
+          {includeInstanceDetails && 'instances' in material ? (
+            <InstanceList instances={material.instances} />
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function InstanceList({ instances }: { instances: readonly ExportTileInstanceSummary[] }) {
+  return (
+    <ul className="export-instance-list">
+      {instances.map((instance) => (
+        <li key={instance.instanceId}>
+          <span>({instance.coordinate.x}, {instance.coordinate.y})</span>
+          {instance.reproductionNotes.length > 0 ? <span>{instance.reproductionNotes.join(' · ')}</span> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}

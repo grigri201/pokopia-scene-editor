@@ -7,11 +7,13 @@ import { PreviewInspector } from '../preview-inspector/PreviewInspector';
 import { SceneCanvas } from '../scene-canvas/SceneCanvas';
 import { SelectionInspector } from '../selection-inspector/SelectionInspector';
 import {
+  buildImageExportSummary,
   createDefaultSceneDocument,
   getBuildingLevelContexts,
   getCanvasCellContexts,
   getCellContext,
   type GridCoordinate,
+  type ImageExportSummary,
   type SceneDocument,
 } from '../../domain/scene';
 import {
@@ -32,10 +34,10 @@ import {
   autosavedSceneStorageKey,
   readLatestSceneDocumentFromStorage,
   savedSceneStorageKey,
-  stringifySceneDocument,
   type RecoveryError,
   writeSceneDocumentToStorage,
 } from '../../io';
+import { ExportPreview } from '../export-preview/ExportPreview';
 
 const replacementConfirmationWindowMs = 15_000;
 
@@ -62,10 +64,13 @@ export function AppShell() {
   const [buildingLayerFeedback, setBuildingLayerFeedback] = useState<string | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [readOnlyViewingLevelId, setReadOnlyViewingLevelId] = useState<string | null>(null);
+  const [exportPreviewSummary, setExportPreviewSummary] = useState<ImageExportSummary | null>(null);
+  const [exportPreviewError, setExportPreviewError] = useState<string | null>(null);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(() =>
     getInteractionMode(window.innerWidth),
   );
   const isReadOnly = interactionMode === 'readOnly';
+  const exportPreviewOpen = exportPreviewSummary !== null;
   const activeBuildingLevelId = isReadOnly
     ? readOnlyViewingLevelId ?? scene.workspaceState.currentBuildingLevelId
     : scene.workspaceState.currentBuildingLevelId;
@@ -537,19 +542,19 @@ export function AppShell() {
     setBuildingLayerFeedback(null);
   };
 
-  const exportCurrentScene = () => {
-    const blob = new Blob([stringifySceneDocument(scene, 2)], {
-      type: 'application/json',
-    });
-    const objectUrl = URL.createObjectURL(blob);
-    const downloadLink = document.createElement('a');
-    downloadLink.href = objectUrl;
-    downloadLink.download = `${toExportFileBaseName(scene.sceneName)}.pokopia-scene.json`;
-    downloadLink.rel = 'noopener';
-    document.body.append(downloadLink);
-    downloadLink.click();
-    downloadLink.remove();
-    URL.revokeObjectURL(objectUrl);
+  const openExportPreview = () => {
+    try {
+      setExportPreviewSummary(buildImageExportSummary(scene));
+      setExportPreviewError(null);
+    } catch {
+      setExportPreviewSummary(null);
+      setExportPreviewError('Image export preview could not be prepared.');
+    }
+  };
+
+  const closeExportPreview = () => {
+    setExportPreviewSummary(null);
+    setExportPreviewError(null);
   };
 
   const retrySceneRecovery = () => {
@@ -603,7 +608,12 @@ export function AppShell() {
       className="app-shell"
       aria-label="Pokopia scene editor workbench"
     >
-      <header className="app-header" aria-label="Application header">
+      <header
+        className="app-header"
+        aria-label="Application header"
+        inert={exportPreviewOpen ? true : undefined}
+        aria-hidden={exportPreviewOpen ? true : undefined}
+      >
         <div className="app-brand" aria-label="Pokopia Scene Editor">
           <span className="app-brand__mark" aria-hidden="true">P</span>
           <span>Pokopia Scene Editor</span>
@@ -612,7 +622,7 @@ export function AppShell() {
           <button
             type="button"
             className="app-action-button"
-            onClick={exportCurrentScene}
+            onClick={openExportPreview}
           >
             导出
           </button>
@@ -677,7 +687,27 @@ export function AppShell() {
           ) : null}
         </section>
       ) : null}
-      <section className="workbench-grid" aria-label="Open Design editing workbench">
+      {exportPreviewError ? (
+        <section className="export-preview-error" role="alert" aria-label="Image export preview error">
+          <span>{exportPreviewError}</span>
+          <button type="button" className="app-action-button" onClick={closeExportPreview}>
+            关闭
+          </button>
+        </section>
+      ) : null}
+      {exportPreviewSummary ? (
+        <ExportPreview
+          summary={exportPreviewSummary}
+          downloadDisabled
+          onClose={closeExportPreview}
+        />
+      ) : null}
+      <section
+        className="workbench-grid"
+        aria-label="Open Design editing workbench"
+        inert={exportPreviewOpen ? true : undefined}
+        aria-hidden={exportPreviewOpen ? true : undefined}
+      >
         <div className="workbench-left">
           <PokemonSceneControls
             readOnly={isReadOnly}
@@ -782,15 +812,6 @@ function markSelectionVisible(measureId: string): void {
 
 function isLocalPreviewHost(hostname: string): boolean {
   return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]';
-}
-
-function toExportFileBaseName(sceneName: string): string {
-  const normalizedName = sceneName
-    .trim()
-    .replace(/[\\/:*?"<>|\s]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
-  return normalizedName || 'pokopia-scene';
 }
 
 interface InitialSceneState {

@@ -61,39 +61,36 @@ describe('AppShell scene storage integration', () => {
     expectNoSaveStatus();
   }, 20_000);
 
-  it('exports the current scene as a SceneDocument JSON file', async () => {
-    const createObjectURL = vi.fn((blob: Blob) => {
-      void blob;
-      return 'blob:scene-export';
-    });
+  it('opens an image export preview instead of downloading SceneDocument JSON', () => {
+    const createObjectURL = vi.fn();
     const revokeObjectURL = vi.fn();
-    let downloadLink: { href: string; download: string } | null = null;
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL,
-      revokeObjectURL,
-    });
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function clickAnchor(this: HTMLAnchorElement) {
-      downloadLink = {
-        href: this.href,
-        download: this.download,
-      };
-    });
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
 
     render(<AppShell />);
-    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Export / Scene' } });
     fireEvent.click(screen.getByRole('button', { name: '导出' }));
 
-    expect(downloadLink).toEqual({
-      href: 'blob:scene-export',
-      download: 'Export-Scene.pokopia-scene.json',
-    });
-    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
-    const exportedBlob = createObjectURL.mock.calls[0]?.[0] as Blob;
-    await expect(exportedBlob.text()).resolves.toContain('"sceneName": "Export / Scene"');
-    await expect(exportedBlob.text()).resolves.not.toContain('assetFilters');
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:scene-export');
-  });
+    expect(screen.getByRole('dialog', { name: '图片导出预览' })).toBeVisible();
+    expect(screen.getByLabelText('Application header')).toHaveAttribute('inert');
+    expect(screen.getByLabelText('Open Design editing workbench')).toHaveAttribute('inert');
+    expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('未放置素材');
+    expect(screen.getByLabelText('L0 使用素材清单')).toHaveTextContent('该层没有素材');
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(anchorClick).not.toHaveBeenCalled();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭' }));
+
+    expect(screen.queryByRole('dialog', { name: '图片导出预览' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Application header')).not.toHaveAttribute('inert');
+    expect(screen.getByLabelText('Open Design editing workbench')).not.toHaveAttribute('inert');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  }, 20_000);
 
   it('places the preview inspector below the canvas next to the current selection item', () => {
     const { container } = render(<AppShell />);
