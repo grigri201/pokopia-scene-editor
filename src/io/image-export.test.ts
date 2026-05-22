@@ -21,7 +21,7 @@ describe('image export file generation', () => {
     expect(svgText).toContain('逐层图形');
     expect(svgText).toContain('逐层素材清单');
     expect(svgText).toContain('绿叶植物');
-    expect(svgText).toContain('No. 1052');
+    expect(svgText).not.toContain('No. 1052');
     expect(svgText).not.toContain('技能: 树叶');
     expect(svgText).not.toContain('(3,3)');
   });
@@ -45,8 +45,10 @@ describe('image export file generation', () => {
     const emptyLayerFrame = layerFrameYs.at(-2);
     const denseLayerFrame = layerFrameYs.at(-1);
 
-    expect(svgText).toContain('No. 390');
-    expect(svgText).toContain('No. 1052');
+    expect(svgText).toContain('木制栅栏');
+    expect(svgText).toContain('绿叶植物');
+    expect(svgText).not.toContain('No. 390');
+    expect(svgText).not.toContain('No. 1052');
     expect(denseLayerFrame?.height).toBeGreaterThan(210);
     expect(emptyLayerFrame && denseLayerFrame ? emptyLayerFrame.y + emptyLayerFrame.height : 0).toBeLessThan(denseLayerFrame?.y ?? 0);
     expect(denseLayerFrame ? denseLayerFrame.y + denseLayerFrame.height : 0).toBeLessThanOrEqual(height);
@@ -56,7 +58,8 @@ describe('image export file generation', () => {
     const summary = buildImageExportSummary(createSameAssetVariantScene());
     const svgText = buildImageExportSvg(summary);
 
-    expect(svgText).toContain('绿叶植物 · No. 1052 · x2');
+    expect(svgText).toContain('绿叶植物 · x2');
+    expect(svgText).not.toContain('No. 1052');
     expect(svgText).not.toContain('(2,2)');
     expect(svgText).not.toContain('(3,3)');
     expect(svgText).not.toContain('first skill note');

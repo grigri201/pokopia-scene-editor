@@ -55,7 +55,7 @@ export function buildImageExportSvg(summary: ImageExportSummary): string {
     summary.overallMaterials.forEach((material, index) => {
       parts.push(
         text(
-          `${material.assetName} · No. ${material.officialId ?? material.assetId} · x${material.totalCount}`,
+          `${material.assetName} · x${material.totalCount}`,
           pageMargin + 18,
           y + 62 + index * 24,
           14,
@@ -118,7 +118,7 @@ function renderLayer(layer: ImageExportLayerSummary, y: number, height: number):
 
 function renderMaterial(material: ExportLayerMaterialSummary, x: number, y: number): string[] {
   return [
-    text(`${material.assetName} · No. ${material.officialId ?? material.assetId} · x${material.count}`, x, y, 14, '#231f1a', 800),
+    text(`${material.assetName} · x${material.count}`, x, y, 14, '#231f1a', 800),
   ];
 }
 

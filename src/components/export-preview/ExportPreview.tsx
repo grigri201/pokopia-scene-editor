@@ -218,7 +218,6 @@ function MaterialList({
           ) : null}
           <div className="export-material-list__row">
             <strong>{material.assetName}</strong>
-            <span>No. {material.officialId ?? material.assetId}</span>
             <span>x{'count' in material ? material.count : material.totalCount}</span>
           </div>
         </li>
