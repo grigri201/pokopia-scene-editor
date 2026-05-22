@@ -123,9 +123,34 @@ test('previews and downloads an image export without mutating scene storage', as
   await page.getByRole('button', { name: '下载预览' }).click();
 
   await expect(page.getByRole('dialog', { name: '图片导出预览' })).toBeVisible();
+  const preview = page.locator('.export-preview');
   await expect
-    .poll(async () => page.locator('.export-preview').evaluate((element) => Math.round(element.getBoundingClientRect().width)))
+    .poll(async () => preview.evaluate((element) => Math.round(element.getBoundingClientRect().width)))
     .toBe(590);
+  const pokemonRail = page.getByLabel('皮卡丘导出预览宝可梦图片');
+  await expect(pokemonRail.locator('img[alt="皮卡丘宝可梦图片"]')).toBeVisible();
+  await expect(pokemonRail.locator('img')).toHaveAttribute('src', /213-pikachu\.png/);
+  await expect
+    .poll(async () =>
+      pokemonRail.locator('img').evaluate((image) => {
+        const imageBox = image.getBoundingClientRect();
+        const railBox = image.parentElement?.getBoundingClientRect();
+        return railBox ? imageBox.height / railBox.height : 0;
+      }),
+    )
+    .toBeGreaterThan(0.9);
+  await expect
+    .poll(async () => {
+      const [previewBox, railBox] = await Promise.all([preview.boundingBox(), pokemonRail.boundingBox()]);
+      return Math.abs(Math.round((previewBox?.height ?? 0) - (railBox?.height ?? 0)));
+    })
+    .toBeLessThanOrEqual(1);
+  await expect
+    .poll(async () => {
+      const [previewBox, railBox] = await Promise.all([preview.boundingBox(), pokemonRail.boundingBox()]);
+      return Math.abs(Math.round((previewBox?.x ?? 0) - ((railBox?.x ?? 0) + (railBox?.width ?? 0))));
+    })
+    .toBeLessThanOrEqual(1);
   await expect(page.locator('.export-preview__body > :first-child')).toHaveAttribute('aria-label', '整体使用素材清单');
   await expect(page.locator('.export-preview__layers > .export-layer').first()).toContainText('L0 · 0层');
   await expect(page.locator('.export-preview__layers')).not.toContainText('placed items');

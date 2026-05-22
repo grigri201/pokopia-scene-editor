@@ -398,6 +398,7 @@ button:disabled {
 }
 
 .export-preview {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   width: min(590px, 100%);
@@ -407,6 +408,44 @@ button:disabled {
   background: #fffefb;
   color: var(--ink);
   box-shadow: 0 18px 50px rgba(64, 45, 38, 0.28);
+}
+
+.export-preview__pokemon-rail {
+  position: absolute;
+  top: -1px;
+  right: 100%;
+  bottom: -1px;
+  display: grid;
+  place-items: center;
+  width: 112px;
+  border: 1px solid rgba(64, 45, 38, 0.28);
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  padding: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 254, 251, 0.46)),
+    var(--export-pokemon-background, #efe6d5);
+  overflow: hidden;
+}
+
+.export-preview__pokemon-rail::after {
+  position: absolute;
+  inset: 10px;
+  border: 1px solid color-mix(in srgb, var(--export-pokemon-accent, #6e604b) 28%, transparent);
+  border-radius: 6px;
+  content: "";
+}
+
+.export-preview__pokemon-rail img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: auto;
+  min-width: 100%;
+  max-width: none;
+  height: 100%;
+  object-fit: cover;
+  filter: drop-shadow(0 8px 12px rgba(64, 45, 38, 0.2));
 }
 
 .export-preview__header {
@@ -2046,6 +2085,10 @@ button:disabled {
 
   .export-preview {
     max-height: calc(100vh - 16px);
+  }
+
+  .export-preview__pokemon-rail {
+    display: none;
   }
 
   .export-preview__header {

@@ -1,4 +1,5 @@
-import { useEffect, useRef, type KeyboardEvent } from 'react';
+import { useEffect, useRef, type CSSProperties, type KeyboardEvent } from 'react';
+import { getPokemonThemeDefinition } from '../../domain/assets';
 import type {
   ExportLayerMaterialSummary,
   ImageExportCellSummary,
@@ -26,6 +27,11 @@ export function ExportPreview({
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const isDownloadDisabled = downloadDisabled || !onDownloadImage;
+  const selectedPokemon = getPokemonThemeDefinition(summary.selectedPokemonKey);
+  const pokemonRailStyle = {
+    '--export-pokemon-background': selectedPokemon.background,
+    '--export-pokemon-accent': selectedPokemon.accent,
+  } as CSSProperties;
 
   useEffect(() => {
     const previouslyFocusedElement = document.activeElement instanceof HTMLElement
@@ -84,6 +90,13 @@ export function ExportPreview({
         tabIndex={-1}
         onKeyDown={handleDialogKeyDown}
       >
+        <aside
+          className="export-preview__pokemon-rail"
+          aria-label={`${selectedPokemon.name}导出预览宝可梦图片`}
+          style={pokemonRailStyle}
+        >
+          <img src={selectedPokemon.portraitUrl} alt={`${selectedPokemon.name}宝可梦图片`} />
+        </aside>
         <header className="export-preview__header">
           <div>
             <p className="eyebrow">Image Export Preview</p>
