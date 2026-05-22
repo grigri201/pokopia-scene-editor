@@ -190,7 +190,9 @@ function ExportCell({ cell }: { cell: ImageExportCellSummary }) {
       data-empty={cell.empty}
       aria-label={label}
     >
-      {firstInstance ? <span title={firstInstance.assetName}>{firstInstance.assetName.slice(0, 2)}</span> : null}
+      {firstInstance?.thumbnailUrl ? (
+        <img src={firstInstance.thumbnailUrl} alt="" title={firstInstance.assetName} />
+      ) : null}
     </div>
   );
 }

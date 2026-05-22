@@ -61,6 +61,8 @@ describe('image export summary', () => {
             instanceId: 'tile-skill',
             assetId: 'leafy-plant',
             assetName: '绿叶植物',
+            thumbnailUrl: expect.stringContaining('leafy-plant'),
+            thumbnailAlt: '绿叶植物缩略图',
           }),
         ],
       }),

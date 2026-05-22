@@ -18,6 +18,9 @@ describe('ExportPreview', () => {
     expect(screen.getByLabelText('Export image content').firstElementChild).toBe(screen.getByLabelText('整体使用素材清单'));
     expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('绿叶植物缩略图')).toBeVisible();
     expect(screen.getByLabelText('L1 7x7 图形').querySelectorAll('.export-layer-cell')).toHaveLength(49);
+    const previewCell = screen.getByLabelText('3,3: 绿叶植物');
+    expect(previewCell).toHaveTextContent('');
+    expect(previewCell.querySelector('img')).toHaveAttribute('src', expect.stringContaining('leafy-plant'));
     expect(screen.getByLabelText('L1 使用素材清单')).toHaveTextContent(unsafeAngleText);
     expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('该层没有素材');
     expect(screen.getAllByText('空层')).toHaveLength(2);

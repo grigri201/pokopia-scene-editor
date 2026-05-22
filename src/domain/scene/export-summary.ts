@@ -55,6 +55,8 @@ export interface ExportTileInstanceSummary {
   assetId: string;
   assetName: string;
   officialId: string | null;
+  thumbnailUrl: string | null;
+  thumbnailAlt: string;
   coordinate: GridCoordinate;
   areaType: AreaType;
   buildingLevelId: string;
@@ -147,6 +149,8 @@ function toExportTileInstanceSummary(instance: TileInstance): ExportTileInstance
     assetId: instance.assetId,
     assetName: getAssetName(instance.assetId, asset),
     officialId: asset?.officialId ?? null,
+    thumbnailUrl: asset?.thumbnailUrl ?? null,
+    thumbnailAlt: asset?.thumbnailAlt ?? instance.assetId,
     coordinate: { ...instance.coordinate },
     areaType: instance.areaType,
     buildingLevelId: instance.buildingLevelId,

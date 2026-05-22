@@ -511,20 +511,18 @@ button:disabled {
   padding: 2px;
   color: var(--ink);
   background: rgba(252, 248, 240, 0.9);
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 1;
+  overflow: hidden;
 }
 
 .export-layer-cell[data-area="main"] {
   background: rgba(232, 246, 239, 0.86);
 }
 
-.export-layer-cell span {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.export-layer-cell img {
+  display: block;
+  width: 84%;
+  height: 84%;
+  object-fit: contain;
 }
 
 .export-material-list,
