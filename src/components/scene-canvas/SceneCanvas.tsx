@@ -1,4 +1,4 @@
-import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
+import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent } from 'react';
 import { getAssetById, getAssetSkillMarkerIconUrl, getAssetSkillMarkerLabel } from '../../domain/assets';
 import type { CanvasCellContext, GridCoordinate, GridSize } from '../../domain/scene';
 import { moveCoordinate } from '../../state';
@@ -12,6 +12,7 @@ interface SceneCanvasProps {
   targetCoordinate: GridCoordinate | null;
   onSelectCoordinate: (coordinate: GridCoordinate) => void;
   onViewCoordinate: (coordinate: GridCoordinate) => void;
+  onDeleteCoordinate: (coordinate: GridCoordinate) => void;
   onHoverCoordinate: (coordinate: GridCoordinate | null) => void;
   onFocusCoordinate: (coordinate: GridCoordinate | null) => void;
 }
@@ -25,6 +26,7 @@ export function SceneCanvas({
   targetCoordinate,
   onSelectCoordinate,
   onViewCoordinate,
+  onDeleteCoordinate,
   onHoverCoordinate,
   onFocusCoordinate,
 }: SceneCanvasProps) {
@@ -104,6 +106,9 @@ export function SceneCanvas({
                 }`}
                 onClick={() =>
                   handleCellPointerSelect(readOnly, coordinate, onSelectCoordinate, onViewCoordinate)
+                }
+                onContextMenu={(event) =>
+                  handleCellContextMenu(event, readOnly, coordinate, onDeleteCoordinate)
                 }
                 onFocus={(event) =>
                   readOnly ? undefined : handleCellFocus(event, coordinate, onFocusCoordinate)
@@ -283,6 +288,20 @@ function handleCellPointerSelect(
   onViewCoordinate: (coordinate: GridCoordinate) => void,
 ): void {
   dispatchCoordinate(readOnly, coordinate, onSelectCoordinate, onViewCoordinate);
+}
+
+function handleCellContextMenu(
+  event: MouseEvent<HTMLButtonElement>,
+  readOnly: boolean,
+  coordinate: GridCoordinate,
+  onDeleteCoordinate: (coordinate: GridCoordinate) => void,
+): void {
+  if (readOnly) {
+    return;
+  }
+
+  event.preventDefault();
+  onDeleteCoordinate(toGridCoordinate(coordinate));
 }
 
 function dispatchCoordinate(

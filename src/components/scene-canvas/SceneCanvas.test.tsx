@@ -16,6 +16,7 @@ const defaultProps = {
   targetCoordinate: null,
   onSelectCoordinate: () => undefined,
   onViewCoordinate: () => undefined,
+  onDeleteCoordinate: () => undefined,
   onHoverCoordinate: () => undefined,
   onFocusCoordinate: () => undefined,
 };
@@ -90,9 +91,36 @@ describe('SceneCanvas', () => {
     expect(onSelectCoordinate.mock.calls[0][0]).not.toHaveProperty('areaType');
   });
 
+  it('uses right-click as an editable delete shortcut without selecting or placing', () => {
+    const onDeleteCoordinate = vi.fn();
+    const onSelectCoordinate = vi.fn();
+    const onViewCoordinate = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly={false}
+        onDeleteCoordinate={onDeleteCoordinate}
+        onSelectCoordinate={onSelectCoordinate}
+        onViewCoordinate={onViewCoordinate}
+      />,
+    );
+
+    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
+    const contextMenuEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    cell.dispatchEvent(contextMenuEvent);
+
+    expect(contextMenuEvent.defaultPrevented).toBe(true);
+    expect(onDeleteCoordinate).toHaveBeenCalledWith({ x: 2, y: 3 });
+    expect(onDeleteCoordinate.mock.calls[0][0]).not.toHaveProperty('id');
+    expect(onDeleteCoordinate.mock.calls[0][0]).not.toHaveProperty('areaType');
+    expect(onSelectCoordinate).not.toHaveBeenCalled();
+    expect(onViewCoordinate).not.toHaveBeenCalled();
+  });
+
   it('allows pointer view selection but blocks all read-only application keyboard paths', () => {
     const onSelectCoordinate = vi.fn();
     const onViewCoordinate = vi.fn();
+    const onDeleteCoordinate = vi.fn();
     const onFocusCoordinate = vi.fn();
     render(
       <SceneCanvas
@@ -100,6 +128,7 @@ describe('SceneCanvas', () => {
         readOnly
         onSelectCoordinate={onSelectCoordinate}
         onViewCoordinate={onViewCoordinate}
+        onDeleteCoordinate={onDeleteCoordinate}
         onFocusCoordinate={onFocusCoordinate}
       />,
     );
@@ -111,6 +140,11 @@ describe('SceneCanvas', () => {
     expect(onSelectCoordinate).not.toHaveBeenCalled();
     expect(onViewCoordinate).toHaveBeenCalledTimes(1);
     expect(onViewCoordinate).toHaveBeenNthCalledWith(1, { x: 2, y: 3 });
+
+    const contextMenuEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    cell.dispatchEvent(contextMenuEvent);
+    expect(contextMenuEvent.defaultPrevented).toBe(false);
+    expect(onDeleteCoordinate).not.toHaveBeenCalled();
 
     onViewCoordinate.mockClear();
     fireEvent.focus(cell);

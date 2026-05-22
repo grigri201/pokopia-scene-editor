@@ -404,6 +404,39 @@ export function AppShell() {
     );
   };
 
+  const deleteCoordinateMaterial = (coordinate: GridCoordinate) => {
+    if (isReadOnly) {
+      return;
+    }
+
+    const targetCell = getCellContext(scene, coordinate, activeBuildingLevelId);
+    const targetInstance = targetCell.tileInstances.at(-1);
+    if (!targetInstance) {
+      return;
+    }
+
+    const result = editAssetInstance(scene, {
+      type: 'delete',
+      instanceId: targetInstance.instanceId,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+    if (!result.ok) {
+      return;
+    }
+
+    handleInstanceEditResult({
+      ...result,
+      scene: {
+        ...result.scene,
+        workspaceState: {
+          ...result.scene.workspaceState,
+          selectedCoordinate: { x: coordinate.x, y: coordinate.y },
+        },
+      },
+    });
+  };
+
   const saveInstanceSkill = (
     instanceId: string,
     requiresSkill: boolean,
@@ -796,6 +829,7 @@ export function AppShell() {
             targetCoordinate={targetCoordinate}
             onSelectCoordinate={selectCoordinate}
             onViewCoordinate={viewCoordinate}
+            onDeleteCoordinate={deleteCoordinateMaterial}
             onHoverCoordinate={setHoveredCoordinate}
             onFocusCoordinate={setFocusedCoordinate}
           />

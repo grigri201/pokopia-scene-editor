@@ -459,6 +459,43 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
+  it('right-clicks a canvas cell to delete its current-layer material without checking selected asset', async () => {
+    const confirmReplacement = vi.spyOn(window, 'confirm');
+    render(<AppShell />);
+
+    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
+    const leppaBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    const chestoBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="chesto-berry"] .asset-select-button');
+    if (!leppaBerryButton || !chestoBerryButton) {
+      throw new Error('Expected first-page asset buttons.');
+    }
+
+    fireEvent.click(leppaBerryButton);
+    fireEvent.click(cell);
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toHaveLength(1);
+      expect(payload.tileInstances[0]).toMatchObject({
+        assetId: 'leppa-berry',
+        coordinate: { x: 2, y: 3 },
+      });
+      expect(payload.workspaceState.selectedAssetId).toBeNull();
+    });
+
+    fireEvent.click(chestoBerryButton);
+    fireEvent.contextMenu(cell);
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toEqual([]);
+      expect(payload.workspaceState.selectedAssetId).toBe('chesto-berry');
+      expect(payload.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 3 });
+      expect(chestoBerryButton).toHaveAttribute('aria-pressed', 'true');
+      expect(cell).toHaveAttribute('data-has-instance', 'false');
+    });
+    expect(confirmReplacement).not.toHaveBeenCalled();
+  });
+
   it('toggles a skill marker off when the active skill button is clicked again', async () => {
     render(<AppShell />);
 
