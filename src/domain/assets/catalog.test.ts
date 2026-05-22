@@ -88,7 +88,7 @@ describe('asset catalog', () => {
     expect(getAssetSkillMarkerIconUrl('耕地')).toContain(
       '/assets/pokopia_image_sources/decorative_item_portraits/171-farm-soil-ridge.webp',
     );
-    expect(getAssetSkillMarkerIconUrl('water')).toContain('/assets/pokopia_image_sources/item_portraits/0508-water-basin.png');
+    expect(getAssetSkillMarkerIconUrl('water')).toContain('/assets/pokopia_image_sources/specialty_icons/water.png');
     expect(getAssetSkillMarkerIconUrl(null)).toBeNull();
   });
 

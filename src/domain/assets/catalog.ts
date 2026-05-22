@@ -55,7 +55,7 @@ export const assetSkillMarkerLabels: Record<ConcreteAssetSkillType, string> = {
 const assetSkillMarkerIconPaths: Record<ConcreteAssetSkillType, string> = {
   树叶: 'assets/pokopia_image_sources/item_portraits/0050-leaf.png',
   耕地: 'assets/pokopia_image_sources/decorative_item_portraits/171-farm-soil-ridge.webp',
-  储水: 'assets/pokopia_image_sources/item_portraits/0508-water-basin.png',
+  储水: 'assets/pokopia_image_sources/specialty_icons/water.png',
 };
 
 const sourceAssetTagLabels: Record<string, string> = {

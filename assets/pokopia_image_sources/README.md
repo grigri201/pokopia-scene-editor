@@ -29,6 +29,9 @@ Current project location:
 - `pokemon_portraits/`
   - Local Pokemon portraits for the `pokemon_images.csv` rows.
   - `manifest.csv` contains filename, relative path, source URL, content type, bytes, SHA-256, status, and source metadata.
+- `specialty_icons/`
+  - Local Pokopia specialty icons used for skill markers that should not reuse placeable item thumbnails.
+  - `water.png` comes from PokopiaDex `https://pokopiadex.com/images/specialties/ui/water.png` for the Water/储水 specialty.
 - `infipoke_items_zh_hans.csv`
   - Simplified Chinese item-name reference from InfiPoke, useful when filling missing localized names.
 - `summary.md`

@@ -260,7 +260,13 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '设置技能标记：蓄水' }));
+    const waterSkillButton = screen.getByRole('button', { name: '设置技能标记：蓄水' });
+    expect(waterSkillButton.querySelector('img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/assets/pokopia_image_sources/specialty_icons/water.png'),
+    );
+
+    fireEvent.click(waterSkillButton);
 
     expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-edit', true, '储水', '');
   });
