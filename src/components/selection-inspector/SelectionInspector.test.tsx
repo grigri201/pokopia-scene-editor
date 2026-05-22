@@ -141,6 +141,7 @@ describe('SelectionInspector', () => {
     expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toHaveAttribute('data-tooltip', '树叶');
     expect(screen.getByRole('button', { name: '设置技能标记：耕地' })).toHaveAttribute('data-tooltip', '耕地');
     expect(screen.getByRole('button', { name: '设置技能标记：蓄水' })).toHaveAttribute('data-tooltip', '储水');
+    expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(screen.getByRole('button', { name: '设置技能标记：树叶' }));
 
     expect(onRotateInstance).toHaveBeenCalledWith('tile-edit', 180);
@@ -199,9 +200,12 @@ describe('SelectionInspector', () => {
     const skillButton = screen.getByRole('button', { name: '设置技能标记：树叶' });
     expect(skillButton).toHaveAttribute('aria-pressed', 'true');
     expectSelectionCopyRemoved('Skill marker', '树叶', 'Skill note', 'legacy note');
+    fireEvent.click(skillButton);
+    expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-skill', false, '树叶', 'legacy note');
+
     fireEvent.click(screen.getByRole('button', { name: '清除选中格子中的素材' }));
     expect(onDeleteInstance).toHaveBeenCalledWith('tile-skill');
-    expect(onSaveInstanceSkill).not.toHaveBeenCalled();
+    expect(onSaveInstanceSkill).toHaveBeenCalledTimes(1);
   });
 
   it('shows retained selected-instance fields without note or move editors', () => {

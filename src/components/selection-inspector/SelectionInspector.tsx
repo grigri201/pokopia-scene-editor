@@ -118,41 +118,44 @@ export function SelectionInspector({
             >
               <ClearMaterialIcon />
             </button>
-            {selectionSkillActions.map((action) => (
-              <button
-                type="button"
-                className={[
-                  'current-selection-action-button',
-                  'current-selection-action-button--skill',
-                  'has-icon-tooltip',
-                  selectedInstance?.requiresSkill && selectedInstance.skillType === action.skillType
-                    ? 'current-selection-action-button--active'
-                    : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                aria-label={`设置技能标记：${action.label}`}
-                aria-pressed={selectedInstance?.requiresSkill && selectedInstance.skillType === action.skillType}
-                data-tooltip={action.tooltipLabel ?? action.label}
-                title={action.tooltipLabel ?? action.label}
-                disabled={readOnly || !canEditSelectedSkill}
-                key={action.skillType}
-                onClick={() => {
-                  if (!selectedInstance) {
-                    return;
-                  }
+            {selectionSkillActions.map((action) => {
+              const isActiveSkill =
+                selectedInstance?.requiresSkill && selectedInstance.skillType === action.skillType;
 
-                  onSaveInstanceSkill(
-                    selectedInstance.instanceId,
-                    true,
-                    action.skillType,
-                    selectedInstance.skillNote,
-                  );
-                }}
-              >
-                <img src={action.iconUrl} alt="" />
-              </button>
-            ))}
+              return (
+                <button
+                  type="button"
+                  className={[
+                    'current-selection-action-button',
+                    'current-selection-action-button--skill',
+                    'has-icon-tooltip',
+                    isActiveSkill ? 'current-selection-action-button--active' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  aria-label={`设置技能标记：${action.label}`}
+                  aria-pressed={isActiveSkill}
+                  data-tooltip={action.tooltipLabel ?? action.label}
+                  title={action.tooltipLabel ?? action.label}
+                  disabled={readOnly || !canEditSelectedSkill}
+                  key={action.skillType}
+                  onClick={() => {
+                    if (!selectedInstance) {
+                      return;
+                    }
+
+                    onSaveInstanceSkill(
+                      selectedInstance.instanceId,
+                      !isActiveSkill,
+                      action.skillType,
+                      selectedInstance.skillNote,
+                    );
+                  }}
+                >
+                  <img src={action.iconUrl} alt="" />
+                </button>
+              );
+            })}
           </div>
         ) : null}
       </div>

@@ -421,6 +421,41 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
+  it('toggles a skill marker off when the active skill button is clicked again', async () => {
+    render(<AppShell />);
+
+    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    if (!assetButton) {
+      throw new Error('Expected leppa-berry asset button.');
+    }
+
+    fireEvent.click(assetButton);
+    fireEvent.click(cell);
+    const leafSkillButton = screen.getByRole('button', { name: '设置技能标记：树叶' });
+
+    fireEvent.click(leafSkillButton);
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances[0]).toMatchObject({
+        requiresSkill: true,
+        skillType: '树叶',
+      });
+      expect(leafSkillButton).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    fireEvent.click(leafSkillButton);
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances[0]).toMatchObject({
+        requiresSkill: false,
+        skillType: null,
+        skillNote: '',
+      });
+      expect(leafSkillButton).toHaveAttribute('aria-pressed', 'false');
+    });
+  });
+
   it('keeps double-clicked asset selection active for continuous placement until clicked again', async () => {
     render(<AppShell />);
 
