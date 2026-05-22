@@ -72,6 +72,16 @@ describe('SceneDocument v1 schema', () => {
     }
   });
 
+  it('defaults missing standalone skill markers for older v1 payloads', () => {
+    const payload = createValidPayload();
+    const result = parseSceneDocument(removeField(payload, 'skillMarkers'));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.scene.skillMarkers).toEqual([]);
+    }
+  });
+
   it('rejects unknown Pokemon and asset ids', () => {
     const unknownPokemon = {
       ...createValidPayload(),
@@ -191,6 +201,75 @@ describe('SceneDocument v1 schema', () => {
         expect.objectContaining({
           fieldPath: 'tileInstances[1].coordinate',
           reason: 'Expected one tile instance per building level coordinate; duplicate with tileInstances[0]',
+        }),
+      ]),
+    );
+  });
+
+  it('rejects duplicate standalone skill markers on the same building layer coordinate', () => {
+    const payload = createValidPayload();
+    const marker = {
+      coordinate: { x: 3, y: 3 },
+      areaType: 'main',
+      buildingLevelId: 'level-0',
+      skillType: '耕地',
+      skillNote: '',
+    };
+    const input = {
+      ...payload,
+      skillMarkers: [marker, marker],
+    };
+
+    expect(validateSceneDocument(input)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'skillMarkers[1].coordinate',
+          reason: 'Expected one skill marker per building level coordinate; duplicate with skillMarkers[0]',
+        }),
+      ]),
+    );
+  });
+
+  it('rejects standalone skill markers with stale area or missing building levels', () => {
+    const payload = createValidPayload();
+    const invalidArea = {
+      ...payload,
+      skillMarkers: [
+        {
+          coordinate: { x: 0, y: 2 },
+          areaType: 'main',
+          buildingLevelId: 'level-0',
+          skillType: '耕地',
+          skillNote: '',
+        },
+      ],
+    };
+    const missingLayer = {
+      ...payload,
+      skillMarkers: [
+        {
+          coordinate: { x: 3, y: 3 },
+          areaType: 'main',
+          buildingLevelId: 'missing-level',
+          skillType: '耕地',
+          skillNote: '',
+        },
+      ],
+    };
+
+    expect(validateSceneDocument(invalidArea)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'skillMarkers[0].areaType',
+          reason: 'Expected areaType outer for coordinate 0,2',
+        }),
+      ]),
+    );
+    expect(validateSceneDocument(missingLayer)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'skillMarkers[0].buildingLevelId',
+          reason: 'Expected buildingLevelId to reference an existing building level',
         }),
       ]),
     );

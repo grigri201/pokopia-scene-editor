@@ -29,6 +29,7 @@ const sceneDimensions = {
 const defaultInspectorProps = {
   targetContext: null,
   targetPlacement: null,
+  selectedSkillMarker: null,
   canvasSize: scene.canvasSize,
   sceneDimensions,
   buildingLevels: scene.buildingLevels,
@@ -36,6 +37,7 @@ const defaultInspectorProps = {
   onDeleteInstance: () => undefined,
   onRotateInstance: () => undefined,
   onSaveInstanceSkill: () => undefined,
+  onSaveCellSkill: () => undefined,
 };
 
 describe('SelectionInspector', () => {
@@ -61,8 +63,9 @@ describe('SelectionInspector', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('shows disabled clear and skill marker buttons for an empty selected position', () => {
+  it('allows skill marker buttons for an empty selected position', () => {
     const emptyContext = getCellContext(scene, { x: 3, y: 3 });
+    const onSaveCellSkill = vi.fn();
 
     render(
       <SelectionInspector
@@ -70,15 +73,21 @@ describe('SelectionInspector', () => {
         selectedContext={emptyContext}
         selectedInstance={null}
         selectedInstanceId={null}
+        selectedSkillMarker={null}
         readOnly={false}
+        onSaveCellSkill={onSaveCellSkill}
       />,
     );
 
     expectSelectionCopyRemoved('3,3', 'x3 y3', 'Coordinate', 'Building layer');
     expect(screen.getByRole('button', { name: '清除选中格子中的素材' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '设置技能标记：耕地' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '设置技能标记：蓄水' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '设置技能标记：耕地' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '设置技能标记：蓄水' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: '设置技能标记：耕地' }));
+
+    expect(onSaveCellSkill).toHaveBeenCalledWith({ x: 3, y: 3 }, 'level-0', true, '耕地', '');
   });
 
   it('ignores hover target context until a grid cell is selected', () => {
@@ -169,6 +178,35 @@ describe('SelectionInspector', () => {
     expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '设置技能标记：耕地' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '设置技能标记：蓄水' })).toBeDisabled();
+  });
+
+  it('shows and clears an existing standalone cell skill marker', () => {
+    const emptyContext = getCellContext(scene, { x: 3, y: 3 });
+    const onSaveCellSkill = vi.fn();
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={emptyContext}
+        selectedInstance={null}
+        selectedInstanceId={null}
+        selectedSkillMarker={{
+          coordinate: { x: 3, y: 3 },
+          areaType: 'main',
+          buildingLevelId: 'level-0',
+          skillType: '耕地',
+          skillNote: '',
+        }}
+        readOnly={false}
+        onSaveCellSkill={onSaveCellSkill}
+      />,
+    );
+
+    const soilSkillButton = screen.getByRole('button', { name: '设置技能标记：耕地' });
+    expect(soilSkillButton).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(soilSkillButton);
+
+    expect(onSaveCellSkill).toHaveBeenCalledWith({ x: 3, y: 3 }, 'level-0', false, '耕地', '');
   });
 
   it('labels an existing skill marker and clears the selected material through the icon action', () => {

@@ -34,6 +34,13 @@ export function createSceneDocumentV1PayloadInput(scene: SceneDocument): unknown
       skillType: instance.skillType ?? null,
       skillNote: instance.skillNote ?? '',
     })),
+    skillMarkers: scene.skillMarkers.map((marker) => ({
+      coordinate: { ...marker.coordinate },
+      areaType: calculateSerializableAreaType(marker, dimensions),
+      buildingLevelId: marker.buildingLevelId,
+      skillType: marker.skillType,
+      skillNote: marker.skillNote ?? '',
+    })),
     workspaceState: {
       currentBuildingLevelId: scene.workspaceState.currentBuildingLevelId,
       selectedAssetId: scene.workspaceState.selectedAssetId,
@@ -66,12 +73,12 @@ function isHexDyeColor(value: string | null): value is string {
 }
 
 function calculateSerializableAreaType(
-  instance: SceneDocument['tileInstances'][number],
+  item: Pick<SceneDocument['tileInstances'][number], 'coordinate' | 'areaType'>,
   dimensions: Parameters<typeof calculateAreaType>[1],
 ) {
   try {
-    return calculateAreaType(instance.coordinate, dimensions);
+    return calculateAreaType(item.coordinate, dimensions);
   } catch {
-    return instance.areaType;
+    return item.areaType;
   }
 }

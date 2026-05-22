@@ -1,6 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createBuildingLevel, createDefaultSceneDocument, createTileInstance, getCanvasCellContexts } from '../../domain/scene';
+import {
+  createBuildingLevel,
+  createDefaultSceneDocument,
+  createSkillMarker,
+  createTileInstance,
+  getCanvasCellContexts,
+} from '../../domain/scene';
 import { SceneCanvas } from './SceneCanvas';
 
 const scene = createDefaultSceneDocument({
@@ -250,6 +256,38 @@ describe('SceneCanvas', () => {
     expect(skillMarker.querySelector('img')).toHaveAttribute(
       'src',
       expect.stringContaining('/assets/pokopia_image_sources/item_portraits/0050-leaf.png'),
+    );
+  });
+
+  it('renders standalone skill markers on empty canvas cells', () => {
+    const sceneWithSkillMarker = {
+      ...scene,
+      skillMarkers: [
+        createSkillMarker({
+          coordinate: { x: 3, y: 3 },
+          buildingLevelId: 'level-0',
+          skillType: '耕地',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        cells={getCanvasCellContexts(sceneWithSkillMarker)}
+        readOnly={false}
+      />,
+    );
+
+    const cell = screen.getByLabelText('Cell 3,3, main area, level-0, placeable, Skill marker 耕');
+    expect(cell).toHaveAttribute('data-has-instance', 'false');
+    expect(cell).toHaveAttribute('data-requires-skill', 'true');
+    expect(cell).toHaveAttribute('data-skill-marker-label', '耕');
+    const skillMarker = screen.getByLabelText('Skill marker 耕');
+    expect(skillMarker).toHaveAttribute('data-tooltip', '耕地');
+    expect(skillMarker.querySelector('img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/assets/pokopia_image_sources/ability_icons/rototiller.png'),
     );
   });
 

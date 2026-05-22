@@ -1,5 +1,5 @@
 import type { AreaType, GridCoordinate, GridSize } from './area';
-import type { AssetSkillType, PokemonKey } from '../assets';
+import type { AssetSkillType, ConcreteAssetSkillType, PokemonKey } from '../assets';
 
 export type SceneSchemaVersion = 1;
 export type RotationDegrees = 0 | 90 | 180 | 270;
@@ -36,6 +36,14 @@ export interface TileInstance {
   skillNote: string;
 }
 
+export interface SkillMarker {
+  coordinate: GridCoordinate;
+  areaType: AreaType;
+  buildingLevelId: string;
+  skillType: ConcreteAssetSkillType;
+  skillNote: string;
+}
+
 export interface SceneDocument {
   schemaVersion: SceneSchemaVersion;
   sceneId: string;
@@ -46,6 +54,7 @@ export interface SceneDocument {
   outerPadding: number;
   buildingLevels: BuildingLevel[];
   tileInstances: TileInstance[];
+  skillMarkers: SkillMarker[];
   workspaceState: WorkspaceState;
   metadata: SceneMetadata;
 }

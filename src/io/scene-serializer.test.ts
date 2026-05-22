@@ -80,6 +80,15 @@ describe('SceneDocument v1 serializer', () => {
         }),
       ]),
     );
+    expect(payload.skillMarkers).toEqual([
+      expect.objectContaining({
+        coordinate: { x: 4, y: 4 },
+        areaType: 'main',
+        buildingLevelId: 'level-1',
+        skillType: '储水',
+        skillNote: '',
+      }),
+    ]);
     expect(JSON.stringify(payload)).not.toContain('"note"');
   });
 
@@ -148,6 +157,15 @@ function createSceneWithInstances(overrides: Partial<SceneDocument> = {}): Scene
         dyeColor: '#bb6bd9',
         skillNote: '',
       }),
+    ],
+    skillMarkers: [
+      {
+        coordinate: { x: 4, y: 4 },
+        areaType: 'main',
+        buildingLevelId: 'level-1',
+        skillType: '储水',
+        skillNote: '',
+      },
     ],
     workspaceState: {
       currentBuildingLevelId: 'level-0',

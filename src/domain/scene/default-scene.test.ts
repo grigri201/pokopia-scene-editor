@@ -21,6 +21,7 @@ describe('default scene document', () => {
     expect(scene.canvasSize).toEqual({ width: 7, height: 7 });
     expect(scene.outerPadding).toBe(1);
     expect(scene.tileInstances).toEqual([]);
+    expect(scene.skillMarkers).toEqual([]);
     expect(scene.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '0层' }]);
   });
 

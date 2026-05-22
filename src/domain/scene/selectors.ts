@@ -8,7 +8,7 @@ import {
   type SceneDimensions,
 } from './area';
 import { sortBuildingLevelsForDisplay, sortBuildingLevelsForRender } from './levels';
-import type { BuildingLevel, SceneDocument, TileInstance } from './types';
+import type { BuildingLevel, SceneDocument, SkillMarker, TileInstance } from './types';
 
 export interface CellContext {
   coordinate: GridCoordinate;
@@ -17,7 +17,9 @@ export interface CellContext {
   placeable: boolean;
   empty: boolean;
   tileInstances: TileInstance[];
+  skillMarkers: SkillMarker[];
   otherVisibleLayerInstances: TileInstance[];
+  otherVisibleLayerSkillMarkers: SkillMarker[];
 }
 
 export interface CanvasCellContext extends CellContext {
@@ -52,8 +54,10 @@ export interface FrontProjectionCellContext {
   mainBoundary: boolean;
   buildingLevel: PreviewLayerContext;
   tileInstances: TileInstance[];
+  skillMarkers: SkillMarker[];
   projectedInstance: TileInstance | null;
   skillInstance: TileInstance | null;
+  skillMarker: SkillMarker | null;
 }
 
 export interface PreviewCanvasCellContext {
@@ -64,6 +68,7 @@ export interface PreviewCanvasCellContext {
   mainBoundary: boolean;
   hidden: boolean;
   tileInstances: TileInstance[];
+  skillMarkers: SkillMarker[];
   instanceLayerContexts: BuildingLevelContext[];
 }
 
@@ -103,6 +108,12 @@ export function getCellContext(
       instance.coordinate.y === coordinate.y &&
       instance.buildingLevelId === buildingLevel.id,
   );
+  const skillMarkers = scene.skillMarkers.filter(
+    (marker) =>
+      marker.coordinate.x === coordinate.x &&
+      marker.coordinate.y === coordinate.y &&
+      marker.buildingLevelId === buildingLevel.id,
+  );
   const otherVisibleLevelIds = new Set(
     scene.buildingLevels
       .filter((level) => level.id !== buildingLevel.id)
@@ -114,6 +125,12 @@ export function getCellContext(
       instance.coordinate.y === coordinate.y &&
       otherVisibleLevelIds.has(instance.buildingLevelId),
   );
+  const otherVisibleLayerSkillMarkers = scene.skillMarkers.filter(
+    (marker) =>
+      marker.coordinate.x === coordinate.x &&
+      marker.coordinate.y === coordinate.y &&
+      otherVisibleLevelIds.has(marker.buildingLevelId),
+  );
 
   return {
     coordinate: { x: coordinate.x, y: coordinate.y },
@@ -122,7 +139,9 @@ export function getCellContext(
     placeable: isPlaceableArea(areaType),
     empty: tileInstances.length === 0,
     tileInstances,
+    skillMarkers,
     otherVisibleLayerInstances,
+    otherVisibleLayerSkillMarkers,
   };
 }
 
@@ -149,6 +168,7 @@ export function getSelectedCellContext(scene: SceneDocument): CellContext | null
 
 export function getBuildingLevelContexts(scene: SceneDocument): BuildingLevelContext[] {
   assertTileInstancesReferenceKnownLevels(scene);
+  assertSkillMarkersReferenceKnownLevels(scene);
   const currentLevel = getCurrentBuildingLevel(scene);
 
   return sortBuildingLevelsForDisplay(scene.buildingLevels).map((level) => ({
@@ -234,6 +254,10 @@ export function getAllVisibleFrontProjectionCellContexts(scene: SceneDocument): 
         .sort((left, right) => left.coordinate.y - right.coordinate.y);
       const projectedInstance = tileInstances.at(-1) ?? null;
       const skillInstance = tileInstances.filter((instance) => instance.requiresSkill).at(-1) ?? null;
+      const skillMarkers = scene.skillMarkers
+        .filter((marker) => marker.buildingLevelId === level.id && marker.coordinate.x === x)
+        .sort((left, right) => left.coordinate.y - right.coordinate.y);
+      const skillMarker = skillMarkers.at(-1) ?? null;
       const projectionAreaCoordinate = projectedInstance?.coordinate ?? {
         x,
         y: Math.min(dimensions.outerPadding, dimensions.canvasSize.height - 1),
@@ -246,8 +270,10 @@ export function getAllVisibleFrontProjectionCellContexts(scene: SceneDocument): 
         mainBoundary: isFrontProjectionBoundaryColumn(x, dimensions),
         buildingLevel: level,
         tileInstances,
+        skillMarkers,
         projectedInstance,
         skillInstance,
+        skillMarker,
       };
     }),
   );
@@ -265,6 +291,7 @@ export function getCurrentLayerPreviewCellContexts(
 
   return getCanvasCellContexts(scene, activeBuildingLevelId).map((cell) => {
     const visibleTileInstances = cell.tileInstances;
+    const visibleSkillMarkers = cell.skillMarkers;
 
     return {
       id: cell.id,
@@ -274,6 +301,7 @@ export function getCurrentLayerPreviewCellContexts(
       mainBoundary: cell.mainBoundary,
       hidden: false,
       tileInstances: visibleTileInstances,
+      skillMarkers: visibleSkillMarkers,
       instanceLayerContexts: visibleTileInstances.length > 0 ? [activeLevelContext] : [],
     };
   });
@@ -292,6 +320,14 @@ export function getAllVisiblePreviewCellContexts(scene: SceneDocument): PreviewC
           instance.buildingLevelId === level.id,
       ),
     );
+    const skillMarkers = visibleLevels.flatMap((level) =>
+      scene.skillMarkers.filter(
+        (marker) =>
+          marker.coordinate.x === cell.x &&
+          marker.coordinate.y === cell.y &&
+          marker.buildingLevelId === level.id,
+      ),
+    );
     const instanceLevelIds = new Set(tileInstances.map((instance) => instance.buildingLevelId));
 
     return {
@@ -302,6 +338,7 @@ export function getAllVisiblePreviewCellContexts(scene: SceneDocument): PreviewC
       mainBoundary: isMainAreaBoundaryCell(cell, dimensions),
       hidden: false,
       tileInstances,
+      skillMarkers,
       instanceLayerContexts: visibleLevels.filter((level) => instanceLevelIds.has(level.id)),
     };
   });
@@ -398,6 +435,18 @@ function assertTileInstancesReferenceKnownLevels(scene: SceneDocument): void {
   for (const instance of scene.tileInstances) {
     if (!levelIds.has(instance.buildingLevelId)) {
       throw new RangeError(`Tile instance ${instance.instanceId} references unknown building level: ${instance.buildingLevelId}`);
+    }
+  }
+}
+
+function assertSkillMarkersReferenceKnownLevels(scene: SceneDocument): void {
+  const levelIds = new Set(scene.buildingLevels.map((level) => level.id));
+
+  for (const marker of scene.skillMarkers) {
+    if (!levelIds.has(marker.buildingLevelId)) {
+      throw new RangeError(
+        `Skill marker ${marker.buildingLevelId}:${marker.coordinate.x},${marker.coordinate.y} references unknown building level: ${marker.buildingLevelId}`,
+      );
     }
   }
 }

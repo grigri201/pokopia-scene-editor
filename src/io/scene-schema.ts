@@ -61,6 +61,14 @@ const tileInstanceSchema = z.object({
   skillNote: z.string(),
 }).strip();
 
+const skillMarkerSchema = z.object({
+  coordinate: coordinateSchema,
+  areaType: z.enum(['main', 'outer']),
+  buildingLevelId: z.string().min(1),
+  skillType: skillTypeSchema,
+  skillNote: z.string(),
+}).strip();
+
 const workspaceStateSchema = z.object({
   currentBuildingLevelId: z.string().min(1),
   selectedAssetId: z.string().refine(isKnownAssetId, 'Expected known asset id').nullable(),
@@ -84,6 +92,7 @@ export const sceneDocumentV1Schema = z.object({
   outerPadding: z.literal(1),
   buildingLevels: z.array(buildingLevelSchema).min(1),
   tileInstances: z.array(tileInstanceSchema),
+  skillMarkers: z.array(skillMarkerSchema).default([]),
   workspaceState: workspaceStateSchema,
   metadata: metadataSchema,
 }).strict().superRefine((scene, context) => {
@@ -116,6 +125,7 @@ export const sceneDocumentV1Schema = z.object({
   };
   const instanceIds = new Set<string>();
   const occupiedLevelCoordinates = new Map<string, number>();
+  const skillMarkerLevelCoordinates = new Map<string, number>();
 
   for (const [index, instance] of scene.tileInstances.entries()) {
     if (instanceIds.has(instance.instanceId)) {
@@ -169,6 +179,44 @@ export const sceneDocumentV1Schema = z.object({
         code: 'custom',
         message: `Expected areaType ${calculatedAreaType} for coordinate ${instance.coordinate.x},${instance.coordinate.y}`,
         path: ['tileInstances', index, 'areaType'],
+      });
+    }
+  }
+
+  for (const [index, marker] of scene.skillMarkers.entries()) {
+    const markerKey = `${marker.buildingLevelId}:${marker.coordinate.x},${marker.coordinate.y}`;
+    const existingIndex = skillMarkerLevelCoordinates.get(markerKey);
+
+    if (existingIndex !== undefined) {
+      context.addIssue({
+        code: 'custom',
+        message: `Expected one skill marker per building level coordinate; duplicate with skillMarkers[${existingIndex}]`,
+        path: ['skillMarkers', index, 'coordinate'],
+      });
+    } else {
+      skillMarkerLevelCoordinates.set(markerKey, index);
+    }
+
+    if (!levelIds.has(marker.buildingLevelId)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Expected buildingLevelId to reference an existing building level',
+        path: ['skillMarkers', index, 'buildingLevelId'],
+      });
+    }
+
+    let calculatedAreaType: string;
+    try {
+      calculatedAreaType = calculateAreaType(marker.coordinate, dimensions);
+    } catch {
+      continue;
+    }
+
+    if (marker.areaType !== calculatedAreaType) {
+      context.addIssue({
+        code: 'custom',
+        message: `Expected areaType ${calculatedAreaType} for coordinate ${marker.coordinate.x},${marker.coordinate.y}`,
+        path: ['skillMarkers', index, 'areaType'],
       });
     }
   }

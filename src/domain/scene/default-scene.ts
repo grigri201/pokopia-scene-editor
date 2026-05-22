@@ -75,6 +75,7 @@ export function createDefaultSceneDocument(
     outerPadding,
     buildingLevels,
     tileInstances: openDesignDemoInstances,
+    skillMarkers: [],
     workspaceState: {
       currentBuildingLevelId: options.includeOpenDesignDemo ? 'level-1' : buildingLevels[0].id,
       selectedAssetId: options.includeOpenDesignDemo ? 'wooden-fencing' : null,

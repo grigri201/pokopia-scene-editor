@@ -63,15 +63,19 @@ export function SceneCanvas({
             const topAssetLabel = topInstance ? getInstanceDisplayLabel(topInstance.assetId) : null;
             const otherLayerInstanceCount = cell.otherVisibleLayerInstances.length;
             const topSkillInstance = topInstance?.requiresSkill ? topInstance : null;
-            const hasSkillInstance = Boolean(topSkillInstance);
-            const skillMarkerLabel = topSkillInstance ? getAssetSkillMarkerLabel(topSkillInstance.skillType) : null;
-            const skillMarkerIconUrl = topSkillInstance
-              ? getAssetSkillMarkerIconUrl(topSkillInstance.skillType)
+            const topCellSkillMarker = cell.skillMarkers.at(-1) ?? null;
+            const skillMarkerType = topSkillInstance?.skillType ?? topCellSkillMarker?.skillType ?? null;
+            const hasSkillMarker = Boolean(skillMarkerType);
+            const skillMarkerLabel = skillMarkerType ? getAssetSkillMarkerLabel(skillMarkerType) : null;
+            const skillMarkerIconUrl = skillMarkerType
+              ? getAssetSkillMarkerIconUrl(skillMarkerType)
               : null;
-            const skillMarkerTooltip = topSkillInstance?.skillType ?? null;
+            const skillMarkerTooltip = skillMarkerType ?? null;
             const skillMarkerAriaLabel = topSkillInstance
               ? getInstanceSkillMarkerLabel(topSkillInstance.assetId, skillMarkerLabel)
-              : null;
+              : topCellSkillMarker
+                ? getCellSkillMarkerLabel(skillMarkerLabel)
+                : null;
             const rotationDegrees = topInstance?.rotationDegrees ?? 0;
             const rotationLabel = rotationDegrees ? `${rotationDegrees}` : null;
             const dyeColor = topInstance?.dyeColor ?? null;
@@ -142,7 +146,7 @@ export function SceneCanvas({
                 data-has-instance={Boolean(topInstance)}
                 data-instance-count={topInstance ? 1 : 0}
                 data-other-layer-instance-count={otherLayerInstanceCount}
-                data-requires-skill={hasSkillInstance}
+                data-requires-skill={hasSkillMarker}
                 data-skill-marker-label={skillMarkerLabel ?? ''}
                 data-rotation={topInstance?.rotationDegrees ?? 0}
                 data-dye-color={dyeColor ?? ''}
@@ -190,7 +194,7 @@ export function SceneCanvas({
                     style={{ backgroundColor: dyeColor }}
                   />
                 ) : null}
-                {hasSkillInstance ? (
+                {hasSkillMarker ? (
                   <span
                     className="cell-skill-marker has-icon-tooltip"
                     aria-label={skillMarkerAriaLabel ?? 'Skill marker'}
@@ -331,6 +335,10 @@ function getInstanceSkillMarkerLabel(assetId: string, markerLabel: string | null
   const assetLabel = getInstanceDisplayLabel(assetId);
 
   return `Skill marker ${assetLabel} ${markerLabel ?? '技'}`;
+}
+
+function getCellSkillMarkerLabel(markerLabel: string | null): string {
+  return `Skill marker ${markerLabel ?? '技'}`;
 }
 
 function setGridKeyboardTarget(cell: HTMLButtonElement, coordinate: GridCoordinate): void {

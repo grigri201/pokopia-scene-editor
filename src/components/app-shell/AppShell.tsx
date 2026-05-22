@@ -23,11 +23,13 @@ import {
   getInteractionMode,
   placeSelectedAsset,
   sceneReducer,
+  saveCellSkillMarker,
   type AssetInstanceEditResult,
   type AssetPlacementPreview,
   type BuildingLayerEditResult,
   type InteractionMode,
   type SceneAction,
+  type SkillMarkerEditResult,
 } from '../../state';
 import {
   applyRecoveredSceneDocument,
@@ -93,6 +95,7 @@ export function AppShell() {
     selectedContext?.tileInstances.find((instance) => instance.instanceId === selectedInstanceId) ??
     selectedContext?.tileInstances.at(-1) ??
     null;
+  const selectedSkillMarker = selectedContext?.skillMarkers.at(-1) ?? null;
   const targetContext = targetCoordinate ? getCellContext(scene, targetCoordinate, activeBuildingLevelId) : null;
   const selectedAssetId = scene.workspaceState.selectedAssetId;
   const targetPlacementPreview = targetCoordinate
@@ -451,6 +454,37 @@ export function AppShell() {
       editAssetInstance(scene, {
         type: 'skill',
         instanceId,
+        requiresSkill,
+        skillType,
+        skillNote,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
+  const handleSkillMarkerEditResult = (result: SkillMarkerEditResult) => {
+    if (result.ok) {
+      commitSceneEdit(result.scene);
+      setPlacementFeedback(null);
+    }
+  };
+
+  const saveSelectedCellSkill = (
+    coordinate: GridCoordinate,
+    buildingLevelId: string,
+    requiresSkill: boolean,
+    skillType: AssetSkillType,
+    skillNote: string,
+  ) => {
+    if (isReadOnly) {
+      return;
+    }
+
+    handleSkillMarkerEditResult(
+      saveCellSkillMarker(scene, {
+        coordinate,
+        buildingLevelId,
         requiresSkill,
         skillType,
         skillNote,
@@ -838,6 +872,7 @@ export function AppShell() {
               selectedContext={selectedContext}
               selectedInstance={selectedInstance}
               selectedInstanceId={selectedInstanceId}
+              selectedSkillMarker={selectedSkillMarker}
               targetContext={targetContext}
               targetPlacement={targetPlacementPreview}
               canvasSize={scene.canvasSize}
@@ -852,6 +887,7 @@ export function AppShell() {
               onDeleteInstance={deleteInstance}
               onRotateInstance={rotateInstance}
               onSaveInstanceSkill={saveInstanceSkill}
+              onSaveCellSkill={saveSelectedCellSkill}
             />
             <PreviewInspector
               scene={scene}
@@ -916,11 +952,23 @@ function createInitialSceneState(): InitialSceneState {
     now: '2026-05-16T07:00:00.000Z',
   });
   const initialInteractionMode = getInteractionMode(window.innerWidth);
-  const testWindow = window as unknown as { __pokopiaInitialSceneSnapshot?: SceneDocument };
+  const testWindow = window as unknown as { __pokopiaInitialSceneSnapshot?: unknown };
 
   if (isLocalPreviewHost(window.location.hostname) && navigator.webdriver && testWindow.__pokopiaInitialSceneSnapshot) {
+    const recoveredInitialScene = applyRecoveredSceneDocument(defaultScene, testWindow.__pokopiaInitialSceneSnapshot, {
+      interactionMode: 'edit',
+      source: 'startup',
+    });
+
+    if (!recoveredInitialScene.ok) {
+      return {
+        scene: defaultScene,
+        recoveryErrors: recoveredInitialScene.errors,
+      };
+    }
+
     return {
-      scene: testWindow.__pokopiaInitialSceneSnapshot,
+      scene: recoveredInitialScene.scene,
       recoveryErrors: [],
     };
   }

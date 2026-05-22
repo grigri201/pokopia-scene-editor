@@ -531,6 +531,40 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
+  it('sets and clears a skill marker on an empty selected grid cell', async () => {
+    render(<AppShell />);
+
+    const cell = screen.getByLabelText('Cell 3,3, main area, level-0, placeable');
+    fireEvent.click(cell);
+    const soilSkillButton = screen.getByRole('button', { name: '设置技能标记：耕地' });
+
+    fireEvent.click(soilSkillButton);
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toEqual([]);
+      expect(payload.skillMarkers).toEqual([
+        expect.objectContaining({
+          coordinate: { x: 3, y: 3 },
+          areaType: 'main',
+          buildingLevelId: 'level-0',
+          skillType: '耕地',
+          skillNote: '',
+        }),
+      ]);
+      expect(cell).toHaveAttribute('data-has-instance', 'false');
+      expect(cell).toHaveAttribute('data-requires-skill', 'true');
+      expect(soilSkillButton).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    fireEvent.click(soilSkillButton);
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.skillMarkers).toEqual([]);
+      expect(payload.workspaceState.selectedCoordinate).toEqual({ x: 3, y: 3 });
+      expect(soilSkillButton).toHaveAttribute('aria-pressed', 'false');
+    });
+  });
+
   it('keeps double-clicked asset selection active for continuous placement until clicked again', async () => {
     render(<AppShell />);
 

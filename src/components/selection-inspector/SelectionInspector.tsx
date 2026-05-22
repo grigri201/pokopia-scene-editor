@@ -8,9 +8,11 @@ import {
 import {
   type BuildingLevel,
   type CellContext,
+  type GridCoordinate,
   type GridSize,
   type RotationDegrees,
   type SceneDimensions,
+  type SkillMarker,
   type TileInstance,
 } from '../../domain/scene';
 import type { AssetPlacementPreview } from '../../state';
@@ -19,6 +21,7 @@ interface SelectionInspectorProps {
   selectedContext: CellContext | null;
   selectedInstance: TileInstance | null;
   selectedInstanceId: string | null;
+  selectedSkillMarker: SkillMarker | null;
   targetContext: CellContext | null;
   targetPlacement: AssetPlacementPreview | null;
   canvasSize: GridSize;
@@ -34,24 +37,35 @@ interface SelectionInspectorProps {
     skillType: AssetSkillType,
     skillNote: string,
   ) => void;
+  onSaveCellSkill: (
+    coordinate: GridCoordinate,
+    buildingLevelId: string,
+    requiresSkill: boolean,
+    skillType: AssetSkillType,
+    skillNote: string,
+  ) => void;
 }
 
 export function SelectionInspector({
   selectedContext,
   selectedInstance,
+  selectedSkillMarker,
   buildingLevels,
   readOnly,
   onDeleteInstance,
   onRotateInstance,
   onSaveInstanceSkill,
+  onSaveCellSkill,
 }: SelectionInspectorProps) {
   const context = selectedContext;
   const asset = getAssetById(selectedInstance?.assetId);
-  const canEditSelectedSkill = Boolean(selectedInstance && asset);
+  const canEditSelectedSkill = Boolean(context?.placeable && (!selectedInstance || asset || selectedSkillMarker));
   const selectedLevel = selectedInstance
     ? buildingLevels.find((level) => level.id === selectedInstance.buildingLevelId)
     : context?.buildingLevel;
   const coordinate = selectedInstance?.coordinate ?? context?.coordinate ?? null;
+  const activeSkillType = selectedSkillMarker?.skillType ?? (selectedInstance?.requiresSkill ? selectedInstance.skillType : null);
+  const activeSkillNote = selectedSkillMarker?.skillNote ?? selectedInstance?.skillNote ?? '';
   const nextRotation = getNextRotation(selectedInstance?.rotationDegrees ?? 0);
   const selectionSummary = [
     asset?.name ?? (coordinate ? `${coordinate.x},${coordinate.y}` : 'No selection'),
@@ -119,8 +133,7 @@ export function SelectionInspector({
               <ClearMaterialIcon />
             </button>
             {selectionSkillActions.map((action) => {
-              const isActiveSkill =
-                selectedInstance?.requiresSkill && selectedInstance.skillType === action.skillType;
+              const isActiveSkill = activeSkillType === action.skillType;
 
               return (
                 <button
@@ -140,6 +153,21 @@ export function SelectionInspector({
                   disabled={readOnly || !canEditSelectedSkill}
                   key={action.skillType}
                   onClick={() => {
+                    if (selectedSkillMarker || !selectedInstance) {
+                      if (!context) {
+                        return;
+                      }
+
+                      onSaveCellSkill(
+                        context.coordinate,
+                        context.buildingLevel.id,
+                        !isActiveSkill,
+                        action.skillType,
+                        activeSkillNote,
+                      );
+                      return;
+                    }
+
                     if (!selectedInstance) {
                       return;
                     }
@@ -148,7 +176,7 @@ export function SelectionInspector({
                       selectedInstance.instanceId,
                       !isActiveSkill,
                       action.skillType,
-                      selectedInstance.skillNote,
+                      activeSkillNote,
                     );
                   }}
                 >

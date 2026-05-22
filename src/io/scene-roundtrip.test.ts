@@ -36,6 +36,7 @@ describe('SceneDocument v1 roundtrip', () => {
       },
     });
     expect(roundtrip.sourcePayload.tileInstances).toEqual([]);
+    expect(roundtrip.sourcePayload.skillMarkers).toEqual([]);
   });
 
   it('roundtrips workspace state and multiple building levels', () => {
@@ -105,6 +106,15 @@ describe('SceneDocument v1 roundtrip', () => {
         requiresSkill: true,
         skillType: '耕地',
         skillNote: 'soil roof note',
+      }),
+    ]);
+    expect(roundtrip.sourcePayload.skillMarkers).toEqual([
+      expect.objectContaining({
+        coordinate: { x: 4, y: 4 },
+        areaType: 'main',
+        buildingLevelId: 'level-1',
+        skillType: '储水',
+        skillNote: '',
       }),
     ]);
     expect(roundtrip.sourcePayload).toEqual(roundtrip.roundtrippedPayload);
@@ -233,6 +243,15 @@ function createRichScene(): SceneDocument {
         skillType: '耕地',
         skillNote: 'soil roof note',
       }),
+    ],
+    skillMarkers: [
+      {
+        coordinate: { x: 4, y: 4 },
+        areaType: 'main',
+        buildingLevelId: 'level-1',
+        skillType: '储水',
+        skillNote: '',
+      },
     ],
     workspaceState: {
       currentBuildingLevelId: 'level-2',
