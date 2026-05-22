@@ -234,7 +234,7 @@ describe('building layer edit command', () => {
     }
     expect(deleted.scene.buildingLevels.map((level) => level.id)).toEqual(['level-0', 'level-2']);
     expect(deleted.scene.buildingLevels.map((level) => level.levelNumber)).toEqual([0, 1]);
-    expect(deleted.scene.buildingLevels.map((level) => level.name)).toEqual(['0层', '1层']);
+    expect(deleted.scene.buildingLevels.map((level) => level.name)).toEqual(['0层', '2层']);
     expect(deleted.scene.tileInstances).toEqual([]);
     expect(deleted.scene.workspaceState.currentBuildingLevelId).toBe('level-2');
     expect(lastLayer.ok).toBe(false);

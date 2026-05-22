@@ -12,11 +12,11 @@ route: 'one-shot'
 
 **Problem:** 建筑层删除中间层后，左侧层标识会保留原始 `levelNumber`，导致界面出现 `L2/L0` 这类不连续标识；随后再新增层也可能继续沿用旧最大编号。浏览器批注明确要求层标识在添加和删除后重排。
 
-**Approach:** 在建筑层状态命令层重排可见 `levelNumber` 和默认层名，保持 `id` 稳定以保护素材实例的 `buildingLevelId` 引用。新增和复制层使用独立的唯一 id 分配，避免重排后出现 `level-2` 这类 id 冲突；状态测试、AppShell 集成测试和浏览器验证覆盖删除中间层再新增的完整路径。
+**Approach:** 在建筑层状态命令层只重排可见 `levelNumber`，保持 `id` 和 `name` 稳定以保护素材实例引用与用户命名。新增和复制层使用独立的唯一 id 分配，避免重排后出现 `level-2` 这类 id 冲突；状态测试、AppShell 集成测试和浏览器验证覆盖删除中间层再新增的完整路径。
 
 ## Suggested Review Order
 
-- 重排规则只改可见编号和默认层名，保留稳定 id。
+- 重排规则只改可见编号，保留稳定 id 和建筑层名称。
   [`levels.ts:33`](../../src/domain/scene/levels.ts#L33)
 
 - 创建/复制/删除都先经过重排，确保 UI 与导出一致。

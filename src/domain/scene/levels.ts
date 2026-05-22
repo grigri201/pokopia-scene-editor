@@ -34,7 +34,6 @@ export function resequenceBuildingLevels(levels: readonly BuildingLevel[]): Buil
   return sortBuildingLevelsForRender(levels).map((level, levelNumber) => ({
     ...level,
     levelNumber,
-    name: isDefaultLevelName(level) ? `${levelNumber}层` : level.name,
   }));
 }
 
@@ -44,8 +43,4 @@ export function sortBuildingLevelsForDisplay(levels: readonly BuildingLevel[]): 
 
 export function sortBuildingLevelsForRender<T extends Pick<BuildingLevel, 'levelNumber'>>(levels: readonly T[]): T[] {
   return [...levels].sort((left, right) => left.levelNumber - right.levelNumber);
-}
-
-function isDefaultLevelName(level: Pick<BuildingLevel, 'levelNumber' | 'name'>): boolean {
-  return level.name === `${level.levelNumber}层`;
 }

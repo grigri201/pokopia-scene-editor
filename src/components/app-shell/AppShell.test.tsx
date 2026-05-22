@@ -272,7 +272,7 @@ describe('AppShell scene storage integration', () => {
     await waitFor(() => {
       const rows = screen.getAllByTestId('building-level-row');
       expect(rows.map((row) => row.dataset.displayId)).toEqual(['L1', 'L0']);
-      expect(screen.getByDisplayValue('1层')).toBeVisible();
+      expect(screen.getByDisplayValue('2层')).toBeVisible();
       expect(screen.queryByText('L2')).not.toBeInTheDocument();
     });
 
@@ -283,7 +283,7 @@ describe('AppShell scene storage integration', () => {
       expect(rows.map((row) => row.dataset.displayId)).toEqual(['L2', 'L1', 'L0']);
       expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
         { id: 'level-0', levelNumber: 0, name: '0层' },
-        { id: 'level-2', levelNumber: 1, name: '1层' },
+        { id: 'level-2', levelNumber: 1, name: '2层' },
         { id: 'level-3', levelNumber: 2, name: '2层' },
       ]);
     });
