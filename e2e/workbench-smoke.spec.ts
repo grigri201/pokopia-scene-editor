@@ -143,6 +143,21 @@ test('previews and downloads an image export without mutating scene storage', as
   await expect(page.getByLabel('L1 使用素材清单')).toContainText('绿叶植物');
   await expect(page.getByLabel('L1 使用素材清单')).not.toContainText('No.');
   await expect(page.getByLabel('L1 使用素材清单')).not.toContainText('restore smoke');
+  await expect(page.getByLabel('L1 使用素材清单').locator('img[alt="绿叶植物缩略图"]')).toBeVisible();
+  const layerMaterialItems = page.getByLabel('L1 使用素材清单').locator('.export-material-list--with-thumbs > li');
+  await expect(layerMaterialItems).toHaveCount(6);
+  await expect
+    .poll(async () => {
+      const itemTops = await layerMaterialItems.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().top));
+      return Math.abs(itemTops[0] - itemTops[1]);
+    })
+    .toBeLessThan(1);
+  await expect
+    .poll(async () => {
+      const itemTops = await layerMaterialItems.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().top));
+      return itemTops[2] - itemTops[0];
+    })
+    .toBeGreaterThan(1);
   await expect(page.locator('.export-instance-list')).toHaveCount(0);
 
   const downloadPromise = page.waitForEvent('download');

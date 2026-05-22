@@ -549,6 +549,22 @@ button:disabled {
   border: 1px solid rgba(37, 111, 104, 0.18);
 }
 
+.export-layer__materials .export-material-list--with-thumbs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.export-layer__materials .export-material-list--with-thumbs > li {
+  grid-template-columns: 36px minmax(0, 1fr);
+  min-height: 46px;
+  padding: 5px 8px;
+}
+
+.export-layer__materials .export-material-list__thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+}
+
 .export-material-list__thumb {
   display: grid;
   place-items: center;
@@ -1977,6 +1993,10 @@ button:disabled {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
 
+  .export-layer__materials .export-material-list--with-thumbs {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+
   .export-layer-grid {
     width: min(100%, 320px);
   }
@@ -2011,6 +2031,10 @@ button:disabled {
 
   .export-preview__header {
     display: grid;
+  }
+
+  .export-layer__materials .export-material-list--with-thumbs {
+    grid-template-columns: 1fr;
   }
 
   .workbench-grid {

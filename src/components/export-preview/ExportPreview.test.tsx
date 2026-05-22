@@ -28,6 +28,7 @@ describe('ExportPreview', () => {
     expect(previewCell).toHaveTextContent('');
     expect(previewCell.querySelector('img')).toHaveAttribute('src', expect.stringContaining('leafy-plant'));
     expect(screen.getByLabelText('L1 使用素材清单')).toHaveTextContent('绿叶植物');
+    expect(within(screen.getByLabelText('L1 使用素材清单')).getByAltText('绿叶植物缩略图')).toBeVisible();
     expect(screen.getByLabelText('L1 使用素材清单')).not.toHaveTextContent('No. 1052');
     expect(screen.getByLabelText('L1 使用素材清单')).not.toHaveTextContent('(3, 3)');
     expect(screen.getByLabelText('L1 使用素材清单')).not.toHaveTextContent(unsafeAngleText);

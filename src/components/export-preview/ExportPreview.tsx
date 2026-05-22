@@ -165,7 +165,7 @@ function LayerPreview({ layer }: { layer: ImageExportLayerSummary }) {
         </div>
         <section className="export-layer__materials" aria-label={`${layer.displayId} 使用素材清单`}>
           {layer.materials.length > 0 ? (
-            <MaterialList materials={layer.materials} />
+            <MaterialList materials={layer.materials} showThumbnails />
           ) : (
             <p className="export-preview__empty">该层没有素材</p>
           )}
