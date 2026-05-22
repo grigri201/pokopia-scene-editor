@@ -710,7 +710,7 @@ export function AppShell() {
               className="app-action-button"
               onClick={openExportPreview}
             >
-              导出
+              下载预览
             </button>
           ) : null}
           <button

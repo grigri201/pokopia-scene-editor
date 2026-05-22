@@ -29,7 +29,7 @@ describe('AppShell scene storage integration', () => {
 
   it('autosaves the editable Open Design scene and restores it after remount', async () => {
     const { unmount } = render(<AppShell />);
-    const exportButton = screen.getByRole('button', { name: '导出' });
+    const exportButton = screen.getByRole('button', { name: '下载预览' });
     const deleteButton = screen.getByRole('button', { name: '删除' });
 
     expect(exportButton).toBeVisible();
@@ -68,7 +68,7 @@ describe('AppShell scene storage integration', () => {
     vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
 
     render(<AppShell />);
-    fireEvent.click(screen.getByRole('button', { name: '导出' }));
+    fireEvent.click(screen.getByRole('button', { name: '下载预览' }));
 
     expect(screen.getByRole('dialog', { name: '图片导出预览' })).toBeVisible();
     expect(screen.getByLabelText('Application header')).toHaveAttribute('inert');
@@ -109,7 +109,7 @@ describe('AppShell scene storage integration', () => {
 
     render(<AppShell />);
     const beforeSnapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
-    fireEvent.click(screen.getByRole('button', { name: '导出' }));
+    fireEvent.click(screen.getByRole('button', { name: '下载预览' }));
     fireEvent.click(screen.getByRole('button', { name: '下载图片' }));
 
     expect(downloadLink).toEqual({
@@ -135,7 +135,7 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
     const beforeSnapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
 
-    expect(screen.queryByRole('button', { name: '导出' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '下载预览' })).not.toBeInTheDocument();
     expect((window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.()).toBe(beforeSnapshot);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();

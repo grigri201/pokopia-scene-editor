@@ -29,7 +29,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Cell 3,2, main area, level-0, placeable')).toBeVisible();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Save scene' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '导出' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '下载预览' })).toBeVisible();
   await expect(page.getByRole('button', { name: '删除' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Undo' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Redo' })).toHaveCount(0);
@@ -120,7 +120,7 @@ test('previews and downloads an image export without mutating scene storage', as
   await page.goto('/');
 
   const beforeSnapshot = JSON.stringify(await readSceneSnapshot(page));
-  await page.getByRole('button', { name: '导出' }).click();
+  await page.getByRole('button', { name: '下载预览' }).click();
 
   await expect(page.getByRole('dialog', { name: '图片导出预览' })).toBeVisible();
   await expect(page.getByLabel('整体使用素材清单')).toContainText('绿叶植物');
@@ -359,7 +359,7 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('布景名称')).toHaveAttribute('readonly', '');
   await expect(page.getByRole('button', { name: '新建层' })).toBeDisabled();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '导出' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '下载预览' })).toHaveCount(0);
   const beforeKeyboardSnapshot = JSON.stringify(await readSceneSnapshot(page));
   const beforeCurrentLevel = await page.getByLabel('Current building level').textContent();
   const selectedCell = page.getByLabel('Cell 3,2, main area, level-0, read-only');
