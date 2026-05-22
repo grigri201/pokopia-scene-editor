@@ -120,7 +120,7 @@ export function ExportPreview({
           <section className="export-preview__summary" aria-label="整体使用素材清单">
             <h3>整体使用素材</h3>
             {summary.overallMaterials.length > 0 ? (
-              <MaterialList materials={summary.overallMaterials} />
+              <MaterialList materials={summary.overallMaterials} showThumbnails />
             ) : (
               <p className="export-preview__empty">未放置素材</p>
             )}
@@ -198,14 +198,25 @@ function ExportCell({ cell }: { cell: ImageExportCellSummary }) {
 function MaterialList({
   materials,
   includeInstanceDetails = false,
+  showThumbnails = false,
 }: {
   materials: readonly (ExportLayerMaterialSummary | ImageExportSummary['overallMaterials'][number])[];
   includeInstanceDetails?: boolean;
+  showThumbnails?: boolean;
 }) {
   return (
-    <ul className="export-material-list">
+    <ul className={showThumbnails ? 'export-material-list export-material-list--with-thumbs' : 'export-material-list'}>
       {materials.map((material) => (
         <li key={material.assetId}>
+          {showThumbnails ? (
+            <span className="export-material-list__thumb">
+              {material.thumbnailUrl ? (
+                <img src={material.thumbnailUrl} alt={material.thumbnailAlt} />
+              ) : (
+                <span aria-hidden="true">{material.assetName.slice(0, 1)}</span>
+              )}
+            </span>
+          ) : null}
           <div className="export-material-list__row">
             <strong>{material.assetName}</strong>
             <span>No. {material.officialId ?? material.assetId}</span>

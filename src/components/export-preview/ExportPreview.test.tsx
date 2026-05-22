@@ -15,6 +15,8 @@ describe('ExportPreview', () => {
     expect(screen.getByRole('heading', { name: unsafeScriptText })).toBeVisible();
     expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('绿叶植物');
     expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('No. 1052');
+    expect(screen.getByLabelText('Export image content').firstElementChild).toBe(screen.getByLabelText('整体使用素材清单'));
+    expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('绿叶植物缩略图')).toBeVisible();
     expect(screen.getByLabelText('L1 7x7 图形').querySelectorAll('.export-layer-cell')).toHaveLength(49);
     expect(screen.getByLabelText('L1 使用素材清单')).toHaveTextContent(unsafeAngleText);
     expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('该层没有素材');
@@ -30,7 +32,8 @@ describe('ExportPreview', () => {
     expect(screen.getByRole('heading', { name: unsafeScriptText })).toBeVisible();
     expect(within(screen.getByLabelText('L1 使用素材清单')).getByText((content) => content.includes(unsafeAngleText))).toBeVisible();
     expect(container.querySelector('script')).toBeNull();
-    expect(container.querySelector('img')).toBeNull();
+    expect(screen.queryByAltText(unsafeAngleText)).not.toBeInTheDocument();
+    expect(screen.queryByAltText(unsafeScriptText)).not.toBeInTheDocument();
   });
 
   it('focuses the dialog controls, traps tab focus, restores focus and disables download without a handler', () => {

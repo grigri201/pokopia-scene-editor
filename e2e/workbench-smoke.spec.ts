@@ -123,7 +123,9 @@ test('previews and downloads an image export without mutating scene storage', as
   await page.getByRole('button', { name: '下载预览' }).click();
 
   await expect(page.getByRole('dialog', { name: '图片导出预览' })).toBeVisible();
+  await expect(page.locator('.export-preview__body > :first-child')).toHaveAttribute('aria-label', '整体使用素材清单');
   await expect(page.getByLabel('整体使用素材清单')).toContainText('绿叶植物');
+  await expect(page.getByLabel('整体使用素材清单').locator('img[alt="绿叶植物缩略图"]')).toBeVisible();
   await expect(page.getByLabel('L1 7x7 图形')).toBeVisible();
   await expect(page.getByLabel('L1 使用素材清单')).toContainText('restore smoke');
 

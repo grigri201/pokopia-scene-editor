@@ -449,7 +449,7 @@ button:disabled {
 
 .export-preview__body {
   display: grid;
-  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   min-height: 0;
   padding: 16px;
@@ -467,6 +467,10 @@ button:disabled {
 .export-preview__summary h3 {
   margin: 0 0 10px;
   font-size: 15px;
+}
+
+.export-preview__summary .export-material-list {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .export-preview__layers {
@@ -539,6 +543,35 @@ button:disabled {
   padding: 8px 10px;
   background: rgba(255, 255, 255, 0.62);
   overflow-wrap: anywhere;
+}
+
+.export-material-list--with-thumbs > li {
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  min-height: 64px;
+  border-left: 0;
+  border: 1px solid rgba(37, 111, 104, 0.18);
+}
+
+.export-material-list__thumb {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(246, 241, 230, 0.74);
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 900;
+  overflow: hidden;
+}
+
+.export-material-list__thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .export-material-list__row strong {
