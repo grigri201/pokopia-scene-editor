@@ -35,6 +35,10 @@ courseCorrections:
     source: _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-19.md
     status: approved
     summary: MVP scope reduced; remove layer hidden/locked state, manual save, save status distinction, undo/redo, empty-state recovery actions, area placement validation, stacking, instance movement, ordinary instance notes, can-rotate differentiation, preview overlay toggles; mobile blocks all app keyboard operations.
+  - date: '2026-05-22'
+    source: _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-22.md
+    status: approved
+    summary: Add image export preview and image download as Epic 6; exported image must include overall used materials, per-layer graphics, and per-layer material lists; JSON export/import, import, sharing, cloud sync, accounts, and online publishing remain out of scope.
 ---
 
 # 产品需求文档 - pokopia-scene-editor
@@ -55,6 +59,12 @@ Pokopia 5×5 布景编辑器是一个面向 Pokopia 布景创作者的 Web App�
 本 PRD 已按 `sprint-change-proposal-2026-05-19.md` 收敛 MVP 范围。自本节起，任何旧段落中关于以下能力的 MVP 要求均视为废弃：建筑层隐藏/显示/锁定/解锁、手动保存、dirty/saved/saveError 状态区分、Undo/Redo、素材空状态恢复动作、素材适用区域的放置阻断校验、同层素材堆叠、素材实例移动、普通实例备注 `note`、素材是否可旋转的差异，以及预览中的网格/主体边界/技能标记显示控制。
 
 MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区识别、建筑层创建/删除/重命名/复制/切换、素材浏览/筛选/选择、素材放置/删除/替换、所有素材 0/90/180/270 度旋转、染色、实例级百变怪技能标记和技能备注、左下俯视/正视预览、自动保存、重新打开恢复和 SceneDocument v1 校验。Mobile View-only Mode 下必须屏蔽所有应用级键盘操作；桌面/平板键盘操作不作为 MVP 强制要求。
+
+### Approved Course Correction - 2026-05-22
+
+本 PRD 已按 `sprint-change-proposal-2026-05-22.md` 扩展当前 backlog。新增目标是图片导出预览与图片导出，而不是 JSON 文件导出。导出的图片必须包含整体使用的素材、每层的图形和每层使用的素材。
+
+`SceneDocument v1` 仍是自动保存、恢复、预览和图片导出的内部事实来源，但不是本次用户可下载的导出产物。当前系统没有导入功能；本次不新增 JSON 导入、图片导入、从导出图片恢复场景、分享链接、云同步、账号、公开方案库或在线发布。
 
 ### What Makes This Special
 
@@ -89,7 +99,7 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 
 ### Technical Success
 
-系统必须稳定维护 5×5 主体尺寸、7×7 画布尺寸、外围扩展格数、场景名称、当前 Pokemon、建筑层、素材实例、坐标、区域类型、朝向、染色、技能标记、技能备注、当前编辑建筑层、当前素材和选中坐标等核心数据。自动保存和后续显式导出必须使用同一个 SceneDocument v1 payload，并能完整还原 Open Design 工作台的必需持久上下文。
+系统必须稳定维护 5×5 主体尺寸、7×7 画布尺寸、外围扩展格数、场景名称、当前 Pokemon、建筑层、素材实例、坐标、区域类型、朝向、染色、技能标记、技能备注、当前编辑建筑层、当前素材和选中坐标等核心数据。自动保存、恢复、预览和图片导出数据派生必须使用同一个 SceneDocument v1 事实来源，并能完整还原 Open Design 工作台的必需持久上下文；图片导出不得维护第二套业务状态。
 
 编辑操作应即时响应；7×7 画布、建筑层切换、素材放置、删除、技能标记切换和预览切换不应出现明显卡顿。素材数量增长时，素材列表应支持分页或虚拟滚动，保证搜索和筛选仍可快速返回结果。
 
@@ -108,6 +118,7 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 - 左下检查器在同一工作台内同时展示正视图和俯视图缩略预览，正视图可独立滚动。
 - 自动保存数据重新打开后，场景名称、Decor Dex Pokemon key、画布、建筑层、当前编辑建筑层、当前素材、选中坐标、素材实例、坐标、区域类型、朝向、染色、技能标记和技能备注能够完整还原。
 - 搜索词、分类/区域/技能筛选和 favorite-only 不会写入 SceneDocument payload，但会在同一浏览器的 localStorage 中恢复。预览网格、主体边界和技能标记不提供显示选项。
+- 用户可以打开图片导出预览，并下载一张包含整体使用素材、每层图形和每层使用素材的布景说明图片。
 
 MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 Decor Dex Pokemon key、场景名称、7×7 画布、默认 3 个建筑层、当前编辑建筑层、当前素材、选中坐标、主体区素材、外围装饰区素材、至少 1 个技能标记、可染色素材、非默认朝向素材、俯视图预览、正视图预览、自动保存和重新打开流程。验收通过标准是上述结果均可在同一 Open Design 工作台中复现，且重新打开的数据与自动保存前的 SceneDocument v1 payload 语义一致。
 
@@ -147,7 +158,8 @@ MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 
 - 选中格上下文区域或检查器字段，支持查看和编辑坐标、区域、素材、建筑层、朝向、技能标记和备注。
 - 左下检查器同时展示俯视图和正视图缩略预览；预览固定不显示网格、主体边界和技能标记，正视图表达主体区、外围装饰区和建筑层高度关系。
 - 自动保存和本地重新打开恢复；MVP 不提供手动保存入口，也不要求展示 dirty/saved/saveError 状态。
-- SceneDocument v1 结构化序列化和恢复校验，用于保存、自动保存、恢复和后续显式导出能力；自动保存 payload 与显式导出 payload 必须完全相同。
+- SceneDocument v1 结构化序列化和恢复校验，用于保存、自动保存、恢复、roundtrip 校验和图片导出数据派生；图片导出必须从同一 SceneDocument v1 和 asset catalog 派生，不维护第二套导出业务状态。
+- 用户可以在导出前预览一张布景说明图片，并将该图片下载到本机；图片必须包含整体使用的素材、每层的图形和每层使用的素材。
 - 重新打开自动保存数据后完整还原场景名称、Decor Dex Pokemon key、画布、建筑层、当前编辑建筑层、当前素材、选中坐标、素材、坐标、区域、朝向、染色、技能标记和技能备注。
 - 素材搜索词、分类/区域/技能筛选和 favorite-only 使用 localStorage 保存为浏览器本地 UI 偏好，不进入 SceneDocument v1 payload。
 - 基础恢复校验，字段缺失时给出明确错误提示。
@@ -159,6 +171,7 @@ MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 
 - 素材批量导入。
 - 布景模板。
 - 显式 JSON 导出/导入 UI。
+- 分享链接、云同步、账号、公开方案库和在线发布。
 - 更完整的素材标签体系和高级筛选。
 - 更复杂的正视图遮挡表达。
 - 更多技能类型。
@@ -176,11 +189,11 @@ MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 
 
 ### Out of Scope / Non-Goals
 
-MVP 不包含账号系统、云端同步、协作编辑、公开方案库、分享链接、自动生成布景、素材批量导入、显式 JSON 导出/导入 UI、复杂遮挡关系计算、真实游戏视角模拟、更大布景尺寸、可配置外围扩展格数、移动端完整编辑体验、原生设备能力、推送通知、支付、隐私档案或后端管理控制台。
+MVP 不包含账号系统、云端同步、协作编辑、公开方案库、分享链接、自动生成布景、素材批量导入、显式 JSON 导出/导入 UI、从导出图片或 JSON 导入恢复布景、复杂遮挡关系计算、真实游戏视角模拟、更大布景尺寸、可配置外围扩展格数、移动端完整编辑体验、原生设备能力、推送通知、支付、隐私档案或后端管理控制台。
 
 MVP 同样不包含：建筑层隐藏/显示/锁定/解锁、手动保存、dirty/saved/saveError 状态区分、Undo/Redo、素材空状态恢复动作、放置时素材适用区域阻断校验、同层素材堆叠、素材实例移动、普通实例备注 `note`、按素材区分是否可旋转，以及预览网格/主体边界/技能标记显示开关。
 
-MVP 的保存、自动保存、结构化序列化和恢复能力只覆盖单个布景方案的数据闭环，不承诺跨用户权限、在线发布、多人合并或版本历史。当前 Open Design UI 不暴露显式导出入口，但 SceneDocument v1 payload 必须已经是后续显式导出的同一份数据结构；若后续确认导出入口进入 MVP，只补充工具栏入口、导出状态和导入/导出校验 UI，不另行定义第二套导出格式。
+MVP 的保存、自动保存、结构化序列化和恢复能力只覆盖单个布景方案的数据闭环，不承诺跨用户权限、在线发布、多人合并或版本历史。当前新增的导出入口只覆盖图片导出预览和图片下载；SceneDocument v1 作为内部事实来源参与导出数据派生，但 JSON 文件导出/导入 UI 仍是 Post-MVP，不作为 Epic 6 的用户可见交付。
 
 ### Risk Mitigation Strategy
 
@@ -222,7 +235,7 @@ MVP 的保存、自动保存、结构化序列化和恢复能力只覆盖单个�
 
 如果重新打开数据时发现字段缺失，系统需要给出明确错误提示，而不是静默丢失素材或错误渲染。用户修复数据或重新保存后，再次打开方案，确认场景名称、Pokemon、画布、建筑层、当前编辑上下文、素材、坐标、区域、朝向、染色、技能标记和备注全部还原。
 
-该旅程揭示的能力包括：保存结构完整性、保存/恢复一致性、恢复校验、错误提示、字段缺失处理和数据可复现性验证。显式 JSON 导出/导入 UI 当前不属于 Open Design UI 的暴露能力，但 SceneDocument v1 已是自动保存和后续导出的唯一 payload。
+该旅程揭示的能力包括：保存结构完整性、保存/恢复一致性、恢复校验、错误提示、字段缺失处理和数据可复现性验证。显式 JSON 导出/导入 UI 当前不属于 Open Design UI 的暴露能力；图片导出只从 SceneDocument v1 和 asset catalog 派生可阅读图片，不提供导入或从文件恢复场景。
 
 ### Journey Requirements Summary
 
@@ -370,6 +383,13 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR55: 系统可以在恢复数据字段缺失、类型错误或坐标超出 7×7 范围时给出错误提示，提示必须包含问题字段、失败原因和用户可执行的修复方向。
 - FR64: 系统可以将素材搜索词、分类/区域/技能筛选和 favorite-only 保存到 localStorage，并确保这些 UI 偏好不进入 SceneDocument v1 payload。预览显示选项不进入 MVP。
 
+### Image Export
+
+- FR65: 用户可以从 Open Design 工作台打开图片导出预览，查看即将导出的布景说明图片。
+- FR66: 导出图片必须包含整体使用的素材清单，至少包含素材名称、官方 No. 或 asset id、总使用数量。
+- FR67: 导出图片必须按建筑层展示每层图形，并表达该层 7×7 布局、主体区/外围区关系和素材位置。
+- FR68: 导出图片必须按建筑层展示每层使用的素材清单；导出预览和下载不得写入 SceneDocument、autosave storage、saved storage 或 UI preferences。
+
 ## Non-Functional Requirements
 
 ### Performance
@@ -417,3 +437,5 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - NFR26: 用户自定义名称和技能说明在界面展示时必须进行文本安全处理；使用 `<script>`、`<img onerror>` 等字符串测试时不得破坏页面结构或执行脚本。
 - NFR27: 动态 Pokemon 主题只能影响外层 shell 和少量强调色；主体区、外围区、当前层、选中格、技能标记、警告和错误必须继续使用稳定语义 tokens。
 - NFR28: Open Design 工作台不得使用 landing page、hero-scale 字号、卡片套卡片或装饰性背景来承载核心编辑体验；面板、按钮、格子、预览单元和计数区域必须有稳定尺寸。
+- NFR29: 图片导出预览和图片生成在 7×7 画布、10 个建筑层、每层 49 个素材实例以内的测试场景中，应在用户感知上可接受；若生成超过 1 秒，应显示非阻塞进度或生成状态。
+- NFR30: 导出图片中的标题、整体素材清单、每层图形和每层素材清单必须在默认导出尺寸下可读；下载按钮、关闭操作和失败提示必须有可访问名称。

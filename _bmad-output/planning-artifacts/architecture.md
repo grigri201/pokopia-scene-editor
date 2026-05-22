@@ -48,6 +48,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - Ditto Skill / Instance Visual State：放置前默认技能状态、放置后实例级技能标记、`树叶`/`耕地`/`储水` 技能词表、一字技能标签、可染色状态、非默认旋转标记，以及画布/预览标识。
 - Preview：左下 Preview Inspector 同屏展示俯视图和正视图、完整 7x7 展示、主体边界、当前层/全部可见层、网格和技能标记开关。
 - Properties, Save & Recovery：上下文/检查器字段、保存/自动保存、重新打开、恢复校验、SceneDocument 序列化和字段级错误提示；显式 JSON 导出/导入 UI 后置。
+- Image Export：从 SceneDocument、asset catalog 和 preview/export selectors 派生图片导出摘要、导出预览和图片下载；不修改 scene，不写入 storage。
 
 ### Approved Course Correction - 2026-05-19
 
@@ -65,7 +66,13 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - Preview Inspector 固定不显示网格、主体边界和技能标记，也不持久化这类显示选项。
 - Mobile View-only Mode 下应用级 keyboard handler 必须 no-op；桌面/平板键盘快捷操作可保留但不是 MVP 强制要求。
 
-另有 28 条 Non-Functional Requirements，核心架构约束包括：
+### Approved Course Correction - 2026-05-22
+
+本 Architecture 已按 `sprint-change-proposal-2026-05-22.md` 增加图片导出预览和图片导出边界。当前用户可见导出产物是图片，不是 JSON 文件；图片必须包含整体使用素材、每层图形和每层使用素材。
+
+`SceneDocument`、asset catalog 和 preview/export selectors 是图片导出的唯一业务数据源。图片导出不得维护第二套业务状态，不得修改 `SceneDocument`，不得触发 autosave，不得写入 `pokopia.sceneDocument.v1` 或 `pokopia.sceneDocument.autosave.v1`。当前不引入导入、JSON export UI、server route、auth、cloud storage、share URL、账号或在线发布。
+
+另有 30 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
 - 预览切换需要在 300ms 内完成首个可见更新；素材搜索筛选 1000 个素材以内需要在 200ms 内返回可见结果。
@@ -79,7 +86,7 @@ Open Design UI 确认了新的工作台形态。架构上应支持一个桌面�
 
 关键架构结论：
 
-- MVP 应采用客户端优先架构，先完成本地场景编辑、保存/自动保存、序列化和恢复闭环；显式 JSON 导出/导入 UI、账号、云同步、协作、公开方案库和分享链接不进入 MVP。
+- MVP 应采用客户端优先架构，先完成本地场景编辑、保存/自动保存、序列化、恢复和图片导出闭环；显式 JSON 导出/导入 UI、账号、云同步、协作、公开方案库、在线发布和分享链接不进入当前 backlog。
 - Scene document 必须是编辑数据的单一事实来源。画布、上下文/检查器字段、建筑层列表、预览和保存/恢复校验不得维护互相分叉的业务状态。
 - 所有会修改 scene document 的行为都应经过统一 command 层，便于只读模式、校验、自动保存和自动化测试；MVP 不提供撤销/重做。
 - `<768px` 的只读边界不能只靠隐藏按钮实现；command 层、canvas pointer handler 和 keyboard handler 都必须检查 `interactionMode`。
@@ -194,13 +201,14 @@ Vite 提供快速 dev server、HMR、TypeScript/JSX 支持和静态构建。第�
 
 - 领域类型使用 TypeScript 定义，保存/恢复 schema 使用 Zod 4.x。
 - MVP 状态管理使用 React `useReducer` + command dispatcher，不默认引入 Redux、Zustand 或 undo/redo history。
-- MVP 保存/自动保存使用浏览器本地存储适配层和 SceneDocument 序列化；显式 JSON 文件导出/导入 UI 延后到 Post-MVP，但自动保存和后续显式导出必须共享同一个 SceneDocument v1 payload。
+- MVP 保存/自动保存使用浏览器本地存储适配层和 SceneDocument 序列化；图片导出预览和图片下载进入当前 backlog，但必须从 SceneDocument v1、asset catalog 和 preview/export selectors 派生；显式 JSON 文件导出/导入 UI 延后到 Post-MVP。
 - 测试栈采用 Vitest、React Testing Library 和 Playwright。
 - 部署目标是静态站点托管，CI 至少包含 typecheck、unit tests、build 和 Playwright smoke。
 
 **Deferred Decisions (Post-MVP)**
 
-- 显式 JSON 导出/导入 UI、数据库、账号、云同步、分享链接、公开方案库、协作编辑和版本历史全部延后到 Post-MVP。
+- 显式 JSON 导出/导入 UI、数据库、账号、云同步、分享链接、公开方案库、协作编辑、在线发布和版本历史全部延后到 Post-MVP。
+- 图片导出预览和图片文件下载进入当前 backlog，但必须从 SceneDocument v1、asset catalog 和 preview/export selectors 派生，不引入第二套业务状态。
 - Zustand 或其他外部状态库延后。只有当 React reducer + context/selectors 在实际实现中出现明确订阅性能或组件边界问题时再引入。
 - 复杂正视图遮挡、真实游戏视角模拟和更大画布尺寸延后。
 - 多环境后端配置、API rate limiting、server monitoring 和服务端日志延后。
@@ -293,7 +301,7 @@ MVP schema 固定为 `1`。恢复流程应先读取 `schemaVersion`：
 核心数据流全部发生在浏览器内：
 
 - scene create/edit：内存 state
-- autosave：serialize `SceneDocument` through local scene storage; payload identical to future explicit export
+- autosave：serialize `SceneDocument` through local scene storage; image export reads the same scene truth but does not reuse JSON as the user-facing artifact
 - reopen/recover：read autosaved SceneDocument data, parse, validate, then replace state only after success
 - local UI preferences：persist asset search/filter/favorite-only to a separate localStorage namespace, outside `SceneDocument`
 - asset catalog：MVP 使用 repo-local static data 或 bundled JSON/TS data
@@ -320,8 +328,9 @@ MVP schema 固定为 `1`。恢复流程应先读取 `schemaVersion`：
 - Preview Inspector derives front/top previews from scene and layer range
 - Pokemon Scene Controls read selected Pokemon and scene name
 - Recovery Validator reads schema validation result
+- Image Export Preview reads export summary/render data derived from SceneDocument and asset catalog
 
-组件可以拥有 local UI state，例如 hover cell、focused control、panel open state、search input text、filter controls、favorite-only、zoom/pan 或 modal open state；这些 UI 偏好可以保存到 localStorage，但不能复制 `SceneDocument` 的业务字段作为独立 truth，也不能进入自动保存/导出 payload。
+组件可以拥有 local UI state，例如 hover cell、focused control、panel open state、search input text、filter controls、favorite-only、zoom/pan 或 modal open state；这些 UI 偏好可以保存到 localStorage，但不能复制 `SceneDocument` 的业务字段作为独立 truth，也不能进入自动保存 payload 或图片导出业务摘要。
 
 **Decision: State management uses React reducer and typed command layer.**
 
@@ -818,7 +827,7 @@ MVP has no external service integrations. Browser APIs used:
 - localStorage or equivalent local scene storage adapter for MVP autosave and reopen.
 - localStorage UI-preferences namespace for asset search/filter/favorite-only; this namespace is explicitly outside SceneDocument.
 - File input / drag-and-drop for future explicit import, outside current MVP UI.
-- Blob URL / download for future explicit export, outside current MVP UI.
+- Canvas/SVG/Blob URL/download for current image export, browser-only and outside any backend integration.
 - `matchMedia` or resize observation for interaction mode, routed through a shared `interaction-mode` helper.
 
 **Data Flow**
@@ -846,10 +855,16 @@ Autosave
         -> serialize
         -> local scene storage
 
-Future explicit export
-        -> validate current SceneDocument
-        -> same serialize function
-        -> same JSON-compatible payload as autosave
+Image export preview
+        -> read current SceneDocument
+        -> derive overall material summary and per-layer summaries
+        -> render export image preview
+        -> no SceneDocument mutation and no storage write
+
+Image export download
+        -> use same export render data as preview
+        -> Canvas/SVG/Blob URL/browser download
+        -> no SceneDocument mutation and no storage write
 
 UI preference change
         -> localStorage UI-preferences namespace
@@ -917,7 +932,7 @@ Deployment serves `dist/` as static files. Runtime behavior must not require Nod
 
 All major decisions work together without conflict. Vite + React + TypeScript supports the chosen single-page editor shape. Zod provides runtime validation for recovered SceneDocument data while TypeScript covers compile-time domain contracts. Vitest, React Testing Library and Playwright align with the selected Vite/React stack. Static deployment fits the explicit MVP boundary of no backend API, no auth, no database and no server runtime.
 
-The deferred decisions are also coherent: explicit JSON import/export UI, database, auth, routing, external state libraries, sharing, collaboration and complex front-view rendering are all outside MVP and do not block the current static editor architecture.
+The deferred decisions are also coherent: explicit JSON import/export UI, database, auth, routing, external state libraries, sharing, collaboration, online publishing and complex front-view rendering are all outside MVP and do not block the current static editor architecture.
 
 **Pattern Consistency**
 
@@ -947,17 +962,18 @@ All PRD feature groups have architectural support:
 - Ditto Skill / Instance Visual State maps to tile commands, selection inspector, scene canvas badges, dye controls and preview selectors.
 - Preview maps to shared selectors and `components/preview-inspector/`.
 - Properties, Save & Recovery maps to selection inspector, IO schema, serializer/storage/recovery modules and validator UI.
+- Image Export maps to `src/domain/scene/export-summary.ts`, `src/io/image-export.ts`, `components/export-preview/` and preview/export selectors; it must be derived from SceneDocument and asset catalog.
 
 **Functional Requirements Coverage**
 
-FR1-FR64 are architecturally supported. The architecture gives each functional area an owning module and prevents duplicated business rules through domain helpers/selectors and command-layer write boundaries.
+FR1-FR68 are architecturally supported. The architecture gives each functional area an owning module and prevents duplicated business rules through domain helpers/selectors and command-layer write boundaries. FR65-FR68 are covered by browser-only image export preview, export summary derivation and download helpers that do not mutate SceneDocument or storage.
 
 **Non-Functional Requirements Coverage**
 
 NFR coverage is sufficient for implementation:
 
 - Performance: fixed 7x7 canvas, pure selectors, local state, static asset deployment and optional asset-list pagination/virtualization path support the required response targets.
-- Reliability and data integrity: single source of truth, Zod schema validation, strict schemaVersion, command layer, identical autosave/export payloads and roundtrip Playwright tests support save/recovery consistency.
+- Reliability and data integrity: single source of truth, Zod schema validation, strict schemaVersion, command layer, SceneDocument-derived image export data and roundtrip Playwright tests support save/recovery consistency.
 - Usability and accessibility: component boundaries, semantic state tokens, accessible-name tests and Playwright responsive checks support the UX/NFR requirements.
 - Compatibility and responsive behavior: Vite static build plus Playwright desktop/mobile coverage supports the browser and viewport matrix.
 - Security and data safety: no backend/auth surface, safe text rendering and JSON-as-data validation address the security NFRs.
@@ -1038,7 +1054,7 @@ No blocking validation issues were found. Minor future refinements were classifi
 - Clear command layer that supports undo/redo, validation, dirty state and mobile read-only guard.
 - Explicit save/recovery schema and safe text rendering strategy.
 - Component boundaries match the selected UX direction.
-- Requirements-to-structure mapping is complete for FR1-FR64.
+- Requirements-to-structure mapping is complete for FR1-FR68.
 - Testing responsibilities are defined at unit, component and E2E levels.
 
 **Areas for Future Enhancement**

@@ -11,6 +11,7 @@ inputDocuments:
   - _bmad-output/planning-artifacts/ux-design-directions.html
   - _bmad-output/planning-artifacts/prd-validation-report.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-19.md
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-22.md
   - docs/需求文档.md
 ---
 
@@ -24,7 +25,11 @@ This document provides the complete epic and story breakdown for pokopia-scene-e
 
 `sprint-change-proposal-2026-05-19.md` 已批准。Epic 1-4 保留为已完成历史，但其中涉及以下能力的验收点不再代表当前 MVP 目标：建筑层隐藏/显示/锁定/解锁、手动保存、dirty/saved/saveError 状态区分、Undo/Redo、素材空状态恢复动作、素材适用区域的放置阻断校验、同层素材堆叠、素材实例移动、普通实例备注 `note`、按素材区分是否可旋转、预览网格/主体边界/技能标记显示开关，以及 Mobile 下应用级键盘操作。
 
-当前计划新增 Epic 5 执行删减和回归验证。后续开发应先处理 Epic 5，再开始任何新功能。
+Epic 5 已完成并保留为已完成历史。后续新功能不得通过重写 Epic 1-5 完成记录吸收。
+
+## Approved Course Correction - 2026-05-22
+
+`sprint-change-proposal-2026-05-22.md` 已批准。Epic 1-5 保留为已完成历史；当前新增 Epic 6，用于图片导出预览与图片导出。导出图片必须包含整体使用素材、每层图形和每层使用素材。当前不新增导入、JSON 文件导出、分享链接、云同步、账号或在线发布。
 
 ## Requirements Inventory
 
@@ -158,6 +163,14 @@ FR55: 系统可以在恢复数据字段缺失、类型错误或坐标超出 7×7
 
 FR64: 系统可以将素材搜索词、分类/区域/技能筛选、favorite-only 和预览显示选项保存到 localStorage，并确保这些 UI 偏好不进入 SceneDocument v1 payload。
 
+FR65: 用户可以从 Open Design 工作台打开图片导出预览，查看即将导出的布景说明图片。
+
+FR66: 导出图片必须包含整体使用的素材清单，至少包含素材名称、官方 No. 或 asset id、总使用数量。
+
+FR67: 导出图片必须按建筑层展示每层图形，并表达该层 7×7 布局、主体区/外围区关系和素材位置。
+
+FR68: 导出图片必须按建筑层展示每层使用的素材清单；导出预览和下载不得写入 SceneDocument、autosave storage、saved storage 或 UI preferences。
+
 ### NonFunctional Requirements
 
 NFR1: 在桌面浏览器 1280×720 视口、1,000 个素材以内、10 个建筑层以内的测试场景中，7×7 画布上的选中格子、放置素材、删除素材、切换技能标记和切换当前建筑层操作应在 100ms 内完成可见状态更新，使用浏览器性能标记或等效自动化计时测量。
@@ -216,6 +229,10 @@ NFR27: 动态 Pokemon 主题只能影响外层 shell 和少量强调色；主体
 
 NFR28: Open Design 工作台不得使用 landing page、hero-scale 字号、卡片套卡片或装饰性背景来承载核心编辑体验；面板、按钮、格子、预览单元和计数区域必须有稳定尺寸。
 
+NFR29: 图片导出预览和图片生成在 7×7 画布、10 个建筑层、每层 49 个素材实例以内的测试场景中，应在用户感知上可接受；若生成超过 1 秒，应显示非阻塞进度或生成状态。
+
+NFR30: 导出图片中的标题、整体素材清单、每层图形和每层素材清单必须在默认导出尺寸下可读；下载按钮、关闭操作和失败提示必须有可访问名称。
+
 ### Additional Requirements
 
 - MVP 必须采用客户端优先静态 Web App，不引入数据库、认证、后端 API、服务端运行时、路由或公开内容页。
@@ -230,7 +247,9 @@ NFR28: Open Design 工作台不得使用 landing page、hero-scale 字号、卡�
 
 - 只读模式允许查看场景、查看当前建筑层、点选格子或实例查看信息、缩放、平移和查看详情；禁止放置、移动、删除、旋转、染色、修改技能、修改建筑层、恢复替换、保存 dirty changes、自动保存、撤销/重做或改变 scene JSON。
 
-- 领域类型使用 TypeScript；保存/恢复 runtime schema validation 使用 Zod 4.x；恢复失败不得覆盖当前 scene、不得创建 partial scene、不得修改 dirty state。显式导出/导入 UI 当前不暴露，但自动保存与后续显式导出必须共享同一个 SceneDocument v1 payload。
+- 领域类型使用 TypeScript；保存/恢复 runtime schema validation 使用 Zod 4.x；恢复失败不得覆盖当前 scene、不得创建 partial scene、不得修改 dirty state。当前导出能力只覆盖图片导出预览和图片下载；显式 JSON 导出/导入 UI 当前不暴露。
+
+- 图片导出必须从 SceneDocument v1、asset catalog 和 preview/export selectors 派生整体素材清单、逐层图形和逐层素材清单；不得修改 SceneDocument、不得触发 autosave、不得写入 saved storage 或 UI preferences。
 
 - MVP schema 固定为当前 `1`；恢复流程必须检查 `schemaVersion`，缺失或未知版本必须显示明确错误，不接受旧字段名、缺省字段或隐式迁移。
 
@@ -476,6 +495,14 @@ FR55: Epic 4 - 恢复数据异常时给出字段、原因和修复方向。
 
 FR64: Epic 4 - 将素材搜索/筛选/favorite-only/预览显示选项持久化到 localStorage，且不写入 SceneDocument payload。
 
+FR65: Epic 6 - 从工作台打开图片导出预览。
+
+FR66: Epic 6 - 导出图片包含整体使用素材清单。
+
+FR67: Epic 6 - 导出图片按建筑层展示每层图形。
+
+FR68: Epic 6 - 导出图片按建筑层展示每层使用素材清单，且预览/下载不写入 SceneDocument 或 storage。
+
 ## Epic List
 
 ### Epic 1: 规则可见的 7×7 布景工作台
@@ -517,6 +544,14 @@ FR64: Epic 4 - 将素材搜索/筛选/favorite-only/预览显示选项持久化�
 **FRs covered:** Approved Course Correction 2026-05-19, FR13 removed, FR14 removed, FR15 removed, FR17 removed, FR18 removed, FR25 removed, FR26 removed, FR47 removed, FR50 updated, FR53 updated, FR64 updated.
 
 **Implementation notes:** 该 epic 承接已批准的 course correction，不改写 Epic 1-4 的完成历史，而是通过 cleanup stories 删除已不属于 MVP 的数据字段、command、UI 入口和测试预期。
+
+### Epic 6: 图片导出预览与图片导出闭环
+
+用户可以在当前 Open Design 工作台中预览一张将要导出的布景图片，并下载该图片作为本地文件。导出图片必须包含整体使用的素材、每层的图形和每层使用的素材；导出不引入导入、JSON 文件导出、分享链接、云同步、账号或在线发布，也不改变 scene state、autosave 或 UI preferences。
+
+**FRs covered:** FR65, FR66, FR67, FR68, NFR29, NFR30.
+
+**Implementation notes:** 该 epic 承接 Epic 3 的 preview selectors、Epic 4 的 `SceneDocument v1` 数据契约和 Epic 5 的简化 MVP 边界。图片导出必须从同一 `SceneDocument` 和 asset catalog 派生整体素材清单、逐层图形和逐层素材清单。该 epic 不新增 import parser、JSON export UI、server route、auth、cloud storage、share URL 或 image upload。
 
 ## Epic 1: 规则可见的 7×7 布景工作台
 
@@ -1591,3 +1626,99 @@ So that 窄视口只读契约不会被键盘路径绕过。
 **When** release gate 运行
 **Then** `npm run typecheck`、unit tests、`npm run build` 和 Playwright smoke 必须通过
 **And** smoke 覆盖自动保存/恢复、被删除 UI 入口不存在、预览覆盖信息不显示，以及 mobile 键盘 no-op。
+
+## Epic 6: 图片导出预览与图片导出闭环
+
+用户可以在当前 Open Design 工作台中预览一张将要导出的布景图片，并下载该图片作为本地文件。导出图片必须包含整体使用的素材、每层的图形和每层使用的素材；导出不引入导入、JSON 文件导出、分享链接、云同步、账号或在线发布，也不改变 scene state、autosave 或 UI preferences。
+
+### Story 6.1: 图片导出摘要模型与逐层导出数据
+
+**Requirements covered:** FR65, FR66, FR67, FR68, NFR29.
+
+As a 布景创作者,
+I want 系统能从当前 SceneDocument 生成图片导出所需的整体素材和逐层摘要,
+So that 导出的图片能准确表达整个布景和每一层的素材使用。
+
+**Acceptance Criteria:**
+
+**Given** 当前 scene 包含多个建筑层和素材实例
+**When** 系统生成 export summary
+**Then** 输出整体素材清单，包含素材名称、官方 No. 或 asset id、总使用数量。
+
+**Given** 当前 scene 包含多个建筑层
+**When** 系统生成 layer export summaries
+**Then** 每个建筑层都有独立图形数据和该层素材清单。
+
+**Given** 素材实例包含技能、染色或非默认旋转
+**When** 生成每层素材清单
+**Then** 清单至少保留能帮助用户复现的技能、染色和旋转摘要。
+
+**Given** 用户修改 scene 后再次打开导出预览
+**When** export summary 重新生成
+**Then** export summary 必须反映最新 SceneDocument，不使用过期缓存。
+
+**Given** export summary 生成
+**When** 系统完成派生
+**Then** 不修改 SceneDocument、autosave storage、saved storage 或 UI preferences。
+
+### Story 6.2: 图片导出预览 UI
+
+**Requirements covered:** FR65, FR66, FR67, FR68, NFR30.
+
+As a 布景创作者,
+I want 在下载前预览即将导出的图片,
+So that 我能确认图片中包含整体素材、每层图形和每层素材清单。
+
+**Acceptance Criteria:**
+
+**Given** 桌面或平板编辑模式下存在有效 scene
+**When** 用户点击 `导出`
+**Then** 系统打开图片导出预览面板或 modal。
+
+**Given** 导出预览已打开
+**When** 预览内容渲染
+**Then** 预览中显示标题区、整体使用素材清单、逐层图形和逐层素材清单。
+
+**Given** 某一层没有素材
+**When** 导出预览渲染该层
+**Then** 图片预览仍展示该层，并明确显示空层状态。
+
+**Given** sceneName、assetName 或 skillNote 包含 HTML-like 文本
+**When** 导出预览渲染
+**Then** UI 只能按普通文本显示，不执行 HTML 或脚本。
+
+**Given** 导出预览打开或关闭
+**When** 用户不执行下载
+**Then** SceneDocument、autosave storage、saved storage 和 UI preferences 均不得改变。
+
+### Story 6.3: 图片文件生成、下载与回归测试
+
+**Requirements covered:** FR66, FR67, FR68, NFR29, NFR30.
+
+As a 布景创作者,
+I want 将预览确认过的布景导出图片下载到本机,
+So that 我可以分享或保存一个无需导入功能也能阅读的布景说明图。
+
+**Acceptance Criteria:**
+
+**Given** 导出预览有效
+**When** 用户点击 `下载图片`
+**Then** 浏览器下载 `<sanitized-scene-name>.pokopia-scene.png` 或规划批准的图片格式。
+
+**Given** 用户执行图片下载
+**When** 下载完成
+**Then** 下载内容必须与预览中的图片语义一致，包含整体使用素材、每层图形和每层使用素材。
+
+**Given** 用户执行图片下载
+**When** 系统完成下载触发
+**Then** 系统显示轻量成功反馈
+**And** 不写入 `pokopia.sceneDocument.v1`、不写入 `pokopia.sceneDocument.autosave.v1`、不改变 SceneDocument。
+
+**Given** `<768px` Mobile View-only Mode
+**When** 导出入口被隐藏、禁用或只读渲染
+**Then** 不允许任何 scene mutation 或 storage write。
+
+**Given** release gate 运行
+**When** dev agent 执行验证
+**Then** `npm run typecheck`、unit tests、`npm run build` 和 Playwright smoke 必须通过
+**And** 覆盖导出预览、图片下载触发、逐层内容存在和 storage 不变性。
