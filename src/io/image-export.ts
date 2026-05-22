@@ -1,4 +1,10 @@
-import type { ExportLayerMaterialSummary, ImageExportLayerSummary, ImageExportSummary } from '../domain/scene';
+import type {
+  ExportLayerMaterialSummary,
+  ExportLayerSkillSummary,
+  ExportSkillSummary,
+  ImageExportLayerSummary,
+  ImageExportSummary,
+} from '../domain/scene';
 
 const exportImageWidth = 1200;
 const pageMargin = 32;
@@ -30,7 +36,7 @@ export function getImageExportFileName(sceneName: string): string {
 }
 
 export function buildImageExportSvg(summary: ImageExportSummary): string {
-  const overallHeight = Math.max(88, 52 + summary.overallMaterials.length * 24);
+  const overallHeight = getOverallHeight(summary);
   const layerHeights = summary.layers.map(getLayerHeight);
   const height =
     pageMargin * 2 +
@@ -49,21 +55,33 @@ export function buildImageExportSvg(summary: ImageExportSummary): string {
 
   parts.push(sectionFrame(pageMargin, y, exportImageWidth - pageMargin * 2, overallHeight));
   parts.push(text('整体使用素材', pageMargin + 18, y + 32, 18, '#231f1a', 900));
+  let summaryY = y + 62;
   if (summary.overallMaterials.length === 0) {
-    parts.push(text('未放置素材', pageMargin + 18, y + 62, 15, '#6b6258', 700));
+    parts.push(text('未放置素材', pageMargin + 18, summaryY, 15, '#6b6258', 700));
+    summaryY += 24;
   } else {
     summary.overallMaterials.forEach((material, index) => {
       parts.push(
         text(
           `${material.assetName} · x${material.totalCount}`,
           pageMargin + 18,
-          y + 62 + index * 24,
+          summaryY + index * 24,
           14,
           '#231f1a',
           700,
         ),
       );
     });
+    summaryY += summary.overallMaterials.length * 24;
+  }
+  if (summary.overallSkills.length > 0) {
+    summaryY += 8;
+    parts.push(text('技能数量', pageMargin + 18, summaryY, 14, '#6b6258', 900));
+    summaryY += 24;
+    for (const skill of summary.overallSkills) {
+      parts.push(...renderSkill(skill, pageMargin + 18, summaryY));
+      summaryY += getSkillHeight();
+    }
   }
   y += overallHeight + layerGap;
 
@@ -97,21 +115,41 @@ function renderLayer(layer: ImageExportLayerSummary, y: number, height: number):
     const x = gridX + cell.coordinate.x * (gridCellSize + gridGap);
     const cellY = gridY + cell.coordinate.y * (gridCellSize + gridGap);
     const firstInstance = cell.tileInstances[0] ?? null;
+    const firstSkillMarker = cell.skillMarkers[0] ?? null;
     parts.push(
       `<rect x="${x}" y="${cellY}" width="${gridCellSize}" height="${gridCellSize}" rx="3" fill="${cell.areaType === 'main' ? '#e8f6ef' : '#fcf8f0'}" stroke="#d8cfc2" stroke-width="1"/>`,
     );
     if (firstInstance) {
       parts.push(text(firstInstance.assetName.slice(0, 2), x + 4, cellY + 15, 9, '#231f1a', 900));
+    } else if (firstSkillMarker) {
+      parts.push(text(firstSkillMarker.skillLabel, x + 7, cellY + 15, 9, '#355ec9', 900));
     }
   }
 
   if (layer.materials.length === 0) {
     parts.push(text('该层没有素材', materialX, y + 72, 14, '#6b6258', 700));
+    if (layer.skills.length > 0) {
+      parts.push(text('逐层技能数量', materialX, y + 104, 13, '#6b6258', 800));
+      let skillY = y + 132;
+      for (const skill of layer.skills) {
+        parts.push(...renderSkill(skill, materialX, skillY));
+        skillY += getSkillHeight();
+      }
+    }
   } else {
     let materialY = y + 72;
     for (const material of layer.materials) {
       parts.push(...renderMaterial(material, materialX, materialY));
       materialY += getMaterialHeight();
+    }
+    if (layer.skills.length > 0) {
+      materialY += 4;
+      parts.push(text('逐层技能数量', materialX, materialY, 13, '#6b6258', 800));
+      materialY += 28;
+      for (const skill of layer.skills) {
+        parts.push(...renderSkill(skill, materialX, materialY));
+        materialY += getSkillHeight();
+      }
     }
   }
 
@@ -124,16 +162,40 @@ function renderMaterial(material: ExportLayerMaterialSummary, x: number, y: numb
   ];
 }
 
+function renderSkill(skill: ExportSkillSummary | ExportLayerSkillSummary, x: number, y: number): string[] {
+  return [
+    text(`${skill.skillType} · x${'count' in skill ? skill.count : skill.totalCount}`, x, y, 14, '#355ec9', 800),
+  ];
+}
+
+function getOverallHeight(summary: ImageExportSummary): number {
+  const materialHeight = summary.overallMaterials.length === 0
+    ? 24
+    : summary.overallMaterials.length * 24;
+  const skillHeight = summary.overallSkills.length === 0
+    ? 0
+    : 8 + 24 + summary.overallSkills.length * getSkillHeight();
+
+  return Math.max(88, 52 + materialHeight + skillHeight);
+}
+
 function getLayerHeight(layer: ImageExportLayerSummary): number {
   const materialHeight = layer.materials.length === 0
     ? materialHeaderHeight
     : layer.materials.reduce((total) => total + getMaterialHeight(), 0);
+  const skillHeight = layer.skills.length === 0
+    ? 0
+    : 32 + layer.skills.length * getSkillHeight();
 
-  return Math.max(layerMinimumHeight, layerHeaderHeight + materialHeight + 24);
+  return Math.max(layerMinimumHeight, layerHeaderHeight + materialHeight + skillHeight + 24);
 }
 
 function getMaterialHeight(): number {
   return materialHeaderHeight + 10;
+}
+
+function getSkillHeight(): number {
+  return 26;
 }
 
 function sectionFrame(x: number, y: number, width: number, height: number): string {

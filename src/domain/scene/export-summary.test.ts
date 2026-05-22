@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { autosavedSceneStorageKey, savedSceneStorageKey, uiPreferencesStorageKey } from '../../io';
-import { createBuildingLevel, createDefaultSceneDocument, createTileInstance, type TileInstance } from './index';
+import { createBuildingLevel, createDefaultSceneDocument, createSkillMarker, createTileInstance, type TileInstance } from './index';
 import { buildImageExportSummary } from './export-summary';
 
 describe('image export summary', () => {
@@ -23,8 +23,26 @@ describe('image export summary', () => {
         totalCount: 1,
       }),
     ]);
+    expect(summary.overallSkills).toEqual([
+      expect.objectContaining({
+        skillType: '树叶',
+        skillLabel: '树',
+        totalCount: 1,
+      }),
+      expect.objectContaining({
+        skillType: '耕地',
+        skillLabel: '耕',
+        totalCount: 1,
+      }),
+      expect.objectContaining({
+        skillType: '储水',
+        skillLabel: '水',
+        totalCount: 1,
+      }),
+    ]);
     expect(summary.layers.map((layer) => layer.displayId)).toEqual(['L0', 'L1', 'L2']);
     expect(summary.layers.map((layer) => layer.empty)).toEqual([false, false, true]);
+    expect(summary.layers.map((layer) => layer.skillCount)).toEqual([1, 2, 0]);
     expect(summary.layers[1].materials).toEqual([
       expect.objectContaining({
         assetId: 'leafy-plant',
@@ -40,6 +58,16 @@ describe('image export summary', () => {
             dyeColor: '#88cc44',
           }),
         ],
+      }),
+    ]);
+    expect(summary.layers[1].skills).toEqual([
+      expect.objectContaining({
+        skillType: '树叶',
+        count: 1,
+      }),
+      expect.objectContaining({
+        skillType: '储水',
+        count: 1,
       }),
     ]);
   });
@@ -63,6 +91,22 @@ describe('image export summary', () => {
             assetName: '绿叶植物',
             thumbnailUrl: expect.stringContaining('leafy-plant'),
             thumbnailAlt: '绿叶植物缩略图',
+          }),
+        ],
+      }),
+    );
+    expect(layerOne?.cells.find((cell) => cell.id === '4-4')).toEqual(
+      expect.objectContaining({
+        coordinate: { x: 4, y: 4 },
+        areaType: 'main',
+        empty: false,
+        tileInstances: [],
+        skillMarkers: [
+          expect.objectContaining({
+            coordinate: { x: 4, y: 4 },
+            skillType: '储水',
+            skillLabel: '水',
+            iconAlt: '储水技能图标',
           }),
         ],
       }),
@@ -94,6 +138,8 @@ describe('image export summary', () => {
     expect(scene).toEqual(sceneBefore);
     expect(firstSummary.overallMaterials.find((material) => material.assetId === 'wooden-fencing')?.totalCount).toBe(1);
     expect(secondSummary.overallMaterials.find((material) => material.assetId === 'wooden-fencing')?.totalCount).toBe(2);
+    expect(firstSummary.overallSkills.find((skill) => skill.skillType === '储水')?.totalCount).toBe(1);
+    expect(secondSummary.overallSkills.find((skill) => skill.skillType === '储水')?.totalCount).toBe(1);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBe('saved-sentinel');
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe('autosave-sentinel');
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBe('ui-sentinel');
@@ -120,6 +166,10 @@ describe('image export summary', () => {
         officialId: null,
         totalCount: 1,
       }),
+    ]);
+    expect(summary.overallSkills).toEqual([
+      expect.objectContaining({ skillType: '耕地', totalCount: 1 }),
+      expect.objectContaining({ skillType: '储水', totalCount: 1 }),
     ]);
   });
 
@@ -165,6 +215,26 @@ describe('image export summary', () => {
       }),
     );
   });
+
+  it('rejects scenes when a standalone skill marker cannot be represented in layer cell graphics', () => {
+    const scene = {
+      ...createExportScene(),
+      skillMarkers: [
+        {
+          ...createSkillMarker({
+            coordinate: { x: 1, y: 1 },
+            buildingLevelId: 'level-0',
+            skillType: '耕地',
+          }),
+          coordinate: { x: 99, y: 99 },
+        },
+      ],
+    };
+
+    expect(() => buildImageExportSummary(scene)).toThrow(
+      /Unable to include skill markers in image export layer cells: level-0:99,99/,
+    );
+  });
 });
 
 function createExportScene() {
@@ -206,6 +276,18 @@ function createExportScene() {
         coordinate: { x: 0, y: 3 },
         buildingLevelId: 'level-0',
         rotationDegrees: 180,
+      }),
+    ],
+    skillMarkers: [
+      createSkillMarker({
+        coordinate: { x: 1, y: 1 },
+        buildingLevelId: 'level-0',
+        skillType: '耕地',
+      }),
+      createSkillMarker({
+        coordinate: { x: 4, y: 4 },
+        buildingLevelId: 'level-1',
+        skillType: '储水',
       }),
     ],
   };

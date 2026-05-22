@@ -1,4 +1,12 @@
-import { getAssetById, type AssetDefinition, type AssetSkillType } from '../assets';
+import {
+  assetSkillTypes,
+  getAssetById,
+  getAssetSkillMarkerIconUrl,
+  getAssetSkillMarkerLabel,
+  type AssetDefinition,
+  type AssetSkillType,
+  type ConcreteAssetSkillType,
+} from '../assets';
 import {
   getBuildingLevelContexts,
   getCanvasCellContexts,
@@ -7,7 +15,7 @@ import {
 } from './selectors';
 import { sortBuildingLevelsForRender } from './levels';
 import type { AreaType, GridCoordinate } from './area';
-import type { RotationDegrees, SceneDocument, TileInstance } from './types';
+import type { RotationDegrees, SceneDocument, SkillMarker, TileInstance } from './types';
 
 export interface ImageExportSummary {
   sceneId: string;
@@ -17,13 +25,16 @@ export interface ImageExportSummary {
   canvasSize: SceneDocument['canvasSize'];
   outerPadding: number;
   overallMaterials: ExportMaterialSummary[];
+  overallSkills: ExportSkillSummary[];
   layers: ImageExportLayerSummary[];
 }
 
 export interface ImageExportLayerSummary extends BuildingLevelContext {
   empty: boolean;
   materialCount: number;
+  skillCount: number;
   materials: ExportLayerMaterialSummary[];
+  skills: ExportLayerSkillSummary[];
   cells: ImageExportCellSummary[];
 }
 
@@ -41,6 +52,18 @@ export interface ExportLayerMaterialSummary extends ExportMaterialSummary {
   instances: ExportTileInstanceSummary[];
 }
 
+export interface ExportSkillSummary {
+  skillType: ConcreteAssetSkillType;
+  skillLabel: string;
+  iconUrl: string | null;
+  iconAlt: string;
+  totalCount: number;
+}
+
+export interface ExportLayerSkillSummary extends ExportSkillSummary {
+  count: number;
+}
+
 export interface ImageExportCellSummary {
   id: string;
   coordinate: GridCoordinate;
@@ -49,6 +72,18 @@ export interface ImageExportCellSummary {
   mainBoundary: boolean;
   empty: boolean;
   tileInstances: ExportTileInstanceSummary[];
+  skillMarkers: ExportSkillMarkerSummary[];
+}
+
+export interface ExportSkillMarkerSummary {
+  coordinate: GridCoordinate;
+  areaType: AreaType;
+  buildingLevelId: string;
+  skillType: ConcreteAssetSkillType;
+  skillLabel: string;
+  iconUrl: string | null;
+  iconAlt: string;
+  skillNote: string;
 }
 
 export interface ExportTileInstanceSummary {
@@ -72,6 +107,7 @@ export interface ExportTileInstanceSummary {
 export function buildImageExportSummary(scene: SceneDocument): ImageExportSummary {
   const layers = sortBuildingLevelsForRender(getBuildingLevelContexts(scene)).map((level) => buildLayerSummary(scene, level));
   assertAllInstancesExported(scene, layers);
+  assertAllSkillMarkersExported(scene, layers);
 
   return {
     sceneId: scene.sceneId,
@@ -81,6 +117,7 @@ export function buildImageExportSummary(scene: SceneDocument): ImageExportSummar
     canvasSize: { ...scene.canvasSize },
     outerPadding: scene.outerPadding,
     overallMaterials: aggregateMaterials(scene.tileInstances),
+    overallSkills: aggregateSkills(scene.tileInstances, scene.skillMarkers),
     layers,
   };
 }
@@ -88,18 +125,23 @@ export function buildImageExportSummary(scene: SceneDocument): ImageExportSummar
 function buildLayerSummary(scene: SceneDocument, level: BuildingLevelContext): ImageExportLayerSummary {
   const cells = getCanvasCellContexts(scene, level.id).map(toExportCellSummary);
   const layerInstances = cells.flatMap((cell) => cell.tileInstances);
+  const layerSkillMarkers = cells.flatMap((cell) => cell.skillMarkers);
+  const skills = aggregateLayerSkills(layerInstances, layerSkillMarkers);
 
   return {
     ...level,
-    empty: layerInstances.length === 0,
+    empty: layerInstances.length === 0 && layerSkillMarkers.length === 0,
     materialCount: layerInstances.length,
+    skillCount: skills.reduce((total, skill) => total + skill.count, 0),
     materials: aggregateLayerMaterials(layerInstances),
+    skills,
     cells,
   };
 }
 
 function toExportCellSummary(cell: CanvasCellContext): ImageExportCellSummary {
   const tileInstances = cell.tileInstances.map(toExportTileInstanceSummary);
+  const skillMarkers = cell.skillMarkers.map(toExportSkillMarkerSummary);
 
   return {
     id: cell.id,
@@ -107,8 +149,9 @@ function toExportCellSummary(cell: CanvasCellContext): ImageExportCellSummary {
     areaType: cell.areaType,
     placeable: cell.placeable,
     mainBoundary: cell.mainBoundary,
-    empty: tileInstances.length === 0,
+    empty: tileInstances.length === 0 && skillMarkers.length === 0,
     tileInstances,
+    skillMarkers,
   };
 }
 
@@ -122,6 +165,27 @@ function aggregateMaterials(instances: readonly TileInstance[]): ExportMaterialS
   }
 
   return sortMaterialSummaries(Array.from(materialsByAssetId.values()));
+}
+
+function aggregateSkills(
+  instances: readonly TileInstance[],
+  skillMarkers: readonly SkillMarker[],
+): ExportSkillSummary[] {
+  const skillsByType = new Map<ConcreteAssetSkillType, ExportSkillSummary>();
+
+  for (const skillType of getSkillTypesFromInstances(instances)) {
+    const skill = skillsByType.get(skillType) ?? createSkillSummary(skillType);
+    skill.totalCount += 1;
+    skillsByType.set(skillType, skill);
+  }
+
+  for (const marker of skillMarkers) {
+    const skill = skillsByType.get(marker.skillType) ?? createSkillSummary(marker.skillType);
+    skill.totalCount += 1;
+    skillsByType.set(marker.skillType, skill);
+  }
+
+  return sortSkillSummaries(Array.from(skillsByType.values()));
 }
 
 function aggregateLayerMaterials(instances: readonly ExportTileInstanceSummary[]): ExportLayerMaterialSummary[] {
@@ -140,6 +204,35 @@ function aggregateLayerMaterials(instances: readonly ExportTileInstanceSummary[]
   }
 
   return sortMaterialSummaries(Array.from(materialsByAssetId.values()));
+}
+
+function aggregateLayerSkills(
+  instances: readonly ExportTileInstanceSummary[],
+  skillMarkers: readonly ExportSkillMarkerSummary[],
+): ExportLayerSkillSummary[] {
+  const skillsByType = new Map<ConcreteAssetSkillType, ExportLayerSkillSummary>();
+
+  for (const skillType of getSkillTypesFromExportInstances(instances)) {
+    const skill = skillsByType.get(skillType) ?? {
+      ...createSkillSummary(skillType),
+      count: 0,
+    };
+    skill.count += 1;
+    skill.totalCount = skill.count;
+    skillsByType.set(skillType, skill);
+  }
+
+  for (const marker of skillMarkers) {
+    const skill = skillsByType.get(marker.skillType) ?? {
+      ...createSkillSummary(marker.skillType),
+      count: 0,
+    };
+    skill.count += 1;
+    skill.totalCount = skill.count;
+    skillsByType.set(marker.skillType, skill);
+  }
+
+  return sortSkillSummaries(Array.from(skillsByType.values()));
 }
 
 function toExportTileInstanceSummary(instance: TileInstance): ExportTileInstanceSummary {
@@ -164,6 +257,19 @@ function toExportTileInstanceSummary(instance: TileInstance): ExportTileInstance
   };
 }
 
+function toExportSkillMarkerSummary(marker: SkillMarker): ExportSkillMarkerSummary {
+  return {
+    coordinate: { ...marker.coordinate },
+    areaType: marker.areaType,
+    buildingLevelId: marker.buildingLevelId,
+    skillType: marker.skillType,
+    skillLabel: getAssetSkillMarkerLabel(marker.skillType),
+    iconUrl: getAssetSkillMarkerIconUrl(marker.skillType),
+    iconAlt: `${marker.skillType}技能图标`,
+    skillNote: marker.skillNote,
+  };
+}
+
 function assertAllInstancesExported(scene: SceneDocument, layers: readonly ImageExportLayerSummary[]): void {
   const exportedInstanceIds = new Set(
     layers.flatMap((layer) => layer.cells.flatMap((cell) => cell.tileInstances.map((instance) => instance.instanceId))),
@@ -179,11 +285,40 @@ function assertAllInstancesExported(scene: SceneDocument, layers: readonly Image
   }
 }
 
+function assertAllSkillMarkersExported(scene: SceneDocument, layers: readonly ImageExportLayerSummary[]): void {
+  const exportedSkillMarkerKeys = new Set(
+    layers.flatMap((layer) =>
+      layer.cells.flatMap((cell) =>
+        cell.skillMarkers.map((marker) => `${marker.buildingLevelId}:${marker.coordinate.x},${marker.coordinate.y}`),
+      ),
+    ),
+  );
+  const missingSkillMarkerKeys = scene.skillMarkers
+    .map((marker) => `${marker.buildingLevelId}:${marker.coordinate.x},${marker.coordinate.y}`)
+    .filter((key) => !exportedSkillMarkerKeys.has(key));
+
+  if (missingSkillMarkerKeys.length > 0 || exportedSkillMarkerKeys.size !== scene.skillMarkers.length) {
+    throw new RangeError(
+      `Unable to include skill markers in image export layer cells: ${missingSkillMarkerKeys.join(', ') || 'duplicate skill marker coordinates'}`,
+    );
+  }
+}
+
 function cloneExportTileInstanceSummary(instance: ExportTileInstanceSummary): ExportTileInstanceSummary {
   return {
     ...instance,
     coordinate: { ...instance.coordinate },
     reproductionNotes: [...instance.reproductionNotes],
+  };
+}
+
+function createSkillSummary(skillType: ConcreteAssetSkillType): ExportSkillSummary {
+  return {
+    skillType,
+    skillLabel: getAssetSkillMarkerLabel(skillType),
+    iconUrl: getAssetSkillMarkerIconUrl(skillType),
+    iconAlt: `${skillType}技能图标`,
+    totalCount: 0,
   };
 }
 
@@ -224,6 +359,32 @@ function buildReproductionNotes(instance: TileInstance): string[] {
   }
 
   return notes;
+}
+
+function getSkillTypesFromInstances(instances: readonly TileInstance[]): ConcreteAssetSkillType[] {
+  return instances
+    .map((instance) => (instance.requiresSkill ? instance.skillType : null))
+    .filter(isConcreteSkillType);
+}
+
+function getSkillTypesFromExportInstances(instances: readonly ExportTileInstanceSummary[]): ConcreteAssetSkillType[] {
+  return instances
+    .map((instance) => (instance.requiresSkill ? instance.skillType : null))
+    .filter(isConcreteSkillType);
+}
+
+function isConcreteSkillType(skillType: AssetSkillType): skillType is ConcreteAssetSkillType {
+  return skillType !== null;
+}
+
+function sortSkillSummaries<T extends Pick<ExportSkillSummary, 'skillType' | 'totalCount'>>(skills: T[]): T[] {
+  return skills.sort((left, right) => {
+    if (left.totalCount !== right.totalCount) {
+      return right.totalCount - left.totalCount;
+    }
+
+    return assetSkillTypes.indexOf(left.skillType) - assetSkillTypes.indexOf(right.skillType);
+  });
 }
 
 function sortMaterialSummaries<T extends Pick<ExportMaterialSummary, 'assetId' | 'assetName' | 'totalCount'>>(

@@ -2,6 +2,8 @@ import { useEffect, useRef, type CSSProperties, type KeyboardEvent } from 'react
 import { getPokemonThemeDefinition } from '../../domain/assets';
 import type {
   ExportLayerMaterialSummary,
+  ExportLayerSkillSummary,
+  ExportSkillSummary,
   ImageExportCellSummary,
   ImageExportLayerSummary,
   ImageExportSummary,
@@ -138,6 +140,9 @@ export function ExportPreview({
             ) : (
               <p className="export-preview__empty">未放置素材</p>
             )}
+            {summary.overallSkills.length > 0 ? (
+              <SkillList ariaLabel="整体技能数量" skills={summary.overallSkills} />
+            ) : null}
           </section>
 
           <section className="export-preview__layers" aria-label="逐层图形和素材清单">
@@ -184,6 +189,9 @@ function LayerPreview({ layer }: { layer: ImageExportLayerSummary }) {
           ) : (
             <p className="export-preview__empty">该层没有素材</p>
           )}
+          {layer.skills.length > 0 ? (
+            <SkillList ariaLabel={`${layer.displayId} 技能数量`} skills={layer.skills} />
+          ) : null}
         </section>
       </div>
     </article>
@@ -192,8 +200,11 @@ function LayerPreview({ layer }: { layer: ImageExportLayerSummary }) {
 
 function ExportCell({ cell }: { cell: ImageExportCellSummary }) {
   const firstInstance = cell.tileInstances[0] ?? null;
+  const firstSkillMarker = cell.skillMarkers[0] ?? null;
   const label = firstInstance
     ? `${cell.coordinate.x},${cell.coordinate.y}: ${cell.tileInstances.map((instance) => instance.assetName).join(', ')}`
+    : firstSkillMarker
+      ? `${cell.coordinate.x},${cell.coordinate.y}: ${firstSkillMarker.skillType}技能`
     : `${cell.coordinate.x},${cell.coordinate.y}: empty`;
 
   return (
@@ -205,6 +216,10 @@ function ExportCell({ cell }: { cell: ImageExportCellSummary }) {
     >
       {firstInstance?.thumbnailUrl ? (
         <img src={firstInstance.thumbnailUrl} alt="" title={firstInstance.assetName} />
+      ) : firstSkillMarker?.iconUrl ? (
+        <img src={firstSkillMarker.iconUrl} alt="" title={`${firstSkillMarker.skillType}技能`} />
+      ) : firstSkillMarker ? (
+        <span>{firstSkillMarker.skillLabel}</span>
       ) : null}
     </div>
   );
@@ -237,5 +252,34 @@ function MaterialList({
         </li>
       ))}
     </ul>
+  );
+}
+
+function SkillList({
+  ariaLabel,
+  skills,
+}: {
+  ariaLabel: string;
+  skills: readonly (ExportSkillSummary | ExportLayerSkillSummary)[];
+}) {
+  return (
+    <section className="export-skill-summary" aria-label={ariaLabel}>
+      <h4>技能数量</h4>
+      <ul className="export-skill-list">
+        {skills.map((skill) => (
+          <li key={skill.skillType}>
+            <span className="export-skill-list__icon">
+              {skill.iconUrl ? (
+                <img src={skill.iconUrl} alt={skill.iconAlt} />
+              ) : (
+                <span aria-hidden="true">{skill.skillLabel}</span>
+              )}
+            </span>
+            <strong>{skill.skillType}</strong>
+            <span>x{'count' in skill ? skill.count : skill.totalCount}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

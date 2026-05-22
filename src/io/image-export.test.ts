@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildImageExportSummary, createBuildingLevel, createDefaultSceneDocument, createTileInstance } from '../domain/scene';
+import { buildImageExportSummary, createBuildingLevel, createDefaultSceneDocument, createSkillMarker, createTileInstance } from '../domain/scene';
 import { unsafeScriptText } from '../test/fixtures/unsafe-text';
 import { buildImageExportSvg, createImageExportFile, getImageExportFileName } from './image-export';
 
@@ -18,8 +18,11 @@ describe('image export file generation', () => {
     expect(file.blob.type).toBe('image/svg+xml;charset=utf-8');
     expect(svgText).toContain('Export Image Scene');
     expect(svgText).toContain('整体使用素材');
+    expect(svgText).toContain('技能数量');
     expect(svgText).toContain('逐层图形');
     expect(svgText).toContain('逐层素材清单');
+    expect(svgText).toContain('树叶 · x1');
+    expect(svgText).toContain('储水 · x1');
     expect(svgText).toContain('绿叶植物');
     expect(svgText).not.toContain('No. 1052');
     expect(svgText).not.toContain('技能: 树叶');
@@ -60,6 +63,7 @@ describe('image export file generation', () => {
     const svgText = buildImageExportSvg(summary);
 
     expect(svgText).toContain('绿叶植物 · x2');
+    expect(svgText).toContain('树叶 · x2');
     expect(svgText).not.toContain('No. 1052');
     expect(svgText).not.toContain('(2,2)');
     expect(svgText).not.toContain('(3,3)');
@@ -87,6 +91,13 @@ function createImageScene(sceneName = 'Export Image Scene') {
         rotationDegrees: 90,
         requiresSkill: true,
         skillType: '树叶',
+      }),
+    ],
+    skillMarkers: [
+      createSkillMarker({
+        coordinate: { x: 4, y: 4 },
+        buildingLevelId: 'level-1',
+        skillType: '储水',
       }),
     ],
   };

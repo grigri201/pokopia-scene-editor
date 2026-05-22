@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createBuildingLevel, createDefaultSceneDocument, createTileInstance, buildImageExportSummary } from '../../domain/scene';
+import { createBuildingLevel, createDefaultSceneDocument, createSkillMarker, createTileInstance, buildImageExportSummary } from '../../domain/scene';
 import { unsafeAngleText, unsafeScriptText } from '../../test/fixtures/unsafe-text';
 import { ExportPreview } from './ExportPreview';
 
@@ -25,6 +25,11 @@ describe('ExportPreview', () => {
     expect(screen.getByLabelText('整体使用素材清单')).not.toHaveTextContent('No. 1052');
     expect(screen.getByLabelText('Export image content').firstElementChild).toBe(screen.getByLabelText('整体使用素材清单'));
     expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('绿叶植物缩略图')).toBeVisible();
+    expect(screen.getByLabelText('整体技能数量')).toHaveTextContent('技能数量');
+    expect(screen.getByLabelText('整体技能数量')).toHaveTextContent('树叶');
+    expect(screen.getByLabelText('整体技能数量')).toHaveTextContent('储水');
+    expect(screen.getByLabelText('整体技能数量')).toHaveTextContent('x1');
+    expect(within(screen.getByLabelText('整体技能数量')).getByAltText('树叶技能图标')).toBeVisible();
     expect(within(screen.getByLabelText('逐层图形和素材清单')).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
       'L0 · 0层',
       'L1 · 1层',
@@ -35,11 +40,15 @@ describe('ExportPreview', () => {
     const previewCell = screen.getByLabelText('3,3: 绿叶植物');
     expect(previewCell).toHaveTextContent('');
     expect(previewCell.querySelector('img')).toHaveAttribute('src', expect.stringContaining('leafy-plant'));
+    const skillCell = screen.getByLabelText('4,4: 储水技能');
+    expect(skillCell.querySelector('img')).toHaveAttribute('src', expect.stringContaining('specialty_icons/water.png'));
     expect(screen.getByLabelText('L1 使用素材清单')).toHaveTextContent('绿叶植物');
     expect(within(screen.getByLabelText('L1 使用素材清单')).getByAltText('绿叶植物缩略图')).toBeVisible();
     expect(screen.getByLabelText('L1 使用素材清单')).not.toHaveTextContent('No. 1052');
     expect(screen.getByLabelText('L1 使用素材清单')).not.toHaveTextContent('(3, 3)');
     expect(screen.getByLabelText('L1 使用素材清单')).not.toHaveTextContent(unsafeAngleText);
+    expect(screen.getByLabelText('L1 技能数量')).toHaveTextContent('树叶');
+    expect(screen.getByLabelText('L1 技能数量')).toHaveTextContent('储水');
     expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('该层没有素材');
     expect(screen.getAllByText('空层')).toHaveLength(2);
 
@@ -52,6 +61,7 @@ describe('ExportPreview', () => {
 
     expect(screen.getByRole('heading', { name: unsafeScriptText })).toBeVisible();
     expect(within(screen.getByLabelText('L1 使用素材清单')).queryByText((content) => content.includes(unsafeAngleText))).not.toBeInTheDocument();
+    expect(within(screen.getByLabelText('L1 技能数量')).queryByText((content) => content.includes(unsafeAngleText))).not.toBeInTheDocument();
     expect(container.querySelector('script')).toBeNull();
     expect(screen.queryByAltText(unsafeAngleText)).not.toBeInTheDocument();
     expect(screen.queryByAltText(unsafeScriptText)).not.toBeInTheDocument();
@@ -122,6 +132,14 @@ function createPreviewScene() {
         dyeColor: '#88cc44',
         requiresSkill: true,
         skillType: '树叶',
+        skillNote: unsafeAngleText,
+      }),
+    ],
+    skillMarkers: [
+      createSkillMarker({
+        coordinate: { x: 4, y: 4 },
+        buildingLevelId: 'level-1',
+        skillType: '储水',
         skillNote: unsafeAngleText,
       }),
     ],
