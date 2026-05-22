@@ -469,7 +469,7 @@ button:disabled {
 }
 
 .export-preview__summary .export-material-list {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .export-preview__layers {
@@ -1971,6 +1971,10 @@ button:disabled {
   .export-preview__body,
   .export-layer__content {
     grid-template-columns: 1fr;
+  }
+
+  .export-preview__summary .export-material-list {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
 
   .export-layer-grid {

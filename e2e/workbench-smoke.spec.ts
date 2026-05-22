@@ -115,7 +115,7 @@ test('restores autosaved SceneDocument v1 on desktop startup', async ({ page }) 
 test('previews and downloads an image export without mutating scene storage', async ({ page }) => {
   await page.addInitScript((scene) => {
     (window as unknown as { __pokopiaInitialSceneSnapshot?: unknown }).__pokopiaInitialSceneSnapshot = scene;
-  }, createRestoredScene());
+  }, createExportPreviewScene());
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
 
@@ -129,6 +129,14 @@ test('previews and downloads an image export without mutating scene storage', as
   await expect(page.getByLabel('整体使用素材清单')).toContainText('绿叶植物');
   await expect(page.getByLabel('整体使用素材清单')).not.toContainText('No.');
   await expect(page.getByLabel('整体使用素材清单').locator('img[alt="绿叶植物缩略图"]')).toBeVisible();
+  const overallMaterialItems = page.getByLabel('整体使用素材清单').locator('.export-material-list--with-thumbs > li');
+  await expect(overallMaterialItems).toHaveCount(6);
+  await expect
+    .poll(async () => {
+      const itemTops = await overallMaterialItems.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().top));
+      return Math.max(...itemTops) - Math.min(...itemTops);
+    })
+    .toBeLessThan(1);
   await expect(page.getByLabel('L1 7x7 图形')).toBeVisible();
   await expect(page.getByLabel('4,4: 绿叶植物').locator('img[title="绿叶植物"]')).toBeVisible();
   await expect(page.getByLabel('4,4: 绿叶植物')).not.toContainText('绿叶');
@@ -598,6 +606,35 @@ function createRestoredScene() {
       lastSavedAt: null,
       lastAutosavedAt: '2026-05-16T10:45:00.000Z',
     },
+  };
+}
+
+function createExportPreviewScene() {
+  const scene = createRestoredScene();
+  const coordinates = [
+    { x: 4, y: 4 },
+    { x: 1, y: 1 },
+    { x: 2, y: 1 },
+    { x: 3, y: 1 },
+    { x: 4, y: 1 },
+    { x: 5, y: 1 },
+  ];
+  const assetIds = ['leafy-plant', 'wooden-fencing', 'stepping-stones', 'ditto-doll', 'stone-brick-wall', 'brick-roof-decoration'];
+
+  return {
+    ...scene,
+    tileInstances: assetIds.map((assetId, index) => ({
+      instanceId: `tile-export-preview-${assetId}`,
+      assetId,
+      coordinate: coordinates[index],
+      areaType: 'main',
+      buildingLevelId: 'level-1',
+      rotationDegrees: 0,
+      dyeColor: null,
+      requiresSkill: assetId === 'leafy-plant',
+      skillType: assetId === 'leafy-plant' ? '树叶' : null,
+      skillNote: assetId === 'leafy-plant' ? 'restore smoke' : '',
+    })),
   };
 }
 
