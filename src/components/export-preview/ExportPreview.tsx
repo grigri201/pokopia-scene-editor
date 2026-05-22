@@ -28,7 +28,7 @@ export function ExportPreview({
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const isDownloadDisabled = downloadDisabled || !onDownloadImage;
   const selectedPokemon = getPokemonThemeDefinition(summary.selectedPokemonKey);
-  const pokemonRailStyle = {
+  const pokemonTitleImageStyle = {
     '--export-pokemon-background': selectedPokemon.background,
     '--export-pokemon-accent': selectedPokemon.accent,
   } as CSSProperties;
@@ -90,18 +90,20 @@ export function ExportPreview({
         tabIndex={-1}
         onKeyDown={handleDialogKeyDown}
       >
-        <aside
-          className="export-preview__pokemon-rail"
-          aria-label={`${selectedPokemon.name}导出预览宝可梦图片`}
-          style={pokemonRailStyle}
-        >
-          <img src={selectedPokemon.portraitUrl} alt={`${selectedPokemon.name}宝可梦图片`} />
-        </aside>
         <header className="export-preview__header">
-          <div>
-            <p className="eyebrow">Image Export Preview</p>
-            <h2>{summary.sceneName}</h2>
-            <p>{summary.canvasSize.width}x{summary.canvasSize.height} canvas · {summary.layers.length} building layers</p>
+          <div className="export-preview__title">
+            <span
+              className="export-preview__pokemon-title-image"
+              aria-label={`${selectedPokemon.name}导出预览宝可梦图片`}
+              style={pokemonTitleImageStyle}
+            >
+              <img src={selectedPokemon.portraitUrl} alt={`${selectedPokemon.name}宝可梦图片`} />
+            </span>
+            <div>
+              <p className="eyebrow">Image Export Preview</p>
+              <h2>{summary.sceneName}</h2>
+              <p>{summary.canvasSize.width}x{summary.canvasSize.height} canvas · {summary.layers.length} building layers</p>
+            </div>
           </div>
           <div className="export-preview__actions">
             <button

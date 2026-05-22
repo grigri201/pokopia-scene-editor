@@ -127,30 +127,32 @@ test('previews and downloads an image export without mutating scene storage', as
   await expect
     .poll(async () => preview.evaluate((element) => Math.round(element.getBoundingClientRect().width)))
     .toBe(590);
-  const pokemonRail = page.getByLabel('皮卡丘导出预览宝可梦图片');
-  await expect(pokemonRail.locator('img[alt="皮卡丘宝可梦图片"]')).toBeVisible();
-  await expect(pokemonRail.locator('img')).toHaveAttribute('src', /213-pikachu\.png/);
-  await expect
-    .poll(async () =>
-      pokemonRail.locator('img').evaluate((image) => {
-        const imageBox = image.getBoundingClientRect();
-        const railBox = image.parentElement?.getBoundingClientRect();
-        return railBox ? imageBox.height / railBox.height : 0;
-      }),
-    )
-    .toBeGreaterThan(0.9);
+  await expect(page.locator('.export-preview__pokemon-rail')).toHaveCount(0);
+  const pokemonTitleImage = page.getByLabel('皮卡丘导出预览宝可梦图片');
+  await expect(pokemonTitleImage.locator('img[alt="皮卡丘宝可梦图片"]')).toBeVisible();
+  await expect(pokemonTitleImage.locator('img')).toHaveAttribute('src', /213-pikachu\.png/);
   await expect
     .poll(async () => {
-      const [previewBox, railBox] = await Promise.all([preview.boundingBox(), pokemonRail.boundingBox()]);
-      return Math.abs(Math.round((previewBox?.height ?? 0) - (railBox?.height ?? 0)));
+      const [previewBox, headerBox, imageBox] = await Promise.all([
+        preview.boundingBox(),
+        page.locator('.export-preview__header').boundingBox(),
+        pokemonTitleImage.boundingBox(),
+      ]);
+      return {
+        staysInsideHeader: (imageBox?.y ?? 0) >= (headerBox?.y ?? 0) && (imageBox?.y ?? 0) + (imageBox?.height ?? 0) <= (headerBox?.y ?? 0) + (headerBox?.height ?? 0) + 1,
+        smallerThanPreviewBody: (imageBox?.height ?? 0) < (previewBox?.height ?? 0) / 3,
+      };
     })
-    .toBeLessThanOrEqual(1);
+    .toEqual({ staysInsideHeader: true, smallerThanPreviewBody: true });
   await expect
     .poll(async () => {
-      const [previewBox, railBox] = await Promise.all([preview.boundingBox(), pokemonRail.boundingBox()]);
-      return Math.abs(Math.round((previewBox?.x ?? 0) - ((railBox?.x ?? 0) + (railBox?.width ?? 0))));
+      const [imageBox, titleBox] = await Promise.all([
+        pokemonTitleImage.boundingBox(),
+        page.getByRole('heading', { name: 'Restored Smoke Layout' }).boundingBox(),
+      ]);
+      return (imageBox?.x ?? 0) < (titleBox?.x ?? 0);
     })
-    .toBeLessThanOrEqual(1);
+    .toBe(true);
   await expect(page.locator('.export-preview__body > :first-child')).toHaveAttribute('aria-label', '整体使用素材清单');
   await expect(page.locator('.export-preview__layers > .export-layer').first()).toContainText('L0 · 0层');
   await expect(page.locator('.export-preview__layers')).not.toContainText('placed items');

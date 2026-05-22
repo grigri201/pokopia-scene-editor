@@ -13,11 +13,14 @@ describe('ExportPreview', () => {
 
     expect(screen.getByRole('dialog', { name: '图片导出预览' })).toBeVisible();
     expect(screen.getByRole('heading', { name: unsafeScriptText })).toBeVisible();
-    expect(screen.getByLabelText('百变怪导出预览宝可梦图片')).toBeVisible();
-    expect(within(screen.getByLabelText('百变怪导出预览宝可梦图片')).getByAltText('百变怪宝可梦图片')).toHaveAttribute(
+    const pokemonTitleImage = screen.getByLabelText('百变怪导出预览宝可梦图片');
+    expect(pokemonTitleImage).toBeVisible();
+    expect(pokemonTitleImage).toHaveClass('export-preview__pokemon-title-image');
+    expect(within(pokemonTitleImage).getByAltText('百变怪宝可梦图片')).toHaveAttribute(
       'src',
       expect.stringContaining('/assets/pokopia_image_sources/pokemon_portraits/063-ditto.png'),
     );
+    expect(document.querySelector('.export-preview__pokemon-rail')).toBeNull();
     expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('绿叶植物');
     expect(screen.getByLabelText('整体使用素材清单')).not.toHaveTextContent('No. 1052');
     expect(screen.getByLabelText('Export image content').firstElementChild).toBe(screen.getByLabelText('整体使用素材清单'));
