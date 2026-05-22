@@ -6,12 +6,13 @@ import {
   sceneSize,
   type GridCoordinate,
 } from './area';
-import { assertKnownPokemonKey, getPokemonThemeDefinition, type PokemonKey } from '../assets';
+import { assertKnownPokemonKey, type PokemonKey } from '../assets';
 import { createBuildingLevel, createDefaultBuildingLevels } from './levels';
 import { createTileInstance } from './tile-instance';
 import type { SceneDocument } from './types';
 
 export const defaultSelectedPokemonKey: PokemonKey = 'ditto';
+export const defaultSceneName = '5x5 布景';
 
 export interface CreateDefaultSceneDocumentOptions {
   sceneId?: string;
@@ -33,7 +34,7 @@ export function createDefaultSceneDocument(
   assertKnownPokemonKey(selectedPokemonKey);
   const sceneName =
     options.sceneName ??
-    (options.includeOpenDesignDemo ? '星光庭院' : `${getPokemonThemeDefinition(selectedPokemonKey).name}的布景`);
+    (options.includeOpenDesignDemo ? '星光庭院' : defaultSceneName);
   assertSceneNameLabelsSceneSize(sceneName);
 
   if (options.selectedCoordinate) {

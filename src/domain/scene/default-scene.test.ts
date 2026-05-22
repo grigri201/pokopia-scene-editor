@@ -15,7 +15,7 @@ describe('default scene document', () => {
 
     expect(scene.schemaVersion).toBe(1);
     expect(scene.sceneId).toBe('scene-test');
-    expect(scene.sceneName).toBe('百变怪的布景');
+    expect(scene.sceneName).toBe('5x5 布景');
     expect(scene.selectedPokemonKey).toBe(defaultSelectedPokemonKey);
     expect(scene.sceneSize).toEqual({ width: 5, height: 5 });
     expect(scene.canvasSize).toEqual({ width: 7, height: 7 });
@@ -74,13 +74,13 @@ describe('default scene document', () => {
     expect(scene.workspaceState.selectedCoordinate).toEqual({ x: 3, y: 4 });
   });
 
-  it('builds the default scene name from the selected Pokemon when no name is provided', () => {
+  it('uses a Pokemon-neutral default scene name when no name is provided', () => {
     const scene = createDefaultSceneDocument({
       selectedPokemonKey: 'eevee',
       now: '2026-05-16T06:20:00.000Z',
     });
 
-    expect(scene.sceneName).toBe('伊布的布景');
+    expect(scene.sceneName).toBe('5x5 布景');
   });
 
   it('keeps the default Pokemon key inside the known Decor Dex seed keys', () => {

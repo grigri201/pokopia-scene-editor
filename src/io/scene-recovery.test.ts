@@ -102,8 +102,25 @@ describe('scene recovery', () => {
     if (!migrated.ok || !custom.ok) {
       throw new Error('Expected valid payloads to recover.');
     }
-    expect(migrated.scene.sceneName).toBe('伊布的布景');
+    expect(migrated.scene.sceneName).toBe('5x5 布景');
     expect(custom.scene.sceneName).toBe('Ditto 5x5 serialization');
+  });
+
+  it('migrates old generated Pokemon default names to the neutral default name', () => {
+    const generatedDefaultScene = createDefaultSceneDocument({
+      sceneId: 'scene-generated-default-name',
+      sceneName: '伊布的布景',
+      selectedPokemonKey: 'eevee',
+      now: '2026-05-16T08:00:00.000Z',
+    });
+
+    const migrated = recoverSceneDocument(serializeSceneDocument(generatedDefaultScene));
+
+    expect(migrated.ok).toBe(true);
+    if (!migrated.ok) {
+      throw new Error('Expected valid payload to recover.');
+    }
+    expect(migrated.scene.sceneName).toBe('5x5 布景');
   });
 
   it('applies a valid recovered payload only after validation succeeds', () => {

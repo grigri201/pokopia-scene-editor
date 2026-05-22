@@ -16,7 +16,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   expect(await getShellTransitionDuration(page)).toBe('0s');
   await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
   await expect(page.getByLabel('Current Pokemon')).toHaveValue('ditto');
-  await expect(page.getByLabel('布景名称')).toHaveValue('百变怪的布景');
+  await expect(page.getByLabel('布景名称')).toHaveValue('5x5 布景');
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
   await expect(page.locator('.asset-row')).toHaveCount(10);
   await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('苹野果');
@@ -54,7 +54,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
     ]);
 
   const snapshot = await readSceneSnapshot(page);
-  expect(snapshot.sceneName).toBe('百变怪的布景');
+  expect(snapshot.sceneName).toBe('5x5 布景');
   expect(snapshot.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '0层' }]);
   expect(snapshot.tileInstances).toEqual([]);
   expect(snapshot.workspaceState).toMatchObject({

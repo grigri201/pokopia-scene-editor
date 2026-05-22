@@ -114,10 +114,10 @@ describe('AppShell scene storage integration', () => {
 
     expect(downloadLink).toEqual({
       href: 'blob:image-export',
-      download: '百变怪的布景.pokopia-scene.svg',
+      download: '5x5-布景.pokopia-scene.svg',
     });
     const exportedBlob = createObjectURL.mock.calls[0]?.[0] as Blob;
-    await expect(exportedBlob.text()).resolves.toContain('百变怪的布景');
+    await expect(exportedBlob.text()).resolves.toContain('5x5 布景');
     await expect(exportedBlob.text()).resolves.toContain('整体使用素材');
     await expect(exportedBlob.text()).resolves.toContain('逐层图形');
     await expect(exportedBlob.text()).resolves.toContain('逐层素材清单');
@@ -670,7 +670,7 @@ describe('AppShell scene storage integration', () => {
     setViewportWidth(390);
 
     render(<AppShell />);
-    await waitFor(() => expect(readSceneSnapshot()).toContain('"sceneName":"百变怪的布景"'));
+    await waitFor(() => expect(readSceneSnapshot()).toContain('"sceneName":"5x5 布景"'));
     const beforeSnapshot = readSceneSnapshot();
     const globalKeyHandler = vi.fn();
     window.addEventListener('keydown', globalKeyHandler);
@@ -760,14 +760,14 @@ describe('AppShell scene storage integration', () => {
 
     expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
     expect(screen.getByLabelText('Recovery error details')).toHaveTextContent('schemaVersion');
-    expect(screen.getByLabelText('布景名称')).toHaveValue('百变怪的布景');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('5x5 布景');
     expectNoSaveStatus();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'canceled');
     expect(screen.getByLabelText('Recovery Validator')).toHaveTextContent('Recovery canceled');
-    expect(screen.getByLabelText('布景名称')).toHaveValue('百变怪的布景');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('5x5 布景');
   });
 
   it('retries recovery and replaces the scene only after storage becomes valid', async () => {
@@ -822,13 +822,13 @@ describe('AppShell scene storage integration', () => {
     expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
     expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
     expect(screen.getByLabelText('Recovery error details')).toHaveTextContent('Read-only mode cannot replace');
-    expect(screen.getByLabelText('布景名称')).toHaveValue('百变怪的布景');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('5x5 布景');
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     await waitFor(() => {
       expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
-      expect(screen.getByLabelText('布景名称')).toHaveValue('百变怪的布景');
+      expect(screen.getByLabelText('布景名称')).toHaveValue('5x5 布景');
       expectNoSaveStatus();
     });
   });
@@ -852,7 +852,7 @@ describe('AppShell scene storage integration', () => {
     expect(details).toHaveTextContent(unsafeCombinedText);
     expect(details.querySelector('script')).toBeNull();
     expect(details.querySelector('img')).toBeNull();
-    expect(screen.getByLabelText('布景名称')).toHaveValue('百变怪的布景');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('5x5 布景');
     expectNoSaveStatus();
 
     fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Current Dirty Layout' } });
