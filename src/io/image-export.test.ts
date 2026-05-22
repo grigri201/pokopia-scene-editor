@@ -22,8 +22,8 @@ describe('image export file generation', () => {
     expect(svgText).toContain('逐层素材清单');
     expect(svgText).toContain('绿叶植物');
     expect(svgText).toContain('No. 1052');
-    expect(svgText).toContain('技能: 树叶');
-    expect(svgText).toContain('(3,3) · 技能: 树叶 · 旋转: 90°');
+    expect(svgText).not.toContain('技能: 树叶');
+    expect(svgText).not.toContain('(3,3)');
   });
 
   it('escapes HTML-like text in generated SVG', () => {
@@ -52,12 +52,15 @@ describe('image export file generation', () => {
     expect(denseLayerFrame ? denseLayerFrame.y + denseLayerFrame.height : 0).toBeLessThanOrEqual(height);
   });
 
-  it('preserves different reproduction notes for each same-asset instance', () => {
+  it('omits per-instance reproduction notes from layer material lists', () => {
     const summary = buildImageExportSummary(createSameAssetVariantScene());
     const svgText = buildImageExportSvg(summary);
 
-    expect(svgText).toContain('(2,2) · 技能: 树叶 · 技能备注: first skill note · 旋转: 90°');
-    expect(svgText).toContain('(3,3) · 技能: 树叶 · 技能备注: second skill note · 染色: #88cc44 · 旋转: 180°');
+    expect(svgText).toContain('绿叶植物 · No. 1052 · x2');
+    expect(svgText).not.toContain('(2,2)');
+    expect(svgText).not.toContain('(3,3)');
+    expect(svgText).not.toContain('first skill note');
+    expect(svgText).not.toContain('second skill note');
   });
 });
 

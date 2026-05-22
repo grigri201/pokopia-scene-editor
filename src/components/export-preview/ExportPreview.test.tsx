@@ -21,7 +21,9 @@ describe('ExportPreview', () => {
     const previewCell = screen.getByLabelText('3,3: 绿叶植物');
     expect(previewCell).toHaveTextContent('');
     expect(previewCell.querySelector('img')).toHaveAttribute('src', expect.stringContaining('leafy-plant'));
-    expect(screen.getByLabelText('L1 使用素材清单')).toHaveTextContent(unsafeAngleText);
+    expect(screen.getByLabelText('L1 使用素材清单')).toHaveTextContent('绿叶植物');
+    expect(screen.getByLabelText('L1 使用素材清单')).not.toHaveTextContent('(3, 3)');
+    expect(screen.getByLabelText('L1 使用素材清单')).not.toHaveTextContent(unsafeAngleText);
     expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('该层没有素材');
     expect(screen.getAllByText('空层')).toHaveLength(2);
 
@@ -29,11 +31,11 @@ describe('ExportPreview', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('renders HTML-like text as inert text content', () => {
+  it('does not render instance detail text from layer material summaries', () => {
     const { container } = render(<ExportPreview summary={buildImageExportSummary(createPreviewScene())} onClose={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: unsafeScriptText })).toBeVisible();
-    expect(within(screen.getByLabelText('L1 使用素材清单')).getByText((content) => content.includes(unsafeAngleText))).toBeVisible();
+    expect(within(screen.getByLabelText('L1 使用素材清单')).queryByText((content) => content.includes(unsafeAngleText))).not.toBeInTheDocument();
     expect(container.querySelector('script')).toBeNull();
     expect(screen.queryByAltText(unsafeAngleText)).not.toBeInTheDocument();
     expect(screen.queryByAltText(unsafeScriptText)).not.toBeInTheDocument();

@@ -8,7 +8,6 @@ const layerGap = 28;
 const layerHeaderHeight = 72;
 const layerMinimumHeight = 210;
 const materialHeaderHeight = 22;
-const materialInstanceLineHeight = 18;
 
 export interface ImageExportFile {
   blob: Blob;
@@ -110,7 +109,7 @@ function renderLayer(layer: ImageExportLayerSummary, y: number, height: number):
     let materialY = y + 72;
     for (const material of layer.materials) {
       parts.push(...renderMaterial(material, materialX, materialY));
-      materialY += getMaterialHeight(material);
+      materialY += getMaterialHeight();
     }
   }
 
@@ -118,39 +117,21 @@ function renderLayer(layer: ImageExportLayerSummary, y: number, height: number):
 }
 
 function renderMaterial(material: ExportLayerMaterialSummary, x: number, y: number): string[] {
-  const parts = [
+  return [
     text(`${material.assetName} · No. ${material.officialId ?? material.assetId} · x${material.count}`, x, y, 14, '#231f1a', 800),
   ];
-
-  material.instances.forEach((instance, index) => {
-    const detail = instance.reproductionNotes.length
-      ? ` · ${instance.reproductionNotes.join(' · ')}`
-      : '';
-    parts.push(
-      text(
-        `(${instance.coordinate.x},${instance.coordinate.y})${detail}`,
-        x,
-        y + materialHeaderHeight + index * materialInstanceLineHeight,
-        12,
-        '#6b6258',
-        700,
-      ),
-    );
-  });
-
-  return parts;
 }
 
 function getLayerHeight(layer: ImageExportLayerSummary): number {
   const materialHeight = layer.materials.length === 0
-    ? materialInstanceLineHeight
-    : layer.materials.reduce((total, material) => total + getMaterialHeight(material), 0);
+    ? materialHeaderHeight
+    : layer.materials.reduce((total) => total + getMaterialHeight(), 0);
 
   return Math.max(layerMinimumHeight, layerHeaderHeight + materialHeight + 24);
 }
 
-function getMaterialHeight(material: ExportLayerMaterialSummary): number {
-  return materialHeaderHeight + Math.max(1, material.instances.length) * materialInstanceLineHeight + 10;
+function getMaterialHeight(): number {
+  return materialHeaderHeight + 10;
 }
 
 function sectionFrame(x: number, y: number, width: number, height: number): string {

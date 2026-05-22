@@ -129,7 +129,9 @@ test('previews and downloads an image export without mutating scene storage', as
   await expect(page.getByLabel('L1 7x7 图形')).toBeVisible();
   await expect(page.getByLabel('4,4: 绿叶植物').locator('img[title="绿叶植物"]')).toBeVisible();
   await expect(page.getByLabel('4,4: 绿叶植物')).not.toContainText('绿叶');
-  await expect(page.getByLabel('L1 使用素材清单')).toContainText('restore smoke');
+  await expect(page.getByLabel('L1 使用素材清单')).toContainText('绿叶植物');
+  await expect(page.getByLabel('L1 使用素材清单')).not.toContainText('restore smoke');
+  await expect(page.locator('.export-instance-list')).toHaveCount(0);
 
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: '下载图片' }).click();
@@ -143,7 +145,7 @@ test('previews and downloads an image export without mutating scene storage', as
   expect(svgText).toContain('整体使用素材');
   expect(svgText).toContain('逐层图形');
   expect(svgText).toContain('逐层素材清单');
-  expect(svgText).toContain('restore smoke');
+  expect(svgText).not.toContain('restore smoke');
   await expect(page.getByRole('status', { name: 'Image export download status' })).toContainText('图片已准备下载');
   expect(JSON.stringify(await readSceneSnapshot(page))).toBe(beforeSnapshot);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();

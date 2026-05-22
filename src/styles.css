@@ -525,8 +525,7 @@ button:disabled {
   object-fit: contain;
 }
 
-.export-material-list,
-.export-instance-list {
+.export-material-list {
   display: grid;
   gap: 8px;
   margin: 0;
@@ -574,18 +573,6 @@ button:disabled {
 
 .export-material-list__row strong {
   min-width: 0;
-}
-
-.export-instance-list {
-  gap: 4px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.export-instance-list li {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
 }
 
 .export-preview__empty {

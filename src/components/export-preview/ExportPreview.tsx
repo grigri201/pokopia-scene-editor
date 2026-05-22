@@ -1,7 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react';
 import type {
   ExportLayerMaterialSummary,
-  ExportTileInstanceSummary,
   ImageExportCellSummary,
   ImageExportLayerSummary,
   ImageExportSummary,
@@ -167,7 +166,7 @@ function LayerPreview({ layer }: { layer: ImageExportLayerSummary }) {
         </div>
         <section className="export-layer__materials" aria-label={`${layer.displayId} 使用素材清单`}>
           {layer.materials.length > 0 ? (
-            <MaterialList materials={layer.materials} includeInstanceDetails />
+            <MaterialList materials={layer.materials} />
           ) : (
             <p className="export-preview__empty">该层没有素材</p>
           )}
@@ -199,11 +198,9 @@ function ExportCell({ cell }: { cell: ImageExportCellSummary }) {
 
 function MaterialList({
   materials,
-  includeInstanceDetails = false,
   showThumbnails = false,
 }: {
   materials: readonly (ExportLayerMaterialSummary | ImageExportSummary['overallMaterials'][number])[];
-  includeInstanceDetails?: boolean;
   showThumbnails?: boolean;
 }) {
   return (
@@ -224,22 +221,6 @@ function MaterialList({
             <span>No. {material.officialId ?? material.assetId}</span>
             <span>x{'count' in material ? material.count : material.totalCount}</span>
           </div>
-          {includeInstanceDetails && 'instances' in material ? (
-            <InstanceList instances={material.instances} />
-          ) : null}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function InstanceList({ instances }: { instances: readonly ExportTileInstanceSummary[] }) {
-  return (
-    <ul className="export-instance-list">
-      {instances.map((instance) => (
-        <li key={instance.instanceId}>
-          <span>({instance.coordinate.x}, {instance.coordinate.y})</span>
-          {instance.reproductionNotes.length > 0 ? <span>{instance.reproductionNotes.join(' · ')}</span> : null}
         </li>
       ))}
     </ul>
