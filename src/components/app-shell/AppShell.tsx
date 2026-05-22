@@ -389,6 +389,21 @@ export function AppShell() {
     );
   };
 
+  const deleteInstance = (instanceId: string) => {
+    if (isReadOnly) {
+      return;
+    }
+
+    handleInstanceEditResult(
+      editAssetInstance(scene, {
+        type: 'delete',
+        instanceId,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+    );
+  };
+
   const saveInstanceSkill = (
     instanceId: string,
     requiresSkill: boolean,
@@ -800,6 +815,7 @@ export function AppShell() {
               buildingLevels={scene.buildingLevels}
               tileInstances={scene.tileInstances}
               readOnly={isReadOnly}
+              onDeleteInstance={deleteInstance}
               onRotateInstance={rotateInstance}
               onSaveInstanceSkill={saveInstanceSkill}
             />

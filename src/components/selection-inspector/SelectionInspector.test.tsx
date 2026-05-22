@@ -33,6 +33,7 @@ const defaultInspectorProps = {
   sceneDimensions,
   buildingLevels: scene.buildingLevels,
   tileInstances: scene.tileInstances,
+  onDeleteInstance: () => undefined,
   onRotateInstance: () => undefined,
   onSaveInstanceSkill: () => undefined,
 };
@@ -74,7 +75,7 @@ describe('SelectionInspector', () => {
     );
 
     expectSelectionCopyRemoved('3,3', 'x3 y3', 'Coordinate', 'Building layer');
-    expect(screen.getByRole('button', { name: '清除技能标记' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '清除选中格子中的素材' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '设置技能标记：耕地' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '设置技能标记：蓄水' })).toBeDisabled();
@@ -133,9 +134,9 @@ describe('SelectionInspector', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '旋转 90' }));
-    expect(screen.getByRole('button', { name: '清除技能标记' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '清除选中格子中的素材' })).toBeEnabled();
     expect(screen.getByRole('button', { name: '旋转 90' })).toHaveAttribute('data-tooltip', '旋转 90');
-    expect(screen.getByRole('button', { name: '清除技能标记' })).toHaveAttribute('data-tooltip', '清除');
+    expect(screen.getByRole('button', { name: '清除选中格子中的素材' })).toHaveAttribute('data-tooltip', '清除素材');
     expect(screen.getByRole('button', { name: '设置技能标记：树叶' }).querySelector('img')).not.toBeNull();
     expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toHaveAttribute('data-tooltip', '树叶');
     expect(screen.getByRole('button', { name: '设置技能标记：耕地' })).toHaveAttribute('data-tooltip', '耕地');
@@ -158,13 +159,14 @@ describe('SelectionInspector', () => {
     );
 
     expect(screen.getByRole('button', { name: '旋转 90' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '清除技能标记' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '清除选中格子中的素材' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '设置技能标记：耕地' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '设置技能标记：蓄水' })).toBeDisabled();
   });
 
-  it('labels an existing skill marker and clears it through the icon action', () => {
+  it('labels an existing skill marker and clears the selected material through the icon action', () => {
+    const onDeleteInstance = vi.fn();
     const onSaveInstanceSkill = vi.fn();
     const skillScene = {
       ...scene,
@@ -189,6 +191,7 @@ describe('SelectionInspector', () => {
         selectedInstance={skillContext.tileInstances[0]}
         selectedInstanceId="tile-skill"
         readOnly={false}
+        onDeleteInstance={onDeleteInstance}
         onSaveInstanceSkill={onSaveInstanceSkill}
       />,
     );
@@ -196,8 +199,9 @@ describe('SelectionInspector', () => {
     const skillButton = screen.getByRole('button', { name: '设置技能标记：树叶' });
     expect(skillButton).toHaveAttribute('aria-pressed', 'true');
     expectSelectionCopyRemoved('Skill marker', '树叶', 'Skill note', 'legacy note');
-    fireEvent.click(screen.getByRole('button', { name: '清除技能标记' }));
-    expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-skill', false, '树叶', 'legacy note');
+    fireEvent.click(screen.getByRole('button', { name: '清除选中格子中的素材' }));
+    expect(onDeleteInstance).toHaveBeenCalledWith('tile-skill');
+    expect(onSaveInstanceSkill).not.toHaveBeenCalled();
   });
 
   it('shows retained selected-instance fields without note or move editors', () => {

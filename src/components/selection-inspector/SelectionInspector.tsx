@@ -26,6 +26,7 @@ interface SelectionInspectorProps {
   buildingLevels: readonly BuildingLevel[];
   tileInstances: readonly TileInstance[];
   readOnly: boolean;
+  onDeleteInstance: (instanceId: string) => void;
   onRotateInstance: (instanceId: string, rotationDegrees: RotationDegrees) => void;
   onSaveInstanceSkill: (
     instanceId: string,
@@ -40,6 +41,7 @@ export function SelectionInspector({
   selectedInstance,
   buildingLevels,
   readOnly,
+  onDeleteInstance,
   onRotateInstance,
   onSaveInstanceSkill,
 }: SelectionInspectorProps) {
@@ -85,7 +87,7 @@ export function SelectionInspector({
           </div>
         )}
         {coordinate ? (
-          <div className="current-selection-bar__actions" aria-label="Selection skill marker actions">
+          <div className="current-selection-bar__actions" aria-label="Selection edit actions">
             {selectedInstance ? (
               <button
                 type="button"
@@ -102,24 +104,19 @@ export function SelectionInspector({
             <button
               type="button"
               className="current-selection-action-button current-selection-action-button--clear has-icon-tooltip"
-              aria-label="清除技能标记"
-              data-tooltip="清除"
-              title="清除"
-              disabled={readOnly || !selectedInstance || !selectedInstance.requiresSkill}
+              aria-label="清除选中格子中的素材"
+              data-tooltip="清除素材"
+              title="清除素材"
+              disabled={readOnly || !selectedInstance}
               onClick={() => {
                 if (!selectedInstance) {
                   return;
                 }
 
-                onSaveInstanceSkill(
-                  selectedInstance.instanceId,
-                  false,
-                  selectedInstance.skillType,
-                  selectedInstance.skillNote,
-                );
+                onDeleteInstance(selectedInstance.instanceId);
               }}
             >
-              <ClearSkillIcon />
+              <ClearMaterialIcon />
             </button>
             {selectionSkillActions.map((action) => (
               <button
@@ -198,7 +195,7 @@ function RotateIcon() {
   );
 }
 
-function ClearSkillIcon() {
+function ClearMaterialIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path d="M4 7h16" />

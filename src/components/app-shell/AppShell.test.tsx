@@ -390,6 +390,37 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
+  it('clears the selected grid cell material from the compact action bar', async () => {
+    render(<AppShell />);
+
+    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    if (!assetButton) {
+      throw new Error('Expected leppa-berry asset button.');
+    }
+
+    fireEvent.click(assetButton);
+    fireEvent.click(cell);
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toHaveLength(1);
+      expect(payload.tileInstances[0]).toMatchObject({
+        assetId: 'leppa-berry',
+        coordinate: { x: 2, y: 3 },
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '清除选中格子中的素材' }));
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toEqual([]);
+      expect(payload.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 3 });
+      expect(screen.getByRole('button', { name: '清除选中格子中的素材' })).toBeDisabled();
+    });
+  });
+
   it('keeps double-clicked asset selection active for continuous placement until clicked again', async () => {
     render(<AppShell />);
 
