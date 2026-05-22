@@ -472,6 +472,25 @@ button:disabled {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
+.export-preview__summary .export-material-list--with-thumbs > li {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-content: start;
+  min-height: 108px;
+  padding: 8px 4px;
+  text-align: center;
+}
+
+.export-preview__summary .export-material-list__row {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  width: 100%;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
 .export-preview__layers {
   display: grid;
   gap: 12px;

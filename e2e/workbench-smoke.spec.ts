@@ -140,6 +140,15 @@ test('previews and downloads an image export without mutating scene storage', as
       return Math.max(...itemTops) - Math.min(...itemTops);
     })
     .toBeLessThan(1);
+  await expect
+    .poll(async () =>
+      overallMaterialItems.first().evaluate((item) => {
+        const thumbnailBottom = item.querySelector('.export-material-list__thumb')?.getBoundingClientRect().bottom ?? 0;
+        const textTop = item.querySelector('.export-material-list__row')?.getBoundingClientRect().top ?? 0;
+        return textTop - thumbnailBottom;
+      }),
+    )
+    .toBeGreaterThan(0);
   await expect(page.getByLabel('L1 7x7 图形')).toBeVisible();
   await expect(page.getByLabel('4,4: 绿叶植物').locator('img[title="绿叶植物"]')).toBeVisible();
   await expect(page.getByLabel('4,4: 绿叶植物')).not.toContainText('绿叶');
