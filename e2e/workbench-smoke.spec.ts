@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 
 const autosavedSceneStorageKey = 'pokopia.sceneDocument.autosave.v1';
@@ -109,6 +110,41 @@ test('restores autosaved SceneDocument v1 on desktop startup', async ({ page }) 
   });
   expectScenePayloadHasNoLegacyFields(snapshot);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
+});
+
+test('previews and downloads an image export without mutating scene storage', async ({ page }) => {
+  await page.addInitScript((scene) => {
+    (window as unknown as { __pokopiaInitialSceneSnapshot?: unknown }).__pokopiaInitialSceneSnapshot = scene;
+  }, createRestoredScene());
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+
+  const beforeSnapshot = JSON.stringify(await readSceneSnapshot(page));
+  await page.getByRole('button', { name: '导出' }).click();
+
+  await expect(page.getByRole('dialog', { name: '图片导出预览' })).toBeVisible();
+  await expect(page.getByLabel('整体使用素材清单')).toContainText('绿叶植物');
+  await expect(page.getByLabel('L1 7x7 图形')).toBeVisible();
+  await expect(page.getByLabel('L1 使用素材清单')).toContainText('restore smoke');
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: '下载图片' }).click();
+  const download = await downloadPromise;
+  const downloadPath = await download.path();
+
+  expect(download.suggestedFilename()).toBe('Restored-Smoke-Layout.pokopia-scene.svg');
+  expect(downloadPath).not.toBeNull();
+  const svgText = await readFile(downloadPath ?? '', 'utf8');
+  expect(svgText).toContain('Restored Smoke Layout');
+  expect(svgText).toContain('整体使用素材');
+  expect(svgText).toContain('逐层图形');
+  expect(svgText).toContain('逐层素材清单');
+  expect(svgText).toContain('restore smoke');
+  await expect(page.getByRole('status', { name: 'Image export download status' })).toContainText('图片已准备下载');
+  expect(JSON.stringify(await readSceneSnapshot(page))).toBe(beforeSnapshot);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
 });
 
 test('keeps retained edit commands wired through the workbench shell', async ({ page }) => {
@@ -323,6 +359,7 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByLabel('布景名称')).toHaveAttribute('readonly', '');
   await expect(page.getByRole('button', { name: '新建层' })).toBeDisabled();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '导出' })).toHaveCount(0);
   const beforeKeyboardSnapshot = JSON.stringify(await readSceneSnapshot(page));
   const beforeCurrentLevel = await page.getByLabel('Current building level').textContent();
   const selectedCell = page.getByLabel('Cell 3,2, main area, level-0, read-only');

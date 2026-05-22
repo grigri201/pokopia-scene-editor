@@ -92,6 +92,56 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
   }, 20_000);
 
+  it('downloads the image export preview without changing scene or storage', async () => {
+    const createObjectURL = vi.fn((blob: Blob) => {
+      void blob;
+      return 'blob:image-export';
+    });
+    const revokeObjectURL = vi.fn();
+    let downloadLink: { href: string; download: string } | null = null;
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function clickAnchor(this: HTMLAnchorElement) {
+      downloadLink = {
+        href: this.href,
+        download: this.download,
+      };
+    });
+
+    render(<AppShell />);
+    const beforeSnapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
+    fireEvent.click(screen.getByRole('button', { name: '导出' }));
+    fireEvent.click(screen.getByRole('button', { name: '下载图片' }));
+
+    expect(downloadLink).toEqual({
+      href: 'blob:image-export',
+      download: '百变怪的布景.pokopia-scene.svg',
+    });
+    const exportedBlob = createObjectURL.mock.calls[0]?.[0] as Blob;
+    await expect(exportedBlob.text()).resolves.toContain('百变怪的布景');
+    await expect(exportedBlob.text()).resolves.toContain('整体使用素材');
+    await expect(exportedBlob.text()).resolves.toContain('逐层图形');
+    await expect(exportedBlob.text()).resolves.toContain('逐层素材清单');
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:image-export');
+    expect(screen.getByRole('status', { name: 'Image export download status' })).toHaveTextContent('图片已准备下载');
+    expect((window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.()).toBe(beforeSnapshot);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  }, 20_000);
+
+  it('hides the export action on mobile read-only without writing scene storage', () => {
+    setViewportWidth(390);
+
+    render(<AppShell />);
+    const beforeSnapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
+
+    expect(screen.queryByRole('button', { name: '导出' })).not.toBeInTheDocument();
+    expect((window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.()).toBe(beforeSnapshot);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  });
+
   it('places the preview inspector below the canvas next to the current selection item', () => {
     const { container } = render(<AppShell />);
 

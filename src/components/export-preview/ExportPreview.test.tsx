@@ -56,6 +56,26 @@ describe('ExportPreview', () => {
     expect(opener).toHaveFocus();
     opener.remove();
   });
+
+  it('enables download when a handler exists and renders download feedback', () => {
+    const onDownloadImage = vi.fn();
+
+    render(
+      <ExportPreview
+        summary={buildImageExportSummary(createPreviewScene())}
+        downloadStatus="图片已准备下载"
+        onClose={vi.fn()}
+        onDownloadImage={onDownloadImage}
+      />,
+    );
+
+    const downloadButton = screen.getByRole('button', { name: '下载图片' });
+    expect(downloadButton).toBeEnabled();
+    fireEvent.click(downloadButton);
+
+    expect(onDownloadImage).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('status', { name: 'Image export download status' })).toHaveTextContent('图片已准备下载');
+  });
 });
 
 function createPreviewScene() {

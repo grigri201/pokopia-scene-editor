@@ -425,6 +425,21 @@ button:disabled {
   margin: 0;
 }
 
+.export-preview__feedback {
+  margin: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 16px;
+  color: #164c46;
+  background: rgba(232, 246, 239, 0.86);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.export-preview__feedback--error {
+  color: var(--color-error);
+  background: rgba(179, 38, 30, 0.07);
+}
+
 .export-preview__actions {
   display: inline-flex;
   flex-wrap: wrap;

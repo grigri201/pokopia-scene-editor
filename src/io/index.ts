@@ -6,6 +6,7 @@ export const sceneIoBoundary: SceneIoBoundary = {
   status: 'reserved-for-save-and-recovery',
 };
 
+export * from './image-export';
 export * from './scene-schema';
 export * from './scene-recovery';
 export * from './scene-roundtrip';

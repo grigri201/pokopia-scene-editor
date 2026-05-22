@@ -9,14 +9,18 @@ import type {
 
 interface ExportPreviewProps {
   summary: ImageExportSummary;
+  downloadError?: string | null;
   downloadDisabled?: boolean;
+  downloadStatus?: string | null;
   onClose: () => void;
   onDownloadImage?: () => void;
 }
 
 export function ExportPreview({
   summary,
+  downloadError = null,
   downloadDisabled = false,
+  downloadStatus = null,
   onClose,
   onDownloadImage,
 }: ExportPreviewProps) {
@@ -101,6 +105,16 @@ export function ExportPreview({
             </button>
           </div>
         </header>
+        {downloadStatus ? (
+          <p className="export-preview__feedback" role="status" aria-label="Image export download status">
+            {downloadStatus}
+          </p>
+        ) : null}
+        {downloadError ? (
+          <p className="export-preview__feedback export-preview__feedback--error" role="alert" aria-label="Image export download error">
+            {downloadError}
+          </p>
+        ) : null}
 
         <section className="export-preview__body" aria-label="Export image content">
           <section className="export-preview__summary" aria-label="整体使用素材清单">

@@ -32,6 +32,7 @@ import {
 import {
   applyRecoveredSceneDocument,
   autosavedSceneStorageKey,
+  createImageExportFile,
   readLatestSceneDocumentFromStorage,
   savedSceneStorageKey,
   type RecoveryError,
@@ -66,6 +67,8 @@ export function AppShell() {
   const [readOnlyViewingLevelId, setReadOnlyViewingLevelId] = useState<string | null>(null);
   const [exportPreviewSummary, setExportPreviewSummary] = useState<ImageExportSummary | null>(null);
   const [exportPreviewError, setExportPreviewError] = useState<string | null>(null);
+  const [exportDownloadStatus, setExportDownloadStatus] = useState<string | null>(null);
+  const [exportDownloadError, setExportDownloadError] = useState<string | null>(null);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(() =>
     getInteractionMode(window.innerWidth),
   );
@@ -546,6 +549,8 @@ export function AppShell() {
     try {
       setExportPreviewSummary(buildImageExportSummary(scene));
       setExportPreviewError(null);
+      setExportDownloadStatus(null);
+      setExportDownloadError(null);
     } catch {
       setExportPreviewSummary(null);
       setExportPreviewError('Image export preview could not be prepared.');
@@ -555,6 +560,38 @@ export function AppShell() {
   const closeExportPreview = () => {
     setExportPreviewSummary(null);
     setExportPreviewError(null);
+    setExportDownloadStatus(null);
+    setExportDownloadError(null);
+  };
+
+  const downloadExportImage = () => {
+    if (!exportPreviewSummary) {
+      return;
+    }
+
+    let objectUrl: string | null = null;
+    let downloadLink: HTMLAnchorElement | null = null;
+
+    try {
+      const exportFile = createImageExportFile(exportPreviewSummary);
+      objectUrl = URL.createObjectURL(exportFile.blob);
+      downloadLink = document.createElement('a');
+      downloadLink.href = objectUrl;
+      downloadLink.download = exportFile.fileName;
+      downloadLink.rel = 'noopener';
+      document.body.append(downloadLink);
+      downloadLink.click();
+      setExportDownloadStatus('图片已准备下载');
+      setExportDownloadError(null);
+    } catch {
+      setExportDownloadStatus(null);
+      setExportDownloadError('Image export download failed.');
+    } finally {
+      downloadLink?.remove();
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
   };
 
   const retrySceneRecovery = () => {
@@ -619,13 +656,15 @@ export function AppShell() {
           <span>Pokopia Scene Editor</span>
         </div>
         <div className="app-header__actions" aria-label="Scene file actions">
-          <button
-            type="button"
-            className="app-action-button"
-            onClick={openExportPreview}
-          >
-            导出
-          </button>
+          {!isReadOnly ? (
+            <button
+              type="button"
+              className="app-action-button"
+              onClick={openExportPreview}
+            >
+              导出
+            </button>
+          ) : null}
           <button
             type="button"
             className="app-action-button app-action-button--danger"
@@ -698,8 +737,10 @@ export function AppShell() {
       {exportPreviewSummary ? (
         <ExportPreview
           summary={exportPreviewSummary}
-          downloadDisabled
+          downloadError={exportDownloadError}
+          downloadStatus={exportDownloadStatus}
           onClose={closeExportPreview}
+          onDownloadImage={downloadExportImage}
         />
       ) : null}
       <section
