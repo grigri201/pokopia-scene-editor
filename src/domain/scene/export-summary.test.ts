@@ -23,8 +23,8 @@ describe('image export summary', () => {
         totalCount: 1,
       }),
     ]);
-    expect(summary.layers.map((layer) => layer.displayId)).toEqual(['L2', 'L1', 'L0']);
-    expect(summary.layers.map((layer) => layer.empty)).toEqual([true, false, false]);
+    expect(summary.layers.map((layer) => layer.displayId)).toEqual(['L0', 'L1', 'L2']);
+    expect(summary.layers.map((layer) => layer.empty)).toEqual([false, false, true]);
     expect(summary.layers[1].materials).toEqual([
       expect.objectContaining({
         assetId: 'leafy-plant',

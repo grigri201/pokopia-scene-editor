@@ -17,6 +17,11 @@ describe('ExportPreview', () => {
     expect(screen.getByLabelText('整体使用素材清单')).not.toHaveTextContent('No. 1052');
     expect(screen.getByLabelText('Export image content').firstElementChild).toBe(screen.getByLabelText('整体使用素材清单'));
     expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('绿叶植物缩略图')).toBeVisible();
+    expect(within(screen.getByLabelText('逐层图形和素材清单')).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      'L0 · 0层',
+      'L1 · 1层',
+      'L2 · 2层',
+    ]);
     expect(screen.getByLabelText('L1 7x7 图形').querySelectorAll('.export-layer-cell')).toHaveLength(49);
     const previewCell = screen.getByLabelText('3,3: 绿叶植物');
     expect(previewCell).toHaveTextContent('');

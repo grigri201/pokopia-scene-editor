@@ -42,15 +42,15 @@ describe('image export file generation', () => {
       y: Number(match[1]),
       height: Number(match[2]),
     }));
-    const emptyLayerFrame = layerFrameYs.at(-2);
-    const denseLayerFrame = layerFrameYs.at(-1);
+    const denseLayerFrame = layerFrameYs.at(-2);
+    const emptyLayerFrame = layerFrameYs.at(-1);
 
     expect(svgText).toContain('木制栅栏');
     expect(svgText).toContain('绿叶植物');
     expect(svgText).not.toContain('No. 390');
     expect(svgText).not.toContain('No. 1052');
     expect(denseLayerFrame?.height).toBeGreaterThan(210);
-    expect(emptyLayerFrame && denseLayerFrame ? emptyLayerFrame.y + emptyLayerFrame.height : 0).toBeLessThan(denseLayerFrame?.y ?? 0);
+    expect(denseLayerFrame && emptyLayerFrame ? denseLayerFrame.y + denseLayerFrame.height : 0).toBeLessThan(emptyLayerFrame?.y ?? 0);
     expect(denseLayerFrame ? denseLayerFrame.y + denseLayerFrame.height : 0).toBeLessThanOrEqual(height);
   });
 

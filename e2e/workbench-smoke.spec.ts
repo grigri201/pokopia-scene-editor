@@ -124,6 +124,7 @@ test('previews and downloads an image export without mutating scene storage', as
 
   await expect(page.getByRole('dialog', { name: '图片导出预览' })).toBeVisible();
   await expect(page.locator('.export-preview__body > :first-child')).toHaveAttribute('aria-label', '整体使用素材清单');
+  await expect(page.locator('.export-preview__layers > .export-layer').first()).toContainText('L0 · 0层');
   await expect(page.getByLabel('整体使用素材清单')).toContainText('绿叶植物');
   await expect(page.getByLabel('整体使用素材清单')).not.toContainText('No.');
   await expect(page.getByLabel('整体使用素材清单').locator('img[alt="绿叶植物缩略图"]')).toBeVisible();

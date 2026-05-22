@@ -5,6 +5,7 @@ import {
   type BuildingLevelContext,
   type CanvasCellContext,
 } from './selectors';
+import { sortBuildingLevelsForRender } from './levels';
 import type { AreaType, GridCoordinate } from './area';
 import type { RotationDegrees, SceneDocument, TileInstance } from './types';
 
@@ -69,7 +70,7 @@ export interface ExportTileInstanceSummary {
 }
 
 export function buildImageExportSummary(scene: SceneDocument): ImageExportSummary {
-  const layers = getBuildingLevelContexts(scene).map((level) => buildLayerSummary(scene, level));
+  const layers = sortBuildingLevelsForRender(getBuildingLevelContexts(scene)).map((level) => buildLayerSummary(scene, level));
   assertAllInstancesExported(scene, layers);
 
   return {
