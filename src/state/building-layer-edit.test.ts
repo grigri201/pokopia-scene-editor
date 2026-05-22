@@ -233,11 +233,72 @@ describe('building layer edit command', () => {
       throw new Error('Expected delete success.');
     }
     expect(deleted.scene.buildingLevels.map((level) => level.id)).toEqual(['level-0', 'level-2']);
+    expect(deleted.scene.buildingLevels.map((level) => level.levelNumber)).toEqual([0, 1]);
+    expect(deleted.scene.buildingLevels.map((level) => level.name)).toEqual(['0层', '1层']);
     expect(deleted.scene.tileInstances).toEqual([]);
     expect(deleted.scene.workspaceState.currentBuildingLevelId).toBe('level-2');
     expect(lastLayer.ok).toBe(false);
     if (!lastLayer.ok) {
       expect(lastLayer.reason).toBe('last-layer');
     }
+  });
+
+  it('resequences level markers after deletion and creates the next visible marker without id collisions', () => {
+    const baseScene = createDefaultSceneDocument({ sceneId: 'scene-test', now });
+    const scene = {
+      ...baseScene,
+      buildingLevels: [
+        createBuildingLevel(0),
+        createBuildingLevel(1),
+        { ...createBuildingLevel(2), name: '屋顶层' },
+      ],
+      workspaceState: {
+        ...baseScene.workspaceState,
+        currentBuildingLevelId: 'level-2',
+      },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-roof',
+          assetId: 'brick-roof-decoration',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-2',
+        }),
+      ],
+    };
+    const deleted = editBuildingLayer(scene, {
+      type: 'delete',
+      levelId: 'level-1',
+      confirmDelete: true,
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(deleted.ok).toBe(true);
+    if (!deleted.ok) {
+      throw new Error('Expected delete success.');
+    }
+    expect(deleted.scene.buildingLevels).toEqual([
+      { id: 'level-0', levelNumber: 0, name: '0层' },
+      { id: 'level-2', levelNumber: 1, name: '屋顶层' },
+    ]);
+    expect(deleted.scene.tileInstances[0]?.buildingLevelId).toBe('level-2');
+
+    const created = editBuildingLayer(deleted.scene, {
+      type: 'create',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(created.ok).toBe(true);
+    if (!created.ok) {
+      throw new Error('Expected create success.');
+    }
+    expect(created.scene.buildingLevels).toEqual([
+      { id: 'level-0', levelNumber: 0, name: '0层' },
+      { id: 'level-2', levelNumber: 1, name: '屋顶层' },
+      { id: 'level-3', levelNumber: 2, name: '2层' },
+    ]);
+    expect(new Set(created.scene.buildingLevels.map((level) => level.id)).size).toBe(3);
+    expect(created.scene.workspaceState.currentBuildingLevelId).toBe('level-3');
   });
 });

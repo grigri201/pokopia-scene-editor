@@ -30,10 +30,22 @@ export function getNextBuildingLevelNumber(levels: readonly BuildingLevel[]): nu
   return Math.max(...levels.map((level) => level.levelNumber)) + 1;
 }
 
+export function resequenceBuildingLevels(levels: readonly BuildingLevel[]): BuildingLevel[] {
+  return sortBuildingLevelsForRender(levels).map((level, levelNumber) => ({
+    ...level,
+    levelNumber,
+    name: isDefaultLevelName(level) ? `${levelNumber}层` : level.name,
+  }));
+}
+
 export function sortBuildingLevelsForDisplay(levels: readonly BuildingLevel[]): BuildingLevel[] {
   return [...levels].sort((left, right) => right.levelNumber - left.levelNumber);
 }
 
 export function sortBuildingLevelsForRender<T extends Pick<BuildingLevel, 'levelNumber'>>(levels: readonly T[]): T[] {
   return [...levels].sort((left, right) => left.levelNumber - right.levelNumber);
+}
+
+function isDefaultLevelName(level: Pick<BuildingLevel, 'levelNumber' | 'name'>): boolean {
+  return level.name === `${level.levelNumber}层`;
 }

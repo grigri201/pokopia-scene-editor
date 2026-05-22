@@ -1,6 +1,6 @@
 import {
   createBuildingLevel,
-  getNextBuildingLevelNumber,
+  resequenceBuildingLevels,
   type SceneDocument,
 } from '../domain/scene';
 import type { InteractionMode } from './interaction-mode';
@@ -62,13 +62,13 @@ export function editBuildingLayer(
 }
 
 function createLayer(scene: SceneDocument, now: string): BuildingLayerEditResult {
-  const nextLevelNumber = getNextBuildingLevelNumber(scene.buildingLevels);
-  const nextLevel = createBuildingLevel(nextLevelNumber);
+  const buildingLevels = resequenceBuildingLevels(scene.buildingLevels);
+  const nextLevel = createUniqueBuildingLevel(buildingLevels, buildingLevels.length);
 
   return markLayerSceneDirty(
     {
       ...scene,
-      buildingLevels: [...scene.buildingLevels, nextLevel],
+      buildingLevels: [...buildingLevels, nextLevel],
       workspaceState: {
         ...scene.workspaceState,
         currentBuildingLevelId: nextLevel.id,
@@ -85,14 +85,14 @@ function copyLayer(
   instanceIdPrefix: string,
   now: string,
 ): BuildingLayerEditResult {
-  const sourceLayer = scene.buildingLevels.find((level) => level.id === levelId);
+  const buildingLevels = resequenceBuildingLevels(scene.buildingLevels);
+  const sourceLayer = buildingLevels.find((level) => level.id === levelId);
   if (!sourceLayer) {
     return failure('missing-layer', 'Unknown building layer', 'Choose an existing building layer.');
   }
 
-  const nextLevelNumber = getNextBuildingLevelNumber(scene.buildingLevels);
   const nextLevel = {
-    ...createBuildingLevel(nextLevelNumber),
+    ...createUniqueBuildingLevel(buildingLevels, buildingLevels.length),
     name: `${sourceLayer.name} copy`,
   };
   const copiedInstances = scene.tileInstances
@@ -106,7 +106,7 @@ function copyLayer(
   return markLayerSceneDirty(
     {
       ...scene,
-      buildingLevels: [...scene.buildingLevels, nextLevel],
+      buildingLevels: [...buildingLevels, nextLevel],
       tileInstances: [...scene.tileInstances, ...copiedInstances],
       workspaceState: {
         ...scene.workspaceState,
@@ -134,6 +134,7 @@ function deleteLayer(
   }
 
   const remainingLevels = scene.buildingLevels.filter((level) => level.id !== levelId);
+  const buildingLevels = resequenceBuildingLevels(remainingLevels);
   const affectedInstances = scene.tileInstances.filter((instance) => instance.buildingLevelId === levelId);
   if (!confirmDelete) {
     return failure(
@@ -145,13 +146,13 @@ function deleteLayer(
 
   const nextCurrentLevelId =
     scene.workspaceState.currentBuildingLevelId === levelId
-      ? getFallbackLevelId(remainingLevels)
+      ? getFallbackLevelId(buildingLevels)
       : scene.workspaceState.currentBuildingLevelId;
 
   return markLayerSceneDirty(
     {
       ...scene,
-      buildingLevels: remainingLevels,
+      buildingLevels,
       tileInstances: scene.tileInstances.filter((instance) => instance.buildingLevelId !== levelId),
       workspaceState: {
         ...scene.workspaceState,
@@ -205,6 +206,40 @@ function updateLayer(
 
 function layerExists(scene: SceneDocument, levelId: string): boolean {
   return scene.buildingLevels.some((level) => level.id === levelId);
+}
+
+function createUniqueBuildingLevel(
+  existingLevels: SceneDocument['buildingLevels'],
+  levelNumber: number,
+): SceneDocument['buildingLevels'][number] {
+  return {
+    ...createBuildingLevel(levelNumber),
+    id: createUniqueBuildingLevelId(existingLevels),
+  };
+}
+
+function createUniqueBuildingLevelId(existingLevels: SceneDocument['buildingLevels']): string {
+  const existingIds = new Set(existingLevels.map((level) => level.id));
+  let nextLevelIdNumber = getNextBuildingLevelIdNumber(existingLevels);
+
+  while (existingIds.has(`level-${nextLevelIdNumber}`)) {
+    nextLevelIdNumber += 1;
+  }
+
+  return `level-${nextLevelIdNumber}`;
+}
+
+function getNextBuildingLevelIdNumber(existingLevels: SceneDocument['buildingLevels']): number {
+  const levelIdNumbers = existingLevels
+    .map((level) => /^level-(\d+)$/.exec(level.id)?.[1])
+    .filter((value): value is string => Boolean(value))
+    .map((value) => Number(value));
+
+  if (levelIdNumbers.length === 0) {
+    return existingLevels.length;
+  }
+
+  return Math.max(...levelIdNumbers) + 1;
 }
 
 function createUniqueCopiedInstanceId(

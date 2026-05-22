@@ -252,6 +252,44 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
+  it('resequences visible building layer markers after delete and create actions', async () => {
+    const confirmDelete = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<AppShell />);
+
+    fireEvent.click(screen.getByRole('button', { name: '新建层' }));
+    fireEvent.click(screen.getByRole('button', { name: '新建层' }));
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('building-level-row').map((row) => row.dataset.displayId)).toEqual([
+        'L2',
+        'L1',
+        'L0',
+      ]);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Delete 1层 \(L1\)/ }));
+
+    await waitFor(() => {
+      const rows = screen.getAllByTestId('building-level-row');
+      expect(rows.map((row) => row.dataset.displayId)).toEqual(['L1', 'L0']);
+      expect(screen.getByDisplayValue('1层')).toBeVisible();
+      expect(screen.queryByText('L2')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '新建层' }));
+
+    await waitFor(() => {
+      const rows = screen.getAllByTestId('building-level-row');
+      expect(rows.map((row) => row.dataset.displayId)).toEqual(['L2', 'L1', 'L0']);
+      expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
+        { id: 'level-0', levelNumber: 0, name: '0层' },
+        { id: 'level-2', levelNumber: 1, name: '1层' },
+        { id: 'level-3', levelNumber: 2, name: '2层' },
+      ]);
+    });
+    expect(confirmDelete).toHaveBeenCalledTimes(1);
+  });
+
   it('shows a non-payload autosave warning when local storage writes fail and clears it after recovery', async () => {
     const originalSetItem = Storage.prototype.setItem;
     let failAutosave = true;

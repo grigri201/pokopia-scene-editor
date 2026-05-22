@@ -3,6 +3,7 @@ import {
   createBuildingLevel,
   createDefaultBuildingLevels,
   getNextBuildingLevelNumber,
+  resequenceBuildingLevels,
   sortBuildingLevelsForDisplay,
 } from './levels';
 
@@ -33,5 +34,18 @@ describe('building level rules', () => {
 
     expect(sorted.map((level) => level.levelNumber)).toEqual([2, 1, 0]);
     expect(levels.map((level) => level.levelNumber)).toEqual([0, 1, 2]);
+  });
+
+  it('resequences visible level numbers while preserving stable ids and custom names', () => {
+    const levels = [
+      createBuildingLevel(0),
+      { ...createBuildingLevel(2), name: '2层' },
+      { ...createBuildingLevel(4), name: '屋顶层' },
+    ];
+    const resequenced = resequenceBuildingLevels(levels);
+
+    expect(resequenced.map((level) => level.id)).toEqual(['level-0', 'level-2', 'level-4']);
+    expect(resequenced.map((level) => level.levelNumber)).toEqual([0, 1, 2]);
+    expect(resequenced.map((level) => level.name)).toEqual(['0层', '1层', '屋顶层']);
   });
 });
