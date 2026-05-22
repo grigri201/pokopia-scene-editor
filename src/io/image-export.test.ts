@@ -24,6 +24,7 @@ describe('image export file generation', () => {
     expect(svgText).not.toContain('No. 1052');
     expect(svgText).not.toContain('技能: 树叶');
     expect(svgText).not.toContain('(3,3)');
+    expect(svgText).not.toContain('placed items');
   });
 
   it('escapes HTML-like text in generated SVG', () => {

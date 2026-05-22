@@ -154,7 +154,6 @@ function LayerPreview({ layer }: { layer: ImageExportLayerSummary }) {
       <header className="export-layer__header">
         <div>
           <h3>{layer.displayId} · {layer.name}</h3>
-          <p>{layer.materialCount} placed items</p>
         </div>
         {layer.empty ? <span className="status-pill">空层</span> : null}
       </header>

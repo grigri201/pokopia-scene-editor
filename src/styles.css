@@ -420,8 +420,7 @@ button:disabled {
 
 .export-preview__header h2,
 .export-preview__header p,
-.export-layer__header h3,
-.export-layer__header p {
+.export-layer__header h3 {
   margin: 0;
 }
 

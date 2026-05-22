@@ -87,7 +87,9 @@ function renderLayer(layer: ImageExportLayerSummary, y: number, height: number):
 
   parts.push(sectionFrame(pageMargin, y, frameWidth, height));
   parts.push(text(`${layer.displayId} · ${layer.name}`, pageMargin + 18, y + 30, 18, '#231f1a', 900));
-  parts.push(text(layer.empty ? '空层' : `${layer.materialCount} placed items`, pageMargin + 150, y + 30, 14, '#6b6258', 800));
+  if (layer.empty) {
+    parts.push(text('空层', pageMargin + 150, y + 30, 14, '#6b6258', 800));
+  }
   parts.push(text('逐层图形', gridX, y + 44, 13, '#6b6258', 800));
   parts.push(text('逐层素材清单', materialX, y + 44, 13, '#6b6258', 800));
 

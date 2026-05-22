@@ -22,6 +22,7 @@ describe('ExportPreview', () => {
       'L1 · 1层',
       'L2 · 2层',
     ]);
+    expect(screen.getByLabelText('逐层图形和素材清单')).not.toHaveTextContent('placed items');
     expect(screen.getByLabelText('L1 7x7 图形').querySelectorAll('.export-layer-cell')).toHaveLength(49);
     const previewCell = screen.getByLabelText('3,3: 绿叶植物');
     expect(previewCell).toHaveTextContent('');
