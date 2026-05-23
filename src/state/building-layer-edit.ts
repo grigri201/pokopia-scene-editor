@@ -26,7 +26,7 @@ export type BuildingLayerEditResult =
     };
 
 export type BuildingLayerEditInput =
-  | { type: 'create'; interactionMode: InteractionMode; now: string }
+  | { type: 'create'; name?: string; interactionMode: InteractionMode; now: string }
   | { type: 'copy'; levelId: string; instanceIdPrefix: string; interactionMode: InteractionMode; now: string }
   | { type: 'delete'; levelId: string; confirmDelete?: boolean; interactionMode: InteractionMode; now: string }
   | { type: 'rename'; levelId: string; name: string; interactionMode: InteractionMode; now: string }
@@ -42,7 +42,7 @@ export function editBuildingLayer(
 
   switch (input.type) {
     case 'create':
-      return createLayer(scene, input.now);
+      return createLayer(scene, input.now, input.name);
     case 'copy':
       return copyLayer(scene, input.levelId, input.instanceIdPrefix, input.now);
     case 'delete':
@@ -61,9 +61,9 @@ export function editBuildingLayer(
   }
 }
 
-function createLayer(scene: SceneDocument, now: string): BuildingLayerEditResult {
+function createLayer(scene: SceneDocument, now: string, name?: string): BuildingLayerEditResult {
   const buildingLevels = resequenceBuildingLevels(scene.buildingLevels);
-  const nextLevel = createUniqueBuildingLevel(buildingLevels, buildingLevels.length);
+  const nextLevel = createUniqueBuildingLevel(buildingLevels, buildingLevels.length, name);
 
   return markLayerSceneDirty(
     {
@@ -211,10 +211,12 @@ function layerExists(scene: SceneDocument, levelId: string): boolean {
 function createUniqueBuildingLevel(
   existingLevels: SceneDocument['buildingLevels'],
   levelNumber: number,
+  name?: string,
 ): SceneDocument['buildingLevels'][number] {
   return {
     ...createBuildingLevel(levelNumber),
     id: createUniqueBuildingLevelId(existingLevels),
+    ...(name ? { name } : {}),
   };
 }
 

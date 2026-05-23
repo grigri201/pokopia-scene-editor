@@ -192,6 +192,45 @@ describe('AppShell scene storage integration', () => {
     expect(autosavePayload).not.toHaveProperty('language');
   }, 20_000);
 
+  it('uses the active locale for newly generated layer names without renaming existing layers', async () => {
+    const confirmReset = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<AppShell />);
+
+    fireEvent.change(screen.getByLabelText('语言'), { target: { value: 'en-US' } });
+
+    await waitFor(() => {
+      expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
+        { id: 'level-0', levelNumber: 0, name: '0层' },
+      ]);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'New layer' }));
+
+    await waitFor(() => {
+      expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
+        { id: 'level-0', levelNumber: 0, name: '0层' },
+        { id: 'level-1', levelNumber: 1, name: 'Layer 1' },
+      ]);
+    });
+
+    fireEvent.change(screen.getByLabelText('Language'), { target: { value: 'zh-CN' } });
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Layer 1')).toBeVisible();
+      expect(JSON.parse(readSceneSnapshot()).buildingLevels.at(-1)?.name).toBe('Layer 1');
+    });
+
+    fireEvent.change(screen.getByLabelText('语言'), { target: { value: 'en-US' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+
+    await waitFor(() => {
+      expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
+        { id: 'level-0', levelNumber: 0, name: 'Layer 0' },
+      ]);
+    });
+    expect(confirmReset).toHaveBeenCalledWith('Reset the current scene and workbench?');
+  }, 20_000);
+
   it('downloads the image export preview without changing scene or storage', async () => {
     const createObjectURL = vi.fn((blob: Blob) => {
       void blob;

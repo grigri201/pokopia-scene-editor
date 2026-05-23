@@ -45,6 +45,25 @@ describe('building layer edit command', () => {
     }
   });
 
+  it('uses a caller-provided name only for the newly created layer', () => {
+    const scene = createDefaultSceneDocument({ sceneId: 'scene-test', now });
+    const created = editBuildingLayer(scene, {
+      type: 'create',
+      name: 'Layer 1',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(created.ok).toBe(true);
+    if (!created.ok) {
+      throw new Error('Expected create success.');
+    }
+    expect(created.scene.buildingLevels).toEqual([
+      { id: 'level-0', levelNumber: 0, name: '0层' },
+      { id: 'level-1', levelNumber: 1, name: 'Layer 1' },
+    ]);
+  });
+
   it('blocks read-only writes, missing layers, and invalid names', () => {
     const scene = createDefaultSceneDocument({ sceneId: 'scene-test', now });
     const readOnly = editBuildingLayer(scene, { type: 'create', interactionMode: 'readOnly', now });

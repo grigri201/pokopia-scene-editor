@@ -408,3 +408,7 @@ export function getBuildingLevelDisplayName(name: string, levelNumber: number, l
 
   return name;
 }
+
+export function getDefaultBuildingLevelName(levelNumber: number, locale: Locale): string {
+  return locale === 'en-US' ? `Layer ${levelNumber}` : `${levelNumber}层`;
+}

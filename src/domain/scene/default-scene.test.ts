@@ -84,6 +84,16 @@ describe('default scene document', () => {
     expect(scene.sceneName).toBe('5x5 布景');
   });
 
+  it('allows callers to localize only the newly generated initial layer name', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-english-default',
+      initialBuildingLevelName: 'Layer 0',
+      now: '2026-05-16T06:20:00.000Z',
+    });
+
+    expect(scene.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: 'Layer 0' }]);
+  });
+
   it('keeps the default Pokemon key inside the known Decor Dex seed keys', () => {
     expect(knownPokemonKeys).toContain(defaultSelectedPokemonKey);
   });

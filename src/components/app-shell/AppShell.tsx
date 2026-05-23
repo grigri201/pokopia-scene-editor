@@ -46,7 +46,7 @@ import {
   writeSceneDocumentToStorage,
 } from '../../io';
 import { ExportPreview } from '../export-preview/ExportPreview';
-import { localeLabels, locales, t, type Locale } from '../../i18n';
+import { getDefaultBuildingLevelName, localeLabels, locales, t, type Locale } from '../../i18n';
 
 const replacementConfirmationWindowMs = 15_000;
 
@@ -520,6 +520,7 @@ export function AppShell() {
     handleBuildingLayerResult(
       editBuildingLayer(scene, {
         type: 'create',
+        name: getDefaultBuildingLevelName(scene.buildingLevels.length, locale),
         interactionMode,
         now: getCurrentIsoTimestamp(),
       }),
@@ -621,6 +622,7 @@ export function AppShell() {
 
     const nextScene = createDefaultSceneDocument({
       sceneId: 'scene-default',
+      initialBuildingLevelName: getDefaultBuildingLevelName(0, locale),
       now: getCurrentIsoTimestamp(),
     });
     const storage = getBrowserStorage();
@@ -813,6 +815,7 @@ export function AppShell() {
   return (
     <main
       className="app-shell"
+      data-locale={locale}
       aria-label="Pokopia scene editor workbench"
     >
       <header

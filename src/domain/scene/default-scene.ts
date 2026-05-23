@@ -17,6 +17,7 @@ export const defaultSceneName = '5x5 布景';
 export interface CreateDefaultSceneDocumentOptions {
   sceneId?: string;
   sceneName?: string;
+  initialBuildingLevelName?: string;
   selectedPokemonKey?: string;
   selectedCoordinate?: GridCoordinate | null;
   now?: string;
@@ -44,7 +45,14 @@ export function createDefaultSceneDocument(
   const baseBuildingLevels = options.includeOpenDesignDemo
     ? [0, 1, 2].map((levelNumber) => createBuildingLevel(levelNumber))
     : createDefaultBuildingLevels();
-  const buildingLevels = baseBuildingLevels.map((level) => {
+  const buildingLevels = baseBuildingLevels.map((level, index) => {
+    if (!options.includeOpenDesignDemo && index === 0 && options.initialBuildingLevelName) {
+      return {
+        ...level,
+        name: options.initialBuildingLevelName,
+      };
+    }
+
     if (!options.includeOpenDesignDemo) {
       return level;
     }
