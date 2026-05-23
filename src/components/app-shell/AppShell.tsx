@@ -35,6 +35,8 @@ import {
   applyRecoveredSceneDocument,
   autosavedSceneStorageKey,
   createImageExportFile,
+  decodeSceneDocumentString,
+  encodeSceneDocumentString,
   getUiPreferencesStorage,
   readLatestSceneDocumentFromStorage,
   readUiPreferencesFromStorage,
@@ -78,6 +80,8 @@ export function AppShell() {
   const [exportPreviewError, setExportPreviewError] = useState<string | null>(null);
   const [exportDownloadStatus, setExportDownloadStatus] = useState<string | null>(null);
   const [exportDownloadError, setExportDownloadError] = useState<string | null>(null);
+  const [sceneStringStatus, setSceneStringStatus] = useState<string | null>(null);
+  const [sceneStringError, setSceneStringError] = useState<string | null>(null);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(() =>
     getInteractionMode(window.innerWidth),
   );
@@ -632,6 +636,72 @@ export function AppShell() {
     replacementConfirmationExpiresAtRef.current = 0;
     setPlacementFeedback(null);
     setBuildingLayerFeedback(null);
+    setSceneStringStatus(null);
+    setSceneStringError(null);
+  };
+
+  const exportSceneString = () => {
+    try {
+      const sceneString = encodeSceneDocumentString(scene);
+      navigator.clipboard?.writeText(sceneString).catch(() => undefined);
+      window.prompt(t(locale, 'sceneStringExportPrompt'), sceneString);
+      setSceneStringStatus(t(locale, 'sceneStringExported', { count: sceneString.length }));
+      setSceneStringError(null);
+    } catch {
+      setSceneStringStatus(null);
+      setSceneStringError(t(locale, 'sceneStringExportFailed'));
+    }
+  };
+
+  const importSceneString = () => {
+    if (isReadOnly) {
+      return;
+    }
+
+    const sceneString = window.prompt(t(locale, 'sceneStringImportPrompt'));
+    if (!sceneString?.trim()) {
+      return;
+    }
+
+    const decoded = decodeSceneDocumentString(sceneString, getCurrentIsoTimestamp());
+    if (!decoded.ok) {
+      setRecoveryErrors(decoded.errors);
+      setRecoveryStatus('error');
+      setSceneStringStatus(null);
+      setSceneStringError(t(locale, 'sceneStringInvalid'));
+      return;
+    }
+
+    const confirmed = window.confirm(t(locale, 'sceneStringImportConfirm'));
+    if (!confirmed) {
+      setSceneStringStatus(null);
+      setSceneStringError(t(locale, 'sceneStringImportCanceled'));
+      return;
+    }
+
+    const appliedRecovery = applyRecoveredSceneDocument(scene, decoded.payload, {
+      interactionMode,
+      source: 'confirmed-user',
+    });
+    if (!appliedRecovery.ok) {
+      setRecoveryErrors(appliedRecovery.errors);
+      setRecoveryStatus('error');
+      setSceneStringStatus(null);
+      setSceneStringError(t(locale, 'sceneStringInvalid'));
+      return;
+    }
+
+    setScene(appliedRecovery.scene);
+    setRecoveryErrors([]);
+    setRecoveryStatus('success');
+    setAutosaveError(null);
+    setPlacementFeedback(null);
+    setAssetSelectionMode('single');
+    setSelectedInstanceId(null);
+    replacementConfirmationExpiresAtRef.current = 0;
+    setBuildingLayerFeedback(null);
+    setSceneStringStatus(t(locale, 'sceneStringImported'));
+    setSceneStringError(null);
   };
 
   const openExportPreview = () => {
@@ -731,6 +801,8 @@ export function AppShell() {
     setAssetSelectionMode('single');
     replacementConfirmationExpiresAtRef.current = 0;
     setBuildingLayerFeedback(null);
+    setSceneStringStatus(null);
+    setSceneStringError(null);
   };
 
   const cancelSceneRecovery = () => {
@@ -755,13 +827,29 @@ export function AppShell() {
         </div>
         <div className="app-header__actions" aria-label="Scene file actions">
           {!isReadOnly ? (
-            <button
-              type="button"
-              className="app-action-button"
-              onClick={openExportPreview}
-            >
-              {t(locale, 'exportPreview')}
-            </button>
+            <>
+              <button
+                type="button"
+                className="app-action-button"
+                onClick={exportSceneString}
+              >
+                {t(locale, 'exportSceneString')}
+              </button>
+              <button
+                type="button"
+                className="app-action-button"
+                onClick={importSceneString}
+              >
+                {t(locale, 'importSceneString')}
+              </button>
+              <button
+                type="button"
+                className="app-action-button"
+                onClick={openExportPreview}
+              >
+                {t(locale, 'exportPreview')}
+              </button>
+            </>
           ) : null}
           <label className="language-control">
             <span>{t(locale, 'language')}</span>
@@ -858,6 +946,15 @@ export function AppShell() {
           onClose={closeExportPreview}
           onDownloadImage={downloadExportImage}
         />
+      ) : null}
+      {sceneStringStatus || sceneStringError ? (
+        <section
+          className="scene-string-status"
+          role={sceneStringError ? 'alert' : 'status'}
+          aria-label={t(locale, 'sceneStringStatus')}
+        >
+          {sceneStringError ?? sceneStringStatus}
+        </section>
       ) : null}
       <section
         className="workbench-grid"

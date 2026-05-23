@@ -114,6 +114,8 @@ button:disabled {
 .app-header__actions {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -701,6 +703,25 @@ button:disabled {
   padding: 12px 14px;
   background: #fffefb;
   color: var(--ink);
+}
+
+.scene-string-status {
+  max-width: 1440px;
+  margin: 12px auto 0;
+  border: 1px solid rgba(37, 111, 104, 0.28);
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.scene-string-status[role="alert"] {
+  border-color: color-mix(in srgb, var(--color-error) 55%, var(--line));
+  background: rgba(179, 38, 30, 0.08);
+  color: var(--color-error);
 }
 
 .autosave-warning {
