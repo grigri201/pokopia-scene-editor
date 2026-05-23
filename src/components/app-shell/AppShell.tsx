@@ -35,6 +35,8 @@ import {
   applyRecoveredSceneDocument,
   autosavedSceneStorageKey,
   createImageExportFile,
+  decodeSceneDocumentString,
+  encodeSceneDocumentString,
   readLatestSceneDocumentFromStorage,
   savedSceneStorageKey,
   type RecoveryError,
@@ -71,6 +73,8 @@ export function AppShell() {
   const [exportPreviewError, setExportPreviewError] = useState<string | null>(null);
   const [exportDownloadStatus, setExportDownloadStatus] = useState<string | null>(null);
   const [exportDownloadError, setExportDownloadError] = useState<string | null>(null);
+  const [sceneStringStatus, setSceneStringStatus] = useState<string | null>(null);
+  const [sceneStringError, setSceneStringError] = useState<string | null>(null);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(() =>
     getInteractionMode(window.innerWidth),
   );
@@ -625,6 +629,72 @@ export function AppShell() {
     replacementConfirmationExpiresAtRef.current = 0;
     setPlacementFeedback(null);
     setBuildingLayerFeedback(null);
+    setSceneStringStatus(null);
+    setSceneStringError(null);
+  };
+
+  const exportSceneString = () => {
+    try {
+      const sceneString = encodeSceneDocumentString(scene);
+      navigator.clipboard?.writeText(sceneString).catch(() => undefined);
+      window.prompt('复制这段布景字符串，用“导入字符串”可以还原当前布景。', sceneString);
+      setSceneStringStatus(`已生成布景字符串（${sceneString.length} 字符）`);
+      setSceneStringError(null);
+    } catch {
+      setSceneStringStatus(null);
+      setSceneStringError('导出字符串失败。');
+    }
+  };
+
+  const importSceneString = () => {
+    if (isReadOnly) {
+      return;
+    }
+
+    const sceneString = window.prompt('粘贴布景字符串。导入会替换当前布景。');
+    if (!sceneString?.trim()) {
+      return;
+    }
+
+    const decoded = decodeSceneDocumentString(sceneString, getCurrentIsoTimestamp());
+    if (!decoded.ok) {
+      setRecoveryErrors(decoded.errors);
+      setRecoveryStatus('error');
+      setSceneStringStatus(null);
+      setSceneStringError('导入字符串无效。');
+      return;
+    }
+
+    const confirmed = window.confirm('导入会替换当前布景。继续导入？');
+    if (!confirmed) {
+      setSceneStringStatus(null);
+      setSceneStringError('导入已取消。');
+      return;
+    }
+
+    const appliedRecovery = applyRecoveredSceneDocument(scene, decoded.payload, {
+      interactionMode,
+      source: 'confirmed-user',
+    });
+    if (!appliedRecovery.ok) {
+      setRecoveryErrors(appliedRecovery.errors);
+      setRecoveryStatus('error');
+      setSceneStringStatus(null);
+      setSceneStringError('导入字符串无效。');
+      return;
+    }
+
+    setScene(appliedRecovery.scene);
+    setRecoveryErrors([]);
+    setRecoveryStatus('success');
+    setAutosaveError(null);
+    setPlacementFeedback(null);
+    setAssetSelectionMode('single');
+    setSelectedInstanceId(null);
+    replacementConfirmationExpiresAtRef.current = 0;
+    setBuildingLayerFeedback(null);
+    setSceneStringStatus('已导入布景字符串');
+    setSceneStringError(null);
   };
 
   const openExportPreview = () => {
@@ -715,6 +785,8 @@ export function AppShell() {
     setAssetSelectionMode('single');
     replacementConfirmationExpiresAtRef.current = 0;
     setBuildingLayerFeedback(null);
+    setSceneStringStatus(null);
+    setSceneStringError(null);
   };
 
   const cancelSceneRecovery = () => {
@@ -739,13 +811,29 @@ export function AppShell() {
         </div>
         <div className="app-header__actions" aria-label="Scene file actions">
           {!isReadOnly ? (
-            <button
-              type="button"
-              className="app-action-button"
-              onClick={openExportPreview}
-            >
-              下载预览
-            </button>
+            <>
+              <button
+                type="button"
+                className="app-action-button"
+                onClick={exportSceneString}
+              >
+                导出字符串
+              </button>
+              <button
+                type="button"
+                className="app-action-button"
+                onClick={importSceneString}
+              >
+                导入字符串
+              </button>
+              <button
+                type="button"
+                className="app-action-button"
+                onClick={openExportPreview}
+              >
+                下载预览
+              </button>
+            </>
           ) : null}
           <button
             type="button"
@@ -824,6 +912,15 @@ export function AppShell() {
           onClose={closeExportPreview}
           onDownloadImage={downloadExportImage}
         />
+      ) : null}
+      {sceneStringStatus || sceneStringError ? (
+        <section
+          className="scene-string-status"
+          role={sceneStringError ? 'alert' : 'status'}
+          aria-label="Scene string import export status"
+        >
+          {sceneStringError ?? sceneStringStatus}
+        </section>
       ) : null}
       <section
         className="workbench-grid"

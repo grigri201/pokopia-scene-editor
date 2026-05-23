@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultSceneDocument, createTileInstance } from '../../domain/scene';
 import {
   autosavedSceneStorageKey,
+  encodeSceneDocumentString,
   savedSceneStorageKey,
   serializeSceneDocument,
   uiPreferencesStorageKey,
@@ -60,6 +61,72 @@ describe('AppShell scene storage integration', () => {
     expect(screen.getByLabelText('布景名称')).toHaveValue('Autosaved Garden Layout');
     expectNoSaveStatus();
   }, 20_000);
+
+  it('exports the current scene as a short restorable string without writing storage', () => {
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(null);
+
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole('button', { name: '导出字符串' }));
+
+    const exportedString = promptSpy.mock.calls[0]?.[1];
+    expect(exportedString).toMatch(/^PSE1~/);
+    expect(exportedString).not.toContain('{');
+    expect(exportedString).not.toContain('schemaVersion');
+    expect(screen.getByRole('status', { name: 'Scene string import export status' })).toHaveTextContent(
+      '已生成布景字符串',
+    );
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  });
+
+  it('imports a scene string and restores scene settings through recovery', async () => {
+    const importedScene = createDefaultSceneDocument({
+      sceneId: 'scene-import-source',
+      sceneName: '导入庭院',
+      selectedPokemonKey: 'eevee',
+      selectedCoordinate: { x: 4, y: 4 },
+      now: '2026-05-23T09:20:00.000Z',
+    });
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(encodeSceneDocumentString(importedScene));
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('布景名称')).toHaveValue('导入庭院');
+      expect(screen.getByLabelText('Current Pokemon')).toHaveValue('eevee');
+      expect(screen.getByRole('status', { name: 'Scene string import export status' })).toHaveTextContent(
+        '已导入布景字符串',
+      );
+    });
+    expect(JSON.parse(readSceneSnapshot())).toMatchObject({
+      sceneName: '导入庭院',
+      selectedPokemonKey: 'eevee',
+      workspaceState: {
+        selectedCoordinate: { x: 4, y: 4 },
+      },
+    });
+    expect(promptSpy).toHaveBeenCalledWith('粘贴布景字符串。导入会替换当前布景。');
+    expect(confirmSpy).toHaveBeenCalledWith('导入会替换当前布景。继续导入？');
+  });
+
+  it('keeps the current scene when importing an invalid scene string', () => {
+    vi.spyOn(window, 'prompt').mockReturnValue('bad-code');
+    const confirmSpy = vi.spyOn(window, 'confirm');
+
+    render(<AppShell />);
+    const beforeSnapshot = readSceneSnapshot();
+    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert', { name: 'Scene string import export status' })).toHaveTextContent(
+      '导入字符串无效',
+    );
+    expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'error');
+  });
 
   it('opens an image export preview instead of downloading SceneDocument JSON', () => {
     const createObjectURL = vi.fn();
@@ -136,6 +203,8 @@ describe('AppShell scene storage integration', () => {
     const beforeSnapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
 
     expect(screen.queryByRole('button', { name: '下载预览' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导出字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导入字符串' })).not.toBeInTheDocument();
     expect((window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.()).toBe(beforeSnapshot);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();

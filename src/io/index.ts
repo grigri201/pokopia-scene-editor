@@ -11,5 +11,6 @@ export * from './scene-schema';
 export * from './scene-recovery';
 export * from './scene-roundtrip';
 export * from './scene-serializer';
+export * from './scene-string-codec';
 export * from './scene-storage';
 export * from './ui-preferences';

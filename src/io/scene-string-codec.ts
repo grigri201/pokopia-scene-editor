@@ -1,0 +1,359 @@
+import {
+  assetCatalog,
+  assetSkillTypes,
+  knownPokemonKeys,
+  type ConcreteAssetSkillType,
+} from '../domain/assets';
+import {
+  calculateAreaType,
+  type GridCoordinate,
+  type SceneDocument,
+  type RotationDegrees,
+} from '../domain/scene';
+import { recoverSceneDocument } from './scene-recovery';
+import { serializeSceneDocument } from './scene-serializer';
+import type { SceneDocumentV1, SceneDocumentValidationError } from './scene-schema';
+
+const codecPrefix = 'PSE1';
+const empty = '_';
+const radixAlphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+const sceneDimensions = {
+  sceneSize: { width: 5, height: 5 },
+  canvasSize: { width: 7, height: 7 },
+  outerPadding: 1 as const,
+};
+const rotationValues: readonly RotationDegrees[] = [0, 90, 180, 270];
+
+export type SceneStringDecodeResult =
+  | { ok: true; scene: SceneDocument; payload: SceneDocumentV1 }
+  | { ok: false; errors: SceneDocumentValidationError[] };
+
+export function encodeSceneDocumentString(scene: SceneDocument): string {
+  const payload = serializeSceneDocument(scene);
+  const levelIndexById = new Map(payload.buildingLevels.map((level, index) => [level.id, index]));
+  const currentLevelIndex = levelIndexById.get(payload.workspaceState.currentBuildingLevelId) ?? 0;
+
+  return [
+    codecPrefix,
+    encodeHeader(payload, currentLevelIndex),
+    payload.buildingLevels.map(encodeLevel).join(';') || empty,
+    payload.tileInstances.map((instance) => encodeTileInstance(instance, levelIndexById)).join(';') || empty,
+    payload.skillMarkers.map((marker) => encodeSkillMarker(marker, levelIndexById)).join(';') || empty,
+  ].join('~');
+}
+
+export function decodeSceneDocumentString(value: string, now = new Date().toISOString()): SceneStringDecodeResult {
+  try {
+    const payload = decodeSceneDocumentPayload(value.trim(), now);
+    return recoverSceneDocument(payload);
+  } catch (error) {
+    return {
+      ok: false,
+      errors: [
+        {
+          fieldPath: '$',
+          expected: 'Pokopia Scene Editor short scene string',
+          actual: error instanceof Error ? error.message : String(error),
+          reason: 'Unable to decode scene string.',
+          recoveryAction: 'Paste an unmodified string created by the export string button.',
+        },
+      ],
+    };
+  }
+}
+
+function encodeHeader(payload: SceneDocumentV1, currentLevelIndex: number): string {
+  return [
+    encodeText(payload.sceneName),
+    encodeNumber(knownPokemonKeys.indexOf(payload.selectedPokemonKey)),
+    encodeNumber(currentLevelIndex),
+    payload.workspaceState.selectedAssetId
+      ? encodeOfficialAssetId(payload.workspaceState.selectedAssetId)
+      : empty,
+    payload.workspaceState.selectedCoordinate
+      ? encodeCoordinate(payload.workspaceState.selectedCoordinate)
+      : empty,
+  ].join('.');
+}
+
+function encodeLevel(level: SceneDocumentV1['buildingLevels'][number]): string {
+  return `${encodeNumber(level.levelNumber)}.${encodeText(level.name)}`;
+}
+
+function encodeTileInstance(
+  instance: SceneDocumentV1['tileInstances'][number],
+  levelIndexById: ReadonlyMap<string, number>,
+): string {
+  return [
+    encodeNumber(requireLevelIndex(levelIndexById, instance.buildingLevelId)),
+    encodeCoordinate(instance.coordinate),
+    encodeOfficialAssetId(instance.assetId),
+    encodeNumber(rotationValues.indexOf(instance.rotationDegrees)),
+    instance.dyeColor ? instance.dyeColor.slice(1).toLowerCase() : empty,
+    instance.skillType ? encodeSkillType(instance.skillType) : empty,
+    instance.skillNote ? encodeText(instance.skillNote) : empty,
+  ].join('.');
+}
+
+function encodeSkillMarker(
+  marker: SceneDocumentV1['skillMarkers'][number],
+  levelIndexById: ReadonlyMap<string, number>,
+): string {
+  return [
+    encodeNumber(requireLevelIndex(levelIndexById, marker.buildingLevelId)),
+    encodeCoordinate(marker.coordinate),
+    encodeSkillType(marker.skillType),
+    marker.skillNote ? encodeText(marker.skillNote) : empty,
+  ].join('.');
+}
+
+function decodeSceneDocumentPayload(value: string, now: string): SceneDocumentV1 {
+  const [prefix, encodedHeader, encodedLevels, encodedInstances, encodedMarkers, ...extra] = value.split('~');
+  if (prefix !== codecPrefix || !encodedHeader || !encodedLevels || extra.length > 0) {
+    throw new Error('Invalid scene string format.');
+  }
+
+  const header = decodeHeader(encodedHeader);
+  const buildingLevels = decodeRecordList(encodedLevels).map((record, index) => decodeLevel(record, index));
+  if (buildingLevels.length === 0) {
+    throw new Error('Scene string must include at least one building level.');
+  }
+
+  const levelIdByIndex = buildingLevels.map((level) => level.id);
+  const tileInstances = decodeRecordList(encodedInstances).map((record, index) =>
+    decodeTileInstance(record, index, levelIdByIndex),
+  );
+  const skillMarkers = decodeRecordList(encodedMarkers).map((record) => decodeSkillMarker(record, levelIdByIndex));
+  const selectedAssetId = header.selectedAssetOfficialId
+    ? getAssetIdByOfficialId(header.selectedAssetOfficialId)
+    : null;
+
+  return {
+    schemaVersion: 1,
+    sceneId: `scene-import-${now.replace(/[^0-9]/g, '').slice(0, 17)}`,
+    sceneName: header.sceneName,
+    selectedPokemonKey: header.selectedPokemonKey,
+    ...sceneDimensions,
+    buildingLevels,
+    tileInstances,
+    skillMarkers,
+    workspaceState: {
+      currentBuildingLevelId: levelIdByIndex[header.currentLevelIndex] ?? levelIdByIndex[0],
+      selectedAssetId,
+      selectedCoordinate: header.selectedCoordinate,
+    },
+    metadata: {
+      createdAt: now,
+      updatedAt: now,
+      lastSavedAt: now,
+      lastAutosavedAt: null,
+    },
+  };
+}
+
+function decodeHeader(value: string) {
+  const [sceneName, pokemonIndex, currentLevelIndex, selectedAssetOfficialId, selectedCoordinate, ...extra] =
+    value.split('.');
+  if (
+    !sceneName ||
+    !pokemonIndex ||
+    !currentLevelIndex ||
+    selectedAssetOfficialId === undefined ||
+    selectedCoordinate === undefined ||
+    extra.length > 0
+  ) {
+    throw new Error('Invalid scene string header.');
+  }
+
+  const pokemonKey = knownPokemonKeys[decodeNumber(pokemonIndex)];
+  if (!pokemonKey) {
+    throw new Error('Unknown Pokemon index.');
+  }
+
+  return {
+    sceneName: decodeText(sceneName),
+    selectedPokemonKey: pokemonKey,
+    currentLevelIndex: decodeNumber(currentLevelIndex),
+    selectedAssetOfficialId: selectedAssetOfficialId === empty ? null : decodeOfficialAssetId(selectedAssetOfficialId),
+    selectedCoordinate: selectedCoordinate === empty ? null : decodeCoordinate(selectedCoordinate),
+  };
+}
+
+function decodeLevel(value: string, index: number) {
+  const [levelNumber, name, ...extra] = value.split('.');
+  if (!levelNumber || name === undefined || extra.length > 0) {
+    throw new Error('Invalid building level record.');
+  }
+
+  return {
+    id: `level-${index}`,
+    levelNumber: decodeNumber(levelNumber),
+    name: decodeText(name),
+  };
+}
+
+function decodeTileInstance(value: string, index: number, levelIdByIndex: readonly string[]) {
+  const [levelIndex, coordinate, officialAssetId, rotationIndex, dyeColor, skillType, skillNote, ...extra] =
+    value.split('.');
+  if (
+    !levelIndex ||
+    !coordinate ||
+    !officialAssetId ||
+    !rotationIndex ||
+    dyeColor === undefined ||
+    skillType === undefined ||
+    skillNote === undefined ||
+    extra.length > 0
+  ) {
+    throw new Error('Invalid tile instance record.');
+  }
+
+  const decodedCoordinate = decodeCoordinate(coordinate);
+  const decodedSkillType = skillType === empty ? null : decodeSkillType(skillType);
+
+  return {
+    instanceId: `imported-tile-${index}`,
+    assetId: getAssetIdByOfficialId(decodeOfficialAssetId(officialAssetId)),
+    coordinate: decodedCoordinate,
+    areaType: calculateAreaType(decodedCoordinate, sceneDimensions),
+    buildingLevelId: decodeLevelId(levelIndex, levelIdByIndex),
+    rotationDegrees: decodeRotation(rotationIndex),
+    dyeColor: dyeColor === empty ? null : `#${dyeColor}`,
+    requiresSkill: decodedSkillType !== null,
+    skillType: decodedSkillType,
+    skillNote: skillNote === empty ? '' : decodeText(skillNote),
+  };
+}
+
+function decodeSkillMarker(value: string, levelIdByIndex: readonly string[]) {
+  const [levelIndex, coordinate, skillType, skillNote, ...extra] = value.split('.');
+  if (!levelIndex || !coordinate || !skillType || skillNote === undefined || extra.length > 0) {
+    throw new Error('Invalid skill marker record.');
+  }
+
+  const decodedCoordinate = decodeCoordinate(coordinate);
+
+  return {
+    coordinate: decodedCoordinate,
+    areaType: calculateAreaType(decodedCoordinate, sceneDimensions),
+    buildingLevelId: decodeLevelId(levelIndex, levelIdByIndex),
+    skillType: decodeSkillType(skillType),
+    skillNote: skillNote === empty ? '' : decodeText(skillNote),
+  };
+}
+
+function decodeLevelId(value: string, levelIdByIndex: readonly string[]): string {
+  const levelId = levelIdByIndex[decodeNumber(value)];
+  if (!levelId) {
+    throw new Error('Unknown building level index.');
+  }
+
+  return levelId;
+}
+
+function decodeRecordList(value: string | undefined): string[] {
+  if (!value || value === empty) {
+    return [];
+  }
+
+  return value.split(';');
+}
+
+function encodeOfficialAssetId(assetId: string): string {
+  const asset = assetCatalog.find((entry) => entry.assetId === assetId);
+  if (!asset) {
+    throw new Error(`Unknown asset id: ${assetId}`);
+  }
+
+  return encodeNumber(Number(asset.officialId));
+}
+
+function decodeOfficialAssetId(value: string): string {
+  return decodeNumber(value).toString().padStart(3, '0');
+}
+
+function getAssetIdByOfficialId(officialId: string): string {
+  const asset = assetCatalog.find((entry) => entry.officialId === officialId);
+  if (!asset) {
+    throw new Error(`Unknown asset official id: ${officialId}`);
+  }
+
+  return asset.assetId;
+}
+
+function encodeSkillType(skillType: ConcreteAssetSkillType): string {
+  return encodeNumber(assetSkillTypes.indexOf(skillType));
+}
+
+function decodeSkillType(value: string): ConcreteAssetSkillType {
+  const skillType = assetSkillTypes[decodeNumber(value)];
+  if (!skillType) {
+    throw new Error('Unknown skill type index.');
+  }
+
+  return skillType;
+}
+
+function decodeRotation(value: string): RotationDegrees {
+  const rotation = rotationValues[decodeNumber(value)];
+  if (rotation === undefined) {
+    throw new Error('Unknown rotation index.');
+  }
+
+  return rotation;
+}
+
+function encodeCoordinate(coordinate: GridCoordinate): string {
+  return encodeNumber(coordinate.y * 7 + coordinate.x);
+}
+
+function decodeCoordinate(value: string): GridCoordinate {
+  const packed = decodeNumber(value);
+  return {
+    x: packed % 7,
+    y: Math.floor(packed / 7),
+  };
+}
+
+function encodeText(value: string): string {
+  return encodeURIComponent(value).replace(/\./g, '%2E').replace(/~/g, '%7E').replace(/;/g, '%3B');
+}
+
+function decodeText(value: string): string {
+  return decodeURIComponent(value);
+}
+
+function encodeNumber(value: number): string {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`Expected non-negative integer, received ${value}.`);
+  }
+
+  let remaining = value;
+  let output = '';
+  do {
+    output = `${radixAlphabet[remaining % radixAlphabet.length]}${output}`;
+    remaining = Math.floor(remaining / radixAlphabet.length);
+  } while (remaining > 0);
+
+  return output;
+}
+
+function decodeNumber(value: string): number {
+  return [...value].reduce((total, char) => {
+    const digit = radixAlphabet.indexOf(char);
+    if (digit === -1) {
+      throw new Error(`Invalid base62 digit: ${char}`);
+    }
+
+    return total * radixAlphabet.length + digit;
+  }, 0);
+}
+
+function requireLevelIndex(levelIndexById: ReadonlyMap<string, number>, levelId: string): number {
+  const levelIndex = levelIndexById.get(levelId);
+  if (levelIndex === undefined) {
+    throw new Error(`Unknown building level id: ${levelId}`);
+  }
+
+  return levelIndex;
+}
