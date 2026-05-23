@@ -30,7 +30,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Save status')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Save scene' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '下载预览' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '删除' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '重置' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Undo' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Redo' })).toHaveCount(0);
   await expect.poll(() => getSelectionEmptyPromptHeightRatio(page)).toBeCloseTo(1, 1);
@@ -75,6 +75,42 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect
     .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
     .toMatchObject({ selectedCoordinate: null });
+});
+
+test('switches the workbench to English without writing locale into SceneDocument', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+
+  await page.getByLabel('语言').selectOption('en-US');
+
+  await expect(page.getByRole('button', { name: 'Download Preview' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible();
+  await expect(page.getByLabel('Scene name')).toHaveValue('5x5 布景');
+  await expect(page.getByLabel('Current Pokemon')).toHaveValue('ditto');
+  await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('Leppa Berry');
+  await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('Food');
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
+
+  const rawPreferences = await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey);
+  expect(rawPreferences).not.toBeNull();
+  expect(JSON.parse(rawPreferences ?? '{}')).toMatchObject({ locale: 'en-US' });
+
+  await page.getByLabel('Scene name').fill('English Smoke');
+  const autosavedPayload = await waitForStoredPayload(page, autosavedSceneStorageKey);
+  expect(autosavedPayload.sceneName).toBe('English Smoke');
+  expect(JSON.stringify(autosavedPayload)).not.toContain('"locale"');
+  expect(JSON.stringify(autosavedPayload)).not.toContain('"language"');
+  expectScenePayloadHasNoLegacyFields(autosavedPayload);
+
+  await page.getByRole('button', { name: 'Download Preview' }).click();
+
+  await expect(page.getByRole('dialog', { name: 'Image export preview' })).toBeVisible();
+  await expect(page.getByLabel('Overall material list')).toContainText('No materials placed');
+  await expect(page.getByLabel('L0 material list')).toContainText('No materials on this layer');
+  await expect(page.getByLabel('4,4: Empty layer')).toBeVisible();
+  const exportText = await page.locator('.export-preview').innerText();
+  expect(exportText).not.toMatch(/[\u4e00-\u9fff]/);
 });
 
 test('autosaves SceneDocument v1 without UI-only state or manual save entrypoints', async ({ page }) => {
@@ -157,16 +193,14 @@ test('previews and downloads an image export without mutating scene storage', as
   await expect(page.locator('.export-preview__layers > .export-layer').first()).toContainText('L0 · 0层');
   await expect(page.locator('.export-preview__layers')).not.toContainText('placed items');
   await expect(page.getByLabel('整体使用素材清单')).toContainText('绿叶植物');
+  await expect(page.getByLabel('整体使用素材清单')).toContainText('树叶');
+  await expect(page.getByLabel('整体使用素材清单')).toContainText('储水');
   await expect(page.getByLabel('整体使用素材清单')).not.toContainText('No.');
   await expect(page.getByLabel('整体使用素材清单').locator('img[alt="绿叶植物缩略图"]')).toBeVisible();
+  await expect(page.getByLabel('整体使用素材清单').locator('img[alt="储水技能图标"]')).toBeVisible();
+  await expect(page.getByLabel('整体技能数量')).toHaveCount(0);
   const overallMaterialItems = page.getByLabel('整体使用素材清单').locator('.export-material-list--with-thumbs > li');
-  await expect(overallMaterialItems).toHaveCount(6);
-  await expect
-    .poll(async () => {
-      const itemTops = await overallMaterialItems.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().top));
-      return Math.max(...itemTops) - Math.min(...itemTops);
-    })
-    .toBeLessThan(1);
+  await expect(overallMaterialItems).toHaveCount(8);
   await expect
     .poll(async () =>
       overallMaterialItems.first().evaluate((item) => {
@@ -177,42 +211,126 @@ test('previews and downloads an image export without mutating scene storage', as
     )
     .toBeGreaterThan(0);
   await expect(page.getByLabel('L1 7x7 图形')).toBeVisible();
-  await expect(page.getByLabel('4,4: 绿叶植物').locator('img[title="绿叶植物"]')).toBeVisible();
-  await expect(page.getByLabel('4,4: 绿叶植物')).not.toContainText('绿叶');
+  const layerGrid = page.getByLabel('L1 7x7 图形');
+  await layerGrid.scrollIntoViewIfNeeded();
+  await expect
+    .poll(async () =>
+      layerGrid.locator('.export-layer-cell').first().evaluate((cell) => {
+        const box = cell.getBoundingClientRect();
+        return Math.round(Math.abs(box.width - box.height));
+      }),
+    )
+    .toBe(0);
+  const leafyExportCell = page.getByLabel('4,4: 绿叶植物');
+  await leafyExportCell.scrollIntoViewIfNeeded();
+  await expect(leafyExportCell.locator('img[title="绿叶植物"]')).toBeVisible();
+  await expect(leafyExportCell).not.toContainText('绿叶');
+  const exportSkillCell = page.getByLabel('2,5: 储水技能');
+  await exportSkillCell.scrollIntoViewIfNeeded();
+  await expect(exportSkillCell.locator('img[title="储水技能"]')).toBeVisible();
+  await expect
+    .poll(async () =>
+      exportSkillCell.evaluate((cell) => {
+        const image = cell.querySelector('img');
+        if (!image) {
+          return false;
+        }
+
+        const cellBox = cell.getBoundingClientRect();
+        const imageBox = image.getBoundingClientRect();
+        return (
+          imageBox.width <= cellBox.width &&
+          imageBox.height <= cellBox.height &&
+          imageBox.left >= cellBox.left &&
+          imageBox.right <= cellBox.right &&
+          imageBox.top >= cellBox.top &&
+          imageBox.bottom <= cellBox.bottom
+        );
+      }),
+    )
+    .toBe(true);
   await expect(page.getByLabel('L1 使用素材清单')).toContainText('绿叶植物');
+  await expect(page.getByLabel('L1 使用素材清单')).toContainText('树叶');
+  await expect(page.getByLabel('L1 使用素材清单')).toContainText('储水');
   await expect(page.getByLabel('L1 使用素材清单')).not.toContainText('No.');
   await expect(page.getByLabel('L1 使用素材清单')).not.toContainText('restore smoke');
   await expect(page.getByLabel('L1 使用素材清单').locator('img[alt="绿叶植物缩略图"]')).toBeVisible();
+  const layerWaterSkillIcon = page.getByLabel('L1 使用素材清单').locator('img[alt="储水技能图标"]');
+  await expect(layerWaterSkillIcon).toBeVisible();
+  await expect
+    .poll(async () =>
+      layerWaterSkillIcon.evaluate((image) => {
+        const thumb = image.closest('.export-material-list__thumb');
+        if (!thumb) {
+          return false;
+        }
+
+        const thumbBox = thumb.getBoundingClientRect();
+        const imageBox = image.getBoundingClientRect();
+        return Math.min(
+          imageBox.left - thumbBox.left,
+          imageBox.top - thumbBox.top,
+          thumbBox.right - imageBox.right,
+          thumbBox.bottom - imageBox.bottom,
+        ) >= 4;
+      }),
+    )
+    .toBe(true);
+  await expect(page.getByLabel('L1 技能数量')).toHaveCount(0);
   const layerMaterialItems = page.getByLabel('L1 使用素材清单').locator('.export-material-list--with-thumbs > li');
-  await expect(layerMaterialItems).toHaveCount(6);
+  await expect(layerMaterialItems).toHaveCount(8);
   await expect
-    .poll(async () => {
-      const itemTops = await layerMaterialItems.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().top));
-      return Math.abs(itemTops[0] - itemTops[1]);
-    })
-    .toBeLessThan(1);
-  await expect
-    .poll(async () => {
-      const itemTops = await layerMaterialItems.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().top));
-      return itemTops[2] - itemTops[0];
-    })
+    .poll(async () =>
+      layerMaterialItems.first().evaluate((item) => {
+        const thumbnailBottom = item.querySelector('.export-material-list__thumb')?.getBoundingClientRect().bottom ?? 0;
+        const textTop = item.querySelector('.export-material-list__row')?.getBoundingClientRect().top ?? 0;
+        return textTop - thumbnailBottom;
+      }),
+    )
     .toBeGreaterThan(1);
+  await expect
+    .poll(async () =>
+      layerMaterialItems.evaluateAll((items) => {
+        const firstFourTops = items.slice(0, 4).map((item) => Math.round(item.getBoundingClientRect().top));
+        const firstRowTops = firstFourTops.slice(0, 3);
+        return {
+          fourthStartsNextRow: firstFourTops[3] > firstFourTops[0],
+          firstRowAligned: Math.max(...firstRowTops) - Math.min(...firstRowTops),
+        };
+      }),
+    )
+    .toEqual({ firstRowAligned: 0, fourthStartsNextRow: true });
   await expect(page.locator('.export-instance-list')).toHaveCount(0);
 
+  const expectedPngSize = await preview.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const previewBody = element.querySelector<HTMLElement>('.export-preview__body');
+    const bodyOverflowHeight = previewBody
+      ? Math.max(0, previewBody.scrollHeight - previewBody.getBoundingClientRect().height)
+      : 0;
+
+    return {
+      height: Math.ceil(box.height + bodyOverflowHeight),
+      visibleHeight: Math.ceil(box.height),
+      width: Math.ceil(Math.max(box.width, element.scrollWidth)),
+    };
+  });
+  expect(expectedPngSize.height).toBeGreaterThan(expectedPngSize.visibleHeight);
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: '下载图片' }).click();
   const download = await downloadPromise;
   const downloadPath = await download.path();
 
-  expect(download.suggestedFilename()).toBe('Restored-Smoke-Layout.pokopia-scene.svg');
+  expect(download.suggestedFilename()).toBe('Restored-Smoke-Layout.pokopia-scene.png');
   expect(downloadPath).not.toBeNull();
-  const svgText = await readFile(downloadPath ?? '', 'utf8');
-  expect(svgText).toContain('Restored Smoke Layout');
-  expect(svgText).toContain('整体使用素材');
-  expect(svgText).toContain('逐层图形');
-  expect(svgText).toContain('逐层素材清单');
-  expect(svgText).not.toContain('restore smoke');
-  expect(svgText).not.toContain('No.');
+  const pngBytes = await readFile(downloadPath ?? '');
+  expect(getPngSize(pngBytes)).toEqual({
+    height: expectedPngSize.height,
+    width: expectedPngSize.width,
+  });
+  expect(pngBytes.toString('utf8')).not.toContain('<svg');
+  expect(pngBytes.toString('utf8')).not.toContain('restore smoke');
+  expect(pngBytes.toString('utf8')).not.toContain('No.');
   await expect(page.getByRole('status', { name: 'Image export download status' })).toContainText('图片已准备下载');
   expect(JSON.stringify(await readSceneSnapshot(page))).toBe(beforeSnapshot);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
@@ -585,6 +703,15 @@ function getShellTransitionDuration(page: Page): Promise<string> {
     .evaluate((element) => getComputedStyle(element).transitionDuration);
 }
 
+function getPngSize(bytes: Buffer): { height: number; width: number } {
+  expect(bytes.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+
+  return {
+    height: bytes.readUInt32BE(20),
+    width: bytes.readUInt32BE(16),
+  };
+}
+
 const mobileApplicationKeys = [
   'ArrowUp',
   'ArrowDown',
@@ -689,6 +816,15 @@ function createExportPreviewScene() {
       skillType: assetId === 'leafy-plant' ? '树叶' : null,
       skillNote: assetId === 'leafy-plant' ? 'restore smoke' : '',
     })),
+    skillMarkers: [
+      {
+        coordinate: { x: 2, y: 5 },
+        areaType: 'main',
+        buildingLevelId: 'level-1',
+        skillType: '储水',
+        skillNote: '',
+      },
+    ],
   };
 }
 

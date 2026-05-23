@@ -35,12 +35,16 @@ import {
   applyRecoveredSceneDocument,
   autosavedSceneStorageKey,
   createImageExportFile,
+  getUiPreferencesStorage,
   readLatestSceneDocumentFromStorage,
+  readUiPreferencesFromStorage,
   savedSceneStorageKey,
   type RecoveryError,
+  writeLocalePreferenceToStorage,
   writeSceneDocumentToStorage,
 } from '../../io';
 import { ExportPreview } from '../export-preview/ExportPreview';
+import { localeLabels, locales, t, type Locale } from '../../i18n';
 
 const replacementConfirmationWindowMs = 15_000;
 
@@ -52,6 +56,9 @@ export function AppShell() {
   );
   const [recoveryStatus, setRecoveryStatus] = useState<'idle' | 'error' | 'success' | 'canceled'>(
     initialSceneState.recoveryErrors.length > 0 ? 'error' : 'idle',
+  );
+  const [locale, setLocale] = useState<Locale>(() =>
+    readUiPreferencesFromStorage(getUiPreferencesStorage(), { persistNormalized: false }).locale,
   );
   const [autosaveError, setAutosaveError] = useState<string | null>(null);
   const autosaveReadyRef = useRef(false);
@@ -603,7 +610,7 @@ export function AppShell() {
       return;
     }
 
-    const confirmed = window.confirm('Delete the current scene and reset the workbench?');
+    const confirmed = window.confirm(t(locale, 'resetConfirm'));
     if (!confirmed) {
       return;
     }
@@ -629,13 +636,13 @@ export function AppShell() {
 
   const openExportPreview = () => {
     try {
-      setExportPreviewSummary(buildImageExportSummary(scene));
+      setExportPreviewSummary(buildImageExportSummary(scene, locale));
       setExportPreviewError(null);
       setExportDownloadStatus(null);
       setExportDownloadError(null);
     } catch {
       setExportPreviewSummary(null);
-      setExportPreviewError('Image export preview could not be prepared.');
+      setExportPreviewError(t(locale, 'imagePreviewFailed'));
     }
   };
 
@@ -646,7 +653,7 @@ export function AppShell() {
     setExportDownloadError(null);
   };
 
-  const downloadExportImage = () => {
+  const downloadExportImage = async (previewElement: HTMLElement) => {
     if (!exportPreviewSummary) {
       return;
     }
@@ -655,7 +662,10 @@ export function AppShell() {
     let downloadLink: HTMLAnchorElement | null = null;
 
     try {
-      const exportFile = createImageExportFile(exportPreviewSummary);
+      const exportFile = await createImageExportFile({
+        previewElement,
+        sceneName: exportPreviewSummary.sceneName,
+      });
       objectUrl = URL.createObjectURL(exportFile.blob);
       downloadLink = document.createElement('a');
       downloadLink.href = objectUrl;
@@ -663,17 +673,23 @@ export function AppShell() {
       downloadLink.rel = 'noopener';
       document.body.append(downloadLink);
       downloadLink.click();
-      setExportDownloadStatus('图片已准备下载');
+      setExportDownloadStatus(t(locale, 'imageReady'));
       setExportDownloadError(null);
-    } catch {
+    } catch (error) {
+      console.error('Image export download failed.', error);
       setExportDownloadStatus(null);
-      setExportDownloadError('Image export download failed.');
+      setExportDownloadError(t(locale, 'imageDownloadFailed'));
     } finally {
       downloadLink?.remove();
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
       }
     }
+  };
+
+  const updateLocale = (nextLocale: Locale) => {
+    setLocale(nextLocale);
+    writeLocalePreferenceToStorage(getUiPreferencesStorage(), nextLocale);
   };
 
   const retrySceneRecovery = () => {
@@ -744,17 +760,31 @@ export function AppShell() {
               className="app-action-button"
               onClick={openExportPreview}
             >
-              下载预览
+              {t(locale, 'exportPreview')}
             </button>
           ) : null}
+          <label className="language-control">
+            <span>{t(locale, 'language')}</span>
+            <select
+              aria-label={t(locale, 'language')}
+              value={locale}
+              onChange={(event) => updateLocale(event.target.value as Locale)}
+            >
+              {locales.map((option) => (
+                <option value={option} key={option}>
+                  {localeLabels[option]}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             className="app-action-button app-action-button--danger"
-            title="删除场景"
+            title={t(locale, 'resetSceneTitle')}
             disabled={isReadOnly}
             onClick={deleteCurrentScene}
           >
-            删除
+            {t(locale, 'reset')}
           </button>
         </div>
       </header>
@@ -765,59 +795,63 @@ export function AppShell() {
           aria-label="Autosave warning"
           data-autosave-status="error"
         >
-          <strong>Autosave paused</strong>
+          <strong>{t(locale, 'autosavePaused')}</strong>
           <span>{autosaveError}</span>
         </section>
       ) : null}
       {recoveryStatus !== 'idle' ? (
-        <section
-          className="recovery-validator"
-          role={recoveryStatus === 'error' ? 'alert' : 'status'}
-          aria-label="Recovery Validator"
-          data-recovery-status={recoveryStatus}
-        >
-          <div className="recovery-validator__header">
-            <div>
-              <p className="eyebrow">Recovery Validator</p>
-              <h2>{getRecoveryStatusTitle(recoveryStatus)}</h2>
-              <p>{getRecoveryStatusMessage(recoveryStatus)}</p>
+        <div className="toast-stack" aria-label={t(locale, 'notifications')}>
+          <section
+            className={`recovery-toast recovery-toast--${recoveryStatus}`}
+            role={recoveryStatus === 'error' ? 'alert' : 'status'}
+            aria-live={recoveryStatus === 'error' ? 'assertive' : 'polite'}
+            aria-label={t(locale, 'recoveryToast')}
+            data-recovery-status={recoveryStatus}
+          >
+            <div className="recovery-toast__header">
+              <div>
+                <p className="eyebrow">{t(locale, 'recovery')}</p>
+                <h2>{getRecoveryStatusTitle(recoveryStatus, locale)}</h2>
+                <p>{getRecoveryStatusMessage(recoveryStatus, locale)}</p>
+              </div>
+              {recoveryStatus === 'error' ? (
+                <div className="recovery-toast__actions" aria-label={t(locale, 'recoveryActions')}>
+                  <button type="button" onClick={retrySceneRecovery}>
+                    {t(locale, 'retry')}
+                  </button>
+                  <button type="button" onClick={cancelSceneRecovery}>
+                    {t(locale, 'cancel')}
+                  </button>
+                </div>
+              ) : null}
             </div>
             {recoveryStatus === 'error' ? (
-              <div className="recovery-validator__actions" aria-label="Recovery actions">
-                <button type="button" onClick={retrySceneRecovery}>
-                  Retry
-                </button>
-                <button type="button" onClick={cancelSceneRecovery}>
-                  Cancel
-                </button>
-              </div>
+              <ul className="recovery-toast__errors" aria-label={t(locale, 'recoveryDetails')}>
+                {recoveryErrors.map((error, index) => (
+                  <li key={`${error.fieldPath}-${index}`}>
+                    <strong>{error.fieldPath}</strong>
+                    <span>{error.reason}</span>
+                    <span>{t(locale, 'expected')}: {error.expected}</span>
+                    <span>{t(locale, 'actual')}: {error.actual}</span>
+                    <span>{error.recoveryAction}</span>
+                  </li>
+                ))}
+              </ul>
             ) : null}
-          </div>
-          {recoveryStatus === 'error' ? (
-            <ul className="recovery-validator__errors" aria-label="Recovery error details">
-              {recoveryErrors.map((error, index) => (
-                <li key={`${error.fieldPath}-${index}`}>
-                  <strong>{error.fieldPath}</strong>
-                  <span>{error.reason}</span>
-                  <span>Expected: {error.expected}</span>
-                  <span>Actual: {error.actual}</span>
-                  <span>{error.recoveryAction}</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </section>
+          </section>
+        </div>
       ) : null}
       {exportPreviewError ? (
-        <section className="export-preview-error" role="alert" aria-label="Image export preview error">
+        <section className="export-preview-error" role="alert" aria-label={t(locale, 'imageExportError')}>
           <span>{exportPreviewError}</span>
           <button type="button" className="app-action-button" onClick={closeExportPreview}>
-            关闭
+            {t(locale, 'close')}
           </button>
         </section>
       ) : null}
       {exportPreviewSummary ? (
         <ExportPreview
+          locale={locale}
           summary={exportPreviewSummary}
           downloadError={exportDownloadError}
           downloadStatus={exportDownloadStatus}
@@ -833,6 +867,7 @@ export function AppShell() {
       >
         <div className="workbench-left">
           <PokemonSceneControls
+            locale={locale}
             readOnly={isReadOnly}
             selectedPokemonKey={scene.selectedPokemonKey}
             sceneName={scene.sceneName}
@@ -840,6 +875,7 @@ export function AppShell() {
             onSceneNameChange={updateSceneName}
           />
           <BuildingLevelPanel
+            locale={locale}
             levels={displayedBuildingLevelContexts}
             readOnly={isReadOnly}
             feedback={buildingLayerFeedback}
@@ -855,6 +891,7 @@ export function AppShell() {
             {isReadOnly ? 'Mobile read-only mode' : 'Desktop edit mode'}
           </span>
           <SceneCanvas
+            locale={locale}
             canvasSize={scene.canvasSize}
             cells={canvasCells}
             readOnly={isReadOnly}
@@ -869,6 +906,7 @@ export function AppShell() {
           />
           <div className="canvas-bottom-panels" aria-label="Canvas lower inspectors">
             <SelectionInspector
+              locale={locale}
               selectedContext={selectedContext}
               selectedInstance={selectedInstance}
               selectedInstanceId={selectedInstanceId}
@@ -890,6 +928,7 @@ export function AppShell() {
               onSaveCellSkill={saveSelectedCellSkill}
             />
             <PreviewInspector
+              locale={locale}
               scene={scene}
               activeBuildingLevelId={activeBuildingLevelId}
               selectedCoordinate={selectedCoordinate}
@@ -899,11 +938,12 @@ export function AppShell() {
           </div>
         </section>
         <AssetPicker
+          locale={locale}
           readOnly={isReadOnly}
           selectedAssetId={selectedAssetId}
           selectedAssetMode={assetSelectionMode}
           selectedPokemonKey={scene.selectedPokemonKey}
-          currentBuildingLevelName={currentBuildingLevel?.name ?? 'No building layer'}
+          currentBuildingLevelName={currentBuildingLevel?.name ?? t(locale, 'noBuildingLayer')}
           placementRequiresSkill={placementRequiresSkill}
           onPlacementRequiresSkillChange={setPlacementRequiresSkill}
           onAssetSelect={selectAsset}
@@ -951,7 +991,6 @@ function createInitialSceneState(): InitialSceneState {
     sceneId: 'scene-default',
     now: '2026-05-16T07:00:00.000Z',
   });
-  const initialInteractionMode = getInteractionMode(window.innerWidth);
   const testWindow = window as unknown as { __pokopiaInitialSceneSnapshot?: unknown };
 
   if (isLocalPreviewHost(window.location.hostname) && navigator.webdriver && testWindow.__pokopiaInitialSceneSnapshot) {
@@ -982,22 +1021,10 @@ function createInitialSceneState(): InitialSceneState {
   }
 
   const storedScene = readLatestSceneDocumentFromStorage(storage);
-  if (storedScene?.ok && initialInteractionMode !== 'readOnly') {
+  if (storedScene?.ok) {
     return {
       scene: storedScene.scene,
       recoveryErrors: [],
-    };
-  }
-
-  if (storedScene?.ok && initialInteractionMode === 'readOnly') {
-    const rejectedRecovery = applyRecoveredSceneDocument(defaultScene, storedScene.payload, {
-      interactionMode: 'readOnly',
-      source: 'startup',
-    });
-
-    return {
-      scene: defaultScene,
-      recoveryErrors: rejectedRecovery.ok ? [] : rejectedRecovery.errors,
     };
   }
 
@@ -1054,36 +1081,36 @@ function createStorageUnavailableRecoveryError(): RecoveryError {
   };
 }
 
-function getRecoveryStatusTitle(status: 'idle' | 'error' | 'success' | 'canceled'): string {
+function getRecoveryStatusTitle(status: 'idle' | 'error' | 'success' | 'canceled', locale: Locale): string {
   if (status === 'success') {
-    return 'Saved scene recovered';
+    return t(locale, 'savedSceneRecovered');
   }
 
   if (status === 'canceled') {
-    return 'Recovery canceled';
+    return t(locale, 'recoveryCanceled');
   }
 
   if (status === 'error') {
-    return 'Saved scene was rejected';
+    return t(locale, 'savedSceneRejected');
   }
 
-  return 'Recovery idle';
+  return t(locale, 'recoveryIdle');
 }
 
-function getRecoveryStatusMessage(status: 'idle' | 'error' | 'success' | 'canceled'): string {
+function getRecoveryStatusMessage(status: 'idle' | 'error' | 'success' | 'canceled', locale: Locale): string {
   if (status === 'success') {
-    return 'The saved SceneDocument passed validation and replaced the current scene.';
+    return t(locale, 'recoverySuccessMessage');
   }
 
   if (status === 'canceled') {
-    return 'Current scene was kept unchanged.';
+    return t(locale, 'recoveryCanceledMessage');
   }
 
   if (status === 'error') {
-    return 'Current scene was kept unchanged. Review the invalid fields, retry, or cancel.';
+    return t(locale, 'recoveryErrorMessage');
   }
 
-  return 'No recovery action is pending.';
+  return t(locale, 'recoveryIdleMessage');
 }
 
 function createTileInstanceId(): string {

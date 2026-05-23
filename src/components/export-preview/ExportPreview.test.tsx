@@ -25,11 +25,11 @@ describe('ExportPreview', () => {
     expect(screen.getByLabelText('整体使用素材清单')).not.toHaveTextContent('No. 1052');
     expect(screen.getByLabelText('Export image content').firstElementChild).toBe(screen.getByLabelText('整体使用素材清单'));
     expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('绿叶植物缩略图')).toBeVisible();
-    expect(screen.getByLabelText('整体技能数量')).toHaveTextContent('技能数量');
-    expect(screen.getByLabelText('整体技能数量')).toHaveTextContent('树叶');
-    expect(screen.getByLabelText('整体技能数量')).toHaveTextContent('储水');
-    expect(screen.getByLabelText('整体技能数量')).toHaveTextContent('x1');
-    expect(within(screen.getByLabelText('整体技能数量')).getByAltText('树叶技能图标')).toBeVisible();
+    expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('树叶');
+    expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('储水');
+    expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('树叶技能图标')).toBeVisible();
+    expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('储水技能图标')).toBeVisible();
+    expect(screen.queryByLabelText('整体技能数量')).not.toBeInTheDocument();
     expect(within(screen.getByLabelText('逐层图形和素材清单')).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
       'L0 · 0层',
       'L1 · 1层',
@@ -47,8 +47,10 @@ describe('ExportPreview', () => {
     expect(screen.getByLabelText('L1 使用素材清单')).not.toHaveTextContent('No. 1052');
     expect(screen.getByLabelText('L1 使用素材清单')).not.toHaveTextContent('(3, 3)');
     expect(screen.getByLabelText('L1 使用素材清单')).not.toHaveTextContent(unsafeAngleText);
-    expect(screen.getByLabelText('L1 技能数量')).toHaveTextContent('树叶');
-    expect(screen.getByLabelText('L1 技能数量')).toHaveTextContent('储水');
+    expect(screen.getByLabelText('L1 使用素材清单')).toHaveTextContent('树叶');
+    expect(screen.getByLabelText('L1 使用素材清单')).toHaveTextContent('储水');
+    expect(within(screen.getByLabelText('L1 使用素材清单')).getByAltText('储水技能图标')).toBeVisible();
+    expect(screen.queryByLabelText('L1 技能数量')).not.toBeInTheDocument();
     expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('该层没有素材');
     expect(screen.getAllByText('空层')).toHaveLength(2);
 
@@ -61,10 +63,27 @@ describe('ExportPreview', () => {
 
     expect(screen.getByRole('heading', { name: unsafeScriptText })).toBeVisible();
     expect(within(screen.getByLabelText('L1 使用素材清单')).queryByText((content) => content.includes(unsafeAngleText))).not.toBeInTheDocument();
-    expect(within(screen.getByLabelText('L1 技能数量')).queryByText((content) => content.includes(unsafeAngleText))).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('L1 技能数量')).not.toBeInTheDocument();
     expect(container.querySelector('script')).toBeNull();
     expect(screen.queryByAltText(unsafeAngleText)).not.toBeInTheDocument();
     expect(screen.queryByAltText(unsafeScriptText)).not.toBeInTheDocument();
+  });
+
+  it('renders system-provided export content in English mode', () => {
+    const summary = buildImageExportSummary(createPreviewScene(), 'en-US');
+
+    render(<ExportPreview locale="en-US" summary={summary} onClose={vi.fn()} />);
+
+    expect(screen.getByRole('dialog', { name: 'Image export preview' })).toBeVisible();
+    expect(screen.getByLabelText('Ditto export preview Pokemon image')).toBeVisible();
+    expect(screen.getByLabelText('Overall material list')).toHaveTextContent(/Leafy/i);
+    expect(screen.getByLabelText('Overall material list')).toHaveTextContent('Leaf');
+    expect(screen.getByLabelText('Overall material list')).toHaveTextContent('Water Storage');
+    expect(screen.getByLabelText('L1 material list')).toHaveTextContent(/Leafy/i);
+    expect(screen.getByLabelText('L2 material list')).toHaveTextContent('No materials on this layer');
+    expect(screen.getAllByText('Empty layer')).toHaveLength(2);
+    expect(screen.getByLabelText('4,4: Water skill')).toBeVisible();
+    expect(screen.getByLabelText('Export image content')).not.toHaveTextContent(/[一-龥]/);
   });
 
   it('focuses the dialog controls, traps tab focus, restores focus and disables download without a handler', () => {

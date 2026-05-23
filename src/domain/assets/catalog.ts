@@ -24,8 +24,10 @@ export interface AssetDefinition {
   assetId: string;
   officialId: string;
   name: string;
+  englishName: string;
   category: AssetCategory;
   tags: readonly string[];
+  englishTags: readonly string[];
   searchKeywords: readonly string[];
   favoritePokemonKeys: readonly PokemonKey[];
   dyeable: boolean;
@@ -144,8 +146,10 @@ function buildAssetDefinition(sourceItem: SourcePlaceableAssetItem, sourceIndex:
       assetId,
       officialId,
       name: displayName,
+      englishName: sourceItem.name,
       category: override?.category ?? inferAssetCategory(sourceItem),
       tags: buildSourceAssetTags(sourceItem),
+      englishTags: buildSourceAssetTags(sourceItem, 'en-US'),
       searchKeywords: buildSearchKeywords(sourceItem, displayName),
       favoritePokemonKeys: buildFavoritePokemonKeys(sourceItem, override),
       dyeable: override?.dyeable ?? inferDyeable(sourceItem),
@@ -203,11 +207,11 @@ function normalizeSourceAssetCategory(menuCategory: string): AssetCategory {
   }
 }
 
-function buildSourceAssetTags(sourceItem: SourcePlaceableAssetItem): readonly string[] {
+function buildSourceAssetTags(sourceItem: SourcePlaceableAssetItem, locale: 'zh-CN' | 'en-US' = 'zh-CN'): readonly string[] {
   const tagSet = new Set(
     sourceItem.tags
       .filter(Boolean)
-      .map((tag) => sourceAssetTagLabels[tag] ?? tag),
+      .map((tag) => (locale === 'en-US' ? tag : sourceAssetTagLabels[tag] ?? tag)),
   );
 
   return Array.from(tagSet);

@@ -4,6 +4,7 @@ import {
   type AssetCategoryFilter,
   type AssetFilterState,
 } from '../domain/assets';
+import { defaultLocale, isLocale, type Locale } from '../i18n';
 
 export const uiPreferencesStorageKey = 'pokopia.uiPreferences.v1';
 
@@ -12,12 +13,14 @@ const uiPreferencesSchemaVersion = 1;
 export interface UiPreferences {
   schemaVersion: typeof uiPreferencesSchemaVersion;
   assetFilters: AssetFilterState;
+  locale: Locale;
 }
 
 export function getDefaultUiPreferences(): UiPreferences {
   return {
     schemaVersion: uiPreferencesSchemaVersion,
     assetFilters: { ...defaultAssetFilters },
+    locale: defaultLocale,
   };
 }
 
@@ -80,6 +83,21 @@ export function writeAssetFilterPreferencesToStorage(
   return nextPreferences;
 }
 
+export function writeLocalePreferenceToStorage(
+  storage: Storage | null,
+  locale: Locale,
+): UiPreferences {
+  const currentPreferences = readUiPreferencesFromStorage(storage);
+  const nextPreferences = {
+    ...currentPreferences,
+    locale,
+  };
+
+  writeUiPreferencesToStorage(storage, nextPreferences);
+
+  return nextPreferences;
+}
+
 function writeUiPreferencesToStorage(storage: Storage | null, preferences: UiPreferences): void {
   if (!storage) {
     return;
@@ -102,6 +120,7 @@ function normalizeUiPreferences(value: unknown): UiPreferences {
   return {
     schemaVersion: uiPreferencesSchemaVersion,
     assetFilters: normalizeAssetFilters(value.assetFilters, defaultPreferences.assetFilters),
+    locale: isLocale(value.locale) ? value.locale : defaultPreferences.locale,
   };
 }
 

@@ -16,8 +16,10 @@ import {
   type TileInstance,
 } from '../../domain/scene';
 import type { AssetPlacementPreview } from '../../state';
+import { defaultLocale, getAssetDisplay, getSkillDisplay, t, type Locale } from '../../i18n';
 
 interface SelectionInspectorProps {
+  locale?: Locale;
   selectedContext: CellContext | null;
   selectedInstance: TileInstance | null;
   selectedInstanceId: string | null;
@@ -47,6 +49,7 @@ interface SelectionInspectorProps {
 }
 
 export function SelectionInspector({
+  locale = defaultLocale,
   selectedContext,
   selectedInstance,
   selectedSkillMarker,
@@ -68,7 +71,7 @@ export function SelectionInspector({
   const activeSkillNote = selectedSkillMarker?.skillNote ?? selectedInstance?.skillNote ?? '';
   const nextRotation = getNextRotation(selectedInstance?.rotationDegrees ?? 0);
   const selectionSummary = [
-    asset?.name ?? (coordinate ? `${coordinate.x},${coordinate.y}` : 'No selection'),
+    asset ? getAssetDisplay(asset, locale).name : (coordinate ? `${coordinate.x},${coordinate.y}` : t(locale, 'noSelection')),
     coordinate ? `x${coordinate.x} y${coordinate.y}` : null,
     selectedLevel ? `L${selectedLevel.levelNumber}` : null,
   ]
@@ -79,13 +82,13 @@ export function SelectionInspector({
   } as CSSProperties;
 
   return (
-    <section className="selection-inspector" aria-label="Selection context">
+    <section className="selection-inspector" aria-label={t(locale, 'selectionContext')}>
       <div
         className={[
           'current-selection-bar',
           coordinate ? '' : 'current-selection-bar--empty',
         ].filter(Boolean).join(' ')}
-        aria-label="Current selection actions"
+        aria-label={t(locale, 'currentSelectionActions')}
       >
         {coordinate ? (
           <div className="current-selection-bar__asset" aria-label={selectionSummary}>
@@ -94,21 +97,21 @@ export function SelectionInspector({
         ) : (
           <div
             className="selection-empty-prompt"
-            aria-label="No selected grid cell"
+            aria-label={t(locale, 'noSelectedGridCell')}
             style={emptyPromptStyle}
           >
-            <span>点击一个编辑格查看或放置素材</span>
+            <span>{t(locale, 'emptySelectionPrompt')}</span>
           </div>
         )}
         {coordinate ? (
-          <div className="current-selection-bar__actions" aria-label="Selection edit actions">
+          <div className="current-selection-bar__actions" aria-label={t(locale, 'selectionEditActions')}>
             {selectedInstance ? (
               <button
                 type="button"
                 className="current-selection-action-button current-selection-action-button--rotate has-icon-tooltip"
-                aria-label="旋转 90"
-                data-tooltip="旋转 90"
-                title="旋转 90"
+                aria-label={t(locale, 'rotate90')}
+                data-tooltip={t(locale, 'rotate90')}
+                title={t(locale, 'rotate90')}
                 disabled={readOnly}
                 onClick={() => onRotateInstance(selectedInstance.instanceId, nextRotation)}
               >
@@ -118,9 +121,9 @@ export function SelectionInspector({
             <button
               type="button"
               className="current-selection-action-button current-selection-action-button--clear has-icon-tooltip"
-              aria-label="清除选中格子中的素材"
-              data-tooltip="清除素材"
-              title="清除素材"
+              aria-label={t(locale, 'clearSelectedMaterial')}
+              data-tooltip={t(locale, 'clearMaterial')}
+              title={t(locale, 'clearMaterial')}
               disabled={readOnly || !selectedInstance}
               onClick={() => {
                 if (!selectedInstance) {
@@ -134,6 +137,9 @@ export function SelectionInspector({
             </button>
             {selectionSkillActions.map((action) => {
               const isActiveSkill = activeSkillType === action.skillType;
+              const skillDisplay = getSkillDisplay(action.skillType, locale);
+              const actionLabel = locale === 'zh-CN' ? action.label : skillDisplay.name;
+              const tooltipLabel = locale === 'zh-CN' ? action.tooltipLabel ?? action.label : skillDisplay.name;
 
               return (
                 <button
@@ -146,10 +152,10 @@ export function SelectionInspector({
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  aria-label={`设置技能标记：${action.label}`}
+                  aria-label={t(locale, 'setSkillMarker', { label: actionLabel })}
                   aria-pressed={isActiveSkill}
-                  data-tooltip={action.tooltipLabel ?? action.label}
-                  title={action.tooltipLabel ?? action.label}
+                  data-tooltip={tooltipLabel}
+                  title={tooltipLabel}
                   disabled={readOnly || !canEditSelectedSkill}
                   key={action.skillType}
                   onClick={() => {

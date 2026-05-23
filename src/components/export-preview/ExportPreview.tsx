@@ -1,8 +1,10 @@
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent } from 'react';
 import { getPokemonThemeDefinition } from '../../domain/assets';
+import { defaultLocale, getPokemonDisplay, t, type Locale } from '../../i18n';
 import type {
   ExportLayerMaterialSummary,
   ExportLayerSkillSummary,
+  ExportMaterialSummary,
   ExportSkillSummary,
   ImageExportCellSummary,
   ImageExportLayerSummary,
@@ -10,15 +12,17 @@ import type {
 } from '../../domain/scene';
 
 interface ExportPreviewProps {
+  locale?: Locale;
   summary: ImageExportSummary;
   downloadError?: string | null;
   downloadDisabled?: boolean;
   downloadStatus?: string | null;
   onClose: () => void;
-  onDownloadImage?: () => void;
+  onDownloadImage?: (previewElement: HTMLElement) => void | Promise<void>;
 }
 
 export function ExportPreview({
+  locale = defaultLocale,
   summary,
   downloadError = null,
   downloadDisabled = false,
@@ -30,6 +34,8 @@ export function ExportPreview({
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const isDownloadDisabled = downloadDisabled || !onDownloadImage;
   const selectedPokemon = getPokemonThemeDefinition(summary.selectedPokemonKey);
+  const selectedPokemonName = getPokemonDisplay(selectedPokemon, locale);
+  const overallUsageItems = createUsageItems(summary.overallMaterials, summary.overallSkills);
   const pokemonTitleImageStyle = {
     '--export-pokemon-background': selectedPokemon.background,
     '--export-pokemon-accent': selectedPokemon.accent,
@@ -81,6 +87,12 @@ export function ExportPreview({
     }
   };
 
+  const handleDownloadImage = () => {
+    if (dialogRef.current) {
+      void onDownloadImage?.(dialogRef.current);
+    }
+  };
+
   return (
     <div className="export-preview-backdrop">
       <section
@@ -88,7 +100,7 @@ export function ExportPreview({
         className="export-preview"
         role="dialog"
         aria-modal="true"
-        aria-label="图片导出预览"
+        aria-label={t(locale, 'imageExportPreview')}
         tabIndex={-1}
         onKeyDown={handleDialogKeyDown}
       >
@@ -96,58 +108,76 @@ export function ExportPreview({
           <div className="export-preview__title">
             <span
               className="export-preview__pokemon-title-image"
-              aria-label={`${selectedPokemon.name}导出预览宝可梦图片`}
+              aria-label={t(locale, 'pokemonExportImage', { name: selectedPokemonName })}
               style={pokemonTitleImageStyle}
             >
-              <img src={selectedPokemon.portraitUrl} alt={`${selectedPokemon.name}宝可梦图片`} />
+              <img src={selectedPokemon.portraitUrl} alt={t(locale, 'pokemonImageAlt', { name: selectedPokemonName })} />
             </span>
             <div>
-              <p className="eyebrow">Image Export Preview</p>
+              <p className="eyebrow">{t(locale, 'imageExportEyebrow')}</p>
               <h2>{summary.sceneName}</h2>
-              <p>{summary.canvasSize.width}x{summary.canvasSize.height} canvas · {summary.layers.length} building layers</p>
+              <p>{t(locale, 'canvasBuildingLayers', {
+                width: summary.canvasSize.width,
+                height: summary.canvasSize.height,
+                count: summary.layers.length,
+              })}</p>
             </div>
           </div>
-          <div className="export-preview__actions">
+          <div className="export-preview__actions" data-image-export-exclude="true">
             <button
               type="button"
               className="app-action-button"
+              data-image-export-exclude="true"
               disabled={isDownloadDisabled}
-              onClick={onDownloadImage}
+              onClick={handleDownloadImage}
             >
-              下载图片
+              {t(locale, 'downloadImage')}
             </button>
-            <button ref={closeButtonRef} type="button" className="app-action-button" onClick={onClose}>
-              关闭
+            <button
+              ref={closeButtonRef}
+              type="button"
+              className="app-action-button"
+              data-image-export-exclude="true"
+              onClick={onClose}
+            >
+              {t(locale, 'close')}
             </button>
           </div>
         </header>
         {downloadStatus ? (
-          <p className="export-preview__feedback" role="status" aria-label="Image export download status">
+          <p
+            className="export-preview__feedback"
+            role="status"
+            aria-label={t(locale, 'imageExportStatus')}
+            data-image-export-exclude="true"
+          >
             {downloadStatus}
           </p>
         ) : null}
         {downloadError ? (
-          <p className="export-preview__feedback export-preview__feedback--error" role="alert" aria-label="Image export download error">
+          <p
+            className="export-preview__feedback export-preview__feedback--error"
+            role="alert"
+            aria-label={t(locale, 'imageExportError')}
+            data-image-export-exclude="true"
+          >
             {downloadError}
           </p>
         ) : null}
 
-        <section className="export-preview__body" aria-label="Export image content">
-          <section className="export-preview__summary" aria-label="整体使用素材清单">
-            <h3>整体使用素材</h3>
-            {summary.overallMaterials.length > 0 ? (
-              <MaterialList materials={summary.overallMaterials} showThumbnails />
+        <section className="export-preview__body" aria-label={t(locale, 'imageExportContent')}>
+          <section className="export-preview__summary" aria-label={t(locale, 'overallMaterialsList')}>
+            <h3>{t(locale, 'overallMaterials')}</h3>
+            {overallUsageItems.length > 0 ? (
+              <UsageList items={overallUsageItems} />
             ) : (
-              <p className="export-preview__empty">未放置素材</p>
+              <p className="export-preview__empty">{t(locale, 'noMaterialsPlaced')}</p>
             )}
-            {summary.overallSkills.length > 0 ? (
-              <SkillList ariaLabel="整体技能数量" skills={summary.overallSkills} />
-            ) : null}
           </section>
 
           <section className="export-preview__layers" aria-label="逐层图形和素材清单">
             {summary.layers.map((layer) => (
-              <LayerPreview key={layer.id} layer={layer} />
+              <LayerPreview key={layer.id} locale={locale} layer={layer} />
             ))}
           </section>
         </section>
@@ -168,44 +198,45 @@ function getFocusableElements(root: HTMLElement | null): HTMLElement[] {
   ).filter((element) => !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true');
 }
 
-function LayerPreview({ layer }: { layer: ImageExportLayerSummary }) {
+function LayerPreview({ locale, layer }: { locale: Locale; layer: ImageExportLayerSummary }) {
+  const usageItems = createUsageItems(layer.materials, layer.skills);
+
   return (
     <article className="export-layer" aria-label={`${layer.displayId} ${layer.name}`}>
       <header className="export-layer__header">
         <div>
           <h3>{layer.displayId} · {layer.name}</h3>
         </div>
-        {layer.empty ? <span className="status-pill">空层</span> : null}
+        {layer.empty ? <span className="status-pill">{t(locale, 'emptyLayer')}</span> : null}
       </header>
       <div className="export-layer__content">
-        <div className="export-layer-grid" aria-label={`${layer.displayId} 7x7 图形`}>
+        <div className="export-layer-grid" aria-label={t(locale, 'layerGraphic', { displayId: layer.displayId })}>
           {layer.cells.map((cell) => (
-            <ExportCell key={cell.id} cell={cell} />
+            <ExportCell key={cell.id} locale={locale} cell={cell} />
           ))}
         </div>
-        <section className="export-layer__materials" aria-label={`${layer.displayId} 使用素材清单`}>
-          {layer.materials.length > 0 ? (
-            <MaterialList materials={layer.materials} showThumbnails />
+        <section className="export-layer__materials" aria-label={t(locale, 'layerMaterialsList', { displayId: layer.displayId })}>
+          {usageItems.length > 0 ? (
+            <UsageList items={usageItems} />
           ) : (
-            <p className="export-preview__empty">该层没有素材</p>
+            <p className="export-preview__empty">{t(locale, 'layerNoMaterials')}</p>
           )}
-          {layer.skills.length > 0 ? (
-            <SkillList ariaLabel={`${layer.displayId} 技能数量`} skills={layer.skills} />
-          ) : null}
         </section>
       </div>
     </article>
   );
 }
 
-function ExportCell({ cell }: { cell: ImageExportCellSummary }) {
+function ExportCell({ locale, cell }: { locale: Locale; cell: ImageExportCellSummary }) {
   const firstInstance = cell.tileInstances[0] ?? null;
   const firstSkillMarker = cell.skillMarkers[0] ?? null;
   const label = firstInstance
     ? `${cell.coordinate.x},${cell.coordinate.y}: ${cell.tileInstances.map((instance) => instance.assetName).join(', ')}`
     : firstSkillMarker
-      ? `${cell.coordinate.x},${cell.coordinate.y}: ${firstSkillMarker.skillType}技能`
-    : `${cell.coordinate.x},${cell.coordinate.y}: empty`;
+      ? locale === 'zh-CN'
+        ? `${cell.coordinate.x},${cell.coordinate.y}: ${firstSkillMarker.skillType}技能`
+        : `${cell.coordinate.x},${cell.coordinate.y}: ${firstSkillMarker.skillLabel} ${t(locale, 'skillSuffix')}`
+    : `${cell.coordinate.x},${cell.coordinate.y}: ${t(locale, 'emptyLayer')}`;
 
   return (
     <div
@@ -217,7 +248,11 @@ function ExportCell({ cell }: { cell: ImageExportCellSummary }) {
       {firstInstance?.thumbnailUrl ? (
         <img src={firstInstance.thumbnailUrl} alt="" title={firstInstance.assetName} />
       ) : firstSkillMarker?.iconUrl ? (
-        <img src={firstSkillMarker.iconUrl} alt="" title={`${firstSkillMarker.skillType}技能`} />
+        <img
+          src={firstSkillMarker.iconUrl}
+          alt=""
+          title={locale === 'zh-CN' ? `${firstSkillMarker.skillType}技能` : `${firstSkillMarker.skillLabel} ${t(locale, 'skillSuffix')}`}
+        />
       ) : firstSkillMarker ? (
         <span>{firstSkillMarker.skillLabel}</span>
       ) : null}
@@ -225,29 +260,30 @@ function ExportCell({ cell }: { cell: ImageExportCellSummary }) {
   );
 }
 
-function MaterialList({
-  materials,
-  showThumbnails = false,
-}: {
-  materials: readonly (ExportLayerMaterialSummary | ImageExportSummary['overallMaterials'][number])[];
-  showThumbnails?: boolean;
-}) {
+interface ExportUsageItem {
+  id: string;
+  name: string;
+  count: number;
+  thumbnailUrl: string | null;
+  thumbnailAlt: string;
+  fallbackText: string;
+}
+
+function UsageList({ items }: { items: readonly ExportUsageItem[] }) {
   return (
-    <ul className={showThumbnails ? 'export-material-list export-material-list--with-thumbs' : 'export-material-list'}>
-      {materials.map((material) => (
-        <li key={material.assetId}>
-          {showThumbnails ? (
-            <span className="export-material-list__thumb">
-              {material.thumbnailUrl ? (
-                <img src={material.thumbnailUrl} alt={material.thumbnailAlt} />
-              ) : (
-                <span aria-hidden="true">{material.assetName.slice(0, 1)}</span>
-              )}
-            </span>
-          ) : null}
+    <ul className="export-material-list export-material-list--with-thumbs">
+      {items.map((item) => (
+        <li key={item.id}>
+          <span className="export-material-list__thumb">
+            {item.thumbnailUrl ? (
+              <img src={item.thumbnailUrl} alt={item.thumbnailAlt} />
+            ) : (
+              <span aria-hidden="true">{item.fallbackText}</span>
+            )}
+          </span>
           <div className="export-material-list__row">
-            <strong>{material.assetName}</strong>
-            <span>x{'count' in material ? material.count : material.totalCount}</span>
+            <strong>{item.name}</strong>
+            <span>x{item.count}</span>
           </div>
         </li>
       ))}
@@ -255,31 +291,26 @@ function MaterialList({
   );
 }
 
-function SkillList({
-  ariaLabel,
-  skills,
-}: {
-  ariaLabel: string;
-  skills: readonly (ExportSkillSummary | ExportLayerSkillSummary)[];
-}) {
-  return (
-    <section className="export-skill-summary" aria-label={ariaLabel}>
-      <h4>技能数量</h4>
-      <ul className="export-skill-list">
-        {skills.map((skill) => (
-          <li key={skill.skillType}>
-            <span className="export-skill-list__icon">
-              {skill.iconUrl ? (
-                <img src={skill.iconUrl} alt={skill.iconAlt} />
-              ) : (
-                <span aria-hidden="true">{skill.skillLabel}</span>
-              )}
-            </span>
-            <strong>{skill.skillType}</strong>
-            <span>x{'count' in skill ? skill.count : skill.totalCount}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
+function createUsageItems(
+  materials: readonly (ExportMaterialSummary | ExportLayerMaterialSummary)[],
+  skills: readonly (ExportSkillSummary | ExportLayerSkillSummary)[],
+): ExportUsageItem[] {
+  return [
+    ...materials.map((material) => ({
+      id: `material:${material.assetId}`,
+      name: material.assetName,
+      count: 'count' in material ? material.count : material.totalCount,
+      thumbnailUrl: material.thumbnailUrl,
+      thumbnailAlt: material.thumbnailAlt,
+      fallbackText: material.assetName.slice(0, 1),
+    })),
+    ...skills.map((skill) => ({
+      id: `skill:${skill.skillType}`,
+      name: skill.skillName,
+      count: 'count' in skill ? skill.count : skill.totalCount,
+      thumbnailUrl: skill.iconUrl,
+      thumbnailAlt: skill.iconAlt,
+      fallbackText: skill.skillLabel,
+    })),
+  ];
 }

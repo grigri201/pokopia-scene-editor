@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { toBlob } from 'html-to-image';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultSceneDocument, createTileInstance } from '../../domain/scene';
 import {
@@ -15,10 +16,18 @@ import {
 } from '../../test/fixtures/unsafe-text';
 import { AppShell } from './AppShell';
 
+vi.mock('html-to-image', () => ({
+  toBlob: vi.fn(),
+}));
+
+const toBlobMock = vi.mocked(toBlob);
+
 describe('AppShell scene storage integration', () => {
   beforeEach(() => {
     window.localStorage.clear();
     setViewportWidth(1280);
+    toBlobMock.mockReset();
+    toBlobMock.mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
   });
 
   afterEach(() => {
@@ -30,12 +39,12 @@ describe('AppShell scene storage integration', () => {
   it('autosaves the editable Open Design scene and restores it after remount', async () => {
     const { unmount } = render(<AppShell />);
     const exportButton = screen.getByRole('button', { name: '下载预览' });
-    const deleteButton = screen.getByRole('button', { name: '删除' });
+    const resetButton = screen.getByRole('button', { name: '重置' });
 
     expect(exportButton).toBeVisible();
-    expect(deleteButton).toBeVisible();
-    expect(deleteButton.querySelector('svg')).not.toBeInTheDocument();
-    expect(deleteButton).toHaveTextContent('删除');
+    expect(resetButton).toBeVisible();
+    expect(resetButton.querySelector('svg')).not.toBeInTheDocument();
+    expect(resetButton).toHaveTextContent('重置');
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save scene from scene controls' })).not.toBeInTheDocument();
 
@@ -92,6 +101,30 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
   }, 20_000);
 
+  it('persists English UI language separately from SceneDocument autosave', async () => {
+    render(<AppShell />);
+
+    fireEvent.change(screen.getByLabelText('语言'), { target: { value: 'en-US' } });
+
+    expect(screen.getByRole('button', { name: 'Download Preview' })).toBeVisible();
+    expect(screen.getByLabelText('Scene name')).toBeVisible();
+    expect(screen.getByRole('option', { name: 'Ditto' })).toHaveValue('ditto');
+    expect(JSON.parse(window.localStorage.getItem(uiPreferencesStorageKey) ?? '{}')).toMatchObject({
+      locale: 'en-US',
+    });
+
+    fireEvent.change(screen.getByLabelText('Scene name'), { target: { value: 'English Garden' } });
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem(autosavedSceneStorageKey)).not.toBeNull();
+    });
+
+    const autosavePayload = JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}');
+    expect(autosavePayload.sceneName).toBe('English Garden');
+    expect(autosavePayload).not.toHaveProperty('locale');
+    expect(autosavePayload).not.toHaveProperty('language');
+  }, 20_000);
+
   it('downloads the image export preview without changing scene or storage', async () => {
     const createObjectURL = vi.fn((blob: Blob) => {
       void blob;
@@ -106,21 +139,44 @@ describe('AppShell scene storage integration', () => {
         download: this.download,
       };
     });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      const width = this.classList.contains('export-preview') ? 590 : 0;
+      const height = this.classList.contains('export-preview') ? 420 : 0;
+
+      return {
+        bottom: height,
+        height,
+        left: 0,
+        right: width,
+        top: 0,
+        width,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      };
+    });
 
     render(<AppShell />);
     const beforeSnapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
     fireEvent.click(screen.getByRole('button', { name: '下载预览' }));
     fireEvent.click(screen.getByRole('button', { name: '下载图片' }));
 
-    expect(downloadLink).toEqual({
-      href: 'blob:image-export',
-      download: '5x5-布景.pokopia-scene.svg',
+    await waitFor(() => {
+      expect(downloadLink).toEqual({
+        href: 'blob:image-export',
+        download: '5x5-布景.pokopia-scene.png',
+      });
     });
     const exportedBlob = createObjectURL.mock.calls[0]?.[0] as Blob;
-    await expect(exportedBlob.text()).resolves.toContain('5x5 布景');
-    await expect(exportedBlob.text()).resolves.toContain('整体使用素材');
-    await expect(exportedBlob.text()).resolves.toContain('逐层图形');
-    await expect(exportedBlob.text()).resolves.toContain('逐层素材清单');
+    expect(exportedBlob.type).toBe('image/png');
+    await expect(exportedBlob.text()).resolves.toBe('png');
+    expect(toBlobMock).toHaveBeenCalledWith(
+      screen.getByRole('dialog', { name: '图片导出预览' }),
+      expect.objectContaining({
+        pixelRatio: 1,
+        type: 'image/png',
+      }),
+    );
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:image-export');
     expect(screen.getByRole('status', { name: 'Image export download status' })).toHaveTextContent('图片已准备下载');
     expect((window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.()).toBe(beforeSnapshot);
@@ -792,15 +848,15 @@ describe('AppShell scene storage integration', () => {
 
     render(<AppShell />);
 
-    expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
-    expect(screen.getByLabelText('Recovery error details')).toHaveTextContent('schemaVersion');
+    expect(screen.getByLabelText('Recovery toast')).toBeVisible();
+    expect(screen.getByLabelText('Recovery toast details')).toHaveTextContent('schemaVersion');
     expect(screen.getByLabelText('布景名称')).toHaveValue('5x5 布景');
     expectNoSaveStatus();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'canceled');
-    expect(screen.getByLabelText('Recovery Validator')).toHaveTextContent('Recovery canceled');
+    expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'canceled');
+    expect(screen.getByLabelText('Recovery toast')).toHaveTextContent('Recovery canceled');
     expect(screen.getByLabelText('布景名称')).toHaveValue('5x5 布景');
   });
 
@@ -814,7 +870,7 @@ describe('AppShell scene storage integration', () => {
     );
 
     render(<AppShell />);
-    expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
+    expect(screen.getByLabelText('Recovery toast')).toBeVisible();
 
     writeSceneDocumentToStorage(
       window.localStorage,
@@ -830,7 +886,7 @@ describe('AppShell scene storage integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'success');
+      expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'success');
       expect(screen.getByLabelText('布景名称')).toHaveValue('Retry Recovery');
       const recoveredCell = screen.getByLabelText(/Cell 3,3, main area, level-0, placeable$/);
       expect(recoveredCell).toBeVisible();
@@ -838,13 +894,13 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
-  it('keeps read-only startup and retry from replacing the scene', async () => {
+  it('restores saved scene during read-only startup without autosaving', () => {
     setViewportWidth(390);
     writeSceneDocumentToStorage(
       window.localStorage,
       createDefaultSceneDocument({
         sceneId: 'scene-readonly-recovery',
-        sceneName: 'Blocked Recovery',
+        sceneName: 'Mobile Restored Recovery',
         selectedPokemonKey: 'pikachu',
         now: '2026-05-16T08:30:00.000Z',
       }),
@@ -854,15 +910,47 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
-    expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
-    expect(screen.getByLabelText('Recovery error details')).toHaveTextContent('Read-only mode cannot replace');
+    expect(screen.queryByLabelText('Recovery toast')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('布景名称')).toHaveValue('Mobile Restored Recovery');
+    expect(screen.getByLabelText('Current Pokemon')).toHaveValue('pikachu');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).not.toBeNull();
+    expectNoSaveStatus();
+  });
+
+  it('retries and restores valid scene data in read-only mode', async () => {
+    setViewportWidth(390);
+    window.localStorage.setItem(
+      autosavedSceneStorageKey,
+      JSON.stringify({
+        schemaVersion: 99,
+        sceneId: 'bad-readonly-recovery',
+      }),
+    );
+
+    render(<AppShell />);
+
+    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
+    expect(screen.getByLabelText('Recovery toast')).toBeVisible();
     expect(screen.getByLabelText('布景名称')).toHaveValue('5x5 布景');
+
+    writeSceneDocumentToStorage(
+      window.localStorage,
+      createDefaultSceneDocument({
+        sceneId: 'scene-readonly-retry-recovery',
+        sceneName: 'Mobile Retry Recovery',
+        selectedPokemonKey: 'pikachu',
+        now: '2026-05-16T08:30:00.000Z',
+      }),
+      'autosave',
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Recovery Validator')).toBeVisible();
-      expect(screen.getByLabelText('布景名称')).toHaveValue('5x5 布景');
+      expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'success');
+      expect(screen.getByLabelText('布景名称')).toHaveValue('Mobile Retry Recovery');
+      expect(screen.getByLabelText('Current Pokemon')).toHaveValue('pikachu');
       expectNoSaveStatus();
     });
   });
@@ -880,8 +968,8 @@ describe('AppShell scene storage integration', () => {
 
     render(<AppShell />);
 
-    const validator = screen.getByLabelText('Recovery Validator');
-    const details = screen.getByLabelText('Recovery error details');
+    const validator = screen.getByLabelText('Recovery toast');
+    const details = screen.getByLabelText('Recovery toast details');
     expect(validator).toHaveAttribute('data-recovery-status', 'error');
     expect(details).toHaveTextContent(unsafeCombinedText);
     expect(details.querySelector('script')).toBeNull();
@@ -895,7 +983,7 @@ describe('AppShell scene storage integration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    expect(screen.getByLabelText('Recovery Validator')).toHaveAttribute('data-recovery-status', 'canceled');
+    expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'canceled');
     expect(screen.getByLabelText('布景名称')).toHaveValue('Current Dirty Layout');
     expectNoSaveStatus();
   });

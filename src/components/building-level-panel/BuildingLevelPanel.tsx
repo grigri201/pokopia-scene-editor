@@ -1,7 +1,9 @@
 import { useEffect, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type { BuildingLevelContext } from '../../domain/scene';
+import { defaultLocale, t, type Locale } from '../../i18n';
 
 interface BuildingLevelPanelProps {
+  locale?: Locale;
   levels: BuildingLevelContext[];
   readOnly: boolean;
   feedback: string | null;
@@ -13,6 +15,7 @@ interface BuildingLevelPanelProps {
 }
 
 export function BuildingLevelPanel({
+  locale = defaultLocale,
   levels,
   readOnly,
   feedback,
@@ -63,18 +66,18 @@ export function BuildingLevelPanel({
   };
 
   return (
-    <aside className="panel level-panel" aria-label="Building level panel">
+    <aside className="panel level-panel" aria-label={t(locale, 'buildingLevelPanel')}>
       <div className="panel__header">
-        <h2>建筑层</h2>
-        <span className="sr-only" aria-label="Current building level">
+        <h2>{t(locale, 'buildingLevels')}</h2>
+        <span className="sr-only" aria-label={t(locale, 'currentBuildingLevel')}>
           Current {currentLevel?.displayId ?? 'None'}
         </span>
         <button
           type="button"
           className="icon-button level-create-button has-icon-tooltip"
-          aria-label="新建层"
-          data-tooltip="新建层"
-          title="新建层"
+          aria-label={t(locale, 'newLayer')}
+          data-tooltip={t(locale, 'newLayer')}
+          title={t(locale, 'newLayer')}
           disabled={readOnly}
           onClick={onCreateLayer}
         >
@@ -83,13 +86,13 @@ export function BuildingLevelPanel({
       </div>
       <div className="level-toolbar">
         {readOnly ? (
-          <span aria-label="Building layer edit mode">
-            Mobile View-only Mode · Layer edits disabled
+          <span aria-label={t(locale, 'buildingLayerEditMode')}>
+            {t(locale, 'mobileViewOnlyMode')}
           </span>
         ) : null}
-        {feedback ? <span aria-label="Building layer feedback" role="status">{feedback}</span> : null}
+        {feedback ? <span aria-label={t(locale, 'buildingLayerFeedback')} role="status">{feedback}</span> : null}
       </div>
-      <div className="level-list" role="list" aria-label="Building levels high to low">
+      <div className="level-list" role="list" aria-label={t(locale, 'buildingLevelsHighToLow')}>
         {levels.map((level) => (
           <article
             className={[
@@ -100,7 +103,7 @@ export function BuildingLevelPanel({
               .join(' ')}
             role="listitem"
             aria-current={level.current ? 'true' : undefined}
-            aria-label={`${level.displayId}, ${level.name}, ${level.instanceCount} instances${
+            aria-label={`${level.displayId}, ${level.name}, ${t(locale, 'instanceCount', { count: level.instanceCount })}${
               level.current ? (readOnly ? ', viewing layer' : ', current editing layer') : ''
             }`}
             data-testid="building-level-row"
@@ -116,9 +119,9 @@ export function BuildingLevelPanel({
             <span className="level-code">{level.displayId}</span>
             <div className="level-summary">
               <label>
-                <span className="sr-only">Layer name</span>
+                <span className="sr-only">{t(locale, 'layerName')}</span>
                 <input
-                  aria-label={`Rename ${level.name}`}
+                  aria-label={t(locale, 'renameLayer', { name: level.name })}
                   value={levelNames[level.id] ?? level.name}
                   disabled={readOnly}
                   onChange={(event) =>
@@ -140,21 +143,21 @@ export function BuildingLevelPanel({
                 />
               </label>
               <em aria-label={`${level.name} instance count`}>
-                {level.instanceCount} instances
+                {t(locale, 'instanceCount', { count: level.instanceCount })}
               </em>
             </div>
             <span className={level.current ? 'level-badge level-badge--current' : 'level-badge'} aria-hidden="true">
-              {level.current ? (readOnly ? 'Viewing' : 'Current') : 'Standby'}
+              {level.current ? (readOnly ? t(locale, 'viewing') : t(locale, 'current')) : t(locale, 'standby')}
             </span>
-            <div className="level-actions" aria-label={`${level.name} layer actions`}>
+            <div className="level-actions" aria-label={t(locale, 'layerActions', { name: level.name })}>
               <button
                 type="button"
                 className="level-action-button level-action-button--copy has-icon-tooltip"
                 disabled={readOnly}
                 data-disabled-reason={readOnly ? 'read-only' : 'available'}
-                data-tooltip="复制建筑层"
-                aria-label={`Copy ${level.name} (${level.displayId})${readOnly ? ' disabled in read-only mode' : ''}`}
-                title="复制建筑层"
+                data-tooltip={t(locale, 'copyLayerTooltip')}
+                aria-label={`${t(locale, 'copyLayer', { name: level.name, displayId: level.displayId })}${readOnly ? ' disabled in read-only mode' : ''}`}
+                title={t(locale, 'copyLayerTooltip')}
                 onClick={() => onCopyLayer(level.id)}
               >
                 <CopyIcon />
@@ -164,9 +167,9 @@ export function BuildingLevelPanel({
                 className="level-action-button level-action-button--danger has-icon-tooltip"
                 disabled={readOnly}
                 data-disabled-reason={readOnly ? 'read-only' : 'available'}
-                data-tooltip="删除建筑层"
-                aria-label={`Delete ${level.name} (${level.displayId})${readOnly ? ' disabled in read-only mode' : ''}`}
-                title="删除建筑层"
+                data-tooltip={t(locale, 'deleteLayerTooltip')}
+                aria-label={`${t(locale, 'deleteLayer', { name: level.name, displayId: level.displayId })}${readOnly ? ' disabled in read-only mode' : ''}`}
+                title={t(locale, 'deleteLayerTooltip')}
                 onClick={() => onDeleteLayer(level.id)}
               >
                 <DeleteIcon />

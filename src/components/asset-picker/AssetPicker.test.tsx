@@ -418,6 +418,7 @@ describe('AssetPicker', () => {
         category: 'all',
         favoriteOnly: false,
       },
+      locale: 'zh-CN',
     });
   }, 15_000);
 });

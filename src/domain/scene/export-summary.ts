@@ -2,7 +2,6 @@ import {
   assetSkillTypes,
   getAssetById,
   getAssetSkillMarkerIconUrl,
-  getAssetSkillMarkerLabel,
   type AssetDefinition,
   type AssetSkillType,
   type ConcreteAssetSkillType,
@@ -16,6 +15,13 @@ import {
 import { sortBuildingLevelsForRender } from './levels';
 import type { AreaType, GridCoordinate } from './area';
 import type { RotationDegrees, SceneDocument, SkillMarker, TileInstance } from './types';
+import {
+  defaultLocale,
+  getAssetDisplay,
+  getBuildingLevelDisplayName,
+  getSkillDisplay,
+  type Locale,
+} from '../../i18n';
 
 export interface ImageExportSummary {
   sceneId: string;
@@ -54,6 +60,7 @@ export interface ExportLayerMaterialSummary extends ExportMaterialSummary {
 
 export interface ExportSkillSummary {
   skillType: ConcreteAssetSkillType;
+  skillName: string;
   skillLabel: string;
   iconUrl: string | null;
   iconAlt: string;
@@ -104,8 +111,10 @@ export interface ExportTileInstanceSummary {
   reproductionNotes: string[];
 }
 
-export function buildImageExportSummary(scene: SceneDocument): ImageExportSummary {
-  const layers = sortBuildingLevelsForRender(getBuildingLevelContexts(scene)).map((level) => buildLayerSummary(scene, level));
+export function buildImageExportSummary(scene: SceneDocument, locale: Locale = defaultLocale): ImageExportSummary {
+  const layers = sortBuildingLevelsForRender(getBuildingLevelContexts(scene)).map((level) =>
+    buildLayerSummary(scene, level, locale),
+  );
   assertAllInstancesExported(scene, layers);
   assertAllSkillMarkersExported(scene, layers);
 
@@ -116,32 +125,33 @@ export function buildImageExportSummary(scene: SceneDocument): ImageExportSummar
     sceneSize: { ...scene.sceneSize },
     canvasSize: { ...scene.canvasSize },
     outerPadding: scene.outerPadding,
-    overallMaterials: aggregateMaterials(scene.tileInstances),
-    overallSkills: aggregateSkills(scene.tileInstances, scene.skillMarkers),
+    overallMaterials: aggregateMaterials(scene.tileInstances, locale),
+    overallSkills: aggregateSkills(scene.tileInstances, scene.skillMarkers, locale),
     layers,
   };
 }
 
-function buildLayerSummary(scene: SceneDocument, level: BuildingLevelContext): ImageExportLayerSummary {
-  const cells = getCanvasCellContexts(scene, level.id).map(toExportCellSummary);
+function buildLayerSummary(scene: SceneDocument, level: BuildingLevelContext, locale: Locale): ImageExportLayerSummary {
+  const cells = getCanvasCellContexts(scene, level.id).map((cell) => toExportCellSummary(cell, locale));
   const layerInstances = cells.flatMap((cell) => cell.tileInstances);
   const layerSkillMarkers = cells.flatMap((cell) => cell.skillMarkers);
-  const skills = aggregateLayerSkills(layerInstances, layerSkillMarkers);
+  const skills = aggregateLayerSkills(layerInstances, layerSkillMarkers, locale);
 
   return {
     ...level,
+    name: getBuildingLevelDisplayName(level.name, level.levelNumber, locale),
     empty: layerInstances.length === 0 && layerSkillMarkers.length === 0,
     materialCount: layerInstances.length,
     skillCount: skills.reduce((total, skill) => total + skill.count, 0),
-    materials: aggregateLayerMaterials(layerInstances),
+    materials: aggregateLayerMaterials(layerInstances, locale),
     skills,
     cells,
   };
 }
 
-function toExportCellSummary(cell: CanvasCellContext): ImageExportCellSummary {
-  const tileInstances = cell.tileInstances.map(toExportTileInstanceSummary);
-  const skillMarkers = cell.skillMarkers.map(toExportSkillMarkerSummary);
+function toExportCellSummary(cell: CanvasCellContext, locale: Locale): ImageExportCellSummary {
+  const tileInstances = cell.tileInstances.map((instance) => toExportTileInstanceSummary(instance, locale));
+  const skillMarkers = cell.skillMarkers.map((marker) => toExportSkillMarkerSummary(marker, locale));
 
   return {
     id: cell.id,
@@ -155,11 +165,11 @@ function toExportCellSummary(cell: CanvasCellContext): ImageExportCellSummary {
   };
 }
 
-function aggregateMaterials(instances: readonly TileInstance[]): ExportMaterialSummary[] {
+function aggregateMaterials(instances: readonly TileInstance[], locale: Locale): ExportMaterialSummary[] {
   const materialsByAssetId = new Map<string, ExportMaterialSummary>();
 
   for (const instance of instances) {
-    const material = materialsByAssetId.get(instance.assetId) ?? createMaterialSummary(instance.assetId);
+    const material = materialsByAssetId.get(instance.assetId) ?? createMaterialSummary(instance.assetId, locale);
     material.totalCount += 1;
     materialsByAssetId.set(instance.assetId, material);
   }
@@ -170,17 +180,18 @@ function aggregateMaterials(instances: readonly TileInstance[]): ExportMaterialS
 function aggregateSkills(
   instances: readonly TileInstance[],
   skillMarkers: readonly SkillMarker[],
+  locale: Locale,
 ): ExportSkillSummary[] {
   const skillsByType = new Map<ConcreteAssetSkillType, ExportSkillSummary>();
 
   for (const skillType of getSkillTypesFromInstances(instances)) {
-    const skill = skillsByType.get(skillType) ?? createSkillSummary(skillType);
+    const skill = skillsByType.get(skillType) ?? createSkillSummary(skillType, locale);
     skill.totalCount += 1;
     skillsByType.set(skillType, skill);
   }
 
   for (const marker of skillMarkers) {
-    const skill = skillsByType.get(marker.skillType) ?? createSkillSummary(marker.skillType);
+    const skill = skillsByType.get(marker.skillType) ?? createSkillSummary(marker.skillType, locale);
     skill.totalCount += 1;
     skillsByType.set(marker.skillType, skill);
   }
@@ -188,12 +199,12 @@ function aggregateSkills(
   return sortSkillSummaries(Array.from(skillsByType.values()));
 }
 
-function aggregateLayerMaterials(instances: readonly ExportTileInstanceSummary[]): ExportLayerMaterialSummary[] {
+function aggregateLayerMaterials(instances: readonly ExportTileInstanceSummary[], locale: Locale): ExportLayerMaterialSummary[] {
   const materialsByAssetId = new Map<string, ExportLayerMaterialSummary>();
 
   for (const instance of instances) {
     const material = materialsByAssetId.get(instance.assetId) ?? {
-      ...createMaterialSummary(instance.assetId),
+      ...createMaterialSummary(instance.assetId, locale),
       count: 0,
       instances: [],
     };
@@ -209,12 +220,13 @@ function aggregateLayerMaterials(instances: readonly ExportTileInstanceSummary[]
 function aggregateLayerSkills(
   instances: readonly ExportTileInstanceSummary[],
   skillMarkers: readonly ExportSkillMarkerSummary[],
+  locale: Locale,
 ): ExportLayerSkillSummary[] {
   const skillsByType = new Map<ConcreteAssetSkillType, ExportLayerSkillSummary>();
 
   for (const skillType of getSkillTypesFromExportInstances(instances)) {
     const skill = skillsByType.get(skillType) ?? {
-      ...createSkillSummary(skillType),
+      ...createSkillSummary(skillType, locale),
       count: 0,
     };
     skill.count += 1;
@@ -224,7 +236,7 @@ function aggregateLayerSkills(
 
   for (const marker of skillMarkers) {
     const skill = skillsByType.get(marker.skillType) ?? {
-      ...createSkillSummary(marker.skillType),
+      ...createSkillSummary(marker.skillType, locale),
       count: 0,
     };
     skill.count += 1;
@@ -235,16 +247,17 @@ function aggregateLayerSkills(
   return sortSkillSummaries(Array.from(skillsByType.values()));
 }
 
-function toExportTileInstanceSummary(instance: TileInstance): ExportTileInstanceSummary {
+function toExportTileInstanceSummary(instance: TileInstance, locale: Locale): ExportTileInstanceSummary {
   const asset = getAssetById(instance.assetId);
+  const assetDisplay = asset ? getAssetDisplay(asset, locale) : null;
 
   return {
     instanceId: instance.instanceId,
     assetId: instance.assetId,
-    assetName: getAssetName(instance.assetId, asset),
+    assetName: assetDisplay?.name ?? getAssetName(instance.assetId, asset),
     officialId: asset?.officialId ?? null,
     thumbnailUrl: asset?.thumbnailUrl ?? null,
-    thumbnailAlt: asset?.thumbnailAlt ?? instance.assetId,
+    thumbnailAlt: assetDisplay?.thumbnailAlt ?? asset?.thumbnailAlt ?? instance.assetId,
     coordinate: { ...instance.coordinate },
     areaType: instance.areaType,
     buildingLevelId: instance.buildingLevelId,
@@ -253,19 +266,21 @@ function toExportTileInstanceSummary(instance: TileInstance): ExportTileInstance
     requiresSkill: instance.requiresSkill,
     skillType: instance.skillType,
     skillNote: instance.skillNote,
-    reproductionNotes: buildReproductionNotes(instance),
+    reproductionNotes: buildReproductionNotes(instance, locale),
   };
 }
 
-function toExportSkillMarkerSummary(marker: SkillMarker): ExportSkillMarkerSummary {
+function toExportSkillMarkerSummary(marker: SkillMarker, locale: Locale): ExportSkillMarkerSummary {
+  const skillDisplay = getSkillDisplay(marker.skillType, locale);
+
   return {
     coordinate: { ...marker.coordinate },
     areaType: marker.areaType,
     buildingLevelId: marker.buildingLevelId,
     skillType: marker.skillType,
-    skillLabel: getAssetSkillMarkerLabel(marker.skillType),
+    skillLabel: skillDisplay.marker,
     iconUrl: getAssetSkillMarkerIconUrl(marker.skillType),
-    iconAlt: `${marker.skillType}技能图标`,
+    iconAlt: locale === 'en-US' ? `${skillDisplay.name} skill icon` : `${marker.skillType}技能图标`,
     skillNote: marker.skillNote,
   };
 }
@@ -312,25 +327,29 @@ function cloneExportTileInstanceSummary(instance: ExportTileInstanceSummary): Ex
   };
 }
 
-function createSkillSummary(skillType: ConcreteAssetSkillType): ExportSkillSummary {
+function createSkillSummary(skillType: ConcreteAssetSkillType, locale: Locale): ExportSkillSummary {
+  const skillDisplay = getSkillDisplay(skillType, locale);
+
   return {
     skillType,
-    skillLabel: getAssetSkillMarkerLabel(skillType),
+    skillName: skillDisplay.name,
+    skillLabel: skillDisplay.marker,
     iconUrl: getAssetSkillMarkerIconUrl(skillType),
-    iconAlt: `${skillType}技能图标`,
+    iconAlt: locale === 'en-US' ? `${skillDisplay.name} skill icon` : `${skillType}技能图标`,
     totalCount: 0,
   };
 }
 
-function createMaterialSummary(assetId: string): ExportMaterialSummary {
+function createMaterialSummary(assetId: string, locale: Locale): ExportMaterialSummary {
   const asset = getAssetById(assetId);
+  const assetDisplay = asset ? getAssetDisplay(asset, locale) : null;
 
   return {
     assetId,
-    assetName: getAssetName(assetId, asset),
+    assetName: assetDisplay?.name ?? getAssetName(assetId, asset),
     officialId: asset?.officialId ?? null,
     thumbnailUrl: asset?.thumbnailUrl ?? null,
-    thumbnailAlt: asset?.thumbnailAlt ?? assetId,
+    thumbnailAlt: assetDisplay?.thumbnailAlt ?? asset?.thumbnailAlt ?? assetId,
     totalCount: 0,
   };
 }
@@ -339,23 +358,27 @@ function getAssetName(assetId: string, asset: AssetDefinition | null): string {
   return asset?.name ?? assetId;
 }
 
-function buildReproductionNotes(instance: TileInstance): string[] {
+function buildReproductionNotes(instance: TileInstance, locale: Locale): string[] {
   const notes: string[] = [];
 
   if (instance.requiresSkill) {
-    notes.push(instance.skillType ? `技能: ${instance.skillType}` : '技能: 需要');
+    notes.push(
+      locale === 'en-US'
+        ? `Skill: ${instance.skillType ? getSkillDisplay(instance.skillType, locale).name : 'Required'}`
+        : instance.skillType ? `技能: ${instance.skillType}` : '技能: 需要',
+    );
   }
 
   if (instance.skillNote.trim()) {
-    notes.push(`技能备注: ${instance.skillNote}`);
+    notes.push(locale === 'en-US' ? `Skill note: ${instance.skillNote}` : `技能备注: ${instance.skillNote}`);
   }
 
   if (instance.dyeColor) {
-    notes.push(`染色: ${instance.dyeColor}`);
+    notes.push(locale === 'en-US' ? `Dye: ${instance.dyeColor}` : `染色: ${instance.dyeColor}`);
   }
 
   if (instance.rotationDegrees !== 0) {
-    notes.push(`旋转: ${instance.rotationDegrees}°`);
+    notes.push(locale === 'en-US' ? `Rotation: ${instance.rotationDegrees}°` : `旋转: ${instance.rotationDegrees}°`);
   }
 
   return notes;
@@ -395,7 +418,7 @@ function sortMaterialSummaries<T extends Pick<ExportMaterialSummary, 'assetId' |
       return right.totalCount - left.totalCount;
     }
 
-    const nameOrder = left.assetName.localeCompare(right.assetName, 'zh-Hans');
+    const nameOrder = left.assetName.localeCompare(right.assetName);
     return nameOrder === 0 ? left.assetId.localeCompare(right.assetId, 'en') : nameOrder;
   });
 }

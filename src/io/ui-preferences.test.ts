@@ -4,6 +4,7 @@ import {
   readUiPreferencesFromStorage,
   uiPreferencesStorageKey,
   writeAssetFilterPreferencesToStorage,
+  writeLocalePreferenceToStorage,
 } from './ui-preferences';
 
 describe('UI preferences storage', () => {
@@ -125,6 +126,7 @@ describe('UI preferences storage', () => {
         category: 'all',
         favoriteOnly: false,
       },
+      locale: 'zh-CN',
     });
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).not.toContain('preview');
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).not.toContain('displayOptions');
@@ -159,6 +161,7 @@ describe('UI preferences storage', () => {
         category: 'furniture',
         favoriteOnly: false,
       },
+      locale: 'zh-CN',
     });
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBe(
       JSON.stringify({
@@ -168,8 +171,30 @@ describe('UI preferences storage', () => {
           category: 'furniture',
           favoriteOnly: false,
         },
+        locale: 'zh-CN',
       }),
     );
+  });
+
+  it('stores locale in UI preferences without disturbing asset filters', () => {
+    writeAssetFilterPreferencesToStorage(window.localStorage, {
+      query: 'roof',
+      category: 'buildings',
+      favoriteOnly: true,
+    });
+
+    const preferences = writeLocalePreferenceToStorage(window.localStorage, 'en-US');
+
+    expect(preferences).toEqual({
+      schemaVersion: 1,
+      assetFilters: {
+        query: 'roof',
+        category: 'buildings',
+        favoriteOnly: true,
+      },
+      locale: 'en-US',
+    });
+    expect(readUiPreferencesFromStorage(window.localStorage).locale).toBe('en-US');
   });
 });
 

@@ -2,7 +2,6 @@ import { useEffect, useId, useMemo, useState, type KeyboardEvent, type MouseEven
 import {
   assetCatalog,
   assetCategories,
-  assetCategoryLabels,
   assetMatchesPokemonFavorite,
   filterAssetCatalog,
   getAssetById,
@@ -12,12 +11,20 @@ import {
   type PokemonKey,
 } from '../../domain/assets';
 import {
+  defaultLocale,
+  getAssetCategoryLabel,
+  getAssetDisplay,
+  t,
+  type Locale,
+} from '../../i18n';
+import {
   getUiPreferencesStorage,
   readUiPreferencesFromStorage,
   writeAssetFilterPreferencesToStorage,
 } from '../../io';
 
 interface AssetPickerProps {
+  locale?: Locale;
   readOnly: boolean;
   selectedAssetId: string | null;
   selectedAssetMode?: AssetSelectionMode;
@@ -31,6 +38,7 @@ interface AssetPickerProps {
 export type AssetSelectionMode = 'single' | 'continuous';
 
 export function AssetPicker({
+  locale = defaultLocale,
   readOnly,
   selectedAssetId,
   selectedAssetMode = 'single',
@@ -123,42 +131,42 @@ export function AssetPicker({
   };
 
   return (
-    <aside className="panel asset-picker" aria-label="Asset picker">
+    <aside className="panel asset-picker" aria-label={t(locale, 'assetPicker')}>
       <div className="asset-picker__header">
-        <h2>素材</h2>
+        <h2>{t(locale, 'assets')}</h2>
         <label className="favorite-toggle">
           <input
             type="checkbox"
-            aria-label="Show favorite assets"
+            aria-label={t(locale, 'showFavoriteAssets')}
             checked={filters.favoriteOnly}
             disabled={readOnly}
             onChange={(event) => updateFilters({ favoriteOnly: event.target.checked })}
           />
-          只显示喜好
+          {t(locale, 'favoriteOnly')}
         </label>
         <span
           className="asset-count"
           role="status"
           aria-live="polite"
           aria-atomic="true"
-          aria-label="Asset result count"
+          aria-label={t(locale, 'assetResultCount')}
         >
-          {filterResult.filteredCount} results
+          {t(locale, 'results', { count: filterResult.filteredCount })}
         </span>
       </div>
       <label className="asset-search">
-        <span className="sr-only">Search assets</span>
+        <span className="sr-only">{t(locale, 'searchAssets')}</span>
         <input
-          aria-label="Search assets"
-          placeholder="围栏"
+          aria-label={t(locale, 'searchAssets')}
+          placeholder={t(locale, 'searchPlaceholder')}
           value={filters.query}
           readOnly={readOnly}
           onChange={(event) => updateFilters({ query: event.target.value })}
         />
       </label>
-      <fieldset className="asset-category-tabs" aria-label="Asset category filters">
-        <legend className="sr-only">Category</legend>
-        {categoryFilterOptions.map((option) => (
+      <fieldset className="asset-category-tabs" aria-label={t(locale, 'assetCategoryFilters')}>
+        <legend className="sr-only">{t(locale, 'category')}</legend>
+        {getCategoryFilterOptions(locale).map((option) => (
           <button
             type="button"
             aria-pressed={filters.category === option.value}
@@ -171,6 +179,7 @@ export function AssetPicker({
         ))}
       </fieldset>
       <PlacementSkillToggle
+        locale={locale}
         asset={selectedAsset}
         placementRequiresSkill={placementRequiresSkill}
         onPlacementRequiresSkillChange={onPlacementRequiresSkillChange}
@@ -180,18 +189,18 @@ export function AssetPicker({
         <nav className="asset-pagination" aria-label="Asset pagination">
           <button
             type="button"
-            aria-label="Previous asset page"
+            aria-label={t(locale, 'previousAssetPage')}
             disabled={readOnly || !filterResult.hasPreviousPage}
             onClick={() => goToAssetPage(filterResult.currentPage - 1)}
           >
             &lt;
           </button>
-          <span aria-label="Asset page status">
+          <span aria-label={t(locale, 'assetPageStatus')}>
             {filterResult.currentPage} / {filterResult.pageCount}
           </span>
           <button
             type="button"
-            aria-label="Next asset page"
+            aria-label={t(locale, 'nextAssetPage')}
             disabled={readOnly || !filterResult.hasNextPage}
             onClick={() => goToAssetPage(filterResult.currentPage + 1)}
           >
@@ -199,11 +208,12 @@ export function AssetPicker({
           </button>
         </nav>
       ) : null}
-      <div className="asset-list" aria-label="Asset results">
+      <div className="asset-list" aria-label={t(locale, 'assetResults')}>
         {filterResult.renderedAssets.map((asset) => {
           const selected = asset.assetId === selectedAssetId;
           const selectedContinuously = selected && selectedAssetMode === 'continuous';
           const ids = getAssetRowIds(assetPickerId, asset.assetId);
+          const assetDisplay = getAssetDisplay(asset, locale);
 
           return (
             <article
@@ -230,9 +240,9 @@ export function AssetPicker({
               >
                 <img src={asset.thumbnailUrl} alt="" className="asset-thumb" />
                 <span className="asset-row__body">
-                  <strong id={ids.name}>{asset.name}</strong>
+                  <strong id={ids.name}>{assetDisplay.name}</strong>
                   <span className="asset-row__meta" id={ids.meta}>
-                    {formatAssetTags(asset.tags)}
+                    {formatAssetTags(assetDisplay.tags, locale)}
                   </span>
                 </span>
                 <span className="asset-row__official-id">
@@ -242,7 +252,7 @@ export function AssetPicker({
               <button
                 type="button"
                 className="sr-only"
-                aria-label={`View ${asset.name} details`}
+                aria-label={t(locale, 'viewAssetDetails', { name: assetDisplay.name })}
                 disabled={readOnly}
                 onClick={() => setViewedAssetId(asset.assetId)}
               >
@@ -252,11 +262,11 @@ export function AssetPicker({
           );
         })}
         {filterResult.filteredCount === 0 ? (
-          <AssetEmptyState />
+          <AssetEmptyState locale={locale} />
         ) : null}
       </div>
       <div className="sr-only">
-        <AssetDetail asset={viewedAsset} selectedPokemonKey={selectedPokemonKey} />
+        <AssetDetail locale={locale} asset={viewedAsset} selectedPokemonKey={selectedPokemonKey} />
       </div>
     </aside>
   );
@@ -274,21 +284,23 @@ function isAssetApplicationKey(event: KeyboardEvent<HTMLButtonElement>): boolean
   );
 }
 
-function AssetEmptyState() {
+function AssetEmptyState({ locale }: { locale: Locale }) {
   return (
-    <section className="asset-empty-state" aria-label="No matching assets">
-      <strong>No assets match</strong>
-      <span>No assets match the current filters.</span>
+    <section className="asset-empty-state" aria-label={locale === 'zh-CN' ? 'No matching assets' : t(locale, 'noAssetsMatch')}>
+      <strong>{t(locale, 'noAssetsMatch')}</strong>
+      <span>{t(locale, 'noAssetsMatchBody')}</span>
     </section>
   );
 }
 
 function PlacementSkillToggle({
+  locale,
   asset,
   placementRequiresSkill,
   onPlacementRequiresSkillChange,
   readOnly,
 }: {
+  locale: Locale;
   asset: AssetDefinition | null;
   placementRequiresSkill: boolean;
   onPlacementRequiresSkillChange: (requiresSkill: boolean) => void;
@@ -302,56 +314,60 @@ function PlacementSkillToggle({
         disabled={readOnly || !asset}
         onChange={(event) => onPlacementRequiresSkillChange(event.target.checked)}
       />
-      Requires Ditto skill
+      {t(locale, 'requiresSkill')}
     </label>
   );
 }
 
 function AssetDetail({
+  locale,
   asset,
   selectedPokemonKey,
 }: {
+  locale: Locale;
   asset: AssetDefinition | null;
   selectedPokemonKey: PokemonKey;
 }) {
   if (!asset) {
     return (
-      <section className="asset-detail" aria-label="Asset detail">
-        <span>Asset detail</span>
-        <strong>No asset selected</strong>
+      <section className="asset-detail" aria-label={t(locale, 'assetDetail')}>
+        <span>{t(locale, 'assetDetail')}</span>
+        <strong>{t(locale, 'noAssetSelected')}</strong>
       </section>
     );
   }
 
+  const assetDisplay = getAssetDisplay(asset, locale);
+
   return (
-    <section className="asset-detail" aria-label={`${asset.name} asset detail`}>
-      <span>Asset detail</span>
-      <img src={asset.thumbnailUrl} alt={asset.thumbnailAlt} className="asset-detail__thumb" />
-      <strong>{asset.name}</strong>
+    <section className="asset-detail" aria-label={`${assetDisplay.name} asset detail`}>
+      <span>{t(locale, 'assetDetail')}</span>
+      <img src={asset.thumbnailUrl} alt={assetDisplay.thumbnailAlt} className="asset-detail__thumb" />
+      <strong>{assetDisplay.name}</strong>
       <dl>
         <div>
-          <dt>Asset ID</dt>
+          <dt>{t(locale, 'assetId')}</dt>
           <dd>{asset.assetId}</dd>
         </div>
         <div>
-          <dt>Official ID</dt>
+          <dt>{t(locale, 'officialId')}</dt>
           <dd>No. {asset.officialId}</dd>
         </div>
         <div>
-          <dt>Category</dt>
-          <dd>{assetCategoryLabels[asset.category]}</dd>
+          <dt>{t(locale, 'category')}</dt>
+          <dd>{assetDisplay.categoryLabel}</dd>
         </div>
         <div>
-          <dt>Tags</dt>
-          <dd>{formatAssetTags(asset.tags)}</dd>
+          <dt>{t(locale, 'tags')}</dt>
+          <dd>{formatAssetTags(assetDisplay.tags, locale)}</dd>
         </div>
         <div>
-          <dt>Favorite</dt>
-          <dd>{assetMatchesPokemonFavorite(asset, selectedPokemonKey) ? selectedPokemonKey : 'No match'}</dd>
+          <dt>{t(locale, 'favorite')}</dt>
+          <dd>{assetMatchesPokemonFavorite(asset, selectedPokemonKey) ? selectedPokemonKey : t(locale, 'noMatch')}</dd>
         </div>
         <div>
-          <dt>Dyeable</dt>
-          <dd>{asset.dyeable ? 'Yes' : 'No'}</dd>
+          <dt>{t(locale, 'dyeable')}</dt>
+          <dd>{asset.dyeable ? t(locale, 'yes') : t(locale, 'no')}</dd>
         </div>
       </dl>
     </section>
@@ -374,16 +390,18 @@ function focusSiblingAsset(currentButton: HTMLButtonElement, offset: number): vo
   assetButtons[nextIndex]?.focus();
 }
 
-const categoryFilterOptions: readonly { value: AssetCategoryFilter; label: string }[] = [
-  { value: 'all', label: '全部' },
-  ...assetCategories.map((value) => ({
-    value,
-    label: assetCategoryLabels[value],
-  })),
-];
+function getCategoryFilterOptions(locale: Locale): readonly { value: AssetCategoryFilter; label: string }[] {
+  return [
+    { value: 'all', label: t(locale, 'all') },
+    ...assetCategories.map((value) => ({
+      value,
+      label: getAssetCategoryLabel(value, locale),
+    })),
+  ];
+}
 
-function formatAssetTags(tags: readonly string[]): string {
-  return tags.length > 0 ? tags.join(' · ') : '无标签';
+function formatAssetTags(tags: readonly string[], locale: Locale): string {
+  return tags.length > 0 ? tags.join(' · ') : t(locale, 'noTags');
 }
 
 function getAssetRowIds(assetPickerId: string, assetId: string) {

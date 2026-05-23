@@ -4,8 +4,10 @@ import {
   pokemonThemeCatalog,
   type PokemonKey,
 } from '../../domain/assets';
+import { defaultLocale, getPokemonDisplay, t, type Locale } from '../../i18n';
 
 interface PokemonSceneControlsProps {
+  locale?: Locale;
   readOnly: boolean;
   selectedPokemonKey: PokemonKey;
   sceneName: string;
@@ -14,6 +16,7 @@ interface PokemonSceneControlsProps {
 }
 
 export function PokemonSceneControls({
+  locale = defaultLocale,
   readOnly,
   selectedPokemonKey,
   sceneName,
@@ -64,12 +67,12 @@ export function PokemonSceneControls({
   };
 
   return (
-    <section className="scene-controls" aria-label="Pokemon scene controls">
+    <section className="scene-controls" aria-label={t(locale, 'sceneControls')}>
       <div className="scene-controls__fields">
         <label>
-          布景名称
+          {t(locale, 'sceneName')}
           <input
-            aria-label="布景名称"
+            aria-label={t(locale, 'sceneName')}
             aria-invalid={sceneNameEmpty}
             aria-describedby={sceneNameEmpty ? sceneNameErrorId : undefined}
             value={sceneNameDraft}
@@ -79,12 +82,12 @@ export function PokemonSceneControls({
           />
           {sceneNameEmpty ? (
             <span id={sceneNameErrorId} className="field-error">
-              请输入布景名称。
+              {t(locale, 'sceneNameRequired')}
             </span>
           ) : null}
         </label>
         <label className="scene-field scene-field--pokemon">
-          宝可梦
+          {t(locale, 'pokemon')}
           <span className="pokemon-select-control">
             <img
               src={selectedPokemon.portraitUrl}
@@ -93,14 +96,14 @@ export function PokemonSceneControls({
               className="pokemon-select-control__image"
             />
             <select
-              aria-label="Current Pokemon"
+              aria-label={t(locale, 'currentPokemon')}
               value={selectedPokemonKey}
               onChange={(event) => handlePokemonChange(event.target.value)}
               disabled={readOnly}
             >
               {pokemonThemeCatalog.map((pokemon) => (
                 <option value={pokemon.key} key={pokemon.key}>
-                  {pokemon.name}
+                  {getPokemonDisplay(pokemon, locale)}
                 </option>
               ))}
             </select>

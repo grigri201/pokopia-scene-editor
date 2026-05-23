@@ -38,6 +38,8 @@ describe('SceneCanvas', () => {
     expect(screen.getByLabelText('Cell 6,6, outer area, level-0, placeable')).toBeVisible();
     expect(screen.getByLabelText('Cell 1,1, main area, level-0, placeable')).toBeVisible();
     expect(screen.getByLabelText('Cell 5,5, main area, level-0, placeable')).toBeVisible();
+    expect(document.querySelector('.cell-coordinate')).toBeNull();
+    expect(cells[0]).not.toHaveTextContent('0,0');
   });
 
   it('marks main, outer, main-boundary, and placeable states for tests and styling', () => {

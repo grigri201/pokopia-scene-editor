@@ -1,9 +1,11 @@
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent } from 'react';
-import { getAssetById, getAssetSkillMarkerIconUrl, getAssetSkillMarkerLabel } from '../../domain/assets';
+import { getAssetById, getAssetSkillMarkerIconUrl, toAssetSkillType } from '../../domain/assets';
 import type { CanvasCellContext, GridCoordinate, GridSize } from '../../domain/scene';
 import { moveCoordinate } from '../../state';
+import { defaultLocale, getAssetDisplay, getSkillDisplay, t, type Locale } from '../../i18n';
 
 interface SceneCanvasProps {
+  locale?: Locale;
   canvasSize: GridSize;
   cells: CanvasCellContext[];
   readOnly: boolean;
@@ -18,6 +20,7 @@ interface SceneCanvasProps {
 }
 
 export function SceneCanvas({
+  locale = defaultLocale,
   canvasSize,
   cells,
   readOnly,
@@ -40,8 +43,8 @@ export function SceneCanvas({
       role="grid"
       aria-label={
         readOnly
-          ? '7x7 canvas with main and outer regions, read-only'
-          : '7x7 canvas with main and outer regions'
+          ? t(locale, 'sceneCanvasReadOnly')
+          : t(locale, 'sceneCanvas')
       }
       aria-rowcount={canvasSize.height}
       aria-colcount={canvasSize.width}
@@ -60,21 +63,22 @@ export function SceneCanvas({
             const visibleInstances = cell.tileInstances;
             const topInstance = visibleInstances.at(-1) ?? null;
             const topAsset = getAssetById(topInstance?.assetId);
-            const topAssetLabel = topInstance ? getInstanceDisplayLabel(topInstance.assetId) : null;
+            const topAssetLabel = topInstance ? getInstanceDisplayLabel(topInstance.assetId, locale) : null;
             const otherLayerInstanceCount = cell.otherVisibleLayerInstances.length;
             const topSkillInstance = topInstance?.requiresSkill ? topInstance : null;
             const topCellSkillMarker = cell.skillMarkers.at(-1) ?? null;
             const skillMarkerType = topSkillInstance?.skillType ?? topCellSkillMarker?.skillType ?? null;
             const hasSkillMarker = Boolean(skillMarkerType);
-            const skillMarkerLabel = skillMarkerType ? getAssetSkillMarkerLabel(skillMarkerType) : null;
+            const normalizedSkillType = toAssetSkillType(skillMarkerType);
+            const skillMarkerLabel = normalizedSkillType ? getSkillDisplay(normalizedSkillType, locale).marker : null;
             const skillMarkerIconUrl = skillMarkerType
               ? getAssetSkillMarkerIconUrl(skillMarkerType)
               : null;
-            const skillMarkerTooltip = skillMarkerType ?? null;
+            const skillMarkerTooltip = normalizedSkillType ? getSkillDisplay(normalizedSkillType, locale).name : null;
             const skillMarkerAriaLabel = topSkillInstance
-              ? getInstanceSkillMarkerLabel(topSkillInstance.assetId, skillMarkerLabel)
+              ? getInstanceSkillMarkerLabel(topSkillInstance.assetId, skillMarkerLabel, locale)
               : topCellSkillMarker
-                ? getCellSkillMarkerLabel(skillMarkerLabel)
+                ? getCellSkillMarkerLabel(skillMarkerLabel, locale)
                 : null;
             const rotationDegrees = topInstance?.rotationDegrees ?? 0;
             const rotationLabel = rotationDegrees ? `${rotationDegrees}` : null;
@@ -97,15 +101,24 @@ export function SceneCanvas({
                 aria-colindex={coordinate.x + 1}
                 aria-selected={selected}
                 aria-current={selected ? 'location' : undefined}
-                aria-label={`Cell ${coordinate.x},${coordinate.y}, ${cell.areaType} area, ${cell.buildingLevel.id}, ${stateLabel}${
+                aria-label={`${t(locale, 'cellLabel', {
+                  x: coordinate.x,
+                  y: coordinate.y,
+                  area: cell.areaType,
+                  levelId: cell.buildingLevel.id,
+                  state: stateLabel,
+                })}${
                   topAssetLabel ? `, ${topAssetLabel}` : ''
                 }${
                   otherLayerInstanceCount > 0
-                    ? `, ${otherLayerInstanceCount} item${otherLayerInstanceCount === 1 ? '' : 's'} on other visible layers`
+                    ? `, ${t(locale, 'otherLayerItems', {
+                        count: otherLayerInstanceCount,
+                        plural: otherLayerInstanceCount === 1 ? '' : 's',
+                      })}`
                     : ''
                 }${
-                  rotationLabel ? `, rotated ${rotationLabel}` : ''
-                }${dyeColor ? `, dyed ${dyeColor}` : ''}${
+                  rotationLabel ? `, ${t(locale, 'rotated', { degrees: rotationLabel })}` : ''
+                }${dyeColor ? `, ${t(locale, 'dyed', { color: dyeColor })}` : ''}${
                   skillMarkerAriaLabel ? `, ${skillMarkerAriaLabel}` : ''
                 }`}
                 onClick={() =>
@@ -152,11 +165,8 @@ export function SceneCanvas({
                 data-dye-color={dyeColor ?? ''}
                 key={cell.id}
               >
-                <span className="cell-coordinate">
-                  {coordinate.x},{coordinate.y}
-                </span>
                 <span className="cell-area">{cell.areaType}</span>
-                <span className="cell-placeable">{readOnly ? 'view' : editable ? 'place' : stateLabel}</span>
+                <span className="cell-placeable">{readOnly ? t(locale, 'view') : editable ? t(locale, 'place') : stateLabel}</span>
                 {topAsset ? (
                   <span className="cell-asset-token">
                     <img src={topAsset.thumbnailUrl} alt="" className="cell-asset-thumb" />
@@ -168,9 +178,9 @@ export function SceneCanvas({
                 {rotationLabel ? (
                   <span
                     className="cell-rotation-marker has-icon-tooltip"
-                    data-tooltip={`旋转 ${rotationLabel} 度`}
-                    title={`旋转 ${rotationLabel} 度`}
-                    aria-label={`旋转 ${rotationLabel} 度`}
+                    data-tooltip={t(locale, 'rotationDegrees', { degrees: rotationLabel })}
+                    title={t(locale, 'rotationDegrees', { degrees: rotationLabel })}
+                    aria-label={t(locale, 'rotationDegrees', { degrees: rotationLabel })}
                   >
                     <svg viewBox="0 0 28 24" aria-hidden="true">
                       <path
@@ -190,16 +200,16 @@ export function SceneCanvas({
                 {dyeColor ? (
                   <span
                     className="cell-dye-marker"
-                    aria-label={`Dye ${dyeColor}`}
+                    aria-label={t(locale, 'dye', { color: dyeColor })}
                     style={{ backgroundColor: dyeColor }}
                   />
                 ) : null}
                 {hasSkillMarker ? (
                   <span
                     className="cell-skill-marker has-icon-tooltip"
-                    aria-label={skillMarkerAriaLabel ?? 'Skill marker'}
-                    data-tooltip={skillMarkerTooltip ?? skillMarkerLabel ?? '技能'}
-                    title={skillMarkerTooltip ?? skillMarkerLabel ?? '技能'}
+                    aria-label={skillMarkerAriaLabel ?? t(locale, 'skillMarker')}
+                    data-tooltip={skillMarkerTooltip ?? skillMarkerLabel ?? t(locale, 'skillMarker')}
+                    title={skillMarkerTooltip ?? skillMarkerLabel ?? t(locale, 'skillMarker')}
                   >
                     {skillMarkerIconUrl ? (
                       <img src={skillMarkerIconUrl} alt="" />
@@ -327,18 +337,20 @@ function toGridCoordinate(coordinate: GridCoordinate): GridCoordinate {
   return { x: coordinate.x, y: coordinate.y };
 }
 
-function getInstanceDisplayLabel(assetId: string): string {
-  return getAssetById(assetId)?.name ?? `Unknown asset: ${assetId}`;
+function getInstanceDisplayLabel(assetId: string, locale: Locale): string {
+  const asset = getAssetById(assetId);
+
+  return asset ? getAssetDisplay(asset, locale).name : `Unknown asset: ${assetId}`;
 }
 
-function getInstanceSkillMarkerLabel(assetId: string, markerLabel: string | null): string {
-  const assetLabel = getInstanceDisplayLabel(assetId);
+function getInstanceSkillMarkerLabel(assetId: string, markerLabel: string | null, locale: Locale): string {
+  const assetLabel = getInstanceDisplayLabel(assetId, locale);
 
-  return `Skill marker ${assetLabel} ${markerLabel ?? '技'}`;
+  return `${t(locale, 'skillMarker')} ${assetLabel} ${markerLabel ?? t(locale, 'skillMarker')}`;
 }
 
-function getCellSkillMarkerLabel(markerLabel: string | null): string {
-  return `Skill marker ${markerLabel ?? '技'}`;
+function getCellSkillMarkerLabel(markerLabel: string | null, locale: Locale): string {
+  return `${t(locale, 'skillMarker')} ${markerLabel ?? t(locale, 'skillMarker')}`;
 }
 
 function setGridKeyboardTarget(cell: HTMLButtonElement, coordinate: GridCoordinate): void {

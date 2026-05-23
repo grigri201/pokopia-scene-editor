@@ -54,26 +54,8 @@ export function recoverSceneDocument(input: unknown): SceneRecoveryResult {
 export function applyRecoveredSceneDocument(
   currentScene: SceneDocument,
   input: unknown,
-  options: ApplyRecoveredSceneDocumentOptions,
+  _options: ApplyRecoveredSceneDocumentOptions,
 ): SceneRecoveryApplyResult {
-  if (options.interactionMode === 'readOnly') {
-    return {
-      ok: false,
-      status: 'error',
-      scene: currentScene,
-      errors: [
-        {
-          fieldPath: '$',
-          expected: 'desktop edit mode',
-          actual: 'readOnly',
-          reason: 'Read-only mode cannot replace the current scene.',
-          recoveryAction: 'Use desktop edit mode to recover scene data.',
-        },
-      ],
-      availableActions: ['cancel', 'view-details'],
-    };
-  }
-
   const recovered = recoverSceneDocument(input);
   if (!recovered.ok) {
     return {

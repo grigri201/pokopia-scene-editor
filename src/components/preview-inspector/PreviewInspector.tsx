@@ -7,9 +7,11 @@ import {
   type PreviewCanvasCellContext,
   type SceneDocument,
 } from '../../domain/scene';
-import { getAssetById, getAssetSkillMarkerLabel } from '../../domain/assets';
+import { getAssetById, toAssetSkillType } from '../../domain/assets';
+import { defaultLocale, getAssetDisplay, getSkillDisplay, t, type Locale } from '../../i18n';
 
 interface PreviewInspectorProps {
+  locale?: Locale;
   scene: SceneDocument;
   activeBuildingLevelId: string;
   selectedCoordinate: GridCoordinate | null;
@@ -18,6 +20,7 @@ interface PreviewInspectorProps {
 }
 
 export function PreviewInspector({
+  locale = defaultLocale,
   scene,
   activeBuildingLevelId,
   selectedCoordinate,
@@ -36,12 +39,17 @@ export function PreviewInspector({
   const frontScrollCanDown = frontScrollHints.canScrollDown || (hasFrontOverflowingLevels && !frontScrollCanUp);
   const selectedSummary = selectedCoordinate
     ? `${selectedCoordinate.x},${selectedCoordinate.y}`
-    : 'No selection';
-  const topItemSummary = `${currentLayerCells.filter((cell) => !cell.hidden && cell.tileInstances.length > 0).length} current-layer preview items`;
-  const frontItemSummary = `${frontProjectionCells.reduce(
+    : t(locale, 'noSelection');
+  const topItemSummary = t(locale, 'currentLayerPreviewItems', {
+    count: currentLayerCells.filter((cell) => !cell.hidden && cell.tileInstances.length > 0).length,
+  });
+  const frontItemSummary = t(locale, 'visibleItemsAcrossLayers', {
+    count: frontProjectionCells.reduce(
     (total, cell) => total + cell.tileInstances.length,
     0,
-  )} visible items projected across ${frontProjectionLevelCount} layers`;
+  ),
+    layers: frontProjectionLevelCount,
+  });
 
   const syncFrontScrollHints = useCallback(() => {
     const scrollElement = frontScrollRef.current;
@@ -88,11 +96,11 @@ export function PreviewInspector({
   ]);
 
   return (
-    <aside className="panel preview-panel inspector-panel" aria-label="检查器预览">
-      <span className="sr-only">{readOnly ? 'View only' : 'Top / Front'}</span>
+    <aside className="panel preview-panel inspector-panel" aria-label={t(locale, 'inspectorPreview')}>
+      <span className="sr-only">{readOnly ? t(locale, 'viewOnly') : t(locale, 'topFront')}</span>
       <div className="preview-pair">
         <section className="preview-pane is-scrollable">
-          <h3>正视图</h3>
+          <h3>{t(locale, 'frontView')}</h3>
           <div
             className="preview-scroll-shell"
             data-front-scroll-can-up={frontScrollCanUp}
@@ -103,7 +111,7 @@ export function PreviewInspector({
             </span>
             <div
               className="preview-scroll"
-              aria-label="正视图滚动区域"
+              aria-label={t(locale, 'frontScrollRegion')}
               role="region"
               tabIndex={0}
               data-front-visible-level-count={frontProjectionLevelCount}
@@ -113,7 +121,8 @@ export function PreviewInspector({
               ref={frontScrollRef}
             >
               <FrontProjectionGrid
-                ariaLabel="正视图预览"
+                locale={locale}
+                ariaLabel={t(locale, 'frontPreview')}
                 cells={frontProjectionCells}
               />
             </div>
@@ -123,9 +132,10 @@ export function PreviewInspector({
           </div>
         </section>
         <section className="preview-pane">
-          <h3>俯视图</h3>
+          <h3>{t(locale, 'topView')}</h3>
           <PreviewGrid
-            ariaLabel="俯视图预览"
+            locale={locale}
+            ariaLabel={t(locale, 'topPreview')}
             className="top-preview"
             cellClassName="top-cell"
             cells={currentLayerCells}
@@ -135,27 +145,27 @@ export function PreviewInspector({
       <dl className="sr-only">
         <div>
           <dt>Scope</dt>
-          <dd aria-label="Top preview scope">
-            Current layer top projection
+          <dd aria-label={t(locale, 'topPreviewScope')}>
+            {t(locale, 'currentLayerTopProjection')}
           </dd>
         </div>
         <div>
           <dt>Items</dt>
-          <dd aria-label="Top preview item summary">{topItemSummary}</dd>
+          <dd aria-label={t(locale, 'topPreviewItemSummary')}>{topItemSummary}</dd>
         </div>
         <div>
           <dt>Selected</dt>
-          <dd aria-label="Top preview selection summary">{selectedSummary}</dd>
+          <dd aria-label={t(locale, 'topPreviewSelectionSummary')}>{selectedSummary}</dd>
         </div>
         <div>
           <dt>Mode</dt>
-          <dd aria-label="Front preview mode">
-            All visible layers front projection {readOnly ? 'read-only preview' : 'derived preview'}
+          <dd aria-label={t(locale, 'frontPreviewMode')}>
+            All visible layers front projection {readOnly ? t(locale, 'readOnlyPreview') : t(locale, 'derivedPreview')}
           </dd>
         </div>
         <div>
           <dt>Items</dt>
-          <dd aria-label="Front preview item summary">{frontItemSummary}</dd>
+          <dd aria-label={t(locale, 'frontPreviewItemSummary')}>{frontItemSummary}</dd>
         </div>
       </dl>
     </aside>
@@ -179,9 +189,11 @@ function ScrollArrowDownIcon() {
 }
 
 function FrontProjectionGrid({
+  locale,
   ariaLabel,
   cells,
 }: {
+  locale: Locale;
   ariaLabel: string;
   cells: FrontProjectionCellContext[];
 }) {
@@ -193,11 +205,10 @@ function FrontProjectionGrid({
       {cells.map((cell) => {
         const projectionInstance = cell.projectedInstance;
         const projectionAsset = getAssetById(projectionInstance?.assetId);
-        const skillMarkerLabel = cell.skillInstance
-          ? getAssetSkillMarkerLabel(cell.skillInstance.skillType)
-          : '';
+        const skillType = toAssetSkillType(cell.skillInstance?.skillType);
+        const skillMarkerLabel = skillType ? getSkillDisplay(skillType, locale).marker : '';
         const cellLabel = projectionInstance
-          ? `${cell.buildingLevel.displayId} x${cell.x}, projected y${projectionInstance.coordinate.y} ${getInstanceLabel(projectionInstance.assetId)}`
+          ? `${cell.buildingLevel.displayId} x${cell.x}, projected y${projectionInstance.coordinate.y} ${getInstanceLabel(projectionInstance.assetId, locale)}`
           : `${cell.buildingLevel.displayId} x${cell.x}`;
 
         return (
@@ -227,7 +238,7 @@ function FrontProjectionGrid({
             {projectionAsset?.thumbnailUrl ? (
               <img src={projectionAsset.thumbnailUrl} alt="" />
             ) : projectionInstance ? (
-              getInstanceShortLabel(projectionInstance.assetId)
+              getInstanceShortLabel(projectionInstance.assetId, locale)
             ) : null}
           </span>
         );
@@ -237,11 +248,13 @@ function FrontProjectionGrid({
 }
 
 function PreviewGrid({
+  locale,
   ariaLabel,
   className,
   cellClassName,
   cells,
 }: {
+  locale: Locale;
   ariaLabel: string;
   className: string;
   cellClassName: string;
@@ -257,11 +270,10 @@ function PreviewGrid({
         const topInstance = visibleCellInstances.at(-1) ?? null;
         const topAsset = getAssetById(topInstance?.assetId);
         const skillInstance = visibleCellInstances.find((instance) => instance.requiresSkill) ?? null;
-        const skillMarkerLabel = skillInstance
-          ? getAssetSkillMarkerLabel(skillInstance.skillType)
-          : '';
+        const skillType = toAssetSkillType(skillInstance?.skillType);
+        const skillMarkerLabel = skillType ? getSkillDisplay(skillType, locale).marker : '';
         const cellLabel = topInstance
-          ? `${cell.coordinate.x},${cell.coordinate.y} ${getInstanceLabel(topInstance.assetId)}`
+          ? `${cell.coordinate.x},${cell.coordinate.y} ${getInstanceLabel(topInstance.assetId, locale)}`
           : `${cell.coordinate.x},${cell.coordinate.y}`;
 
         return (
@@ -288,7 +300,7 @@ function PreviewGrid({
             {topAsset?.thumbnailUrl ? (
               <img src={topAsset.thumbnailUrl} alt="" />
             ) : topInstance ? (
-              getInstanceShortLabel(topInstance.assetId)
+              getInstanceShortLabel(topInstance.assetId, locale)
             ) : null}
           </span>
         );
@@ -297,10 +309,14 @@ function PreviewGrid({
   );
 }
 
-function getInstanceLabel(assetId: string): string {
-  return getAssetById(assetId)?.name ?? `Unknown asset: ${assetId}`;
+function getInstanceLabel(assetId: string, locale: Locale): string {
+  const asset = getAssetById(assetId);
+
+  return asset ? getAssetDisplay(asset, locale).name : `Unknown asset: ${assetId}`;
 }
 
-function getInstanceShortLabel(assetId: string): string {
-  return getAssetById(assetId)?.name.slice(0, 1) ?? '?';
+function getInstanceShortLabel(assetId: string, locale: Locale): string {
+  const asset = getAssetById(assetId);
+
+  return asset ? getAssetDisplay(asset, locale).name.slice(0, 1) : '?';
 }

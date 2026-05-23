@@ -304,11 +304,13 @@ describe('scene recovery', () => {
     );
   });
 
-  it('rejects recover replace in read-only mode without changing current scene', () => {
+  it('applies a valid recovered payload in read-only mode', () => {
     const currentScene = createDirtyCurrentScene();
     const payload = serializeSceneDocument(
       createDefaultSceneDocument({
         sceneId: 'scene-readonly-recovery',
+        sceneName: 'Read-only recovered scene',
+        selectedPokemonKey: 'pikachu',
         now: '2026-05-16T08:10:00.000Z',
       }),
     );
@@ -318,19 +320,16 @@ describe('scene recovery', () => {
       source: 'confirmed-user',
     });
 
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      throw new Error('Expected read-only recovery to fail.');
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected read-only recovery to apply.');
     }
-    expect(result.scene).toBe(currentScene);
-    expect(result.availableActions).toEqual(['cancel', 'view-details']);
-    expect(result.errors).toEqual([
-      expect.objectContaining({
-        fieldPath: '$',
-        actual: 'readOnly',
-        recoveryAction: 'Use desktop edit mode to recover scene data.',
-      }),
-    ]);
+    expect(result.previousScene).toBe(currentScene);
+    expect(result.scene).toMatchObject({
+      sceneId: 'scene-readonly-recovery',
+      sceneName: 'Read-only recovered scene',
+      selectedPokemonKey: 'pikachu',
+    });
   });
 });
 

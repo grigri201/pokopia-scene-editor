@@ -1,209 +1,132 @@
-import type {
-  ExportLayerMaterialSummary,
-  ExportLayerSkillSummary,
-  ExportSkillSummary,
-  ImageExportLayerSummary,
-  ImageExportSummary,
-} from '../domain/scene';
-
-const exportImageWidth = 1200;
-const pageMargin = 32;
-const gridCellSize = 22;
-const gridGap = 2;
-const layerGap = 28;
-const layerHeaderHeight = 72;
-const layerMinimumHeight = 210;
-const materialHeaderHeight = 22;
+import { toBlob } from 'html-to-image';
 
 export interface ImageExportFile {
   blob: Blob;
   fileName: string;
-  svgText: string;
+  height: number;
+  width: number;
 }
 
-export function createImageExportFile(summary: ImageExportSummary): ImageExportFile {
-  const svgText = buildImageExportSvg(summary);
+interface CreateImageExportFileInput {
+  previewElement: HTMLElement;
+  sceneName: string;
+}
+
+const pngMimeType = 'image/png';
+const transparentPixelDataUrl =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
+export async function createImageExportFile({
+  previewElement,
+  sceneName,
+}: CreateImageExportFileInput): Promise<ImageExportFile> {
+  const { height, width } = getPreviewExportSize(previewElement);
+  const restorePreviewLayout = expandPreviewForImageExport(previewElement, { height, width });
+
+  let blob: Blob | null = null;
+  try {
+    blob = await toBlob(previewElement, {
+      backgroundColor: '#fffefb',
+      canvasHeight: height,
+      canvasWidth: width,
+      cacheBust: true,
+      filter: shouldIncludeInImageExport,
+      height,
+      imagePlaceholder: transparentPixelDataUrl,
+      onImageErrorHandler: () => undefined,
+      pixelRatio: 1,
+      type: pngMimeType,
+      width,
+    });
+  } finally {
+    restorePreviewLayout();
+  }
+
+  if (!blob) {
+    throw new Error('Image export renderer did not return a PNG blob.');
+  }
 
   return {
-    blob: new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }),
-    fileName: getImageExportFileName(summary.sceneName),
-    svgText,
+    blob: blob.type === pngMimeType ? blob : blob.slice(0, blob.size, pngMimeType),
+    fileName: getImageExportFileName(sceneName),
+    height,
+    width,
   };
 }
 
 export function getImageExportFileName(sceneName: string): string {
-  return `${toExportFileBaseName(sceneName)}.pokopia-scene.svg`;
+  return `${toExportFileBaseName(sceneName)}.pokopia-scene.png`;
 }
 
-export function buildImageExportSvg(summary: ImageExportSummary): string {
-  const overallHeight = getOverallHeight(summary);
-  const layerHeights = summary.layers.map(getLayerHeight);
-  const height =
-    pageMargin * 2 +
-    88 +
-    overallHeight +
-    layerHeights.reduce((total, layerHeight) => total + layerHeight + layerGap, 0);
-  let y = pageMargin;
-  const parts: string[] = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${exportImageWidth}" height="${height}" viewBox="0 0 ${exportImageWidth} ${height}" role="img">`,
-    `<title>${escapeXml(summary.sceneName)} Pokopia scene export</title>`,
-    '<rect width="100%" height="100%" fill="#fffefb"/>',
-    text(summary.sceneName, pageMargin, y + 30, 30, '#231f1a', 900),
-    text(`${summary.canvasSize.width}x${summary.canvasSize.height} canvas · ${summary.layers.length} building layers`, pageMargin, y + 58, 15, '#6b6258', 700),
-  ];
-  y += 88;
+export function getPreviewExportSize(previewElement: HTMLElement): { height: number; width: number } {
+  const previewBox = previewElement.getBoundingClientRect();
+  const previewBody = getPreviewBody(previewElement);
+  const width = Math.ceil(Math.max(previewBox.width, previewElement.scrollWidth));
+  const overflowHeight = previewBody
+    ? Math.max(0, previewBody.scrollHeight - previewBody.getBoundingClientRect().height)
+    : Math.max(0, previewElement.scrollHeight - previewBox.height);
+  const height = Math.ceil(previewBox.height + overflowHeight);
 
-  parts.push(sectionFrame(pageMargin, y, exportImageWidth - pageMargin * 2, overallHeight));
-  parts.push(text('整体使用素材', pageMargin + 18, y + 32, 18, '#231f1a', 900));
-  let summaryY = y + 62;
-  if (summary.overallMaterials.length === 0) {
-    parts.push(text('未放置素材', pageMargin + 18, summaryY, 15, '#6b6258', 700));
-    summaryY += 24;
-  } else {
-    summary.overallMaterials.forEach((material, index) => {
-      parts.push(
-        text(
-          `${material.assetName} · x${material.totalCount}`,
-          pageMargin + 18,
-          summaryY + index * 24,
-          14,
-          '#231f1a',
-          700,
-        ),
-      );
-    });
-    summaryY += summary.overallMaterials.length * 24;
-  }
-  if (summary.overallSkills.length > 0) {
-    summaryY += 8;
-    parts.push(text('技能数量', pageMargin + 18, summaryY, 14, '#6b6258', 900));
-    summaryY += 24;
-    for (const skill of summary.overallSkills) {
-      parts.push(...renderSkill(skill, pageMargin + 18, summaryY));
-      summaryY += getSkillHeight();
-    }
-  }
-  y += overallHeight + layerGap;
-
-  for (const [index, layer] of summary.layers.entries()) {
-    const layerHeight = layerHeights[index];
-    parts.push(...renderLayer(layer, y, layerHeight));
-    y += layerHeight + layerGap;
+  if (width <= 0 || height <= 0) {
+    throw new Error('Image export preview must be visible before download.');
   }
 
-  parts.push('</svg>');
-  return parts.join('');
+  return { height, width };
 }
 
-function renderLayer(layer: ImageExportLayerSummary, y: number, height: number): string[] {
-  const parts: string[] = [];
-  const frameWidth = exportImageWidth - pageMargin * 2;
-  const gridSize = gridCellSize * 7 + gridGap * 6;
-  const gridX = pageMargin + 18;
-  const gridY = y + 48;
-  const materialX = gridX + gridSize + 32;
-
-  parts.push(sectionFrame(pageMargin, y, frameWidth, height));
-  parts.push(text(`${layer.displayId} · ${layer.name}`, pageMargin + 18, y + 30, 18, '#231f1a', 900));
-  if (layer.empty) {
-    parts.push(text('空层', pageMargin + 150, y + 30, 14, '#6b6258', 800));
-  }
-  parts.push(text('逐层图形', gridX, y + 44, 13, '#6b6258', 800));
-  parts.push(text('逐层素材清单', materialX, y + 44, 13, '#6b6258', 800));
-
-  for (const cell of layer.cells) {
-    const x = gridX + cell.coordinate.x * (gridCellSize + gridGap);
-    const cellY = gridY + cell.coordinate.y * (gridCellSize + gridGap);
-    const firstInstance = cell.tileInstances[0] ?? null;
-    const firstSkillMarker = cell.skillMarkers[0] ?? null;
-    parts.push(
-      `<rect x="${x}" y="${cellY}" width="${gridCellSize}" height="${gridCellSize}" rx="3" fill="${cell.areaType === 'main' ? '#e8f6ef' : '#fcf8f0'}" stroke="#d8cfc2" stroke-width="1"/>`,
-    );
-    if (firstInstance) {
-      parts.push(text(firstInstance.assetName.slice(0, 2), x + 4, cellY + 15, 9, '#231f1a', 900));
-    } else if (firstSkillMarker) {
-      parts.push(text(firstSkillMarker.skillLabel, x + 7, cellY + 15, 9, '#355ec9', 900));
-    }
-  }
-
-  if (layer.materials.length === 0) {
-    parts.push(text('该层没有素材', materialX, y + 72, 14, '#6b6258', 700));
-    if (layer.skills.length > 0) {
-      parts.push(text('逐层技能数量', materialX, y + 104, 13, '#6b6258', 800));
-      let skillY = y + 132;
-      for (const skill of layer.skills) {
-        parts.push(...renderSkill(skill, materialX, skillY));
-        skillY += getSkillHeight();
+function expandPreviewForImageExport(
+  previewElement: HTMLElement,
+  size: { height: number; width: number },
+): () => void {
+  const previewBody = getPreviewBody(previewElement);
+  const previousPreviewStyles = {
+    height: previewElement.style.height,
+    maxHeight: previewElement.style.maxHeight,
+    overflow: previewElement.style.overflow,
+    width: previewElement.style.width,
+  };
+  const previousBodyStyles = previewBody
+    ? {
+        height: previewBody.style.height,
+        maxHeight: previewBody.style.maxHeight,
+        overflow: previewBody.style.overflow,
       }
-    }
-  } else {
-    let materialY = y + 72;
-    for (const material of layer.materials) {
-      parts.push(...renderMaterial(material, materialX, materialY));
-      materialY += getMaterialHeight();
-    }
-    if (layer.skills.length > 0) {
-      materialY += 4;
-      parts.push(text('逐层技能数量', materialX, materialY, 13, '#6b6258', 800));
-      materialY += 28;
-      for (const skill of layer.skills) {
-        parts.push(...renderSkill(skill, materialX, materialY));
-        materialY += getSkillHeight();
-      }
-    }
+    : null;
+  const previousBodyScrollTop = previewBody?.scrollTop ?? 0;
+
+  previewElement.style.width = `${size.width}px`;
+  previewElement.style.height = `${size.height}px`;
+  previewElement.style.maxHeight = 'none';
+  previewElement.style.overflow = 'visible';
+
+  if (previewBody) {
+    previewBody.scrollTop = 0;
+    previewBody.style.height = `${previewBody.scrollHeight}px`;
+    previewBody.style.maxHeight = 'none';
+    previewBody.style.overflow = 'visible';
   }
 
-  return parts;
+  return () => {
+    previewElement.style.width = previousPreviewStyles.width;
+    previewElement.style.height = previousPreviewStyles.height;
+    previewElement.style.maxHeight = previousPreviewStyles.maxHeight;
+    previewElement.style.overflow = previousPreviewStyles.overflow;
+
+    if (previewBody && previousBodyStyles) {
+      previewBody.style.height = previousBodyStyles.height;
+      previewBody.style.maxHeight = previousBodyStyles.maxHeight;
+      previewBody.style.overflow = previousBodyStyles.overflow;
+      previewBody.scrollTop = previousBodyScrollTop;
+    }
+  };
 }
 
-function renderMaterial(material: ExportLayerMaterialSummary, x: number, y: number): string[] {
-  return [
-    text(`${material.assetName} · x${material.count}`, x, y, 14, '#231f1a', 800),
-  ];
+function getPreviewBody(previewElement: HTMLElement): HTMLElement | null {
+  return previewElement.querySelector<HTMLElement>('.export-preview__body');
 }
 
-function renderSkill(skill: ExportSkillSummary | ExportLayerSkillSummary, x: number, y: number): string[] {
-  return [
-    text(`${skill.skillType} · x${'count' in skill ? skill.count : skill.totalCount}`, x, y, 14, '#355ec9', 800),
-  ];
-}
-
-function getOverallHeight(summary: ImageExportSummary): number {
-  const materialHeight = summary.overallMaterials.length === 0
-    ? 24
-    : summary.overallMaterials.length * 24;
-  const skillHeight = summary.overallSkills.length === 0
-    ? 0
-    : 8 + 24 + summary.overallSkills.length * getSkillHeight();
-
-  return Math.max(88, 52 + materialHeight + skillHeight);
-}
-
-function getLayerHeight(layer: ImageExportLayerSummary): number {
-  const materialHeight = layer.materials.length === 0
-    ? materialHeaderHeight
-    : layer.materials.reduce((total) => total + getMaterialHeight(), 0);
-  const skillHeight = layer.skills.length === 0
-    ? 0
-    : 32 + layer.skills.length * getSkillHeight();
-
-  return Math.max(layerMinimumHeight, layerHeaderHeight + materialHeight + skillHeight + 24);
-}
-
-function getMaterialHeight(): number {
-  return materialHeaderHeight + 10;
-}
-
-function getSkillHeight(): number {
-  return 26;
-}
-
-function sectionFrame(x: number, y: number, width: number, height: number): string {
-  return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="10" fill="#ffffff" stroke="#d8cfc2" stroke-width="1"/>`;
-}
-
-function text(value: string, x: number, y: number, size: number, fill: string, weight: number): string {
-  return `<text x="${x}" y="${y}" fill="${fill}" font-family="Arial, sans-serif" font-size="${size}" font-weight="${weight}">${escapeXml(value)}</text>`;
+function shouldIncludeInImageExport(domNode: HTMLElement): boolean {
+  return !(domNode instanceof HTMLElement) || domNode.dataset.imageExportExclude !== 'true';
 }
 
 function toExportFileBaseName(sceneName: string): string {
@@ -213,14 +136,4 @@ function toExportFileBaseName(sceneName: string): string {
     .replace(/^-+|-+$/g, '');
 
   return normalizedName || 'pokopia-scene';
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
