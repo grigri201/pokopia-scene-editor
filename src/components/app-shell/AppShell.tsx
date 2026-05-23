@@ -49,6 +49,7 @@ import { ExportPreview } from '../export-preview/ExportPreview';
 import { getDefaultBuildingLevelName, localeLabels, locales, t, type Locale } from '../../i18n';
 
 const replacementConfirmationWindowMs = 15_000;
+const toastAutoDismissMs = 3_000;
 
 export function AppShell() {
   const [initialSceneState] = useState(createInitialSceneState);
@@ -64,6 +65,9 @@ export function AppShell() {
   );
   const [autosaveError, setAutosaveError] = useState<string | null>(null);
   const autosaveReadyRef = useRef(false);
+  const recoveryToastTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const recoveryToastStartedAtRef = useRef(0);
+  const recoveryToastRemainingMsRef = useRef(toastAutoDismissMs);
   const pendingSelectionMeasureRef = useRef<string | null>(null);
   const selectionMeasureCounterRef = useRef(0);
   const replacementConfirmationExpiresAtRef = useRef(0);
@@ -123,6 +127,46 @@ export function AppShell() {
   const dispatch = (action: SceneAction) => {
     const nextScene = sceneReducer(scene, action);
     commitSceneEdit(nextScene);
+  };
+
+  const clearRecoveryToastTimer = () => {
+    if (!recoveryToastTimerRef.current) {
+      return;
+    }
+
+    window.clearTimeout(recoveryToastTimerRef.current);
+    recoveryToastTimerRef.current = null;
+  };
+
+  const dismissRecoveryToast = () => {
+    clearRecoveryToastTimer();
+    recoveryToastRemainingMsRef.current = toastAutoDismissMs;
+    setRecoveryErrors([]);
+    setRecoveryStatus('idle');
+  };
+
+  const startRecoveryToastTimer = (delayMs = recoveryToastRemainingMsRef.current) => {
+    clearRecoveryToastTimer();
+    recoveryToastStartedAtRef.current = Date.now();
+    recoveryToastTimerRef.current = window.setTimeout(dismissRecoveryToast, delayMs);
+  };
+
+  const pauseRecoveryToastTimer = () => {
+    if (recoveryStatus === 'idle' || !recoveryToastTimerRef.current) {
+      return;
+    }
+
+    const elapsedMs = Date.now() - recoveryToastStartedAtRef.current;
+    recoveryToastRemainingMsRef.current = Math.max(0, recoveryToastRemainingMsRef.current - elapsedMs);
+    clearRecoveryToastTimer();
+  };
+
+  const resumeRecoveryToastTimer = () => {
+    if (recoveryStatus === 'idle' || recoveryToastTimerRef.current) {
+      return;
+    }
+
+    startRecoveryToastTimer(recoveryToastRemainingMsRef.current);
   };
 
   useEffect(() => {
@@ -208,6 +252,18 @@ export function AppShell() {
       setAutosaveError('Autosave failed. Your latest edits are not stored locally.');
     }
   }, [isReadOnly, scene]);
+
+  useEffect(() => {
+    if (recoveryStatus === 'idle') {
+      clearRecoveryToastTimer();
+      return undefined;
+    }
+
+    recoveryToastRemainingMsRef.current = toastAutoDismissMs;
+    startRecoveryToastTimer();
+
+    return clearRecoveryToastTimer;
+  }, [recoveryStatus]);
 
   useEffect(() => {
     const measureId = pendingSelectionMeasureRef.current;
@@ -898,6 +954,10 @@ export function AppShell() {
             aria-live={recoveryStatus === 'error' ? 'assertive' : 'polite'}
             aria-label={t(locale, 'recoveryToast')}
             data-recovery-status={recoveryStatus}
+            onMouseEnter={pauseRecoveryToastTimer}
+            onMouseLeave={resumeRecoveryToastTimer}
+            onFocus={pauseRecoveryToastTimer}
+            onBlur={resumeRecoveryToastTimer}
           >
             <div className="recovery-toast__header">
               <div>
@@ -905,16 +965,21 @@ export function AppShell() {
                 <h2>{getRecoveryStatusTitle(recoveryStatus, locale)}</h2>
                 <p>{getRecoveryStatusMessage(recoveryStatus, locale)}</p>
               </div>
-              {recoveryStatus === 'error' ? (
-                <div className="recovery-toast__actions" aria-label={t(locale, 'recoveryActions')}>
-                  <button type="button" onClick={retrySceneRecovery}>
-                    {t(locale, 'retry')}
-                  </button>
-                  <button type="button" onClick={cancelSceneRecovery}>
-                    {t(locale, 'cancel')}
-                  </button>
-                </div>
-              ) : null}
+              <div className="recovery-toast__actions" aria-label={t(locale, 'recoveryActions')}>
+                {recoveryStatus === 'error' ? (
+                  <>
+                    <button type="button" onClick={retrySceneRecovery}>
+                      {t(locale, 'retry')}
+                    </button>
+                    <button type="button" onClick={cancelSceneRecovery}>
+                      {t(locale, 'cancel')}
+                    </button>
+                  </>
+                ) : null}
+                <button type="button" onClick={dismissRecoveryToast}>
+                  {t(locale, 'close')}
+                </button>
+              </div>
             </div>
             {recoveryStatus === 'error' ? (
               <ul className="recovery-toast__errors" aria-label={t(locale, 'recoveryDetails')}>

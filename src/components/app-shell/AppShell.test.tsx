@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { toBlob } from 'html-to-image';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultSceneDocument, createTileInstance } from '../../domain/scene';
@@ -32,6 +32,7 @@ describe('AppShell scene storage integration', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     window.localStorage.clear();
@@ -135,6 +136,60 @@ describe('AppShell scene storage integration', () => {
       '导入字符串无效',
     );
     expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'error');
+  });
+
+  it('auto-dismisses recovery toast after three seconds', () => {
+    vi.useFakeTimers();
+    vi.spyOn(window, 'prompt').mockReturnValue('bad-code');
+
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+
+    expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'error');
+
+    act(() => {
+      vi.advanceTimersByTime(3_000);
+    });
+
+    expect(screen.queryByLabelText('Recovery toast')).not.toBeInTheDocument();
+  });
+
+  it('pauses recovery toast auto-dismiss while hovered', () => {
+    vi.useFakeTimers();
+    vi.spyOn(window, 'prompt').mockReturnValue('bad-code');
+
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+    const toast = screen.getByLabelText('Recovery toast');
+
+    fireEvent.mouseEnter(toast);
+    act(() => {
+      vi.advanceTimersByTime(3_000);
+    });
+    expect(screen.getByLabelText('Recovery toast')).toBeVisible();
+
+    fireEvent.mouseLeave(toast);
+    act(() => {
+      vi.advanceTimersByTime(2_999);
+    });
+    expect(screen.getByLabelText('Recovery toast')).toBeVisible();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.queryByLabelText('Recovery toast')).not.toBeInTheDocument();
+  });
+
+  it('closes recovery toast immediately from the close button', () => {
+    vi.spyOn(window, 'prompt').mockReturnValue('bad-code');
+
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+    const toast = screen.getByLabelText('Recovery toast');
+
+    fireEvent.click(within(toast).getByRole('button', { name: '关闭' }));
+
+    expect(screen.queryByLabelText('Recovery toast')).not.toBeInTheDocument();
   });
 
   it('opens an image export preview instead of downloading SceneDocument JSON', () => {
