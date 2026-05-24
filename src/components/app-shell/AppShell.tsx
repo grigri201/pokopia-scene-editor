@@ -880,10 +880,14 @@ export function AppShell() {
         inert={exportPreviewOpen ? true : undefined}
         aria-hidden={exportPreviewOpen ? true : undefined}
       >
-        <div className="app-brand" aria-label="Pokopia Scene Editor">
-          <span className="app-brand__mark" aria-hidden="true">P</span>
-          <span>Pokopia Scene Editor</span>
-        </div>
+        <a
+          className="app-brand"
+          href="https://www.pokokit.com"
+          aria-label="pokokit Scene Editor"
+        >
+          <span className="app-brand__pokokit">pokokit</span>
+          <span>Scene Editor</span>
+        </a>
         <div className="app-header__actions" aria-label="Scene file actions">
           {!isReadOnly ? (
             <>

@@ -38,6 +38,15 @@ describe('AppShell scene storage integration', () => {
     window.localStorage.clear();
   });
 
+  it('links the header brand back to pokokit', () => {
+    render(<AppShell />);
+
+    expect(screen.getByRole('link', { name: 'pokokit Scene Editor' })).toHaveAttribute(
+      'href',
+      'https://www.pokokit.com',
+    );
+  });
+
   it('autosaves the editable Open Design scene and restores it after remount', async () => {
     const { unmount } = render(<AppShell />);
     const exportButton = screen.getByRole('button', { name: '下载预览' });
