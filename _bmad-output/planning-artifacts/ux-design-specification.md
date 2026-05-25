@@ -56,6 +56,12 @@ pokopia-scene-editor 是一个面向 Pokopia 布景创作者的结构化 5×5 �
 
 导出预览和下载不得修改当前场景、不得触发 autosave、不得写入 saved storage 或 UI preferences。导入、JSON 文件导出/导入、分享链接、云同步、账号、公开方案库和在线发布仍为 Post-MVP 或 out of scope。
 
+### Approved Course Correction - 2026-05-25
+
+本 UX 规格已按 `sprint-change-proposal-2026-05-25.md` 增加 Worker、MCP 和 Codex skill 的 developer/agent workflow。当前终端用户工作台不新增 API console、登录、云保存、分享链接或服务端图片生成入口；现有图片导出预览和下载仍是浏览器内体验。
+
+仓库结构将按 pnpm workspace monorepo 调整：现有 React 浏览器 UI 归入 `apps/web/src/`，只把可脱离 DOM/React/localStorage 的领域规则抽取到 `packages/scene-core/`；`apps/worker/` 和 Codex skill 只提供工具化调用面。任何 agent-facing 输出必须服务布景校验、恢复、素材查询和导出摘要等具体任务，而不是把底层 API 噪音暴露给用户。
+
 ### Target Users
 
 目标用户包括 Pokopia 布景创作者和素材库维护者。布景创作者需要把灵感或搭建方案整理成可复现、可继续编辑、可分享的数据；素材库维护者需要维护素材名称、分类、标签、适用区域、技能需求、缩略图和筛选信息，让创作者能快速找到正确素材。
@@ -551,7 +557,16 @@ flowchart TD
 **Anatomy:** 图片标题区、整体素材清单、逐层图形、逐层素材清单、下载图片、关闭、生成失败提示。
 **States:** 预览生成中、预览有效、预览失败、下载成功、下载失败、空层。
 **Accessibility:** 下载图片、关闭和失败提示必须有可访问名称；素材清单和层标题应有可读文本结构。
-**Interaction Behavior:** 预览和下载从当前 scene 派生，不覆盖当前场景，不触发 autosave，不写入 saved storage 或 UI preferences。
+**Interaction Behavior:** 预览和下载从当前 scene 派生，不覆盖当前场景，不触发 autosave，不写入 saved storage 或 UI preferences。后端 Worker 可以为 API/MCP/Codex 返回同语义的 export summary JSON，但第一阶段不替代浏览器内图片预览和下载。
+
+#### Developer / Agent Workflow Surface
+
+**Purpose:** 让 Codex、MCP 客户端和开发者通过高语义工具调用 Scene Editor 的权威领域能力。
+**Usage:** Codex skill 或 MCP 客户端调用 `generate_scene_document`、`validate_scene_document`、`recover_scene_document`、`summarize_scene_export` 和 `search_pokopia_assets`。
+**Anatomy:** 任务名、输入 schema、结构化结果、错误列表、warnings、schema/catalog/service version、可执行修复建议。
+**States:** 工具可用、输入无效、校验失败、可恢复、摘要生成成功、素材查询无结果、服务不可用。
+**Accessibility:** 面向 agent 的文本结果应简短、可扫描，并保留字段路径和用户可执行动作；不得要求人阅读完整 raw JSON 才能理解结果。
+**Interaction Behavior:** Agent-facing 工具不得复制业务规则，不得机械暴露所有 HTTP endpoints，不得保存用户 scene。Codex skill 只组织 workflow 和解释 MCP 结果。
 
 ### Component Implementation Strategy
 
@@ -635,6 +650,8 @@ MVP 使用单页工作台，不使用多页面导航完成核心编辑。用户�
 弹窗只用于必须暂停用户的场景：删除非空建筑层、未来导入替换当前场景、恢复错误详情，以及图片导出预览。普通属性编辑、技能切换、旋转和预览切换不使用弹窗。
 
 图片导出预览可以使用 modal 或轻量 overlay，因为它是一次性确认和下载流程。该 overlay 不得遮挡或修改 underlying scene state；关闭后用户回到原工作台上下文。普通编辑、预览切换和属性修改仍不使用弹窗。
+
+Worker、MCP 和 Codex skill 不应在终端用户工作台中引入新的 modal 或配置面板。服务不可用、MCP 调用失败或 skill 调用失败只影响 developer/agent workflow，不应阻断浏览器本地编辑、自动保存、恢复和图片下载。
 
 上下文操作条用于选中实例后的快捷动作，例如旋转、删除、切换技能标记、移动建筑层。上下文操作条应靠近画布或属性面板，但不能遮挡关键格子状态。
 

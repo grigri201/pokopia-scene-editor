@@ -13,6 +13,8 @@ inputDocuments:
   - _bmad-output/planning-artifacts/prd-validation-report.md
   - _bmad-output/planning-artifacts/ux-design-specification.md
   - _bmad-output/planning-artifacts/ux-design-directions.html
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-25.md
+  - _bmad-output/planning-artifacts/research/technical-pokopia-scene-editor-cloudflare-worker-mcp-server-codex-skill-research-2026-05-25.md
   - docs/需求文档.md
 workflowType: 'architecture'
 project_name: 'pokopia-scene-editor'
@@ -20,12 +22,12 @@ user_name: 'Grigri'
 date: '2026-05-15'
 lastStep: 8
 status: 'complete'
-completedAt: '2026-05-15'
+completedAt: '2026-05-26'
 documentCounts:
   productBriefs: 0
   prd: 1
   uxDesign: 2
-  research: 0
+  research: 1
   projectDocs: 1
   projectContext: 0
 ---
@@ -38,7 +40,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 我已审阅 `pokopia-scene-editor` 的 PRD、PRD 验证报告、UX 设计规格、UX 方向稿和原始需求文档。
 
-当前发现 64 条 Functional Requirements，主要分为：
+当前架构基线覆盖 77 条 Functional Requirements，主要分为：
 
 - Scene & Canvas Model：固定 7x7 实际编辑画布、中心 5x5 主体区、外围 1 圈装饰区、0-based 坐标和区域识别。
 - Open Design Workbench Context：顶部 Pokemon/场景名/保存状态、右侧浮动素材栏、中央 7x7 画布、左侧建筑层面板和左下双预览检查器。
@@ -49,6 +51,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - Preview：左下 Preview Inspector 同屏展示俯视图和正视图、完整 7x7 展示、主体边界、当前层/全部可见层、网格和技能标记开关。
 - Properties, Save & Recovery：上下文/检查器字段、保存/自动保存、重新打开、恢复校验、SceneDocument 序列化和字段级错误提示；显式 JSON 导出/导入 UI 后置。
 - Image Export：从 SceneDocument、asset catalog 和 preview/export selectors 派生图片导出摘要、导出预览和图片下载；不修改 scene，不写入 storage。
+- Scene Worker, MCP & Codex Skill：pnpm workspace monorepo、共享 `scene-core`、无状态 Cloudflare Worker HTTP API、Streamable HTTP MCP server、repo-scoped Codex skill 和 Worker/MCP/skill release gates。
 
 ### Approved Course Correction - 2026-05-19
 
@@ -72,7 +75,15 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 `SceneDocument`、asset catalog 和 preview/export selectors 是图片导出的唯一业务数据源。图片导出不得维护第二套业务状态，不得修改 `SceneDocument`，不得触发 autosave，不得写入 `pokopia.sceneDocument.v1` 或 `pokopia.sceneDocument.autosave.v1`。当前不引入导入、JSON export UI、server route、auth、cloud storage、share URL、账号或在线发布。
 
-另有 30 条 Non-Functional Requirements，核心架构约束包括：
+### Approved Course Correction - 2026-05-25
+
+本 Architecture 已按 `sprint-change-proposal-2026-05-25.md` 增加 Epic 7 服务化边界。已完成的 MVP 仍保持浏览器客户端优先；新增工作是把可脱离 DOM、React 和 localStorage 的领域能力抽取到共享 `packages/scene-core`，并通过 pnpm workspace monorepo 中的 `apps/web`、`apps/worker` 和 repo-scoped Codex skill 共同复用。
+
+目标目录结构改为 monorepo：现有前端 UI 从根目录迁入 `apps/web/src/`；Cloudflare Worker HTTP API 和 Streamable HTTP MCP server 放入 `apps/worker/`；共享领域逻辑放入 `packages/scene-core/`。根 `package.json` 只做 pnpm workspace orchestration，Wrangler 部署命令通过 `pnpm run worker:*` 和 `pnpm run deploy` 暴露。
+
+Worker 第一阶段无状态，不引入数据库、账号、云保存、分享链接、在线发布或服务端图片生成。`apps/worker` 只做 HTTP/MCP adapter、request parsing、result envelope、cache/header/security/logging 和 Wrangler 配置；不得重新实现 scene 业务规则。`packages/scene-core` 不得依赖 React、DOM、localStorage、Worker runtime 或 UI components。
+
+另有 36 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
 - 预览切换需要在 300ms 内完成首个可见更新；素材搜索筛选 1000 个素材以内需要在 200ms 内返回可见结果。
@@ -87,6 +98,7 @@ Open Design UI 确认了新的工作台形态。架构上应支持一个桌面�
 关键架构结论：
 
 - MVP 应采用客户端优先架构，先完成本地场景编辑、保存/自动保存、序列化、恢复和图片导出闭环；显式 JSON 导出/导入 UI、账号、云同步、协作、公开方案库、在线发布和分享链接不进入当前 backlog。
+- Epic 7 采用 pnpm workspace monorepo + Cloudflare Workers static assets：`apps/web` 仍承载浏览器编辑器，`apps/worker` 承载 `/api/*` 与 `/mcp`，`packages/scene-core` 承载共享领域规则。
 - Scene document 必须是编辑数据的单一事实来源。画布、上下文/检查器字段、建筑层列表、预览和保存/恢复校验不得维护互相分叉的业务状态。
 - 所有会修改 scene document 的行为都应经过统一 command 层，便于只读模式、校验、自动保存和自动化测试；MVP 不提供撤销/重做。
 - `<768px` 的只读边界不能只靠隐藏按钮实现；command 层、canvas pointer handler 和 keyboard handler 都必须检查 `interactionMode`。
@@ -94,7 +106,7 @@ Open Design UI 确认了新的工作台形态。架构上应支持一个桌面�
 - 正视图在 MVP 中应是结构化高度关系预览，不做真实游戏视角和复杂遮挡模拟。
 - 素材库在 MVP 中可以使用静态/本地数据源，但数据结构必须支持官方素材 ID、Pokemon 喜好、可染色性、后续批量导入、模板、更多技能类型和更大画布扩展。
 
-项目复杂度判断：低到中等。没有后端、账号、实时协作、监管合规或复杂基础设施，但编辑状态一致性、结构化数据可复现、只读模式权限边界、可访问性和素材列表性能需要明确架构约束。
+项目复杂度判断：中等。已完成 MVP 没有账号、实时协作、监管合规或复杂持久化基础设施，但 Epic 7 新增 monorepo、Worker API、MCP、Codex skill、Wrangler 部署、bundle 边界和日志/安全约束，需要更严格的模块边界和 release gate。
 
 ## Starter Template Evaluation
 
@@ -173,13 +185,10 @@ starter 不默认包含完整测试栈。后续实施应补充：
 
 初始化后应采用 feature/domain 分层，而不是把逻辑集中在单个 `App.tsx`：
 
-- `src/domain/scene/`：scene document 类型、area 计算、building level 规则、tile instance 规则。
-- `src/domain/assets/`：asset catalog 类型、搜索筛选、适用区域展示/筛选元数据和默认技能规则。
-- `src/state/`：scene state、command dispatch、autosave state、interactionMode。
-- `src/components/`：Scene Canvas、Asset Picker、Building Level Panel、Selection Inspector、Preview Inspector、Pokemon Scene Controls、Recovery Validator。
-- `src/io/`：scene storage、scene serialization、schema validation、safe text handling。
-- `src/theme/`：动态宝可梦主题 tokens 和语义色 tokens。
-- `src/tests/` 或 colocated tests：领域规则、组件行为和 command guard 测试。
+- `apps/web/src/`：React browser UI、scene state、command dispatch、autosave state、interactionMode、components、theme、browser-only IO 和 web tests。
+- `packages/scene-core/src/`：scene document 类型、area/level/tile 规则、asset catalog 查询、schema、serializer/recovery、selectors、short code codec、export summary JSON 和 shared tests。
+- `apps/worker/src/`：HTTP routes、MCP handler、result envelope、request limits、headers/cache、redacted logging 和 Worker tests。
+- `.agents/skills/pokopia-scene-worker/`：Codex skill workflow、examples 和 MCP dependency。
 
 **Development Experience**
 
@@ -191,7 +200,7 @@ Vite 提供快速 dev server、HMR、TypeScript/JSX 支持和静态构建。第�
 
 **Critical Decisions (Block Implementation)**
 
-- MVP 采用客户端优先静态 Web App，不引入数据库、认证、后端 API 或服务端运行时。
+- 已完成 MVP 采用客户端优先静态 Web App；Epic 7 批准新增 Post-MVP Worker/API/MCP service layer，但仍不引入数据库、认证、云保存、分享链接或服务端图片生成。
 - `SceneDocument` 是唯一业务事实来源；画布、上下文/检查器字段、建筑层列表、预览和保存/恢复校验必须从同一个 scene state 派生。
 - 所有会修改 `SceneDocument` 的行为必须经过 typed command layer，不能由组件直接改写深层 scene object。
 - `<768px` 进入只读模式；只读限制必须在 command layer、canvas pointer handler 和 keyboard handler 三处生效。
@@ -203,7 +212,7 @@ Vite 提供快速 dev server、HMR、TypeScript/JSX 支持和静态构建。第�
 - MVP 状态管理使用 React `useReducer` + command dispatcher，不默认引入 Redux、Zustand 或 undo/redo history。
 - MVP 保存/自动保存使用浏览器本地存储适配层和 SceneDocument 序列化；图片导出预览和图片下载进入当前 backlog，但必须从 SceneDocument v1、asset catalog 和 preview/export selectors 派生；显式 JSON 文件导出/导入 UI 延后到 Post-MVP。
 - 测试栈采用 Vitest、React Testing Library 和 Playwright。
-- 部署目标是静态站点托管，CI 至少包含 typecheck、unit tests、build 和 Playwright smoke。
+- 部署目标从单一静态站点托管演进为 Cloudflare Workers static assets：Worker 处理 `/api/*` 和 `/mcp`，`apps/web/dist` 作为静态 assets；CI 至少包含 typecheck、unit tests、build、Playwright smoke、Worker runtime tests、MCP smoke、`wrangler types` 和 `wrangler types --check`。
 
 **Deferred Decisions (Post-MVP)**
 
@@ -211,7 +220,7 @@ Vite 提供快速 dev server、HMR、TypeScript/JSX 支持和静态构建。第�
 - 图片导出预览和图片文件下载进入当前 backlog，但必须从 SceneDocument v1、asset catalog 和 preview/export selectors 派生，不引入第二套业务状态。
 - Zustand 或其他外部状态库延后。只有当 React reducer + context/selectors 在实际实现中出现明确订阅性能或组件边界问题时再引入。
 - 复杂正视图遮挡、真实游戏视角模拟和更大画布尺寸延后。
-- 多环境后端配置、API rate limiting、server monitoring 和服务端日志延后。
+- 持久化、多环境私有权限、API rate limiting、server monitoring 深度方案和服务端日志分析平台延后；Epic 7 仅要求基础 body limit、redacted logs、structured errors 和 deploy dry-run。
 
 ### Current Version Baseline
 
@@ -296,15 +305,24 @@ MVP schema 固定为 `1`。恢复流程应先读取 `schemaVersion`：
 
 ### API & Communication Patterns
 
-**Decision: MVP has no backend API.**
+**Decision: Completed MVP remains browser-first; Epic 7 adds a Post-MVP Worker/API/MCP service layer.**
 
-核心数据流全部发生在浏览器内：
+已完成 MVP 的核心编辑数据流仍发生在浏览器内：
 
 - scene create/edit：内存 state
 - autosave：serialize `SceneDocument` through local scene storage; image export reads the same scene truth but does not reuse JSON as the user-facing artifact
 - reopen/recover：read autosaved SceneDocument data, parse, validate, then replace state only after success
 - local UI preferences：persist asset search/filter/favorite-only to a separate localStorage namespace, outside `SceneDocument`
 - asset catalog：MVP 使用 repo-local static data 或 bundled JSON/TS data
+
+Epic 7 新增无状态 service layer：
+
+- `packages/scene-core`：共享 `SceneDocument v1` schema、serializer/recovery、short code codec、asset query、selectors、default scene generation 和 export summary JSON。
+- `apps/worker`：Cloudflare Worker HTTP API 和 Streamable HTTP MCP server，复用 `scene-core`。
+- HTTP API：`/api/health`、`/api/scene/generate`、`/api/scene/validate`、`/api/scene/recover`、`/api/scene/export-summary`、`/api/scene/encode`、`/api/scene/decode`、`/api/assets`。
+- MCP tools：`generate_scene_document`、`validate_scene_document`、`recover_scene_document`、`summarize_scene_export`、`search_pokopia_assets`。
+- 统一 result envelope：`{ ok, data?, errors?, warnings?, meta }`，`meta` 至少包含 service/schema/catalog version。
+- 第一阶段不保存用户 scene，不引入账号、权限、云同步、分享链接、在线发布或服务端 PNG 生成。
 
 **Decision: Internal operations use typed Result objects.**
 
@@ -376,22 +394,25 @@ type InteractionMode = "edit" | "readOnly";
 
 ### Infrastructure & Deployment
 
-**Decision: MVP deploys as static assets.**
+**Decision: MVP web deploys as static assets; Epic 7 deploys through Cloudflare Workers static assets.**
 
-Vite production build 输出静态文件。部署可以使用任意静态站点托管，不需要 Node server、database server 或 serverless functions。
+`apps/web` 的 Vite production build 仍输出静态文件。Epic 7 后，`apps/worker/wrangler.toml` 使用 Workers static assets，把 `apps/web/dist` 作为 assets directory；Worker code 服务 `/api/*` 和 `/mcp`，其余 SPA 请求由静态 assets/fallback 处理。
+
+根 `package.json` 作为 pnpm workspace orchestration 层，必须提供 `worker:dev`、`worker:types`、`worker:types:check`、`worker:deploy:dry-run`、`worker:deploy` 和 `deploy` scripts。`apps/worker/package.json` 直接封装 `wrangler dev`、`wrangler types`、`wrangler types --check`、`wrangler deploy --dry-run` 和 `wrangler deploy`。
 
 **Decision: Environment configuration remains minimal.**
 
-MVP 不需要运行时后端 URL、API key 或 secret。若需要配置 public base path、asset base path 或 feature flag，必须使用 Vite public env convention，并且不能包含 secret。
+MVP 不需要运行时后端 URL、API key 或 secret。Epic 7 第一阶段 Worker 仍不需要数据库或私有用户 secret。若后续加入私有 MCP tools、持久化或外部 API，必须先扩展 architecture 和 secret/binding 管理策略。
 
 **Decision: CI quality gate is implementation-critical.**
 
 最小 CI / release gate：
 
-- `npm run typecheck`
-- `npm run test` or `npm run test:unit`
-- `npm run build`
+- `pnpm run typecheck`
+- `pnpm run test`
+- `pnpm run build`
 - Playwright smoke for desktop edit flow and mobile read-only flow
+- Worker runtime tests, MCP smoke, `pnpm run worker:types:check`, and `pnpm run worker:deploy:dry-run`
 
 Playwright 必须覆盖：
 
@@ -405,6 +426,8 @@ Playwright 必须覆盖：
 
 **Implementation Sequence**
 
+Completed MVP baseline sequence:
+
 1. Initialize Vite React TypeScript starter and scripts.
 2. Define domain types and Zod schema for `SceneDocument`, `BuildingLevel`, `TileInstance`, `AssetDefinition` and recovery errors.
 3. Implement pure domain functions: area calculation, level ordering, selected instance lookup and serialization.
@@ -413,6 +436,14 @@ Playwright 必须覆盖：
 6. Add Preview Inspector with top-view and basic front-view derived from level order.
 7. Add Recovery Validator, scene storage/serializer and safe text rendering.
 8. Add responsive read-only mode and Playwright coverage.
+
+Approved Epic 7 implementation sequence:
+
+1. Extract `packages/scene-core` and migrate the existing React app into `apps/web` without regressing browser behavior.
+2. Add `apps/worker` with Cloudflare Workers static assets, HTTP API, unified result envelope, request limits and deploy scripts.
+3. Add Streamable HTTP MCP tools/resources/prompts over the same `scene-core` APIs.
+4. Add `.agents/skills/pokopia-scene-worker/` as a workflow wrapper that calls MCP instead of copying business logic.
+5. Harden release gates with Worker runtime tests, MCP smoke, bundle pollution checks, redacted logging checks, `wrangler types --check` and deploy dry-run.
 
 **Cross-Component Dependencies**
 
@@ -438,7 +469,7 @@ MVP 没有数据库，因此不定义表名、列名、外键或索引命名规�
 
 **API Naming Conventions**
 
-MVP 没有后端 API，因此不定义 REST endpoint、GraphQL schema 或 server route。浏览器内保存/恢复函数使用 `camelCase` 命名，例如：
+已完成 MVP 没有后端 API，因此浏览器内保存/恢复函数使用 `camelCase` 命名，例如：
 
 - `serializeSceneDocument`
 - `parseSceneDocument`
@@ -446,7 +477,9 @@ MVP 没有后端 API，因此不定义 REST endpoint、GraphQL schema 或 server
 - `saveSceneDraft`
 - `recoverSceneDraft`
 
-后续若引入 API，必须先更新 architecture，而不是在 implementation story 中临时发明接口。
+除 Epic 7 已批准的 Worker API/MCP 入口外，后续若再引入新的 API、持久化或权限边界，必须先更新 architecture，而不是在 implementation story 中临时发明接口。
+
+Epic 7 已批准的 HTTP route 使用 kebab-case/resource-task 混合风格，例如 `/api/scene/export-summary`；MCP tool 使用 lower snake case，例如 `validate_scene_document`。HTTP/MCP adapter 名称不得绕过 `packages/scene-core` 直接表达业务实现细节。
 
 **Code Naming Conventions**
 
@@ -464,22 +497,24 @@ MVP 没有后端 API，因此不定义 REST endpoint、GraphQL schema 或 server
 
 实现应按职责分层，不按页面临时堆叠：
 
-- `src/domain/scene/`：scene document 类型、area 计算、level ordering、tile instance 规则。
-- `src/domain/assets/`：asset catalog 类型、搜索筛选、适用区域展示/筛选元数据和默认技能规则。
-- `src/state/`：scene reducer、command dispatcher、autosave state、interaction mode。
-- `src/components/`：React UI 组件。
-- `src/io/`：JSON parse、Zod schema、scene storage、serialization/recovery、safe text handling。
-- `src/theme/`：动态宝可梦主题 tokens、语义色 tokens 和 theme helpers。
-- `src/test/`：测试工具、fixtures、render helpers。
-- `e2e/`：Playwright specs。
+- `apps/web/src/state/`：web scene reducer、command dispatcher、autosave state、interaction mode。
+- `apps/web/src/components/`：React UI 组件。
+- `apps/web/src/io/`：browser-only scene storage、UI preferences、image export/download 和 safe text boundaries。
+- `apps/web/src/theme/`：动态宝可梦主题 tokens、语义色 tokens 和 theme helpers。
+- `apps/web/src/test/`：web 测试工具、fixtures、render helpers。
+- `apps/web/e2e/`：Playwright specs。
+- `packages/scene-core/src/domain/`：scene document 类型、area 计算、level ordering、tile instance 规则。
+- `packages/scene-core/src/assets/`：asset catalog 类型、搜索筛选、适用区域展示/筛选元数据和默认技能规则。
+- `packages/scene-core/src/io/`：shared JSON parse、Zod schema、serialization/recovery 和 short code codec。
+- `apps/worker/src/`：Worker routes、MCP adapter 和 result envelope。
 
 **File Structure Patterns**
 
 - 领域纯函数优先 colocate tests：`area.ts` 与 `area.test.ts`。
 - React 组件优先 colocate component tests：`scene-canvas.tsx` 与 `scene-canvas.test.tsx`。
 - Playwright 测试统一放在 `e2e/*.spec.ts`。
-- fixtures 放 `src/test/fixtures/`，不要散落在组件目录。
-- public/static assets 后续统一放 `public/` 或 `src/assets/`，具体选择由实施 story 根据 Vite handling 决定，但同类资源不得混放。
+- web fixtures 放 `apps/web/src/test/fixtures/`，shared scene fixtures 放 `packages/scene-core/src/test/fixtures/`，不要散落在组件目录。
+- public/static assets 后续统一放 `apps/web/public/` 或 `apps/web/src/assets/`，具体选择由实施 story 根据 Vite handling 决定，但同类资源不得混放。
 - Markdown planning artifacts 保持在 `_bmad-output/`，实现 story 不应修改它们，除非 BMAD workflow 要求。
 
 ### Format Patterns
@@ -586,7 +621,7 @@ MVP 不引入全局 event bus。组件通信走 React props/context + command di
 
 - 不直接 mutate `SceneDocument`；所有业务写操作走 command layer。
 - 不在组件中重复 area、level ordering、preview ordering 或 recovery validation 规则；使用 domain helpers / selectors。
-- 不引入数据库、后端 API、auth、routing 或外部状态库，除非 architecture 先更新。
+- 不引入数据库、auth、routing、外部状态库、云保存或服务端图片生成，除非 architecture 先更新；Epic 7 的后端 API 只允许作为无状态 Worker adapter 调用 `packages/scene-core`。
 - 不把用户文本作为 HTML 渲染。
 - 不绕过 mobile read-only command guard。
 - 新增 command 时同时新增 domain/unit tests。
@@ -644,6 +679,62 @@ if (window.innerWidth < 768) return; // UI-only guard without command guard
 ## Project Structure & Boundaries
 
 ### Complete Project Directory Structure
+
+Approved Epic 7 target structure:
+
+```text
+pokopia-scene-editor/
+├── apps/
+│   ├── web/
+│   │   ├── index.html
+│   │   ├── public/
+│   │   ├── src/
+│   │   │   ├── main.tsx
+│   │   │   ├── App.tsx
+│   │   │   ├── components/
+│   │   │   ├── state/
+│   │   │   ├── theme/
+│   │   │   ├── i18n/
+│   │   │   └── io/
+│   │   │       ├── image-export.ts
+│   │   │       ├── scene-storage.ts
+│   │   │       └── ui-preferences.ts
+│   │   ├── vite.config.ts
+│   │   ├── vitest.config.ts
+│   │   ├── playwright.config.ts
+│   │   ├── tsconfig.json
+│   │   └── package.json
+│   └── worker/
+│       ├── src/
+│       │   ├── index.ts
+│       │   ├── routes/
+│       │   ├── mcp.ts
+│       │   └── api-result.ts
+│       ├── wrangler.toml
+│       ├── tsconfig.json
+│       └── package.json
+├── packages/
+│   └── scene-core/
+│       ├── src/
+│       │   ├── domain/
+│       │   ├── assets/
+│       │   ├── io/
+│       │   ├── export-summary/
+│       │   └── index.ts
+│       ├── package.json
+│       └── tsconfig.json
+├── .agents/
+│   └── skills/
+│       └── pokopia-scene-worker/
+│           └── SKILL.md
+├── pnpm-workspace.yaml
+├── package.json
+├── pnpm-lock.yaml
+├── docs/
+└── _bmad-output/
+```
+
+The pre-Epic-7 single-app tree below is retained as historical MVP context and is superseded for all new Worker/MCP/skill work:
 
 ```text
 pokopia-scene-editor/
@@ -757,7 +848,13 @@ pokopia-scene-editor/
 
 **API Boundaries**
 
-MVP 没有后端 API。所有 scene create/edit/save/recover/serialize 操作都在浏览器内完成。任何 story 不得新增 server route、server action、database client、auth middleware 或 remote API contract，除非 architecture 先更新。
+已完成 MVP 没有后端 API；所有 scene create/edit/save/recover/serialize 操作都可以继续在浏览器内完成。Epic 7 批准新增 `apps/worker`，但其 API/MCP 只能调用 `packages/scene-core` 中的纯领域能力，不得保存用户 scene，不得引入数据库、auth middleware、账号、云同步或公开发布。
+
+`apps/worker` 允许的公开入口：
+
+- HTTP API under `/api/*`
+- Streamable HTTP MCP under `/mcp`
+- Static assets fallback for `apps/web/dist`
 
 **Component Boundaries**
 
@@ -776,37 +873,40 @@ React components 负责 UI rendering、local UI state 和 dispatching commands�
 
 **Service Boundaries**
 
-MVP 不使用 service/repository/database layer。跨组件业务操作统一集中到 `src/state/scene-commands.ts` 和 `src/domain/*`。如果后续出现重复 async orchestration，再提取 service，但不得在 MVP story 中预先创建空 service 层。
+MVP web app 不使用 service/repository/database layer。跨组件业务操作统一集中到 web state/command 层和 shared domain helpers。Epic 7 新增 service boundary 只存在于 `apps/worker` adapter 层；业务规则必须下沉到 `packages/scene-core`，不得在 Worker routes、MCP tools 或 Codex skill 中复制。
 
 **Data Boundaries**
 
-- `src/domain/*` 定义业务规则和 selector。
-- `src/state/*` 是唯一 scene write boundary。
-- `src/io/*` 是 JSON serialization、local scene storage、recovery 和 schema validation boundary。
-- `src/components/*` 只消费 state、selectors、command dispatcher 和 view options。
-- `src/theme/*` 只处理视觉 tokens，不参与 scene business rules。
+- `packages/scene-core/src/*` 定义可共享的业务规则、SceneDocument schema、serializer/recovery、selectors、asset filtering、default scene generation 和 export summary JSON。
+- `apps/web/src/state/*` 是浏览器 UI 的 scene write boundary。
+- `apps/web/src/io/*` 保留浏览器专属 IO，例如 localStorage scene storage、UI preferences 和 `html-to-image` 图片下载。
+- `apps/web/src/components/*` 只消费 state、selectors、command dispatcher 和 view options。
+- `apps/web/src/theme/*` 只处理视觉 tokens，不参与 scene business rules。
+- `apps/worker/src/*` 只做 HTTP/MCP adapter、request validation、result envelope、headers/cache、安全和日志脱敏。
 
 ### Requirements to Structure Mapping
 
 **Feature Mapping**
 
-- FR1-FR7 Scene & Canvas Model：`src/domain/scene/types.ts`、`area.ts`、`selectors.ts`、`components/scene-canvas/`。
-- FR8-FR18 Asset Placement & Editing：`src/domain/scene/tiles.ts`、`src/state/scene-commands.ts`、`components/scene-canvas/`、`components/selection-inspector/`；FR13/14/15/17/18 已从 MVP 删除。
-- FR19-FR27 Building Level Management：`src/domain/scene/levels.ts`、`src/state/scene-commands.ts`、`components/building-level-panel/`；FR25/26 已从 MVP 删除。
-- FR28-FR35 and FR59 Asset Catalog & Selection：`src/domain/assets/types.ts`、`catalog.ts`、`filters.ts`、`components/asset-picker/`。
-- FR36-FR40 and FR60-FR62 Ditto Skill / Instance Visual State：`src/state/scene-commands.ts`、`src/domain/scene/tiles.ts`、`components/selection-inspector/`、`components/scene-canvas/`。
-- FR41-FR47 and FR63 Preview：`src/domain/scene/selectors.ts`、`components/preview-inspector/`、`components/scene-canvas/`；FR43/47 已从 MVP 删除。
-- FR48-FR49 Properties：`components/selection-inspector/`、`src/domain/scene/selectors.ts`、`src/state/scene-commands.ts`。
-- FR50-FR55 Save & Recovery：`src/io/scene-schema.ts`、`scene-serializer.ts`、`scene-storage.ts`、`recover-scene.ts`、`components/recovery-validator/`。
-- FR56-FR58 Open Design Workbench Context：`components/app-shell/`、`components/pokemon-scene-controls/`、`src/theme/`、`src/state/scene-state.ts`。
+- FR1-FR7 Scene & Canvas Model：`packages/scene-core/src/domain/scene/`、`apps/web/src/components/scene-canvas/`。
+- FR8-FR18 Asset Placement & Editing：`packages/scene-core/src/domain/scene/`、`apps/web/src/state/`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/selection-inspector/`；FR13/14/15/17/18 已从 MVP 删除。
+- FR19-FR27 Building Level Management：`packages/scene-core/src/domain/scene/levels.ts`、`apps/web/src/state/`、`apps/web/src/components/building-level-panel/`；FR25/26 已从 MVP 删除。
+- FR28-FR35 and FR59 Asset Catalog & Selection：`packages/scene-core/src/assets/`、`apps/web/src/components/asset-picker/`。
+- FR36-FR40 and FR60-FR62 Ditto Skill / Instance Visual State：`apps/web/src/state/`、`packages/scene-core/src/domain/scene/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/scene-canvas/`。
+- FR41-FR47 and FR63 Preview：`packages/scene-core/src/domain/scene/selectors.ts`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/scene-canvas/`；FR43/47 已从 MVP 删除。
+- FR48-FR49 Properties：`apps/web/src/components/selection-inspector/`、`packages/scene-core/src/domain/scene/selectors.ts`、`apps/web/src/state/`。
+- FR50-FR55 Save & Recovery：`packages/scene-core/src/io/scene-schema.ts`、`scene-serializer.ts`、`recover-scene.ts`、`apps/web/src/io/scene-storage.ts`、`apps/web/src/components/recovery-validator/`。
+- FR56-FR58 Open Design Workbench Context：`apps/web/src/components/app-shell/`、`apps/web/src/components/pokemon-scene-controls/`、`apps/web/src/theme/`、`apps/web/src/state/`。
+- FR69-FR77 Scene Worker, MCP & Codex Skill：`packages/scene-core/`、`apps/worker/src/routes/`、`apps/worker/src/mcp.ts`、`.agents/skills/pokopia-scene-worker/`、root `package.json` pnpm scripts、`pnpm-workspace.yaml` 和 `apps/worker/wrangler.toml`。
 
 **Cross-Cutting Concerns**
 
-- Single source of truth：`src/state/scene-state.ts`、`scene-reducer.ts`、selectors。
-- Mobile read-only：`src/state/interaction-mode.ts`、`scene-commands.ts`、canvas handlers、`e2e/mobile-readonly.spec.ts`。
-- Safe text rendering：`src/io/safe-text.ts`、React text rendering conventions、`src/test/fixtures/unsafe-text.ts`、`e2e/unsafe-text.spec.ts`。
+- Single source of truth：`apps/web/src/state/scene-state.ts`、`scene-reducer.ts`、`packages/scene-core` selectors。
+- Mobile read-only：`apps/web/src/state/interaction-mode.ts`、scene commands、canvas handlers、`apps/web/e2e/mobile-readonly.spec.ts`。
+- Safe text rendering：`apps/web/src/io/safe-text.ts` 或 shared safe-text helper、React text rendering conventions、web/shared unsafe text fixtures、`apps/web/e2e/unsafe-text.spec.ts`。
 - Accessibility：component tests for accessible names, Playwright smoke across desktop/mobile.
-- Performance：domain selectors kept pure and memoizable; asset filtering in `src/domain/assets/filters.ts`; virtualization/pagination added inside `asset-picker/` only when implementation requires it.
+- Performance：domain selectors kept pure and memoizable in `packages/scene-core`; asset filtering lives in `packages/scene-core/src/assets/filters.ts`; virtualization/pagination added inside `apps/web/src/components/asset-picker/` only when implementation requires it.
+- Service safety：Worker body limits, redacted logs, no raw scene payload logging, no React/DOM dependencies in Worker bundle, and `wrangler types --check` in release gate.
 
 ### Integration Points
 
@@ -822,13 +922,19 @@ View-only state such as hover cell, selected panel tab, zoom/pan, asset search/f
 
 **External Integrations**
 
-MVP has no external service integrations. Browser APIs used:
+MVP web app has no required external service integrations. Browser APIs used:
 
 - localStorage or equivalent local scene storage adapter for MVP autosave and reopen.
 - localStorage UI-preferences namespace for asset search/filter/favorite-only; this namespace is explicitly outside SceneDocument.
 - File input / drag-and-drop for future explicit import, outside current MVP UI.
 - Canvas/SVG/Blob URL/download for current image export, browser-only and outside any backend integration.
 - `matchMedia` or resize observation for interaction mode, routed through a shared `interaction-mode` helper.
+
+Epic 7 external integrations:
+
+- Cloudflare Workers static assets for serving `apps/web/dist` plus `/api/*` and `/mcp`.
+- Wrangler CLI for local Worker dev, generated types, deploy dry-run and deploy.
+- MCP clients/Codex connect to the Streamable HTTP MCP endpoint; Codex skill uses MCP and does not implement business logic itself.
 
 **Data Flow**
 
@@ -869,60 +975,71 @@ Image export download
 UI preference change
         -> localStorage UI-preferences namespace
         -> no SceneDocument mutation
+
+Worker API / MCP
+        -> request payload
+        -> adapter validation and body limit
+        -> packages/scene-core pure function
+        -> result envelope / MCP tool result
+        -> no user scene persistence and no raw payload logging
 ```
 
 ### File Organization Patterns
 
 **Configuration Files**
 
-- `package.json` owns scripts and dependencies.
-- `vite.config.ts` owns Vite build/dev configuration.
-- `vitest.config.ts` owns unit/component test configuration.
-- `playwright.config.ts` owns browser/e2e projects and web server startup.
-- `tsconfig*.json` keeps app/node/test TypeScript boundaries.
+- Root `package.json` owns pnpm workspace orchestration scripts only.
+- `pnpm-workspace.yaml` declares `apps/*` and `packages/*`.
+- `apps/web/package.json` owns React/Vite UI dependencies and web scripts.
+- `apps/web/vite.config.ts`, `vitest.config.ts`, `playwright.config.ts` and `tsconfig*.json` own web app build/test config.
+- `apps/worker/package.json` owns Worker/MCP/Wrangler dependencies and scripts.
+- `apps/worker/wrangler.toml` owns Cloudflare Worker config and static assets binding to `../web/dist`.
+- `packages/scene-core/package.json` and `tsconfig.json` own shared domain package build/test config.
 
 **Source Organization**
 
-Domain modules must not import React. State modules may import domain and io types, but should avoid importing components. Components can import domain selectors and state dispatcher hooks. IO can import domain types and Zod schemas, but not components.
+Shared domain modules must not import React, DOM APIs, localStorage, Worker runtime or UI components. Web state modules may import `packages/scene-core` and browser IO types, but should avoid importing components. Components can import shared selectors and state dispatcher hooks. Worker adapter code can import `packages/scene-core`, but cannot import `apps/web/src/*`.
 
 Allowed dependency direction:
 
 ```text
-components -> state -> domain
-components -> theme
-components -> io only for save/recovery UI
-state -> domain
-state -> io types/results where needed
-io -> domain
-theme -> no business imports
-domain -> no React, no DOM, no components
+apps/web/components -> apps/web/state -> packages/scene-core
+apps/web/components -> apps/web/theme
+apps/web/components -> apps/web/io only for browser save/recovery/export UI
+apps/web/state -> packages/scene-core
+apps/web/io -> packages/scene-core
+apps/worker -> packages/scene-core
+.agents/skills/pokopia-scene-worker -> MCP tools only
+packages/scene-core -> no React, no DOM, no Worker runtime, no app imports
 ```
 
 **Test Organization**
 
 - Unit tests colocate with domain/state/io files.
 - Component tests colocate with component files.
-- Shared fixtures live in `src/test/fixtures/`.
-- Playwright tests live in `e2e/`.
+- Shared scene-core fixtures live in `packages/scene-core/src/test/fixtures/`.
+- Web component fixtures live in `apps/web/src/test/fixtures/`.
+- Playwright tests live under `apps/web/e2e/` or another web-owned e2e folder declared by `apps/web/playwright.config.ts`.
+- Worker runtime and MCP smoke tests live under `apps/worker/src/` or `apps/worker/test/`.
 - New domain rule, command, schema field or recovery error requires tests in the same story.
 
 **Asset Organization**
 
-MVP sample/static images should live in `public/assets/` when they are directly URL-addressed. If assets are imported by TypeScript and bundled, place them under `src/assets/`. A story must choose one approach for a given asset family and keep it consistent.
+MVP sample/static images should live in `apps/web/public/assets/` when they are directly URL-addressed. If assets are imported by TypeScript and bundled, place them under `apps/web/src/assets/`. Shared catalog metadata needed by Worker must live in `packages/scene-core` or be generated into that package without importing browser-only assets.
 
 ### Development Workflow Integration
 
 **Development Server Structure**
 
-Vite serves `index.html` and `src/main.tsx`. Local development starts the SPA with `npm run dev`. The app should not require backend services for MVP.
+`apps/web` Vite serves `apps/web/index.html` and `apps/web/src/main.tsx`. Local web development starts with `pnpm run dev` at the root, delegating to `pnpm --filter @pokopia-scene-editor/web dev`. Worker development starts with `pnpm run worker:dev`, delegating to `apps/worker` and `wrangler dev`.
 
 **Build Process Structure**
 
-`npm run build` produces static assets under `dist/`. Build must not depend on `_bmad-output/` planning files. Planning artifacts are documentation inputs, not runtime dependencies.
+Root `pnpm run build` builds `packages/scene-core`, `apps/web`, and `apps/worker` in order. `apps/web` produces static assets under `apps/web/dist/`. `apps/worker` validates Worker bundling via Wrangler dry-run. Build must not depend on `_bmad-output/` planning files. Planning artifacts are documentation inputs, not runtime dependencies.
 
 **Deployment Structure**
 
-Deployment serves `dist/` as static files. Runtime behavior must not require Node server APIs. If a future static host needs a non-root base path, configure it through Vite public configuration and document the deployment-specific value.
+Deployment uses `apps/worker/wrangler.toml`. `pnpm run worker:deploy` and `pnpm run deploy` build `apps/web` and run `wrangler deploy` from `apps/worker`; `pnpm run worker:deploy:dry-run` runs `wrangler deploy --dry-run`. Worker runtime behavior must not require Node server APIs. If future environments need separate staging/production config, extend `apps/worker/wrangler.toml` and regenerate/check types with `wrangler types` and `wrangler types --check`.
 
 ## Architecture Validation Results
 
@@ -930,7 +1047,7 @@ Deployment serves `dist/` as static files. Runtime behavior must not require Nod
 
 **Decision Compatibility**
 
-All major decisions work together without conflict. Vite + React + TypeScript supports the chosen single-page editor shape. Zod provides runtime validation for recovered SceneDocument data while TypeScript covers compile-time domain contracts. Vitest, React Testing Library and Playwright align with the selected Vite/React stack. Static deployment fits the explicit MVP boundary of no backend API, no auth, no database and no server runtime.
+All major decisions work together without conflict. Vite + React + TypeScript supports the chosen single-page editor shape. Zod provides runtime validation for recovered SceneDocument data while TypeScript covers compile-time domain contracts. Vitest, React Testing Library and Playwright align with the selected Vite/React stack. Epic 7 extends the deployment model to Cloudflare Workers static assets while preserving the no-account, no-database, no-cloud-save first-stage service boundary.
 
 The deferred decisions are also coherent: explicit JSON import/export UI, database, auth, routing, external state libraries, sharing, collaboration, online publishing and complex front-view rendering are all outside MVP and do not block the current static editor architecture.
 
@@ -946,7 +1063,7 @@ Implementation patterns support the architecture decisions:
 
 **Structure Alignment**
 
-The project structure supports the required boundaries. Domain modules are isolated from React and DOM concerns. State modules own write paths. IO modules own schema validation, serialization, storage and recovery. Components only render state and dispatch commands. E2E tests cover desktop editing, mobile read-only behavior, save/recovery roundtrip and unsafe text.
+The project structure supports the required boundaries. `packages/scene-core` owns DOM-free domain/schema/selector/catalog/export-summary rules. `apps/web` owns React UI, command/state write paths, browser-only IO, localStorage, and image download. `apps/worker` owns HTTP/MCP adapters, request validation, result envelopes, headers/cache, security, logging, and Wrangler deployment. E2E tests cover desktop editing, mobile read-only behavior, save/recovery roundtrip, unsafe text, and browser image export; Worker/MCP smoke covers the new service layer.
 
 ### Requirements Coverage Validation ✅
 
@@ -954,19 +1071,20 @@ The project structure supports the required boundaries. Domain modules are isola
 
 All PRD feature groups have architectural support:
 
-- Scene & Canvas Model maps to `src/domain/scene/area.ts`, `types.ts`, `selectors.ts` and `components/scene-canvas/`.
-- Open Design Workbench Context maps to `components/app-shell/`, `components/pokemon-scene-controls/`, theme tokens and interaction mode state.
-- Asset Placement & Editing maps to `src/domain/scene/tiles.ts`, `src/state/scene-commands.ts`, `components/scene-canvas/` and `components/selection-inspector/`.
-- Building Level Management maps to `src/domain/scene/levels.ts`, command handling and `components/building-level-panel/`.
-- Asset Catalog & Selection maps to `src/domain/assets/` and `components/asset-picker/`.
+- Scene & Canvas Model maps to `packages/scene-core/src/domain/scene/` and `apps/web/src/components/scene-canvas/`.
+- Open Design Workbench Context maps to `apps/web/src/components/app-shell/`, `apps/web/src/components/pokemon-scene-controls/`, theme tokens and interaction mode state.
+- Asset Placement & Editing maps to `packages/scene-core/src/domain/scene/`, `apps/web/src/state/`, `apps/web/src/components/scene-canvas/` and `apps/web/src/components/selection-inspector/`.
+- Building Level Management maps to `packages/scene-core/src/domain/scene/levels.ts`, web command handling and `apps/web/src/components/building-level-panel/`.
+- Asset Catalog & Selection maps to `packages/scene-core/src/assets/` and `apps/web/src/components/asset-picker/`.
 - Ditto Skill / Instance Visual State maps to tile commands, selection inspector, scene canvas badges, dye controls and preview selectors.
-- Preview maps to shared selectors and `components/preview-inspector/`.
+- Preview maps to shared selectors and `apps/web/src/components/preview-inspector/`.
 - Properties, Save & Recovery maps to selection inspector, IO schema, serializer/storage/recovery modules and validator UI.
-- Image Export maps to `src/domain/scene/export-summary.ts`, `src/io/image-export.ts`, `components/export-preview/` and preview/export selectors; it must be derived from SceneDocument and asset catalog.
+- Image Export maps to `packages/scene-core` export summary JSON, browser-only `apps/web/src/io/image-export.ts`, `apps/web/src/components/export-preview/` and preview/export selectors; it must be derived from SceneDocument and asset catalog.
+- Scene Worker, MCP and Codex Skill maps to `apps/worker/`, `packages/scene-core/`, `.agents/skills/pokopia-scene-worker/`, `pnpm-workspace.yaml`, root pnpm scripts and `apps/worker/wrangler.toml`.
 
 **Functional Requirements Coverage**
 
-FR1-FR68 are architecturally supported. The architecture gives each functional area an owning module and prevents duplicated business rules through domain helpers/selectors and command-layer write boundaries. FR65-FR68 are covered by browser-only image export preview, export summary derivation and download helpers that do not mutate SceneDocument or storage.
+FR1-FR77 are architecturally supported. The architecture gives each functional area an owning module and prevents duplicated business rules through domain helpers/selectors and command-layer write boundaries. FR65-FR68 are covered by browser-only image export preview, export summary derivation and download helpers that do not mutate SceneDocument or storage. FR69-FR77 are covered by the pnpm workspace structure, shared `scene-core`, stateless Worker HTTP API, Streamable HTTP MCP server, and repo-scoped Codex skill wrapper.
 
 **Non-Functional Requirements Coverage**
 
@@ -976,7 +1094,7 @@ NFR coverage is sufficient for implementation:
 - Reliability and data integrity: single source of truth, Zod schema validation, strict schemaVersion, command layer, SceneDocument-derived image export data and roundtrip Playwright tests support save/recovery consistency.
 - Usability and accessibility: component boundaries, semantic state tokens, accessible-name tests and Playwright responsive checks support the UX/NFR requirements.
 - Compatibility and responsive behavior: Vite static build plus Playwright desktop/mobile coverage supports the browser and viewport matrix.
-- Security and data safety: no backend/auth surface, safe text rendering and JSON-as-data validation address the security NFRs.
+- Security and data safety: no account/cloud persistence in Epic 7, redacted Worker logs, body limits, safe text rendering and JSON-as-data validation address the security NFRs.
 
 ### Implementation Readiness Validation ✅
 
@@ -1000,12 +1118,12 @@ None.
 
 **Important Gaps**
 
-None blocking. The architecture intentionally defers backend, auth, routing, external state libraries, sharing, collaboration, complex front-view rendering and configurable canvas sizes to Post-MVP.
+None blocking. The architecture now admits a tightly scoped stateless Worker/API/MCP backend for Epic 7, while still deferring auth, persistence, cloud save, routing, external state libraries, sharing, collaboration, online publishing, server-side image generation, complex front-view rendering and configurable canvas sizes.
 
 **Nice-to-Have Gaps**
 
 - CI details for real Edge and Safari coverage can be refined during release planning. Playwright Chromium/Firefox/WebKit and manual browser acceptance are enough for architecture readiness.
-- Asset catalog source format can be refined during implementation once real素材 data is available. The architecture already reserves `src/domain/assets/` and `public/assets/` / `src/assets/` boundaries.
+- Asset catalog source format can be refined during implementation once real素材 data is available. The architecture reserves `packages/scene-core/src/assets/` for shared metadata and `apps/web/public/` / `apps/web/src/assets/` for browser-rendered assets.
 - A future incompatible schema can be designed only after PRD, Architecture, Epics and tests are updated together; MVP intentionally supports only the current v1 payload.
 
 ### Validation Issues Addressed
@@ -1051,11 +1169,11 @@ No blocking validation issues were found. Minor future refinements were classifi
 **Key Strengths**
 
 - Strong single-source-of-truth boundary for scene state.
-- Clear command layer that supports undo/redo, validation, dirty state and mobile read-only guard.
+- Clear command layer that supports validation, command rejection, autosave/recovery boundaries and mobile read-only guard without reintroducing undo/redo or dirty/saved UI state.
 - Explicit save/recovery schema and safe text rendering strategy.
 - Component boundaries match the selected UX direction.
-- Requirements-to-structure mapping is complete for FR1-FR68.
-- Testing responsibilities are defined at unit, component and E2E levels.
+- Requirements-to-structure mapping is complete for FR1-FR77.
+- Testing responsibilities are defined at shared unit, web component/E2E, Worker runtime and MCP smoke levels.
 
 **Areas for Future Enhancement**
 
@@ -1071,17 +1189,23 @@ No blocking validation issues were found. Minor future refinements were classifi
 - Follow all architectural decisions exactly as documented.
 - Use implementation patterns consistently across all components.
 - Respect project structure and module dependency direction.
-- Do not introduce backend, auth, database, routing or external state libraries unless architecture is updated first.
+- Do not introduce auth, database, cloud persistence, public sharing, online publishing, server-side image generation, routing, or external state libraries unless architecture is updated first. Epic 7's approved backend scope is limited to stateless Worker API/MCP adapters over `packages/scene-core`.
 - Route all scene writes through the command layer.
 - Use Zod validation for recovered or future imported JSON and preserve safe text rendering.
-- Maintain tests with every new domain rule, command, schema field and UI boundary.
+- Maintain tests with every new domain rule, command, schema field, UI boundary, Worker route, MCP tool and Codex skill workflow.
 
 **First Implementation Priority**
 
-Initialize the Vite React TypeScript project in the current repo, preserving existing BMAD artifacts:
+Continue with BMAD implementation routing from the newly added Epic 7 backlog. The next implementation story is:
 
-```bash
-npm create vite@latest . -- --template react-ts --no-interactive
+- `7-1-extract-scene-core-shared-package`
+
+Story 7.1 must establish the pnpm workspace shape, move the existing browser app into `apps/web`, extract DOM-free rules into `packages/scene-core`, and keep existing web editing, autosave/recovery, export preview/download, tests, build and smoke behavior green.
+
+Recommended next command:
+
+```text
+bmad-help
 ```
 
-Then add the initial scripts and scaffolding for typecheck, Vitest and Playwright before implementing the editor features.
+Use `bmad-help` to confirm the live tracker state, then run `bmad-create-story` for Story 7.1 before implementation. If the current dirty planning branch should be isolated, create a new git worktree before starting development.

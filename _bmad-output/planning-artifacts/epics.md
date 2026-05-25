@@ -31,6 +31,10 @@ Epic 5 已完成并保留为已完成历史。后续新功能不得通过重写 
 
 `sprint-change-proposal-2026-05-22.md` 已批准。Epic 1-5 保留为已完成历史；当前新增 Epic 6，用于图片导出预览与图片导出。导出图片必须包含整体使用素材、每层图形和每层使用素材。当前不新增导入、JSON 文件导出、分享链接、云同步、账号或在线发布。
 
+## Approved Course Correction - 2026-05-25
+
+`sprint-change-proposal-2026-05-25.md` 已批准。Epic 1-6 保留为已完成历史；当前新增 Epic 7，用于 pnpm workspace monorepo、`scene-core` 共享领域核心、Cloudflare Worker HTTP API、Streamable HTTP MCP server 和 repo-scoped Codex skill。第一阶段不新增账号、数据库、云保存、分享链接、在线发布、服务端图片渲染或 AI 自动生成完整布景。
+
 ## Requirements Inventory
 
 ### Functional Requirements
@@ -171,6 +175,24 @@ FR67: 导出图片必须按建筑层展示每层图形，并表达该层 7×7 �
 
 FR68: 导出图片必须按建筑层展示每层使用的素材清单；导出预览和下载不得写入 SceneDocument、autosave storage、saved storage 或 UI preferences。
 
+FR69: 系统可以迁移为 pnpm workspace monorepo：现有 React 浏览器 UI 放入 `apps/web`，Cloudflare Worker/MCP 放入 `apps/worker`，共享领域核心放入 `packages/scene-core`。
+
+FR70: 系统可以将 `SceneDocument v1` 类型、Zod schema、序列化/恢复、短字符串 codec、asset catalog 查询、selectors、导出摘要 JSON 和默认 scene 生成抽取为共享 `scene-core`。
+
+FR71: Worker 可以提供无状态 HTTP API：`/api/health`、`/api/scene/generate`、`/api/scene/validate`、`/api/scene/recover`、`/api/scene/export-summary`、`/api/scene/encode`、`/api/scene/decode` 和 `/api/assets`。
+
+FR72: Worker API 必须返回统一 result envelope，包含 `ok`、`data`、`errors`、`warnings` 和 `meta`；`meta` 至少暴露 service version、schema version 和 catalog version。
+
+FR73: Worker 第一阶段不得保存用户 scene，不引入 D1/KV/R2/Durable Objects 作为用户数据存储，不引入账号、权限、云同步、分享链接或在线发布。
+
+FR74: MCP server 可以暴露高语义 tools：`generate_scene_document`、`validate_scene_document`、`recover_scene_document`、`summarize_scene_export` 和 `search_pokopia_assets`；MCP tools 不得机械镜像所有 HTTP endpoints。
+
+FR75: MCP resources 可以提供 scene schema、asset catalog、Pokemon catalog、默认 scene 示例和服务版本信息；MCP prompts 可以封装修复 scene、准备导出摘要和按主题找素材等高频 workflow。
+
+FR76: Codex skill 必须通过 MCP 调用权威 Worker/scene-core 能力完成校验、摘要和素材搜索；skill 不得复制业务逻辑、schema、asset catalog 或导出摘要实现。
+
+FR77: 现有 React UI 必须继续复用同一 `scene-core`，并保持当前编辑、自动保存、恢复、导出预览和图片下载体验不回退。
+
 ### NonFunctional Requirements
 
 NFR1: 在桌面浏览器 1280×720 视口、1,000 个素材以内、10 个建筑层以内的测试场景中，7×7 画布上的选中格子、放置素材、删除素材、切换技能标记和切换当前建筑层操作应在 100ms 内完成可见状态更新，使用浏览器性能标记或等效自动化计时测量。
@@ -233,9 +255,21 @@ NFR29: 图片导出预览和图片生成在 7×7 画布、10 个建筑层、每�
 
 NFR30: 导出图片中的标题、整体素材清单、每层图形和每层素材清单必须在默认导出尺寸下可读；下载按钮、关闭操作和失败提示必须有可访问名称。
 
+NFR31: Worker/API/MCP 不得记录完整用户 scene payload；日志只能记录 request id、route/tool、status、error category、duration 和必要的 redacted metadata。
+
+NFR32: Worker 必须限制 request body、content type、tool timeout 和 output size；错误响应不得暴露 stack trace。
+
+NFR33: Worker bundle 不得包含 React、React DOM、`html-to-image`、Playwright、jsdom 或大型图片源。
+
+NFR34: `scene-core`、Worker API、MCP tools 和 Codex skill 必须有 contract tests；release gate 增加 Worker runtime tests、MCP smoke、`wrangler types` 和 `wrangler types --check`。
+
+NFR35: API/MCP 结果必须与浏览器 UI 当前 `SceneDocument v1`、asset catalog、locale 显示规则和导出摘要语义一致。
+
+NFR36: 根 `package.json` 必须提供 pnpm monorepo orchestration scripts；Wrangler dev/types/deploy/dry-run 命令必须能通过 `pnpm run worker:*` 和 `pnpm run deploy` 执行。
+
 ### Additional Requirements
 
-- MVP 必须采用客户端优先静态 Web App，不引入数据库、认证、后端 API、服务端运行时、路由或公开内容页。
+- 已完成 MVP 保持客户端优先静态 Web App；Epic 7 批准新增无状态 Worker/API/MCP 服务层，但不得引入数据库、认证、云同步、分享链接、在线发布或后端管理控制台。
 
 - Starter template 使用 Vite + React + TypeScript (`react-ts`)。第一条实施 story 应初始化该 starter，并建立 `typecheck`、build、Vitest 和 Playwright scaffold。
 
@@ -271,19 +305,19 @@ NFR30: 导出图片中的标题、整体素材清单、每层图形和每层素�
 
 - 业务派生数据必须通过 pure selectors 统一计算，例如 `selectVisibleLevels`、`selectTileAtCell`、`selectPreviewTiles`，不得在组件中重复实现 area、level ordering、preview ordering 或 recovery validation 规则。
 
-- 项目结构必须遵守架构分层：`src/domain/scene/`、`src/domain/assets/`、`src/state/`、`src/components/`、`src/io/`、`src/theme/`、`src/test/` 和 `e2e/`。
+- Epic 7 后项目结构必须遵守 pnpm workspace monorepo 分层：`apps/web/src/` 承载 React/browser UI、state、components、theme、browser-only IO 和 web tests；`packages/scene-core/src/` 承载 DOM-free domain/schema/codec/selectors/catalog/export-summary/default-scene logic；`apps/worker/src/` 承载 HTTP/MCP adapters、request validation、result envelope、安全和日志脱敏；`.agents/skills/pokopia-scene-worker/` 承载 Codex skill workflow。
 
-- Domain modules 不得 import React、DOM 或 components；state modules 可以 import domain/io 类型但应避免 import components；components 可以 import selectors、dispatcher hooks、theme 和必要 IO UI entry；io 不得 import components。
+- Shared `scene-core` modules 不得 import React、DOM、localStorage、Worker runtime、components 或 `apps/web/src/*`；web state/modules 可以 import `packages/scene-core` 和 browser IO 类型但应避免 import components；Worker adapter 只能 import `packages/scene-core`，不得 import `apps/web/src/*`。
 
 - 文件和目录使用 `kebab-case`；React 组件、TypeScript 类型和 interfaces 使用 `PascalCase`；函数、变量、selectors 和 hooks 使用 `camelCase`；command type 使用全大写 snake case。
 
-- CI / release gate 至少包含 `npm run typecheck`、unit tests、`npm run build` 和 Playwright smoke。
+- CI / release gate 至少包含 `pnpm run typecheck`、unit tests、`pnpm run build`、Playwright smoke、Worker runtime tests、MCP smoke、`pnpm run worker:types:check` 和 `pnpm run worker:deploy:dry-run`。
 
 - Playwright 必须覆盖 1280×720 或以上桌面编辑闭环、390×844 mobile read-only guard、save/recovery roundtrip、dangerous text rendered as text，以及关键响应式视口无控件重叠。
 
 - Vitest 必须覆盖领域模型、command reducer、schema validation、area calculation、level ordering 和 read-only command guard；React Testing Library 必须覆盖组件可访问名称和核心交互状态。
 
-- Vite production build 输出静态文件到 `dist/`，运行时不得依赖 `_bmad-output/` planning files、Node server APIs、数据库或 serverless functions。
+- `apps/web` Vite production build 输出静态文件到 `apps/web/dist/`；`apps/worker` 通过 `apps/worker/wrangler.toml` 部署 Worker static assets 与 API/MCP routes；运行时不得依赖 `_bmad-output/` planning files、Node server APIs、数据库或用户 scene 存储。
 
 - 配置和 secret 范围必须保持最小；若需要 public base path、asset base path 或 feature flag，使用 Vite public env convention，不得包含 secret。
 
@@ -503,6 +537,24 @@ FR67: Epic 6 - 导出图片按建筑层展示每层图形。
 
 FR68: Epic 6 - 导出图片按建筑层展示每层使用素材清单，且预览/下载不写入 SceneDocument 或 storage。
 
+FR69: Epic 7 - 迁移为 pnpm workspace monorepo，明确 `apps/web`、`apps/worker` 和 `packages/scene-core`。
+
+FR70: Epic 7 - 抽取共享 `scene-core` 领域核心。
+
+FR71: Epic 7 - 新增无状态 Worker HTTP API。
+
+FR72: Epic 7 - Worker API 使用统一 result envelope 和版本 metadata。
+
+FR73: Epic 7 - Worker 第一阶段不保存用户 scene，不引入账号、权限、云同步、分享链接或在线发布。
+
+FR74: Epic 7 - MCP server 暴露高语义 tools。
+
+FR75: Epic 7 - MCP resources/prompts 提供 schema、catalog、examples 和高频 workflow。
+
+FR76: Epic 7 - Codex skill 通过 MCP 调用权威服务，不复制业务逻辑。
+
+FR77: Epic 7 - 现有 React UI 继续复用 `scene-core`，且浏览器编辑/导出体验不回退。
+
 ## Epic List
 
 ### Epic 1: 规则可见的 7×7 布景工作台
@@ -552,6 +604,14 @@ FR68: Epic 6 - 导出图片按建筑层展示每层使用素材清单，且预�
 **FRs covered:** FR65, FR66, FR67, FR68, NFR29, NFR30.
 
 **Implementation notes:** 该 epic 承接 Epic 3 的 preview selectors、Epic 4 的 `SceneDocument v1` 数据契约和 Epic 5 的简化 MVP 边界。图片导出必须从同一 `SceneDocument` 和 asset catalog 派生整体素材清单、逐层图形和逐层素材清单。该 epic 不新增 import parser、JSON export UI、server route、auth、cloud storage、share URL 或 image upload。
+
+### Epic 7: Scene Core Worker、MCP 与 Codex Skill 服务化
+
+用户和 agent 可以通过一个无状态 Worker 服务调用 Scene Editor 已有的布景生成、校验、恢复、素材查询和导出摘要能力；Codex 可以通过 MCP 和 repo-scoped skill 使用同一套权威 `scene-core`，而不会复制业务规则或污染当前浏览器编辑体验。
+
+**FRs covered:** FR69, FR70, FR71, FR72, FR73, FR74, FR75, FR76, FR77, NFR31, NFR32, NFR33, NFR34, NFR35, NFR36.
+
+**Implementation notes:** 该 epic 承接 Epic 4 的 `SceneDocument v1` 契约、Epic 6 的 export summary 和技术研究。仓库必须按 pnpm workspace monorepo 组织：`apps/web` 承载现有 React 浏览器 UI，`apps/worker` 承载 Cloudflare Worker HTTP API 和 Streamable HTTP MCP，`packages/scene-core` 承载共享领域核心。第一阶段不引入账号、数据库、云保存、分享链接、服务端图片渲染或 AI 自动生成布景。所有 adapter 必须复用 `scene-core`。
 
 ## Epic 1: 规则可见的 7×7 布景工作台
 
@@ -1722,3 +1782,160 @@ So that 我可以分享或保存一个无需导入功能也能阅读的布景说
 **When** dev agent 执行验证
 **Then** `npm run typecheck`、unit tests、`npm run build` 和 Playwright smoke 必须通过
 **And** 覆盖导出预览、图片下载触发、逐层内容存在和 storage 不变性。
+
+## Epic 7: Scene Core Worker、MCP 与 Codex Skill 服务化
+
+用户和 agent 可以通过一个无状态 Worker 服务调用 Scene Editor 已有的布景生成、校验、恢复、素材查询和导出摘要能力；Codex 可以通过 MCP 和 repo-scoped skill 使用同一套权威 `scene-core`，而不会复制业务规则或污染当前浏览器编辑体验。
+
+### Story 7.1: 抽取 scene-core 共享领域包并保持 Web UI 不回退
+
+**Requirements covered:** FR69, FR70, FR77, NFR33, NFR35.
+
+As a 开发者,
+I want 将可脱离 DOM/React/localStorage 的领域能力抽取到 `packages/scene-core`,
+So that Web UI、Worker API、MCP tools 和 Codex skill 可以复用同一套权威规则。
+
+**Acceptance Criteria:**
+
+**Given** 当前仓库仍是单 app 结构
+**When** dev agent 执行 Story 7.1
+**Then** 仓库必须新增 `pnpm-workspace.yaml`、`apps/web`、`packages/scene-core` 和 workspace package manifests
+**And** 当前 React UI、Vite 配置、public assets、Playwright/Vitest web 配置迁入 `apps/web`。
+
+**Given** 当前存在 `SceneDocument` schema、serializer/recovery、short code codec、asset catalog 查询、selectors 和 export summary
+**When** 这些能力可脱离 DOM/React/localStorage 运行
+**Then** 它们必须迁入 `packages/scene-core`
+**And** `apps/web` 通过 workspace dependency 复用它们。
+
+**Given** 当前存在 `src/io/image-export.ts`
+**When** 它依赖 DOM、HTMLElement、Blob、browser download 或 `html-to-image`
+**Then** 它必须保留在 `apps/web/src/io/image-export.ts`
+**And** 不得进入 `packages/scene-core` 或 `apps/worker` bundle。
+
+**Given** release gate 运行
+**When** dev agent 执行验证
+**Then** `pnpm run typecheck`、`pnpm run test`、`pnpm run build` 和 `pnpm run smoke` 必须通过
+**And** Web UI 的编辑、恢复和图片导出预览行为不回退。
+
+### Story 7.2: 新增 Worker HTTP API 与 monorepo 部署脚本
+
+**Requirements covered:** FR69, FR71, FR72, FR73, NFR31, NFR32, NFR33, NFR36.
+
+As a 开发者,
+I want 在 `apps/worker` 中新增 Cloudflare Worker HTTP API 和 Wrangler scripts,
+So that scene-core 能以无状态服务方式被浏览器、脚本和后续 MCP 复用。
+
+**Acceptance Criteria:**
+
+**Given** monorepo 已建立
+**When** dev agent 新增 `apps/worker`
+**Then** `apps/worker/wrangler.toml` 必须使用 Workers static assets
+**And** `assets.directory` 指向 `../web/dist`
+**And** Worker code 处理 `/api/*`，其余 SPA 请求走 static assets/fallback。
+
+**Given** Worker API MVP 已实现
+**When** 请求命中 API
+**Then** 至少支持 `/api/health`、`/api/scene/generate`、`/api/scene/validate`、`/api/scene/recover`、`/api/scene/export-summary`、`/api/scene/encode`、`/api/scene/decode` 和 `/api/assets`。
+
+**Given** Worker 返回结果
+**When** 任一 API 成功或失败
+**Then** 返回统一 result envelope：`ok`、`data`、`errors`、`warnings`、`meta`
+**And** `meta` 包含 service version、schema version 和 catalog version。
+
+**Given** Worker 处理用户 scene payload
+**When** 请求执行完成
+**Then** 不保存用户 scene，不记录完整 payload，不暴露 stack trace
+**And** request body、content type、tool timeout 和 output size 有明确限制。
+
+**Given** root `package.json`
+**When** monorepo scripts 更新
+**Then** 必须提供 `worker:dev`、`worker:types`、`worker:types:check`、`worker:deploy:dry-run`、`worker:deploy` 和 `deploy`
+**And** 这些命令通过 `pnpm --filter @pokopia-scene-editor/worker ...` 调用 Worker package scripts。
+
+**Given** `apps/worker/package.json`
+**When** scripts 更新
+**Then** 必须封装 `wrangler dev`、`wrangler types`、`wrangler types --check`、`wrangler deploy --dry-run` 和 `wrangler deploy`
+**And** deploy/dry-run 之前必须构建 `apps/web` 静态资源。
+
+### Story 7.3: 新增 Streamable HTTP MCP server、tools、resources 与 prompts
+
+**Requirements covered:** FR74, FR75, NFR31, NFR32, NFR34, NFR35.
+
+As a Codex 或 MCP 客户端,
+I want 通过少量高语义 MCP tools 调用 Scene Editor 领域能力,
+So that 我可以校验、恢复、摘要和查询素材，而不是猜测内部 schema。
+
+**Acceptance Criteria:**
+
+**Given** `apps/worker` 已存在
+**When** dev agent 新增 MCP server
+**Then** `/mcp` 必须提供 Streamable HTTP MCP endpoint
+**And** 初始实现保持无状态。
+
+**Given** MCP tools 已注册
+**When** MCP 客户端列出 tools
+**Then** 至少包含 `generate_scene_document`、`validate_scene_document`、`recover_scene_document`、`summarize_scene_export` 和 `search_pokopia_assets`
+**And** tools 不得机械镜像所有 HTTP endpoints。
+
+**Given** MCP resources 已注册
+**When** MCP 客户端读取 resources
+**Then** 至少提供 scene schema、asset catalog、Pokemon catalog、默认 scene 示例和服务版本信息。
+
+**Given** MCP prompts 已注册
+**When** MCP 客户端列出 prompts
+**Then** 应包含修复 scene、准备导出摘要和按主题找素材的高频 workflow prompt。
+
+**Given** MCP tool 执行
+**When** 输入非法或 scene 校验失败
+**Then** 返回结构化错误、字段路径、warnings 和可执行修复建议
+**And** 不记录完整 scene payload。
+
+### Story 7.4: 新增 repo-scoped Codex skill wrapper 与示例
+
+**Requirements covered:** FR76, FR77, NFR34, NFR35.
+
+As a Codex user,
+I want 使用 repo-scoped Codex skill 调用 Pokopia Scene Worker MCP,
+So that 我可以在仓库内稳定完成 scene 校验、导出摘要和素材查询工作流。
+
+**Acceptance Criteria:**
+
+**Given** MCP server 已存在
+**When** dev agent 新增 `.agents/skills/pokopia-scene-worker/SKILL.md`
+**Then** skill 必须说明何时使用 MCP tools、如何解释结果、如何处理失败和如何引用 repo-local 文件。
+
+**Given** skill 需要访问领域能力
+**When** 编写 skill 内容
+**Then** 不得复制 scene schema、asset catalog、export summary 或业务规则
+**And** 必须通过 MCP tools 获取权威结果。
+
+**Given** skill examples 已编写
+**When** Codex 执行示例 workflow
+**Then** 至少覆盖 validate scene、summarize export 和 search assets / generate default scene 三类任务。
+
+### Story 7.5: Worker/MCP/Skill hardening、测试和发布门禁
+
+**Requirements covered:** NFR31, NFR32, NFR33, NFR34, NFR35, NFR36.
+
+As a 维护者,
+I want 完成 Worker/MCP/Codex skill 的安全、测试和部署门禁,
+So that 服务化能力不会引入 schema 漂移、bundle 污染或日志泄漏。
+
+**Acceptance Criteria:**
+
+**Given** release gate 运行
+**When** dev agent 执行验证
+**Then** `pnpm run typecheck`、`pnpm run test`、`pnpm run build`、`pnpm run smoke`、`pnpm run worker:types:check` 和 `pnpm run worker:deploy:dry-run` 必须通过。
+
+**Given** Worker bundle 已生成
+**When** bundle 检查运行
+**Then** bundle 不得包含 React、React DOM、`html-to-image`、Playwright、jsdom 或大型图片源。
+
+**Given** Worker/API/MCP 错误发生
+**When** 日志和响应生成
+**Then** 响应不暴露 stack trace
+**And** 日志不包含完整 scene payload。
+
+**Given** MCP smoke 运行
+**When** 调用 validate、recover、summarize 和 search tools
+**Then** 返回结构化结果并与 `packages/scene-core` direct-call contract tests 一致。

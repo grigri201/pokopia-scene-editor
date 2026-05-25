@@ -4,31 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "preview": "vite preview --host 127.0.0.1",
-    "typecheck": "tsc -b",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "build": "tsc -b && vite build && node scripts/verify-runtime-assets.mjs",
-    "smoke": "playwright test --project=chromium"
-  },
-  "dependencies": {
-    "html-to-image": "^1.11.13",
-    "react": "19.2.6",
-    "react-dom": "19.2.6",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@playwright/test": "1.60.0",
-    "@testing-library/jest-dom": "6.9.1",
-    "@testing-library/react": "16.3.2",
-    "@types/node": "24.10.1",
-    "@types/react": "19.2.7",
-    "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.2",
-    "jsdom": "29.1.1",
-    "typescript": "6.0.3",
-    "vite": "8.0.13",
-    "vitest": "4.1.6"
+    "dev": "pnpm --filter @pokopia-scene-editor/web dev",
+    "preview": "pnpm --filter @pokopia-scene-editor/web preview",
+    "typecheck": "pnpm --filter @pokopia-scene-editor/scene-core typecheck && pnpm --filter @pokopia-scene-editor/web typecheck",
+    "test": "pnpm --filter @pokopia-scene-editor/scene-core test && pnpm --filter @pokopia-scene-editor/web test",
+    "test:watch": "pnpm --filter @pokopia-scene-editor/web test:watch",
+    "build": "pnpm --filter @pokopia-scene-editor/scene-core build && pnpm --filter @pokopia-scene-editor/web build",
+    "smoke": "pnpm --filter @pokopia-scene-editor/web smoke"
   }
 }

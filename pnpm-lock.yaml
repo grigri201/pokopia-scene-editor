@@ -6,8 +6,13 @@ settings:
 
 importers:
 
-  .:
+  .: {}
+
+  apps/web:
     dependencies:
+      '@pokopia-scene-editor/scene-core':
+        specifier: workspace:*
+        version: link:../../packages/scene-core
       html-to-image:
         specifier: ^1.11.13
         version: 1.11.13
@@ -17,9 +22,6 @@ importers:
       react-dom:
         specifier: 19.2.6
         version: 19.2.6(react@19.2.6)
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
     devDependencies:
       '@playwright/test':
         specifier: 1.60.0
@@ -51,6 +53,19 @@ importers:
       vite:
         specifier: 8.0.13
         version: 8.0.13(@types/node@24.10.1)
+      vitest:
+        specifier: 4.1.6
+        version: 4.1.6(@types/node@24.10.1)(jsdom@29.1.1)(vite@8.0.13(@types/node@24.10.1))
+
+  packages/scene-core:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
       vitest:
         specifier: 4.1.6
         version: 4.1.6(@types/node@24.10.1)(jsdom@29.1.1)(vite@8.0.13(@types/node@24.10.1))

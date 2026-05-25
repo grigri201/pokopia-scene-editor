@@ -11,8 +11,8 @@ const runtimeAssetDirectories = [
 
 const imageExtensionPattern = /\.(avif|gif|jpe?g|png|svg|webp)$/i;
 const root = process.cwd();
-const sourceRoot = resolve(root, 'assets/pokopia_image_sources');
-const outputRoot = resolve(root, 'dist/assets/pokopia_image_sources');
+const sourceRoot = resolve(root, getOptionValue('--source') ?? 'assets/pokopia_image_sources');
+const outputRoot = resolve(root, getOptionValue('--output') ?? 'dist/assets/pokopia_image_sources');
 const errors = [];
 
 for (const directory of runtimeAssetDirectories) {
@@ -36,6 +36,13 @@ if (errors.length > 0) {
 }
 
 console.log('Pokopia runtime asset verification passed.');
+
+function getOptionValue(optionName) {
+  const optionIndex = process.argv.indexOf(optionName);
+  const value = optionIndex >= 0 ? process.argv[optionIndex + 1] : undefined;
+
+  return value && !value.startsWith('--') ? value : undefined;
+}
 
 function countImages(directory) {
   if (!existsSync(directory)) {

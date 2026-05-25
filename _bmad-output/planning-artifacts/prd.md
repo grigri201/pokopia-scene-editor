@@ -39,6 +39,10 @@ courseCorrections:
     source: _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-22.md
     status: approved
     summary: Add image export preview and image download as Epic 6; exported image must include overall used materials, per-layer graphics, and per-layer material lists; JSON export/import, import, sharing, cloud sync, accounts, and online publishing remain out of scope.
+  - date: '2026-05-25'
+    source: _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-25.md
+    status: approved
+    summary: Add Epic 7 for pnpm workspace monorepo serviceization: move the existing React UI into apps/web, extract shared scene-core domain logic, add Cloudflare Worker HTTP API and Streamable HTTP MCP in apps/worker, and wrap the service with a repo-scoped Codex skill without adding accounts, persistence, cloud sync, sharing, or server-side image generation.
 ---
 
 # 产品需求文档 - pokopia-scene-editor
@@ -65,6 +69,12 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 本 PRD 已按 `sprint-change-proposal-2026-05-22.md` 扩展当前 backlog。新增目标是图片导出预览与图片导出，而不是 JSON 文件导出。导出的图片必须包含整体使用的素材、每层的图形和每层使用的素材。
 
 `SceneDocument v1` 仍是自动保存、恢复、预览和图片导出的内部事实来源，但不是本次用户可下载的导出产物。当前系统没有导入功能；本次不新增 JSON 导入、图片导入、从导出图片恢复场景、分享链接、云同步、账号、公开方案库或在线发布。
+
+### Approved Course Correction - 2026-05-25
+
+本 PRD 已按 `sprint-change-proposal-2026-05-25.md` 增加服务化与 agent tooling 范围。当前已完成的浏览器编辑器仍保持客户端优先；新增目标是把可脱离 DOM、React 和 localStorage 的领域能力抽取为共享 `scene-core`，并通过 pnpm workspace monorepo 中的 `apps/web`、`apps/worker` 和 `packages/scene-core` 共同复用。
+
+新增服务化范围只覆盖无状态 Worker 能力：默认/确定性 `SceneDocument` 生成、schema 校验、恢复/decode、导出摘要 JSON、素材查询、短字符串 encode/decode、MCP tools/resources/prompts 和 repo-scoped Codex skill workflow。第一阶段不新增账号、数据库、云保存、公开方案库、分享链接、在线发布、服务端 PNG/图片生成或 AI 自动创作完整布景。
 
 ### What Makes This Special
 
@@ -168,6 +178,9 @@ MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 
 
 **Phase 2 (Post-MVP):**
 
+- pnpm workspace monorepo：`apps/web` 承载现有 React 浏览器工作台，`apps/worker` 承载 Cloudflare Worker HTTP API/MCP，`packages/scene-core` 承载共享领域逻辑。
+- 无状态 Cloudflare Worker 服务，提供布景生成、校验、恢复、导出摘要、短字符串 encode/decode 和素材查询 API。
+- Streamable HTTP MCP server 与 repo-scoped Codex skill，用于 agent 调用同一套 scene-core 规则。
 - 素材批量导入。
 - 布景模板。
 - 显式 JSON 导出/导入 UI。
@@ -189,11 +202,11 @@ MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 
 
 ### Out of Scope / Non-Goals
 
-MVP 不包含账号系统、云端同步、协作编辑、公开方案库、分享链接、自动生成布景、素材批量导入、显式 JSON 导出/导入 UI、从导出图片或 JSON 导入恢复布景、复杂遮挡关系计算、真实游戏视角模拟、更大布景尺寸、可配置外围扩展格数、移动端完整编辑体验、原生设备能力、推送通知、支付、隐私档案或后端管理控制台。
+MVP 不包含账号系统、云端同步、协作编辑、公开方案库、分享链接、AI 自动生成完整布景、素材批量导入、显式 JSON 导出/导入 UI、从导出图片或 JSON 导入恢复布景、复杂遮挡关系计算、真实游戏视角模拟、更大布景尺寸、可配置外围扩展格数、移动端完整编辑体验、原生设备能力、推送通知、支付、隐私档案或后端管理控制台。
 
 MVP 同样不包含：建筑层隐藏/显示/锁定/解锁、手动保存、dirty/saved/saveError 状态区分、Undo/Redo、素材空状态恢复动作、放置时素材适用区域阻断校验、同层素材堆叠、素材实例移动、普通实例备注 `note`、按素材区分是否可旋转，以及预览网格/主体边界/技能标记显示开关。
 
-MVP 的保存、自动保存、结构化序列化和恢复能力只覆盖单个布景方案的数据闭环，不承诺跨用户权限、在线发布、多人合并或版本历史。当前新增的导出入口只覆盖图片导出预览和图片下载；SceneDocument v1 作为内部事实来源参与导出数据派生，但 JSON 文件导出/导入 UI 仍是 Post-MVP，不作为 Epic 6 的用户可见交付。
+MVP 的保存、自动保存、结构化序列化和恢复能力只覆盖单个布景方案的数据闭环，不承诺跨用户权限、在线发布、多人合并或版本历史。当前新增的导出入口只覆盖图片导出预览和图片下载；SceneDocument v1 作为内部事实来源参与导出数据派生，但 JSON 文件导出/导入 UI 仍是 Post-MVP，不作为 Epic 6 的用户可见交付。Epic 7 的 Worker/MCP/Codex skill 服务化也不得被解释为云保存、账号、分享链接、在线发布或服务端图片生成。
 
 ### Risk Mitigation Strategy
 
@@ -390,6 +403,18 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR67: 导出图片必须按建筑层展示每层图形，并表达该层 7×7 布局、主体区/外围区关系和素材位置。
 - FR68: 导出图片必须按建筑层展示每层使用的素材清单；导出预览和下载不得写入 SceneDocument、autosave storage、saved storage 或 UI preferences。
 
+### Scene Worker, MCP & Codex Skill
+
+- FR69: 系统可以迁移为 pnpm workspace monorepo：现有 React 浏览器 UI 放入 `apps/web`，Cloudflare Worker/MCP 放入 `apps/worker`，共享领域核心放入 `packages/scene-core`。
+- FR70: 系统可以将 `SceneDocument v1` 类型、Zod schema、序列化/恢复、短字符串 codec、asset catalog 查询、selectors、导出摘要 JSON 和默认 scene 生成抽取为共享 `scene-core`。
+- FR71: Worker 可以提供无状态 HTTP API：`/api/health`、`/api/scene/generate`、`/api/scene/validate`、`/api/scene/recover`、`/api/scene/export-summary`、`/api/scene/encode`、`/api/scene/decode` 和 `/api/assets`。
+- FR72: Worker API 必须返回统一 result envelope，包含 `ok`、`data`、`errors`、`warnings` 和 `meta`；`meta` 至少暴露 service version、schema version 和 catalog version。
+- FR73: Worker 第一阶段不得保存用户 scene，不引入 D1/KV/R2/Durable Objects 作为用户数据存储，不引入账号、权限、云同步、分享链接或在线发布。
+- FR74: MCP server 可以暴露高语义 tools：`generate_scene_document`、`validate_scene_document`、`recover_scene_document`、`summarize_scene_export` 和 `search_pokopia_assets`；MCP tools 不得机械镜像所有 HTTP endpoints。
+- FR75: MCP resources 可以提供 scene schema、asset catalog、Pokemon catalog、默认 scene 示例和服务版本信息；MCP prompts 可以封装修复 scene、准备导出摘要和按主题找素材等高频 workflow。
+- FR76: Codex skill 必须通过 MCP 调用权威 Worker/scene-core 能力完成校验、摘要和素材搜索；skill 不得复制业务逻辑、schema、asset catalog 或导出摘要实现。
+- FR77: 现有 React UI 必须继续复用同一 `scene-core`，并保持当前编辑、自动保存、恢复、导出预览和图片下载体验不回退。
+
 ## Non-Functional Requirements
 
 ### Performance
@@ -439,3 +464,12 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - NFR28: Open Design 工作台不得使用 landing page、hero-scale 字号、卡片套卡片或装饰性背景来承载核心编辑体验；面板、按钮、格子、预览单元和计数区域必须有稳定尺寸。
 - NFR29: 图片导出预览和图片生成在 7×7 画布、10 个建筑层、每层 49 个素材实例以内的测试场景中，应在用户感知上可接受；若生成超过 1 秒，应显示非阻塞进度或生成状态。
 - NFR30: 导出图片中的标题、整体素材清单、每层图形和每层素材清单必须在默认导出尺寸下可读；下载按钮、关闭操作和失败提示必须有可访问名称。
+
+### Service, Tooling & Deployment
+
+- NFR31: Worker/API/MCP 不得记录完整用户 scene payload；日志只能记录 request id、route/tool、status、error category、duration 和必要的 redacted metadata。
+- NFR32: Worker 必须限制 request body、content type、tool timeout 和 output size；错误响应不得暴露 stack trace。
+- NFR33: Worker bundle 不得包含 React、React DOM、`html-to-image`、Playwright、jsdom 或大型图片源。
+- NFR34: `scene-core`、Worker API、MCP tools 和 Codex skill 必须有 contract tests；release gate 增加 Worker runtime tests、MCP smoke、`wrangler types` 和 `wrangler types --check`。
+- NFR35: API/MCP 结果必须与浏览器 UI 当前 `SceneDocument v1`、asset catalog、locale 显示规则和导出摘要语义一致。
+- NFR36: 根 `package.json` 必须提供 pnpm monorepo orchestration scripts；Wrangler dev/types/deploy/dry-run 命令必须能通过 `pnpm run worker:*` 和 `pnpm run deploy` 执行。
