@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pokopia Scene Editor">
+  <rect width="64" height="64" rx="14" fill="#fff7d6"/>
+  <rect x="8" y="8" width="48" height="48" rx="8" fill="#2f3a32"/>
+  <g fill="#f6d74f">
+    <rect x="13" y="13" width="5" height="5" rx="1"/>
+    <rect x="20" y="13" width="5" height="5" rx="1"/>
+    <rect x="27" y="13" width="5" height="5" rx="1"/>
+    <rect x="34" y="13" width="5" height="5" rx="1"/>
+    <rect x="41" y="13" width="5" height="5" rx="1"/>
+    <rect x="48" y="13" width="3" height="5" rx="1"/>
+    <rect x="13" y="20" width="5" height="5" rx="1"/>
+    <rect x="48" y="20" width="3" height="5" rx="1"/>
+    <rect x="13" y="27" width="5" height="5" rx="1"/>
+    <rect x="48" y="27" width="3" height="5" rx="1"/>
+    <rect x="13" y="34" width="5" height="5" rx="1"/>
+    <rect x="48" y="34" width="3" height="5" rx="1"/>
+    <rect x="13" y="41" width="5" height="5" rx="1"/>
+    <rect x="48" y="41" width="3" height="5" rx="1"/>
+    <rect x="13" y="48" width="5" height="3" rx="1"/>
+    <rect x="20" y="48" width="5" height="3" rx="1"/>
+    <rect x="27" y="48" width="5" height="3" rx="1"/>
+    <rect x="34" y="48" width="5" height="3" rx="1"/>
+    <rect x="41" y="48" width="5" height="3" rx="1"/>
+    <rect x="48" y="48" width="3" height="3" rx="1"/>
+  </g>
+  <rect x="20" y="20" width="26" height="26" rx="5" fill="#fefcf2"/>
+  <path d="M27 38c0-6 12-6 12 0v4H27v-4Z" fill="#9a7cff"/>
+  <circle cx="30" cy="31" r="2" fill="#2f3a32"/>
+  <circle cx="36" cy="31" r="2" fill="#2f3a32"/>
+  <path d="M29 36c2 2 6 2 8 0" fill="none" stroke="#2f3a32" stroke-width="2" stroke-linecap="round"/>
+</svg>

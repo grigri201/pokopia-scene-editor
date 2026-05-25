@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://scene-editor.pokokit.com/sitemap.xml
