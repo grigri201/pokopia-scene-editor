@@ -6,10 +6,16 @@
   "scripts": {
     "dev": "pnpm --filter @pokopia-scene-editor/web dev",
     "preview": "pnpm --filter @pokopia-scene-editor/web preview",
-    "typecheck": "pnpm --filter @pokopia-scene-editor/scene-core typecheck && pnpm --filter @pokopia-scene-editor/web typecheck",
-    "test": "pnpm --filter @pokopia-scene-editor/scene-core test && pnpm --filter @pokopia-scene-editor/web test",
+    "typecheck": "pnpm --filter @pokopia-scene-editor/scene-core typecheck && pnpm --filter @pokopia-scene-editor/web typecheck && pnpm --filter @pokopia-scene-editor/worker typecheck",
+    "test": "pnpm --filter @pokopia-scene-editor/scene-core test && pnpm --filter @pokopia-scene-editor/web test && pnpm --filter @pokopia-scene-editor/worker test",
     "test:watch": "pnpm --filter @pokopia-scene-editor/web test:watch",
-    "build": "pnpm --filter @pokopia-scene-editor/scene-core build && pnpm --filter @pokopia-scene-editor/web build",
-    "smoke": "pnpm --filter @pokopia-scene-editor/web smoke"
+    "build": "pnpm --filter @pokopia-scene-editor/scene-core build && pnpm --filter @pokopia-scene-editor/web build && pnpm --filter @pokopia-scene-editor/worker build",
+    "smoke": "pnpm --filter @pokopia-scene-editor/web smoke",
+    "worker:dev": "pnpm --filter @pokopia-scene-editor/worker dev",
+    "worker:types": "pnpm --filter @pokopia-scene-editor/worker types",
+    "worker:types:check": "pnpm --filter @pokopia-scene-editor/worker types:check",
+    "worker:deploy:dry-run": "pnpm --filter @pokopia-scene-editor/worker deploy:dry-run",
+    "worker:deploy": "pnpm --filter @pokopia-scene-editor/worker deploy",
+    "deploy": "pnpm run worker:deploy"
   }
 }

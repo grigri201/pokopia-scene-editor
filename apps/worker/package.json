@@ -1,0 +1,24 @@
+{
+  "name": "@pokopia-scene-editor/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @pokopia-scene-editor/web build && wrangler dev --config wrangler.toml",
+    "types": "wrangler types --config wrangler.toml",
+    "types:check": "wrangler types --config wrangler.toml --check",
+    "deploy:dry-run": "pnpm --filter @pokopia-scene-editor/web build && wrangler deploy --config wrangler.toml --dry-run",
+    "deploy": "pnpm --filter @pokopia-scene-editor/web build && wrangler deploy --config wrangler.toml",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --environment node",
+    "build": "pnpm run deploy:dry-run"
+  },
+  "dependencies": {
+    "@pokopia-scene-editor/scene-core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "vitest": "4.1.6",
+    "wrangler": "4.94.0"
+  }
+}
