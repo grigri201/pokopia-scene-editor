@@ -1,0 +1,2 @@
+name = "pokopia-scene-editor"
+pages_build_output_dir = "./dist"
