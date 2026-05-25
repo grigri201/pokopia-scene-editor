@@ -17,6 +17,36 @@ const runtimeImageExtensionPattern = /\.(avif|gif|jpe?g|png|svg|webp)$/i;
 export default defineConfig({
   base: process.env.VITE_PUBLIC_BASE_PATH ?? './',
   plugins: [react(), copyPokopiaRuntimeAssets()],
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'react-vendor',
+              test: /node_modules[\\/](react|react-dom)[\\/]/,
+              priority: 30,
+            },
+            {
+              name: 'export-vendor',
+              test: /node_modules[\\/]html-to-image[\\/]/,
+              priority: 20,
+            },
+            {
+              name: 'schema-vendor',
+              test: /node_modules[\\/]zod[\\/]/,
+              priority: 20,
+            },
+            {
+              name: 'pokopia-catalog',
+              test: /src[\\/]domain[\\/]assets[\\/]source-/,
+              priority: 10,
+            },
+          ],
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
