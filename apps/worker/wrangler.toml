@@ -1,5 +1,6 @@
 name = "pokopia-scene-editor"
 main = "src/index.ts"
+workers_dev = true
 compatibility_date = "2026-05-26"
 compatibility_flags = ["nodejs_compat"]
 

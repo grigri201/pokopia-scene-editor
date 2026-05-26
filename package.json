@@ -18,7 +18,7 @@
     "worker:types": "pnpm --filter @pokopia-scene-editor/worker types",
     "worker:types:check": "pnpm --filter @pokopia-scene-editor/worker types:check",
     "worker:deploy:dry-run": "pnpm --filter @pokopia-scene-editor/worker deploy:dry-run",
-    "worker:deploy": "pnpm --filter @pokopia-scene-editor/worker deploy",
+    "worker:deploy": "pnpm --filter @pokopia-scene-editor/worker run deploy",
     "deploy": "pnpm run worker:deploy",
     "release:verify": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm run smoke && pnpm run worker:types:check && pnpm run worker:deploy:dry-run && pnpm run worker:mcp:smoke && pnpm run worker:bundle:check && pnpm run skill:verify"
   }
