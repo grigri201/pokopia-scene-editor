@@ -257,6 +257,53 @@ describe('scene recovery', () => {
     );
   });
 
+  it('rejects recovered scenes when current footprint rules create cross-layer blocking conflicts', () => {
+    const currentScene = createDirtyCurrentScene();
+    const payload = {
+      ...serializeSceneDocument(createDefaultSceneDocument({
+        sceneId: 'scene-footprint-recovery',
+        sceneName: 'Footprint recovery',
+        now: '2026-05-16T08:10:00.000Z',
+      })),
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-boulder',
+          assetId: 'large-boulder',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-upper',
+          assetId: 'leafy-plant',
+          coordinate: { x: 3, y: 2 },
+          buildingLevelId: 'level-1',
+        }),
+      ],
+    };
+
+    const result = applyRecoveredSceneDocument(currentScene, payload, {
+      interactionMode: 'edit',
+      source: 'confirmed-user',
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('Expected footprint-blocked recovery to fail.');
+    }
+    expect(result.scene).toBe(currentScene);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          conflictType: 'height-blocked-by-lower-footprint',
+          fieldPath: 'tileInstances[1].coordinate',
+          instanceId: 'tile-upper',
+          blockingInstanceId: 'tile-boulder',
+        }),
+      ]),
+    );
+  });
+
   it('rejects areaType mismatches without replacing the current scene', () => {
     const currentScene = createDirtyCurrentScene();
     const validPayload = serializeSceneDocument(

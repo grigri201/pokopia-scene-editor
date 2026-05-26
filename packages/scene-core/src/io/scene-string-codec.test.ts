@@ -156,4 +156,48 @@ describe('SceneDocument short string codec', () => {
       reason: 'Unable to decode scene string.',
     });
   });
+
+  it('keeps footprint data out of PSE1 strings and validates decoded scenes with current occupancy rules', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-short-code-footprint',
+      sceneName: '短字符串大型素材',
+      now: '2026-05-23T09:00:00.000Z',
+    });
+    const sourceScene = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-wide',
+          assetId: 'wooden-bench',
+          coordinate: { x: 5, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+
+    const validEncoded = encodeSceneDocumentString(sourceScene);
+    const parts = validEncoded.split('~');
+    const tileFields = parts[3].split('.');
+    tileFields[1] = 'K';
+    parts[3] = tileFields.join('.');
+    const encoded = parts.join('~');
+    const decoded = decodeSceneDocumentString(encoded, '2026-05-23T09:30:00.000Z');
+
+    expect(encoded).toMatch(/^PSE1~/);
+    expect(encoded).not.toContain('footprint');
+    expect(encoded).not.toContain('occupiedCells');
+    expect(encoded).not.toContain('blocking');
+    expect(decoded.ok).toBe(false);
+    if (decoded.ok) {
+      throw new Error('Expected decoded scene to fail current footprint validation.');
+    }
+    expect(decoded.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          conflictType: 'footprint-out-of-bounds',
+          fieldPath: 'tileInstances[0].coordinate',
+        }),
+      ]),
+    );
+  });
 });

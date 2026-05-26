@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultSceneDocument, createTileInstance } from '../domain/scene';
+import { createBuildingLevel, createDefaultSceneDocument, createTileInstance } from '../domain/scene';
 import { parseSceneDocument, validateSceneDocument, type SceneDocumentV1 } from './scene-schema';
 import { serializeSceneDocument } from './scene-serializer';
 
@@ -200,7 +200,96 @@ describe('SceneDocument v1 schema', () => {
       expect.arrayContaining([
         expect.objectContaining({
           fieldPath: 'tileInstances[1].coordinate',
-          reason: 'Expected one tile instance per building level coordinate; duplicate with tileInstances[0]',
+          conflictType: 'same-level-footprint-overlap',
+          reason: expect.stringContaining('same-level-footprint-overlap'),
+        }),
+      ]),
+    );
+  });
+
+  it('rejects footprint bounds, same-layer overlap and height blocking conflicts with structured details', () => {
+    const payload = createValidPayload();
+    const levels = [createBuildingLevel(0), createBuildingLevel(1)];
+    const outOfBounds = {
+      ...payload,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-wide',
+          assetId: 'wooden-bench',
+          coordinate: { x: 6, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const overlap = {
+      ...payload,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-wide',
+          assetId: 'wooden-bench',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-overlap',
+          assetId: 'leafy-plant',
+          coordinate: { x: 3, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const heightBlocked = {
+      ...payload,
+      buildingLevels: levels,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-boulder',
+          assetId: 'large-boulder',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-upper',
+          assetId: 'leafy-plant',
+          coordinate: { x: 3, y: 2 },
+          buildingLevelId: 'level-1',
+        }),
+      ],
+    };
+
+    expect(validateSceneDocument(outOfBounds)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'tileInstances[0].coordinate',
+          conflictType: 'footprint-out-of-bounds',
+          instanceId: 'tile-wide',
+          assetId: 'wooden-bench',
+          buildingLevelId: 'level-0',
+          coordinates: [{ x: 7, y: 2 }],
+        }),
+      ]),
+    );
+    expect(validateSceneDocument(overlap)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'tileInstances[1].coordinate',
+          conflictType: 'same-level-footprint-overlap',
+          instanceId: 'tile-overlap',
+          blockingInstanceId: 'tile-wide',
+          coordinates: [{ x: 3, y: 2 }],
+        }),
+      ]),
+    );
+    expect(validateSceneDocument(heightBlocked)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'tileInstances[1].coordinate',
+          conflictType: 'height-blocked-by-lower-footprint',
+          instanceId: 'tile-upper',
+          blockingInstanceId: 'tile-boulder',
+          blockingAssetId: 'large-boulder',
+          blockingBuildingLevelId: 'level-0',
+          coordinates: [{ x: 3, y: 2 }],
         }),
       ]),
     );

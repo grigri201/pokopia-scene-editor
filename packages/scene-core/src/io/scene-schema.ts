@@ -5,7 +5,7 @@ import {
   isKnownAssetId,
   isKnownPokemonKey,
 } from '../domain/assets';
-import { calculateAreaType } from '../domain/scene';
+import { calculateAreaType, validateSceneOccupancy, type FootprintConflict, type GridCoordinate } from '../domain/scene';
 
 const isoDateTimeSchema = z.iso.datetime({ precision: 3 });
 
@@ -124,7 +124,6 @@ export const sceneDocumentV1Schema = z.object({
     outerPadding: scene.outerPadding,
   };
   const instanceIds = new Set<string>();
-  const occupiedLevelCoordinates = new Map<string, number>();
   const skillMarkerLevelCoordinates = new Map<string, number>();
 
   for (const [index, instance] of scene.tileInstances.entries()) {
@@ -137,18 +136,6 @@ export const sceneDocumentV1Schema = z.object({
     }
 
     instanceIds.add(instance.instanceId);
-
-    const occupiedKey = `${instance.buildingLevelId}:${instance.coordinate.x},${instance.coordinate.y}`;
-    const existingIndex = occupiedLevelCoordinates.get(occupiedKey);
-    if (existingIndex !== undefined) {
-      context.addIssue({
-        code: 'custom',
-        message: `Expected one tile instance per building level coordinate; duplicate with tileInstances[${existingIndex}]`,
-        path: ['tileInstances', index, 'coordinate'],
-      });
-    } else {
-      occupiedLevelCoordinates.set(occupiedKey, index);
-    }
 
     if (!levelIds.has(instance.buildingLevelId)) {
       context.addIssue({
@@ -220,6 +207,16 @@ export const sceneDocumentV1Schema = z.object({
       });
     }
   }
+
+  for (const conflict of validateSceneOccupancy(scene)) {
+    const instanceIndex = scene.tileInstances.findIndex((instance) => instance.instanceId === conflict.instanceId);
+    context.addIssue({
+      code: 'custom',
+      message: conflict.message,
+      path: ['tileInstances', Math.max(instanceIndex, 0), 'coordinate'],
+      params: conflict,
+    });
+  }
 });
 
 export type SceneDocumentV1 = z.infer<typeof sceneDocumentV1Schema>;
@@ -230,6 +227,14 @@ export interface SceneDocumentValidationError {
   actual: string;
   reason: string;
   recoveryAction: string;
+  conflictType?: FootprintConflict['conflictType'];
+  instanceId?: string;
+  assetId?: string;
+  buildingLevelId?: string;
+  coordinates?: GridCoordinate[];
+  blockingInstanceId?: string;
+  blockingAssetId?: string;
+  blockingBuildingLevelId?: string;
 }
 
 export type SceneDocumentParseResult =
@@ -259,7 +264,28 @@ function formatValidationErrors(issues: z.ZodIssue[], input: unknown): SceneDocu
     actual: formatIssueActual(issue, input),
     reason: issue.message,
     recoveryAction: getRecoveryAction(issue),
+    ...formatFootprintIssueDetails(issue),
   }));
+}
+
+function formatFootprintIssueDetails(issue: z.ZodIssue): Partial<SceneDocumentValidationError> {
+  const issueWithParams = issue as z.ZodIssue & { params?: Partial<FootprintConflict> };
+  const params = issueWithParams.params;
+
+  if (!params?.conflictType) {
+    return {};
+  }
+
+  return {
+    conflictType: params.conflictType,
+    instanceId: params.instanceId,
+    assetId: params.assetId,
+    buildingLevelId: params.buildingLevelId,
+    coordinates: params.coordinates?.map((coordinate) => ({ x: coordinate.x, y: coordinate.y })),
+    blockingInstanceId: params.blockingInstanceId,
+    blockingAssetId: params.blockingAssetId,
+    blockingBuildingLevelId: params.blockingBuildingLevelId,
+  };
 }
 
 function formatIssuePath(path: readonly PropertyKey[]): string {
@@ -336,6 +362,11 @@ function stringifyActualValue(value: unknown): string {
 
 function getRecoveryAction(issue: z.ZodIssue): string {
   const fieldPath = formatIssuePath(issue.path);
+  const issueWithParams = issue as z.ZodIssue & { params?: Partial<FootprintConflict> };
+
+  if (issueWithParams.params?.conflictType) {
+    return 'Resolve footprint bounds, overlap, or height blocking conflicts before saving or importing.';
+  }
 
   if (fieldPath.endsWith('areaType')) {
     return 'Recompute areaType from coordinate, sceneSize, and outerPadding before saving.';

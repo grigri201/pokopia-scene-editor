@@ -1,7 +1,9 @@
 import {
   createTileInstance,
+  evaluateScenePlacementFootprint,
   getCellContext,
   getCurrentBuildingLevel,
+  type FootprintConflict,
   type GridCoordinate,
   type SceneDocument,
   type TileInstance,
@@ -19,6 +21,9 @@ export interface AssetPlacementPreview {
   skillLabel: string;
   overwriteLabel: string;
   asset: AssetDefinition | null;
+  effectiveFootprint: AssetDefinition['footprint'] | null;
+  occupiedCells: readonly GridCoordinate[];
+  footprintConflicts: readonly FootprintConflict[];
   existingInstances: readonly TileInstance[];
 }
 
@@ -26,6 +31,7 @@ export type PlacementFailureReason =
   | 'read-only'
   | 'missing-asset'
   | 'unknown-asset'
+  | 'footprint-blocked'
   | 'replace-confirmation-required';
 
 export type AssetPlacementCommandResult =
@@ -100,15 +106,9 @@ export function placeSelectedAsset(
     requiresSkill: input.requiresSkill,
     skillType: null,
   });
+  const replacementInstanceIds = new Set(evaluation.preview.existingInstances.map((instance) => instance.instanceId));
   const nextTileInstances = input.confirmReplace
-    ? scene.tileInstances.filter(
-        (instance) =>
-          !(
-            instance.buildingLevelId === currentLevel.id &&
-            instance.coordinate.x === input.coordinate.x &&
-            instance.coordinate.y === input.coordinate.y
-          ),
-      )
+    ? scene.tileInstances.filter((instance) => !replacementInstanceIds.has(instance.instanceId))
     : scene.tileInstances;
 
   return {
@@ -142,7 +142,7 @@ function evaluatePlacement(
   const assetId = scene.workspaceState.selectedAssetId;
   const asset = getAssetById(assetId);
   const cellContext = getCellContext(scene, coordinate);
-  const existingInstances = cellContext.tileInstances;
+  const anchorCellInstances = cellContext.tileInstances;
   const skillLabel = getPlacementSkillLabel(Boolean(asset && requiresSkill));
 
   if (interactionMode === 'readOnly') {
@@ -157,14 +157,33 @@ function evaluatePlacement(
     return failure('unknown-asset', 'Unknown current asset', 'Choose a valid asset from the Asset Picker.');
   }
 
-  const hasExistingInstances = existingInstances.length > 0;
+  const currentLevel = getCurrentBuildingLevel(scene);
+  const footprintEvaluation = evaluateScenePlacementFootprint(scene, {
+    asset,
+    coordinate,
+    buildingLevelId: currentLevel.id,
+    rotationDegrees: 0,
+    confirmReplace,
+  });
+  const existingInstances = footprintEvaluation.existingInstances;
 
-  if (hasExistingInstances && !confirmReplace) {
+  if (footprintEvaluation.status === 'blocked') {
+    return failure(
+      'footprint-blocked',
+      footprintEvaluation.conflicts.map((conflict) => conflict.conflictType).join(', '),
+      'Choose another anchor cell or remove the blocking footprint conflict.',
+      'blocked',
+      footprintEvaluation,
+    );
+  }
+
+  if (footprintEvaluation.status === 'will-replace' && !confirmReplace) {
     return failure(
       'replace-confirmation-required',
       `Will replace ${existingInstances.length} item${existingInstances.length === 1 ? '' : 's'}`,
       'Confirm replacement before placing.',
       'will-replace',
+      footprintEvaluation,
     );
   }
 
@@ -178,6 +197,9 @@ function evaluatePlacement(
       skillLabel,
       overwriteLabel: 'No overwrite',
       asset,
+      effectiveFootprint: footprintEvaluation.effectiveFootprint,
+      occupiedCells: footprintEvaluation.occupiedCells,
+      footprintConflicts: [],
       existingInstances,
     },
   };
@@ -187,7 +209,9 @@ function evaluatePlacement(
     message: string,
     repairHint: string,
     status: PlacementStatus = 'blocked',
+    footprintEvaluation?: ReturnType<typeof evaluateScenePlacementFootprint>,
   ) {
+    const previewExistingInstances = footprintEvaluation?.existingInstances ?? anchorCellInstances;
     return {
       failureReason: reason,
       preview: {
@@ -198,12 +222,15 @@ function evaluatePlacement(
         skillLabel,
         overwriteLabel:
           status === 'will-replace'
-            ? `Will replace ${existingInstances.length} item${existingInstances.length === 1 ? '' : 's'}`
-            : existingInstances.length > 0
-              ? `${existingInstances.length} item${existingInstances.length === 1 ? '' : 's'} at target`
+            ? `Will replace ${previewExistingInstances.length} item${previewExistingInstances.length === 1 ? '' : 's'}`
+            : previewExistingInstances.length > 0
+              ? `${previewExistingInstances.length} item${previewExistingInstances.length === 1 ? '' : 's'} at target`
               : 'No overwrite',
         asset,
-        existingInstances,
+        effectiveFootprint: footprintEvaluation?.effectiveFootprint ?? asset?.footprint ?? null,
+        occupiedCells: footprintEvaluation?.occupiedCells ?? [],
+        footprintConflicts: footprintEvaluation?.conflicts ?? [],
+        existingInstances: previewExistingInstances,
       },
     };
   }

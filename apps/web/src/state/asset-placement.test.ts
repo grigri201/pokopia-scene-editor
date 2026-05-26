@@ -208,6 +208,91 @@ describe('asset placement command', () => {
     expect(result.reason).toBe('replace-confirmation-required');
   });
 
+  it('requires replacement when a wide footprint overlaps a neighboring occupied cell', () => {
+    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'wooden-bench', 'edit', now);
+    const sceneWithNeighbor = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-neighbor',
+          assetId: 'leafy-plant',
+          coordinate: { x: 3, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const preview = getAssetPlacementPreview(sceneWithNeighbor, { x: 2, y: 2 }, 'edit', false);
+    const blocked = placeSelectedAsset(sceneWithNeighbor, {
+      coordinate: { x: 2, y: 2 },
+      interactionMode: 'edit',
+      now,
+      instanceId: 'tile-wide',
+      requiresSkill: false,
+    });
+    const replaced = placeSelectedAsset(sceneWithNeighbor, {
+      coordinate: { x: 2, y: 2 },
+      interactionMode: 'edit',
+      now,
+      instanceId: 'tile-wide',
+      requiresSkill: false,
+      confirmReplace: true,
+    });
+
+    expect(preview?.status).toBe('will-replace');
+    expect(preview?.existingInstances.map((instance) => instance.instanceId)).toEqual(['tile-neighbor']);
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) {
+      expect(blocked.reason).toBe('replace-confirmation-required');
+    }
+    expect(replaced.ok).toBe(true);
+    if (!replaced.ok) {
+      throw new Error('Expected confirmed footprint replacement success.');
+    }
+    expect(replaced.scene.tileInstances.map((instance) => instance.instanceId)).toEqual(['tile-wide']);
+  });
+
+  it('blocks placement when footprint extends outside the canvas or a lower level height blocks the target', () => {
+    const selectedScene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'wooden-bench', 'edit', now);
+    const outOfBounds = placeSelectedAsset(selectedScene, {
+      coordinate: { x: 6, y: 2 },
+      interactionMode: 'edit',
+      now,
+      instanceId: 'tile-outside',
+      requiresSkill: false,
+    });
+    const levelScene = {
+      ...selectedScene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
+      workspaceState: { ...selectedScene.workspaceState, currentBuildingLevelId: 'level-1', selectedAssetId: 'leafy-plant' },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-boulder',
+          assetId: 'large-boulder',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const heightBlocked = placeSelectedAsset(levelScene, {
+      coordinate: { x: 3, y: 2 },
+      interactionMode: 'edit',
+      now,
+      instanceId: 'tile-upper',
+      requiresSkill: false,
+    });
+
+    expect(outOfBounds.ok).toBe(false);
+    if (!outOfBounds.ok) {
+      expect(outOfBounds.reason).toBe('footprint-blocked');
+      expect(outOfBounds.preview.message).toContain('footprint-out-of-bounds');
+    }
+    expect(heightBlocked.ok).toBe(false);
+    if (!heightBlocked.ok) {
+      expect(heightBlocked.reason).toBe('footprint-blocked');
+      expect(heightBlocked.preview.message).toContain('height-blocked-by-lower-footprint');
+    }
+  });
+
   it('stores requested placement skill requirements as instance-only data', () => {
     const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'wooden-fencing', 'edit', now);
     const result = placeSelectedAsset(scene, {
