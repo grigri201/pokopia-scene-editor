@@ -1,6 +1,8 @@
 node_modules/
 dist/
 .vite/
+.wrangler/
+**/.wrangler/
 test-results/
 playwright-report/
 .DS_Store

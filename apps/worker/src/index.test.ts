@@ -32,8 +32,18 @@ describe('worker HTTP API', () => {
     expect(body.meta.catalogVersion).toMatch(/^assets:\d+;pokemon:\d+$/);
   });
 
+  it('serves health from the public /api/v1 base path', async () => {
+    const baseResponse = await request('/api/v1');
+    const healthResponse = await request('/api/v1/health');
+
+    expect(baseResponse.status).toBe(200);
+    expect((await readJson(baseResponse)).data.status).toBe('ok');
+    expect(healthResponse.status).toBe(200);
+    expect((await readJson(healthResponse)).data.status).toBe('ok');
+  });
+
   it('generates and validates a default SceneDocument', async () => {
-    const generated = await post('/api/scene/generate', {
+    const generated = await post('/api/v1/scene/generate', {
       selectedPokemonKey: 'pikachu',
       sceneName: 'Worker Scene',
       now: '2026-05-26T00:00:00.000Z',
@@ -47,7 +57,7 @@ describe('worker HTTP API', () => {
       schemaVersion: 1,
     });
 
-    const validation = await post('/api/scene/validate', { scene: generatedBody.data.scene });
+    const validation = await post('/api/v1/scene/validate', { scene: generatedBody.data.scene });
     const validationBody = await readJson(validation);
 
     expect(validationBody.data).toEqual({ valid: true, errors: [] });

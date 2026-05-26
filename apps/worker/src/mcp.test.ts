@@ -284,6 +284,18 @@ describe('worker MCP endpoint', () => {
     expect(env.ASSETS.fetch).toHaveBeenCalledOnce();
   });
 
+  it('serves MCP from the public /api/v1/mcp path', async () => {
+    const response = await mcpRpc('initialize', {
+      protocolVersion: '2025-11-25',
+      capabilities: {},
+      clientInfo: { name: 'pokopia-worker-test', version: '0.1.0' },
+    }, '/api/v1/mcp');
+    const body = await readJson(response);
+
+    expect(response.status).toBe(200);
+    expect(body.result.serverInfo.name).toBe('pokopia-scene-editor');
+  });
+
   it('summarizes export data for valid scenes', async () => {
     const scene = createDefaultSceneDocument({ now: '2026-05-26T00:00:00.000Z' });
     const summary = await readJson(await mcpRpc('tools/call', {
@@ -302,8 +314,8 @@ describe('worker MCP endpoint', () => {
   });
 });
 
-function mcpRpc(method: string, params?: unknown) {
-  return request('/mcp', {
+function mcpRpc(method: string, params?: unknown, path = '/mcp') {
+  return request(path, {
     method: 'POST',
     body: JSON.stringify({
       jsonrpc: '2.0',

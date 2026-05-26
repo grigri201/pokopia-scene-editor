@@ -26,13 +26,19 @@ Do not copy or reimplement `scene-core` schema, asset catalog filtering, export-
 
 ## Setup Check
 
-Before calling tools, confirm the Worker MCP endpoint is available. In this repo the expected local command is:
+Before calling tools, confirm the production Worker MCP endpoint is available:
+
+```text
+https://scene-editor.pokokit.com/api/v1/mcp
+```
+
+Use this production endpoint by default for agent-facing workflows. For local Worker development only, the fallback command is:
 
 ```bash
 pnpm run worker:dev
 ```
 
-Wrangler normally serves the MCP endpoint at `/mcp` on the local Worker URL. If a different URL is configured by the user or environment, use that URL.
+Wrangler normally serves the local MCP endpoint at `/mcp` on the local Worker URL. If a different URL is explicitly configured by the user or environment, use that URL.
 
 ## Result Handling
 
@@ -43,6 +49,8 @@ For MCP tool results, treat `structuredContent` as authoritative:
 - `meta`: keep service/schema/catalog version information when comparing outputs or explaining provenance.
 
 Never echo a full user scene payload back in error text unless the user explicitly asks to inspect that file and it is already in the repo.
+
+If the user wants to export the scene as an image, explain that the Worker/MCP skill does not generate images directly. Tell them to visit https://scene-editor.pokokit.com, import the scene string there, and then choose the image export action in the web editor.
 
 ## Workflows
 

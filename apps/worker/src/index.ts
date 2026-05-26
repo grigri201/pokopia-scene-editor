@@ -14,6 +14,7 @@ import {
 export type WorkerEnv = Env;
 
 const apiTimeoutMs = 5_000;
+const publicApiBasePath = '/api/v1';
 
 export default {
   async fetch(request: Request, env: WorkerEnv, context: ExecutionContext): Promise<Response> {
@@ -22,17 +23,49 @@ export default {
 };
 
 export async function handleRequest(request: Request, env: WorkerEnv, _context?: ExecutionContext): Promise<Response> {
-  const url = new URL(request.url);
+  const routedRequest = normalizePublicApiRequest(request);
+  const url = new URL(routedRequest.url);
 
   if (url.pathname === '/mcp') {
-    return handleMcpRequest(request, env, _context ?? createNoopExecutionContext());
+    return handleMcpRequest(routedRequest, env, _context ?? createNoopExecutionContext());
   }
 
   if (!url.pathname.startsWith('/api/')) {
-    return env.ASSETS.fetch(request);
+    return env.ASSETS.fetch(routedRequest);
   }
 
-  return handleApiRequest(request, url);
+  return handleApiRequest(routedRequest, url);
+}
+
+function normalizePublicApiRequest(request: Request): Request {
+  const url = new URL(request.url);
+  const normalizedUrl = normalizePublicApiUrl(url);
+
+  if (normalizedUrl.href === url.href) {
+    return request;
+  }
+
+  return new Request(normalizedUrl, request);
+}
+
+function normalizePublicApiUrl(url: URL): URL {
+  if (url.pathname === publicApiBasePath) {
+    const normalizedUrl = new URL(url);
+    normalizedUrl.pathname = '/api/health';
+    return normalizedUrl;
+  }
+
+  if (!url.pathname.startsWith(`${publicApiBasePath}/`)) {
+    return url;
+  }
+
+  const normalizedUrl = new URL(url);
+  const publicApiPath = normalizedUrl.pathname.slice(publicApiBasePath.length);
+  normalizedUrl.pathname = publicApiPath === '/mcp'
+    ? '/mcp'
+    : `/api${publicApiPath}`;
+
+  return normalizedUrl;
 }
 
 async function handleApiRequest(request: Request, url: URL): Promise<Response> {
