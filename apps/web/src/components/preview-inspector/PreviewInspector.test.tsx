@@ -102,6 +102,7 @@ describe('PreviewInspector', () => {
         favoriteOnly: false,
       },
       locale: 'zh-CN',
+      helpOverlayDismissed: false,
     });
     expect(window.localStorage.getItem('pokopia.uiPreferences.v1')).toBeNull();
     expect(container.querySelector('.front-preview')).not.toHaveAttribute('data-preview-grid-visible');

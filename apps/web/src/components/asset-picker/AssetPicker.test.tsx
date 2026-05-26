@@ -419,6 +419,7 @@ describe('AssetPicker', () => {
         favoriteOnly: false,
       },
       locale: 'zh-CN',
+      helpOverlayDismissed: false,
     });
   }, 15_000);
 });

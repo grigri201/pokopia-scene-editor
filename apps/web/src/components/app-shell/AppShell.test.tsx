@@ -8,6 +8,8 @@ import {
   savedSceneStorageKey,
   serializeSceneDocument,
   uiPreferencesStorageKey,
+  writeHelpOverlayDismissedPreferenceToStorage,
+  writeLocalePreferenceToStorage,
   writeSceneDocumentToStorage,
 } from '../../io';
 import {
@@ -45,6 +47,95 @@ describe('AppShell scene storage integration', () => {
       'href',
       'https://www.pokokit.com',
     );
+  });
+
+  it('shows the desktop help overlay by default and closes it with a UI-only marker', () => {
+    render(<AppShell />);
+
+    const dialog = screen.getByRole('dialog', { name: '快速说明' });
+
+    expect(within(dialog).getByText('这里可以新增层和选中层。')).toBeVisible();
+    expect(within(dialog).getByText('可以勾选只显示宝可梦喜欢的素材。')).toBeVisible();
+    expect(within(dialog).getByText('单击选中素材，双击锁定可以多次放置。')).toBeVisible();
+    expect(within(dialog).getByText('这里可以修改布景名称和选择当前宝可梦。')).toBeVisible();
+    expect(document.querySelectorAll('.help-guide-spotlight')).toHaveLength(4);
+    expect(document.querySelectorAll('.help-guide-arrow')).toHaveLength(4);
+    expect(within(dialog).queryByRole('button', { name: '下一步' })).not.toBeInTheDocument();
+
+    expect(within(dialog).queryByRole('button', { name: '关闭说明' })).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '明白了！' }));
+
+    expect(screen.queryByRole('dialog', { name: '快速说明' })).not.toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem(uiPreferencesStorageKey) ?? '{}')).toMatchObject({
+      helpOverlayDismissed: true,
+    });
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+  });
+
+  it('keeps the help overlay available from the logo-side question button after dismissal', () => {
+    writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
+
+    render(<AppShell />);
+
+    expect(screen.queryByRole('dialog', { name: '快速说明' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '打开说明' }));
+
+    expect(screen.getByRole('dialog', { name: '快速说明' })).toBeVisible();
+  });
+
+  it('does not show or persist the help overlay below the 1280px guide breakpoint', () => {
+    setViewportWidth(1279);
+
+    render(<AppShell />);
+
+    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Desktop edit mode');
+    expect(screen.queryByRole('button', { name: '打开说明' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '快速说明' })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  });
+
+  it('hides the help overlay without persisting dismissal when resized below 1280px', async () => {
+    render(<AppShell />);
+
+    expect(screen.getByRole('dialog', { name: '快速说明' })).toBeVisible();
+
+    setViewportWidth(1279);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: '快速说明' })).not.toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: '打开说明' })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  });
+
+  it('does not show or persist the help overlay on mobile read-only startup', () => {
+    setViewportWidth(390);
+
+    render(<AppShell />);
+
+    expect(screen.queryByRole('button', { name: '打开说明' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '快速说明' })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+  });
+
+  it('uses the active locale for help overlay copy', () => {
+    writeLocalePreferenceToStorage(window.localStorage, 'en-US');
+
+    render(<AppShell />);
+
+    const dialog = screen.getByRole('dialog', { name: 'Quick guide' });
+
+    expect(within(dialog).getByText('Use the building layers panel to add a new layer or select the active layer.')).toBeVisible();
+    expect(within(dialog).getByText('Use Favorites only to show assets liked by the current Pokemon.')).toBeVisible();
+    expect(within(dialog).getByText('Click an asset to select it, or double-click to lock it for repeated placement.')).toBeVisible();
+    expect(within(dialog).getByText('Use the upper-left controls to choose another Pokemon or rename the scene.')).toBeVisible();
+    expect(within(dialog).getByRole('button', { name: 'Got it!' })).toBeVisible();
+    expect(within(dialog).queryByRole('button', { name: 'Next' })).not.toBeInTheDocument();
   });
 
   it('autosaves the editable Open Design scene and restores it after remount', async () => {

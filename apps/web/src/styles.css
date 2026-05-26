@@ -90,10 +90,18 @@ button:disabled {
   box-shadow: 0 10px 22px rgba(64, 45, 38, 0.12);
 }
 
+.app-header__brand-tools {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
+
 .app-brand {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  flex-shrink: 0;
   color: var(--ink);
   font-family: Georgia, "Times New Roman", serif;
   font-size: 18px;
@@ -110,6 +118,40 @@ button:disabled {
   text-transform: lowercase;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+.help-entry-button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #fffefb;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 3px 3px 0 rgba(35, 31, 26, 0.16);
+}
+
+.help-entry-button::after {
+  position: absolute;
+  inset: 3px;
+  border: 1px dashed rgba(35, 31, 26, 0.38);
+  border-radius: 5px;
+  content: "";
+  pointer-events: none;
+}
+
+.help-entry-button:hover,
+.help-entry-button:focus-visible {
+  border-color: #256f68;
+  color: #164c46;
+  transform: translate(-1px, -1px);
 }
 
 .app-header__actions {
@@ -170,6 +212,109 @@ button:disabled {
 .app-action-button--danger {
   border-color: color-mix(in srgb, var(--color-error) 55%, var(--line));
   color: var(--color-error);
+}
+
+.help-guide-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.help-guide-backdrop__scrim {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.help-guide-scrim {
+  fill: rgba(35, 31, 26, 0.62);
+}
+
+.help-guide-spotlight {
+  fill: transparent;
+  stroke: rgba(255, 255, 255, 0.96);
+  stroke-width: 2;
+  stroke-dasharray: 8 7;
+  filter: drop-shadow(0 2px 8px rgba(255, 255, 255, 0.5));
+  pointer-events: none;
+}
+
+.help-guide-confirm {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 94;
+  display: inline-grid;
+  place-items: center;
+  min-width: 168px;
+  min-height: 48px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 0 28px;
+  background: #ff8a1f;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 950;
+  line-height: 1;
+  box-shadow:
+    4px 4px 0 rgba(35, 31, 26, 0.24),
+    0 12px 24px rgba(35, 31, 26, 0.28);
+  transform: translateX(-50%);
+}
+
+.help-guide-confirm::after {
+  position: absolute;
+  inset: 5px;
+  border: 1px dashed rgba(35, 31, 26, 0.5);
+  border-radius: 5px;
+  content: "";
+  pointer-events: none;
+}
+
+.help-guide-confirm:hover,
+.help-guide-confirm:focus-visible {
+  background: #ff9f3f;
+  transform: translate(-50%, -1px);
+}
+
+.help-guide-note {
+  position: fixed;
+  z-index: 93;
+  color: #fffefb;
+  font-size: 16px;
+  font-weight: 950;
+  line-height: 1.58;
+  text-shadow:
+    0 2px 4px rgba(35, 31, 26, 0.55),
+    0 0 1px rgba(35, 31, 26, 0.7);
+  pointer-events: none;
+}
+
+.help-guide-note > span:first-child {
+  border-bottom: 2px dashed rgba(255, 255, 255, 0.96);
+  padding-bottom: 5px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.help-guide-arrow {
+  fill: none;
+  stroke: #ff8a1f;
+  stroke-width: 2.5;
+  stroke-dasharray: 8 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 2px 2px rgba(35, 31, 26, 0.42));
+  pointer-events: none;
+}
+
+.help-guide-arrow-head {
+  fill: #ff8a1f;
 }
 
 .icon-button {

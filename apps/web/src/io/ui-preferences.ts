@@ -14,6 +14,7 @@ export interface UiPreferences {
   schemaVersion: typeof uiPreferencesSchemaVersion;
   assetFilters: AssetFilterState;
   locale: Locale;
+  helpOverlayDismissed: boolean;
 }
 
 export function getDefaultUiPreferences(): UiPreferences {
@@ -21,6 +22,7 @@ export function getDefaultUiPreferences(): UiPreferences {
     schemaVersion: uiPreferencesSchemaVersion,
     assetFilters: { ...defaultAssetFilters },
     locale: defaultLocale,
+    helpOverlayDismissed: false,
   };
 }
 
@@ -98,6 +100,21 @@ export function writeLocalePreferenceToStorage(
   return nextPreferences;
 }
 
+export function writeHelpOverlayDismissedPreferenceToStorage(
+  storage: Storage | null,
+  helpOverlayDismissed = true,
+): UiPreferences {
+  const currentPreferences = readUiPreferencesFromStorage(storage);
+  const nextPreferences = {
+    ...currentPreferences,
+    helpOverlayDismissed,
+  };
+
+  writeUiPreferencesToStorage(storage, nextPreferences);
+
+  return nextPreferences;
+}
+
 function writeUiPreferencesToStorage(storage: Storage | null, preferences: UiPreferences): void {
   if (!storage) {
     return;
@@ -121,6 +138,9 @@ function normalizeUiPreferences(value: unknown): UiPreferences {
     schemaVersion: uiPreferencesSchemaVersion,
     assetFilters: normalizeAssetFilters(value.assetFilters, defaultPreferences.assetFilters),
     locale: isLocale(value.locale) ? value.locale : defaultPreferences.locale,
+    helpOverlayDismissed: typeof value.helpOverlayDismissed === 'boolean'
+      ? value.helpOverlayDismissed
+      : defaultPreferences.helpOverlayDismissed,
   };
 }
 

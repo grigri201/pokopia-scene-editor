@@ -4,6 +4,7 @@ import {
   readUiPreferencesFromStorage,
   uiPreferencesStorageKey,
   writeAssetFilterPreferencesToStorage,
+  writeHelpOverlayDismissedPreferenceToStorage,
   writeLocalePreferenceToStorage,
 } from './ui-preferences';
 
@@ -127,6 +128,7 @@ describe('UI preferences storage', () => {
         favoriteOnly: false,
       },
       locale: 'zh-CN',
+      helpOverlayDismissed: false,
     });
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).not.toContain('preview');
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).not.toContain('displayOptions');
@@ -162,6 +164,7 @@ describe('UI preferences storage', () => {
         favoriteOnly: false,
       },
       locale: 'zh-CN',
+      helpOverlayDismissed: false,
     });
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBe(
       JSON.stringify({
@@ -172,6 +175,7 @@ describe('UI preferences storage', () => {
           favoriteOnly: false,
         },
         locale: 'zh-CN',
+        helpOverlayDismissed: false,
       }),
     );
   });
@@ -193,8 +197,42 @@ describe('UI preferences storage', () => {
         favoriteOnly: true,
       },
       locale: 'en-US',
+      helpOverlayDismissed: false,
     });
     expect(readUiPreferencesFromStorage(window.localStorage).locale).toBe('en-US');
+  });
+
+  it('stores the help overlay dismissed marker without disturbing other UI preferences', () => {
+    writeAssetFilterPreferencesToStorage(window.localStorage, {
+      query: 'plant',
+      category: 'misc',
+      favoriteOnly: true,
+    });
+    writeLocalePreferenceToStorage(window.localStorage, 'en-US');
+
+    const preferences = writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
+
+    expect(preferences).toEqual({
+      schemaVersion: 1,
+      assetFilters: {
+        query: 'plant',
+        category: 'misc',
+        favoriteOnly: true,
+      },
+      locale: 'en-US',
+      helpOverlayDismissed: true,
+    });
+    expect(readUiPreferencesFromStorage(window.localStorage).helpOverlayDismissed).toBe(true);
+  });
+
+  it('treats help overlay marker write failures as best-effort', () => {
+    const throwingWriteStorage = createStorageDouble({
+      setItem: () => {
+        throw new Error('Storage write blocked.');
+      },
+    });
+
+    expect(() => writeHelpOverlayDismissedPreferenceToStorage(throwingWriteStorage)).not.toThrow();
   });
 });
 

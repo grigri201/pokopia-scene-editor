@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { type AssetSkillType, type PokemonKey } from '@pokopia-scene-editor/scene-core';
 import { AssetPicker, type AssetSelectionMode } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
@@ -40,6 +40,7 @@ import {
   readLatestSceneDocumentFromStorage,
   readUiPreferencesFromStorage,
   savedSceneStorageKey,
+  writeHelpOverlayDismissedPreferenceToStorage,
   type RecoveryError,
   writeLocalePreferenceToStorage,
   writeSceneDocumentToStorage,
@@ -49,8 +50,73 @@ import { getDefaultBuildingLevelName, localeLabels, locales, t, type Locale } fr
 
 const replacementConfirmationWindowMs = 15_000;
 const toastAutoDismissMs = 3_000;
+const helpOverlayMinimumWidth = 1280;
+
+type HelpGuideTargetKey = 'layers' | 'asset-favorites' | 'assets' | 'scene-controls';
+
+interface HelpGuideTarget {
+  key: HelpGuideTargetKey;
+  selector: string;
+  arrowSelector: string;
+  messageKey:
+    | 'helpOverlayLayers'
+    | 'helpOverlayFavoriteAssets'
+    | 'helpOverlayAssets'
+    | 'helpOverlaySceneControls';
+}
+
+interface HelpGuideRect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+interface HelpGuideSnapshot {
+  viewportWidth: number;
+  viewportHeight: number;
+  targets: Partial<Record<HelpGuideTargetKey, HelpGuideRect>>;
+  arrowTargets: Partial<Record<HelpGuideTargetKey, HelpGuideRect>>;
+}
+
+interface HelpGuideLayout {
+  noteStyle: CSSProperties;
+  arrowPath: string;
+}
+
+const helpGuideTargets: HelpGuideTarget[] = [
+  {
+    key: 'layers',
+    selector: '.level-panel',
+    arrowSelector: '.level-row--current input',
+    messageKey: 'helpOverlayLayers',
+  },
+  {
+    key: 'asset-favorites',
+    selector: '.asset-picker .favorite-toggle',
+    arrowSelector: '.asset-picker .favorite-toggle input',
+    messageKey: 'helpOverlayFavoriteAssets',
+  },
+  {
+    key: 'assets',
+    selector: '.asset-picker .asset-row:first-of-type .asset-select-button',
+    arrowSelector: '.asset-picker .asset-row:first-of-type .asset-select-button',
+    messageKey: 'helpOverlayAssets',
+  },
+  {
+    key: 'scene-controls',
+    selector: '.scene-controls',
+    arrowSelector: '.scene-controls input',
+    messageKey: 'helpOverlaySceneControls',
+  },
+];
 
 export function AppShell() {
+  const [initialUiPreferences] = useState(() =>
+    readUiPreferencesFromStorage(getUiPreferencesStorage(), { persistNormalized: false }),
+  );
+  const initialViewportWidth = window.innerWidth;
+  const initialInteractionMode = getInteractionMode(initialViewportWidth);
   const [initialSceneState] = useState(createInitialSceneState);
   const [scene, setScene] = useState(initialSceneState.scene);
   const [recoveryErrors, setRecoveryErrors] = useState<RecoveryError[]>(
@@ -59,9 +125,7 @@ export function AppShell() {
   const [recoveryStatus, setRecoveryStatus] = useState<'idle' | 'error' | 'success' | 'canceled'>(
     initialSceneState.recoveryErrors.length > 0 ? 'error' : 'idle',
   );
-  const [locale, setLocale] = useState<Locale>(() =>
-    readUiPreferencesFromStorage(getUiPreferencesStorage(), { persistNormalized: false }).locale,
-  );
+  const [locale, setLocale] = useState<Locale>(initialUiPreferences.locale);
   const [autosaveError, setAutosaveError] = useState<string | null>(null);
   const autosaveReadyRef = useRef(false);
   const recoveryToastTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
@@ -85,11 +149,23 @@ export function AppShell() {
   const [exportDownloadError, setExportDownloadError] = useState<string | null>(null);
   const [sceneStringStatus, setSceneStringStatus] = useState<string | null>(null);
   const [sceneStringError, setSceneStringError] = useState<string | null>(null);
-  const [interactionMode, setInteractionMode] = useState<InteractionMode>(() =>
-    getInteractionMode(window.innerWidth),
+  const [viewportWidth, setViewportWidth] = useState(initialViewportWidth);
+  const [interactionMode, setInteractionMode] = useState<InteractionMode>(initialInteractionMode);
+  const [helpOverlayOpen, setHelpOverlayOpen] = useState(
+    initialInteractionMode === 'edit' &&
+      initialViewportWidth >= helpOverlayMinimumWidth &&
+      !initialUiPreferences.helpOverlayDismissed,
+  );
+  const [helpGuideSnapshot, setHelpGuideSnapshot] = useState<HelpGuideSnapshot | null>(null);
+  const helpOverlayAutoHandledRef = useRef(
+    initialUiPreferences.helpOverlayDismissed ||
+      (initialInteractionMode === 'edit' && initialViewportWidth >= helpOverlayMinimumWidth),
   );
   const isReadOnly = interactionMode === 'readOnly';
   const exportPreviewOpen = exportPreviewSummary !== null;
+  const helpOverlayAvailable = !isReadOnly && viewportWidth >= helpOverlayMinimumWidth;
+  const helpOverlayVisible = helpOverlayOpen && helpOverlayAvailable;
+  const helpGuideLayouts = helpGuideSnapshot ? getHelpGuideLayouts(helpGuideSnapshot) : {};
   const activeBuildingLevelId = isReadOnly
     ? readOnlyViewingLevelId ?? scene.workspaceState.currentBuildingLevelId
     : scene.workspaceState.currentBuildingLevelId;
@@ -169,13 +245,83 @@ export function AppShell() {
   };
 
   useEffect(() => {
-    const updateInteractionMode = () => {
+    const updateViewportState = () => {
+      setViewportWidth(window.innerWidth);
       setInteractionMode(getInteractionMode(window.innerWidth));
     };
 
-    window.addEventListener('resize', updateInteractionMode);
-    return () => window.removeEventListener('resize', updateInteractionMode);
+    window.addEventListener('resize', updateViewportState);
+    return () => window.removeEventListener('resize', updateViewportState);
   }, []);
+
+  useEffect(() => {
+    if (!helpOverlayAvailable || helpOverlayAutoHandledRef.current) {
+      return;
+    }
+
+    helpOverlayAutoHandledRef.current = true;
+    setHelpOverlayOpen(true);
+  }, [helpOverlayAvailable]);
+
+  useEffect(() => {
+    if (!helpOverlayAvailable && helpOverlayOpen) {
+      setHelpOverlayOpen(false);
+    }
+  }, [helpOverlayAvailable, helpOverlayOpen]);
+
+  useLayoutEffect(() => {
+    if (!helpOverlayVisible) {
+      setHelpGuideSnapshot(null);
+      return undefined;
+    }
+
+    const updateHelpGuideSnapshot = () => {
+      const targets: Partial<Record<HelpGuideTargetKey, HelpGuideRect>> = {};
+      const arrowTargets: Partial<Record<HelpGuideTargetKey, HelpGuideRect>> = {};
+
+      for (const target of helpGuideTargets) {
+        const targetElement = document.querySelector<HTMLElement>(target.selector);
+        if (!targetElement) {
+          continue;
+        }
+
+        const rect = targetElement.getBoundingClientRect();
+        targets[target.key] = {
+          top: rect.top,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height,
+        };
+
+        const arrowTargetElement = document.querySelector<HTMLElement>(target.arrowSelector);
+        if (arrowTargetElement) {
+          const arrowTargetRect = arrowTargetElement.getBoundingClientRect();
+          arrowTargets[target.key] = {
+            top: arrowTargetRect.top,
+            left: arrowTargetRect.left,
+            width: arrowTargetRect.width,
+            height: arrowTargetRect.height,
+          };
+        }
+      }
+
+      setHelpGuideSnapshot({
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        targets,
+        arrowTargets,
+      });
+    };
+
+    updateHelpGuideSnapshot();
+    window.addEventListener('resize', updateHelpGuideSnapshot);
+    window.addEventListener('scroll', updateHelpGuideSnapshot, true);
+
+    return () => {
+      window.removeEventListener('resize', updateHelpGuideSnapshot);
+      window.removeEventListener('scroll', updateHelpGuideSnapshot, true);
+    };
+  }, [helpOverlayVisible]);
 
   useEffect(() => {
     if (!isReadOnly) {
@@ -819,6 +965,20 @@ export function AppShell() {
     writeLocalePreferenceToStorage(getUiPreferencesStorage(), nextLocale);
   };
 
+  const openHelpOverlay = () => {
+    if (!helpOverlayAvailable) {
+      return;
+    }
+
+    setHelpOverlayOpen(true);
+  };
+
+  const closeHelpOverlay = () => {
+    helpOverlayAutoHandledRef.current = true;
+    setHelpOverlayOpen(false);
+    writeHelpOverlayDismissedPreferenceToStorage(getUiPreferencesStorage());
+  };
+
   const retrySceneRecovery = () => {
     const storage = getBrowserStorage();
     if (!storage) {
@@ -879,14 +1039,27 @@ export function AppShell() {
         inert={exportPreviewOpen ? true : undefined}
         aria-hidden={exportPreviewOpen ? true : undefined}
       >
-        <a
-          className="app-brand"
-          href="https://www.pokokit.com"
-          aria-label="pokokit Scene Editor"
-        >
-          <span className="app-brand__pokokit">pokokit</span>
-          <span>Scene Editor</span>
-        </a>
+        <div className="app-header__brand-tools">
+          <a
+            className="app-brand"
+            href="https://www.pokokit.com"
+            aria-label="pokokit Scene Editor"
+          >
+            <span className="app-brand__pokokit">pokokit</span>
+            <span>Scene Editor</span>
+          </a>
+          {helpOverlayAvailable ? (
+            <button
+              type="button"
+              className="help-entry-button"
+              aria-label={t(locale, 'openHelpOverlay')}
+              title={t(locale, 'openHelpOverlay')}
+              onClick={openHelpOverlay}
+            >
+              ?
+            </button>
+          ) : null}
+        </div>
         <div className="app-header__actions" aria-label="Scene file actions">
           {!isReadOnly ? (
             <>
@@ -938,6 +1111,133 @@ export function AppShell() {
           </button>
         </div>
       </header>
+      {helpOverlayVisible && helpGuideSnapshot ? (
+        <div
+          className="help-guide-backdrop"
+          data-guide-step="single-page"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t(locale, 'helpOverlayTitle')}
+        >
+          <svg
+            className="help-guide-backdrop__scrim"
+            aria-hidden="true"
+            width={helpGuideSnapshot.viewportWidth}
+            height={helpGuideSnapshot.viewportHeight}
+          >
+            <defs>
+              <mask id="help-guide-mask" maskUnits="userSpaceOnUse">
+                <rect
+                  x="0"
+                  y="0"
+                  width={helpGuideSnapshot.viewportWidth}
+                  height={helpGuideSnapshot.viewportHeight}
+                  fill="white"
+                />
+                {helpGuideTargets.map((target) => {
+                  const targetRect = helpGuideSnapshot.targets[target.key];
+                  if (!targetRect) {
+                    return null;
+                  }
+
+                  const spotlightRect = getPaddedHelpGuideRect(targetRect, helpGuideSnapshot);
+
+                  return (
+                    <rect
+                      key={target.key}
+                      x={spotlightRect.left}
+                      y={spotlightRect.top}
+                      width={spotlightRect.width}
+                      height={spotlightRect.height}
+                      rx="14"
+                      fill="black"
+                    />
+                  );
+                })}
+              </mask>
+              <marker
+                id="help-guide-arrow-head"
+                viewBox="0 0 12 12"
+                refX="10"
+                refY="6"
+                markerWidth="8"
+                markerHeight="8"
+                orient="auto"
+              >
+                <path d="M 1 1 L 10 6 L 1 11 z" className="help-guide-arrow-head" />
+              </marker>
+            </defs>
+            <rect
+              x="0"
+              y="0"
+              width={helpGuideSnapshot.viewportWidth}
+              height={helpGuideSnapshot.viewportHeight}
+              className="help-guide-scrim"
+              mask="url(#help-guide-mask)"
+            />
+            {helpGuideTargets.map((target) => {
+              const targetRect = helpGuideSnapshot.targets[target.key];
+              if (!targetRect) {
+                return null;
+              }
+
+              const spotlightRect = getPaddedHelpGuideRect(targetRect, helpGuideSnapshot);
+
+              return (
+                <rect
+                  key={target.key}
+                  className="help-guide-spotlight"
+                  x={spotlightRect.left}
+                  y={spotlightRect.top}
+                  width={spotlightRect.width}
+                  height={spotlightRect.height}
+                  rx="14"
+                />
+              );
+            })}
+            {helpGuideTargets.map((target) => {
+              const layout = helpGuideLayouts[target.key];
+              if (!layout) {
+                return null;
+              }
+
+              return (
+                <path
+                  key={target.key}
+                  className="help-guide-arrow"
+                  d={layout.arrowPath}
+                  markerEnd="url(#help-guide-arrow-head)"
+                />
+              );
+            })}
+          </svg>
+          {helpGuideTargets.map((target) => {
+            const layout = helpGuideLayouts[target.key];
+            if (!layout) {
+              return null;
+            }
+
+            return (
+              <div
+                key={target.key}
+                className="help-guide-note"
+                data-guide-target={target.key}
+                style={layout.noteStyle}
+              >
+                <span>{t(locale, target.messageKey)}</span>
+              </div>
+            );
+          })}
+          <button
+            type="button"
+            className="help-guide-confirm"
+            title={t(locale, 'closeHelpOverlay')}
+            onClick={closeHelpOverlay}
+          >
+            {t(locale, 'helpOverlayConfirm')}
+          </button>
+        </div>
+      ) : null}
       {autosaveError ? (
         <section
           className="autosave-warning"
@@ -1111,6 +1411,215 @@ export function AppShell() {
       </section>
     </main>
   );
+}
+
+function getHelpGuideLayouts(
+  snapshot: HelpGuideSnapshot,
+): Partial<Record<HelpGuideTargetKey, HelpGuideLayout>> {
+  return helpGuideTargets.reduce<Partial<Record<HelpGuideTargetKey, HelpGuideLayout>>>(
+    (layouts, target) => {
+      const targetRect = snapshot.targets[target.key];
+      if (!targetRect) {
+        return layouts;
+      }
+
+      layouts[target.key] = getHelpGuideLayout(
+        targetRect,
+        snapshot.arrowTargets?.[target.key] ?? targetRect,
+        target.key,
+        snapshot,
+      );
+      return layouts;
+    },
+    {},
+  );
+}
+
+function getHelpGuideLayout(
+  targetRect: HelpGuideRect,
+  arrowTargetRect: HelpGuideRect,
+  targetKey: HelpGuideTargetKey,
+  snapshot: HelpGuideSnapshot,
+): HelpGuideLayout {
+  const viewportWidth = snapshot.viewportWidth;
+  const viewportHeight = snapshot.viewportHeight;
+  const noteWidth =
+    targetKey === 'assets' ? Math.min(400, viewportWidth - 36) : Math.min(330, viewportWidth - 36);
+  const noteHeight = 58;
+  const viewportPadding = 18;
+  const targetPoint = getHelpGuideTargetPoint(arrowTargetRect, targetKey);
+  let noteLeft = targetPoint.x - noteWidth / 2;
+  let noteTop = targetRect.top + targetRect.height + 26;
+
+  if (targetKey === 'layers') {
+    noteLeft = targetRect.left + targetRect.width + 116;
+    noteTop = targetRect.top + 128;
+  }
+
+  if (targetKey === 'asset-favorites') {
+    noteLeft = targetRect.left - noteWidth - 170;
+    noteTop = targetRect.top + 78;
+  }
+
+  if (targetKey === 'assets') {
+    noteLeft = targetRect.left - noteWidth - 116;
+    noteTop = targetRect.top + 172;
+  }
+
+  if (targetKey === 'scene-controls') {
+    noteLeft = targetRect.left + targetRect.width + 116;
+    noteTop = targetRect.top + 8;
+  }
+
+  noteLeft = clamp(noteLeft, viewportPadding, viewportWidth - noteWidth - viewportPadding);
+  noteTop = clamp(noteTop, viewportPadding, viewportHeight - noteHeight - viewportPadding);
+
+  const noteAnchorX = getHelpGuideNoteArrowAnchorX(targetPoint, targetKey, noteLeft, noteWidth);
+  const noteAnchorY = 32;
+  const anchorX = noteLeft + noteAnchorX;
+  const anchorY = noteTop + noteAnchorY;
+  const targetEdgePoint = getHelpGuideTargetEdgePoint(arrowTargetRect, targetPoint, {
+    x: anchorX,
+    y: anchorY,
+  });
+
+  return {
+    noteStyle: {
+      left: `${noteLeft}px`,
+      top: `${noteTop}px`,
+      width: `${noteWidth}px`,
+    },
+    arrowPath: getHelpGuideArrowPath({ x: anchorX, y: anchorY }, targetEdgePoint),
+  };
+}
+
+function getHelpGuideNoteArrowAnchorX(
+  targetPoint: { x: number; y: number },
+  targetKey: HelpGuideTargetKey,
+  noteLeft: number,
+  noteWidth: number,
+): number {
+  if (targetPoint.x < noteLeft) {
+    return 8;
+  }
+
+  if (targetPoint.x > noteLeft + noteWidth) {
+    return getHelpGuideRightArrowAnchorX(targetKey, noteWidth);
+  }
+
+  return noteWidth / 2;
+}
+
+function getHelpGuideRightArrowAnchorX(targetKey: HelpGuideTargetKey, noteWidth: number): number {
+  if (targetKey === 'assets') {
+    return Math.min(noteWidth - 8, 292);
+  }
+
+  if (targetKey === 'asset-favorites') {
+    return Math.min(noteWidth - 8, 304);
+  }
+
+  return noteWidth - 8;
+}
+
+function getHelpGuideArrowPath(
+  startPoint: { x: number; y: number },
+  endPoint: { x: number; y: number },
+): string {
+  const deltaX = endPoint.x - startPoint.x;
+  const deltaY = endPoint.y - startPoint.y;
+  const distance = Math.max(1, Math.hypot(deltaX, deltaY));
+  const downwardCurveOffset = clamp(distance * 0.32, 34, 96);
+  const controlPoint = {
+    x: startPoint.x + deltaX * 0.5,
+    y: Math.max(startPoint.y, endPoint.y) + downwardCurveOffset,
+  };
+
+  return `M ${formatSvgNumber(startPoint.x)} ${formatSvgNumber(startPoint.y)} Q ${formatSvgNumber(controlPoint.x)} ${formatSvgNumber(controlPoint.y)} ${formatSvgNumber(endPoint.x)} ${formatSvgNumber(endPoint.y)}`;
+}
+
+function getHelpGuideTargetEdgePoint(
+  targetRect: HelpGuideRect,
+  targetPoint: { x: number; y: number },
+  fromPoint: { x: number; y: number },
+): { x: number; y: number } {
+  const deltaX = fromPoint.x - targetPoint.x;
+  const deltaY = fromPoint.y - targetPoint.y;
+  const candidates: Array<{ x: number; y: number; distance: number }> = [];
+  const right = targetRect.left + targetRect.width;
+  const bottom = targetRect.top + targetRect.height;
+
+  if (deltaX !== 0) {
+    const edgeX = deltaX > 0 ? right : targetRect.left;
+    const distance = (edgeX - targetPoint.x) / deltaX;
+    const y = targetPoint.y + deltaY * distance;
+    if (distance > 0 && y >= targetRect.top && y <= bottom) {
+      candidates.push({ x: edgeX, y, distance });
+    }
+  }
+
+  if (deltaY !== 0) {
+    const edgeY = deltaY > 0 ? bottom : targetRect.top;
+    const distance = (edgeY - targetPoint.y) / deltaY;
+    const x = targetPoint.x + deltaX * distance;
+    if (distance > 0 && x >= targetRect.left && x <= right) {
+      candidates.push({ x, y: edgeY, distance });
+    }
+  }
+
+  const nearestEdgePoint = candidates.sort((first, second) => first.distance - second.distance)[0];
+  if (!nearestEdgePoint) {
+    return targetPoint;
+  }
+
+  return {
+    x: nearestEdgePoint.x,
+    y: nearestEdgePoint.y,
+  };
+}
+
+function formatSvgNumber(value: number): string {
+  return value.toFixed(1);
+}
+
+function getPaddedHelpGuideRect(targetRect: HelpGuideRect, snapshot: HelpGuideSnapshot): HelpGuideRect {
+  const left = Math.max(8, targetRect.left - 8);
+  const top = Math.max(8, targetRect.top - 8);
+
+  return {
+    left,
+    top,
+    width: Math.min(targetRect.width + 16, snapshot.viewportWidth - left - 8),
+    height: Math.min(targetRect.height + 16, snapshot.viewportHeight - top - 8),
+  };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function getHelpGuideTargetPoint(
+  targetRect: HelpGuideRect,
+  targetKey: HelpGuideTargetKey,
+): { x: number; y: number } {
+  if (targetKey === 'layers') {
+    return {
+      x: targetRect.left + targetRect.width * 0.48,
+      y: targetRect.top + Math.min(116, targetRect.height * 0.38),
+    };
+  }
+
+  if (targetKey === 'assets') {
+    return {
+      x: targetRect.left + targetRect.width * 0.5,
+      y: targetRect.top + Math.min(210, targetRect.height * 0.34),
+    };
+  }
+
+  return {
+    x: targetRect.left + targetRect.width / 2,
+    y: targetRect.top + targetRect.height / 2,
+  };
 }
 
 function markSelectionStart(counter: number): string {

@@ -12,6 +12,21 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
 
+  await expect(page.getByRole('dialog', { name: '快速说明' })).toBeVisible();
+  await expect(page.locator('.help-guide-spotlight')).toHaveCount(4);
+  await expect(page.locator('.help-guide-arrow')).toHaveCount(4);
+  await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('这里可以新增层和选中层');
+  await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('可以勾选只显示宝可梦喜欢的素材');
+  await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('单击选中素材');
+  await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('这里可以修改布景名称和选择当前宝可梦');
+  await expect(page.getByRole('button', { name: '下一步' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '关闭说明' })).toHaveCount(0);
+  await page.getByRole('button', { name: '明白了！' }).click();
+  await expect(page.getByRole('dialog', { name: '快速说明' })).toHaveCount(0);
+  expect(JSON.parse((await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)) ?? '{}')).toMatchObject({
+    helpOverlayDismissed: true,
+  });
+
   await expect(page.getByLabel('Pokopia scene editor workbench')).toBeVisible();
   expect(await getShellTransitionDuration(page)).toBe('0s');
   await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
@@ -77,9 +92,22 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
     .toMatchObject({ selectedCoordinate: null });
 });
 
+test('hides the help guide below 1280px while keeping edit mode', async ({ page }) => {
+  await page.setViewportSize({ width: 1279, height: 720 });
+  await page.goto('/');
+
+  await expect(page.getByRole('dialog', { name: '快速说明' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '打开说明' })).toHaveCount(0);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
+  await expect(page.getByLabel('Interaction mode')).toHaveText('Desktop edit mode');
+  await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
+});
+
 test('switches the workbench to English without writing locale into SceneDocument', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
 
   await page.getByLabel('语言').selectOption('en-US');
 
@@ -116,6 +144,7 @@ test('switches the workbench to English without writing locale into SceneDocumen
 test('autosaves SceneDocument v1 without UI-only state or manual save entrypoints', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
 
   await page.getByLabel('布景名称').fill('Smoke Payload Boundary');
   const autosavedPayload = await waitForStoredPayload(page, autosavedSceneStorageKey);
@@ -131,6 +160,7 @@ test('restores autosaved SceneDocument v1 on desktop startup', async ({ page }) 
   }, { key: autosavedSceneStorageKey, scene: createRestoredScene() });
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
 
   await expect(page.getByLabel('布景名称')).toHaveValue('Restored Smoke Layout');
 
@@ -154,6 +184,8 @@ test('previews and downloads an image export without mutating scene storage', as
   }, createExportPreviewScene());
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
+  const beforeUiPreferences = await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey);
 
   const beforeSnapshot = JSON.stringify(await readSceneSnapshot(page));
   await page.getByRole('button', { name: '下载预览' }).click();
@@ -335,7 +367,7 @@ test('previews and downloads an image export without mutating scene storage', as
   expect(JSON.stringify(await readSceneSnapshot(page))).toBe(beforeSnapshot);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
   expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
-  expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBe(beforeUiPreferences);
 });
 
 test('keeps retained edit commands wired through the workbench shell', async ({ page }) => {
@@ -344,6 +376,7 @@ test('keeps retained edit commands wired through the workbench shell', async ({ 
   }, createEditableScene());
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
 
   const leppaBerryButton = page.locator('[data-asset-id="leppa-berry"] .asset-select-button');
   await leppaBerryButton.click();
@@ -421,6 +454,7 @@ test('keeps tall placed asset thumbnails contained inside canvas cells', async (
   }, createTallThumbnailScene());
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
 
   const tallAssetCell = page.locator('[data-coordinate="4,2"]');
   await expect(tallAssetCell).toHaveAttribute('data-has-instance', 'true');
@@ -462,6 +496,7 @@ test('keeps dense scene selection responsive after hiding the preview panel', as
   }, createDenseScene());
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
 
   await expect(page.getByRole('complementary', { name: '检查器预览' })).toHaveCount(0);
   await expect(page.getByTestId('scene-cell')).toHaveCount(49);
@@ -469,7 +504,9 @@ test('keeps dense scene selection responsive after hiding the preview panel', as
   await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show preview main boundary' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show preview skill markers' })).toHaveCount(0);
-  expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
+  expect(JSON.parse((await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)) ?? '{}')).toMatchObject({
+    helpOverlayDismissed: true,
+  });
 
   const selectionDuration = await measureSelectionDuration(page, '[data-coordinate="3,3"]');
   expect(selectionDuration).toBeLessThan(250);
@@ -503,6 +540,7 @@ test('migrates legacy UI preferences without hidden preview or advanced asset co
   }, uiPreferencesStorageKey);
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
 
   await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveCount(0);
   await expect(page.getByLabel('Asset advanced filters')).toHaveCount(0);
@@ -520,6 +558,7 @@ test('migrates legacy UI preferences without hidden preview or advanced asset co
 test('shows asset empty state without recovery actions', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
 
   await page.getByLabel('Search assets').fill('no-matching-asset-smoke');
 
@@ -536,6 +575,9 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
 
+  await expect(page.getByRole('dialog', { name: '快速说明' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '打开说明' })).toHaveCount(0);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
   await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile read-only mode');
   await expect(page.getByLabel('Current Pokemon')).toBeDisabled();
   await expect(page.getByLabel('布景名称')).toHaveAttribute('readonly', '');
@@ -572,6 +614,14 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
   expectScenePayloadHasNoLegacyFields(await readSceneSnapshot(page));
 });
+
+async function dismissHelpOverlayIfVisible(page: Page): Promise<void> {
+  const helpDialog = page.getByRole('dialog', { name: '快速说明' });
+  if (await helpDialog.isVisible().catch(() => false)) {
+    await page.getByRole('button', { name: '明白了！' }).click();
+    await expect(helpDialog).toHaveCount(0);
+  }
+}
 
 async function readSceneSnapshot(page: Page): Promise<Record<string, unknown>> {
   const rawSnapshot = await page.evaluate(() => {
