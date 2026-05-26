@@ -370,15 +370,15 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
   });
 
-  it('places the preview inspector below the canvas next to the current selection item', () => {
+  it('places only the current selection item below the canvas', () => {
     const { container } = render(<AppShell />);
 
     const lowerInspectors = container.querySelector('.canvas-stage > .canvas-bottom-panels');
     expect(lowerInspectors).toBeInTheDocument();
     expect(lowerInspectors).toHaveAttribute('aria-label', 'Canvas lower inspectors');
+    expect(lowerInspectors?.children).toHaveLength(1);
     expect(lowerInspectors?.children[0]).toHaveClass('selection-inspector');
-    expect(lowerInspectors?.children[1]).toHaveClass('preview-panel');
-    expect(container.querySelector('.workbench-left .preview-panel')).toBeNull();
+    expect(container.querySelector('.preview-panel')).toBeNull();
   });
 
   it('keeps the workbench theme stable when Pokemon selection changes', () => {

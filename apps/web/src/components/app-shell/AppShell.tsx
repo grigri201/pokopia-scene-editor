@@ -3,7 +3,6 @@ import { type AssetSkillType, type PokemonKey } from '@pokopia-scene-editor/scen
 import { AssetPicker, type AssetSelectionMode } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
 import { PokemonSceneControls } from '../pokemon-scene-controls/PokemonSceneControls';
-import { PreviewInspector } from '../preview-inspector/PreviewInspector';
 import { SceneCanvas } from '../scene-canvas/SceneCanvas';
 import { SelectionInspector } from '../selection-inspector/SelectionInspector';
 import {
@@ -1095,14 +1094,6 @@ export function AppShell() {
               onRotateInstance={rotateInstance}
               onSaveInstanceSkill={saveInstanceSkill}
               onSaveCellSkill={saveSelectedCellSkill}
-            />
-            <PreviewInspector
-              locale={locale}
-              scene={scene}
-              activeBuildingLevelId={activeBuildingLevelId}
-              selectedCoordinate={selectedCoordinate}
-              selectedInstanceId={selectedInstanceId}
-              readOnly={isReadOnly}
             />
           </div>
         </section>

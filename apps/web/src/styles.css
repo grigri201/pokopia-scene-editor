@@ -1065,72 +1065,44 @@ button:disabled {
 
 .canvas-bottom-panels {
   align-self: center;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-  align-items: stretch;
-  gap: 12px;
+  display: block;
   width: min(72vh, 660px, 100%);
   margin-left: 0;
 }
 
-.canvas-bottom-panels .selection-inspector,
-.canvas-bottom-panels .preview-panel {
-  width: auto;
+.canvas-bottom-panels .selection-inspector {
+  width: 100%;
   max-width: none;
   min-width: 0;
   margin: 0;
-}
-
-.canvas-bottom-panels .preview-panel {
-  padding: 8px;
-}
-
-.canvas-bottom-panels .selection-inspector {
-  display: flex;
-}
-
-.canvas-bottom-panels .preview-pair {
-  gap: 6px;
-}
-
-.canvas-bottom-panels .preview-pane {
-  --preview-cell-size: 12px;
-  --preview-cell-gap: 2px;
-  gap: 4px;
-  border-radius: 6px;
-  padding: 5px;
-}
-
-.canvas-bottom-panels .preview-pane h3 {
-  font-size: 11px;
+  display: block;
 }
 
 .canvas-bottom-panels .current-selection-bar {
-  flex: 1 1 auto;
-  display: grid;
-  grid-template-columns: 1fr;
-  align-content: start;
-  justify-content: stretch;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .canvas-bottom-panels .current-selection-bar--empty {
-  grid-template-rows: minmax(0, 1fr);
-  align-content: stretch;
+  min-height: 58px;
 }
 
 .canvas-bottom-panels .current-selection-bar__asset {
-  align-items: start;
+  flex: 1 1 auto;
+  align-items: center;
 }
 
 .canvas-bottom-panels .current-selection-bar__actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(30px, 1fr));
-  width: 100%;
-  gap: 6px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  width: auto;
+  gap: 8px;
 }
 
 .canvas-bottom-panels .current-selection-bar__actions button {
-  width: 100%;
+  width: 34px;
 }
 
 .current-selection-bar {
@@ -1198,18 +1170,31 @@ button:disabled {
 .current-selection-bar__asset {
   display: inline-flex;
   align-items: center;
+  width: 100%;
   min-width: 0;
   gap: 10px;
 }
 
 .current-selection-bar__asset img,
-.current-selection-bar__asset > span {
+.current-selection-bar__asset-placeholder {
+  flex: 0 0 auto;
   width: 36px;
   height: 36px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface-strong);
   object-fit: contain;
+}
+
+.current-selection-bar__asset-name {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
 }
 
 .current-selection-bar__actions {

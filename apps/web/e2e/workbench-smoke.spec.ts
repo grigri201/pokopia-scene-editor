@@ -24,7 +24,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Asset page status')).toHaveText('1 / 116');
   await expect(page.getByText('Showing first')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show more' })).toHaveCount(0);
-  await expect(page.getByRole('complementary', { name: '检查器预览' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: '检查器预览' })).toHaveCount(0);
   await expect(page.getByTestId('scene-cell')).toHaveCount(49);
   await expect(page.getByLabel('Cell 3,2, main area, level-0, placeable')).toBeVisible();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
@@ -456,34 +456,25 @@ test('keeps tall placed asset thumbnails contained inside canvas cells', async (
   expect(bounds.imageRight).toBeLessThanOrEqual(bounds.tokenRight);
 });
 
-test('updates dense preview inside the browser-visible performance budget', async ({ page }) => {
+test('keeps dense scene selection responsive after hiding the preview panel', async ({ page }) => {
   await page.addInitScript((scene) => {
     (window as unknown as { __pokopiaInitialSceneSnapshot?: unknown }).__pokopiaInitialSceneSnapshot = scene;
   }, createDenseScene());
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto('/');
 
-  const topPreview = page.getByLabel('俯视图预览');
-  const frontPreview = page.getByLabel('正视图预览');
-
-  await expect(page.getByLabel('Top preview item summary')).toHaveText('49 current-layer preview items');
-  await expect(page.getByLabel('Front preview item summary')).toHaveText('490 visible items projected across 10 layers');
-  await expect(topPreview.locator('[data-preview-coordinate]')).toHaveCount(49);
-  await expect(frontPreview.locator('[data-front-level-id="level-0"]')).toHaveCount(7);
+  await expect(page.getByRole('complementary', { name: '检查器预览' })).toHaveCount(0);
+  await expect(page.getByTestId('scene-cell')).toHaveCount(49);
+  await expect(page.locator('.cell-asset-thumb')).toHaveCount(49);
   await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show preview main boundary' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show preview skill markers' })).toHaveCount(0);
-  await expect(topPreview).not.toHaveAttribute('data-preview-grid-visible');
-  await expect(frontPreview).not.toHaveAttribute('data-preview-grid-visible');
-  await expect(frontPreview).not.toHaveAttribute('data-preview-main-boundary-visible');
-  await expect(frontPreview).not.toHaveAttribute('data-preview-skill-markers-visible');
-  await expect(frontPreview.locator('.front-cell.skill')).toHaveCount(0);
-  await expect(topPreview.locator('.top-cell.skill')).toHaveCount(0);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
 
-  await expect(frontPreview.locator('[data-front-level-id]')).toHaveCount(70);
   const selectionDuration = await measureSelectionDuration(page, '[data-coordinate="3,3"]');
   expect(selectionDuration).toBeLessThan(250);
+  await expect(page.locator('.current-selection-bar__asset-name')).toBeVisible();
+  await expect(page.locator('.current-selection-bar__actions')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 

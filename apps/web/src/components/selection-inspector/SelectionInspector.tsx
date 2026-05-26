@@ -62,6 +62,7 @@ export function SelectionInspector({
 }: SelectionInspectorProps) {
   const context = selectedContext;
   const asset = getAssetById(selectedInstance?.assetId);
+  const assetDisplay = asset ? getAssetDisplay(asset, locale) : null;
   const canEditSelectedSkill = Boolean(context?.placeable && (!selectedInstance || asset || selectedSkillMarker));
   const selectedLevel = selectedInstance
     ? buildingLevels.find((level) => level.id === selectedInstance.buildingLevelId)
@@ -71,7 +72,7 @@ export function SelectionInspector({
   const activeSkillNote = selectedSkillMarker?.skillNote ?? selectedInstance?.skillNote ?? '';
   const nextRotation = getNextRotation(selectedInstance?.rotationDegrees ?? 0);
   const selectionSummary = [
-    asset ? getAssetDisplay(asset, locale).name : (coordinate ? `${coordinate.x},${coordinate.y}` : t(locale, 'noSelection')),
+    assetDisplay ? assetDisplay.name : (coordinate ? `${coordinate.x},${coordinate.y}` : t(locale, 'noSelection')),
     coordinate ? `x${coordinate.x} y${coordinate.y}` : null,
     selectedLevel ? `L${selectedLevel.levelNumber}` : null,
   ]
@@ -92,7 +93,16 @@ export function SelectionInspector({
       >
         {coordinate ? (
           <div className="current-selection-bar__asset" aria-label={selectionSummary}>
-            {asset ? <img src={asset.thumbnailUrl} alt="" /> : <span aria-hidden="true" />}
+            {asset && assetDisplay ? (
+              <>
+                <img src={asset.thumbnailUrl} alt="" />
+                <span className="current-selection-bar__asset-name" title={assetDisplay.name}>
+                  {assetDisplay.name}
+                </span>
+              </>
+            ) : (
+              <span className="current-selection-bar__asset-placeholder" aria-hidden="true" />
+            )}
           </div>
         ) : (
           <div
