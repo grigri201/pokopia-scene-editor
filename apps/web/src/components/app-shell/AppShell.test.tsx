@@ -107,7 +107,15 @@ describe('AppShell scene storage integration', () => {
       selectedCoordinate: { x: 4, y: 4 },
       now: '2026-05-23T09:20:00.000Z',
     });
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(encodeSceneDocumentString(importedScene));
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(
+      encodeSceneDocumentString({
+        ...importedScene,
+        workspaceState: {
+          ...importedScene.workspaceState,
+          selectedAssetId: 'leafy-plant',
+        },
+      }),
+    );
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(<AppShell />);
@@ -124,6 +132,7 @@ describe('AppShell scene storage integration', () => {
       sceneName: '导入庭院',
       selectedPokemonKey: 'eevee',
       workspaceState: {
+        selectedAssetId: null,
         selectedCoordinate: { x: 4, y: 4 },
       },
     });

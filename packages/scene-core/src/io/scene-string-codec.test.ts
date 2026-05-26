@@ -56,11 +56,19 @@ describe('SceneDocument short string codec', () => {
     };
 
     const encoded = encodeSceneDocumentString(sourceScene);
+    const encodedWithoutSelectedAsset = encodeSceneDocumentString({
+      ...sourceScene,
+      workspaceState: {
+        ...sourceScene.workspaceState,
+        selectedAssetId: null,
+      },
+    });
     const decoded = decodeSceneDocumentString(encoded, '2026-05-23T09:30:00.000Z');
 
     expect(encoded).toMatch(/^PSE1~/);
     expect(encoded).not.toContain('{');
     expect(encoded).not.toContain('schemaVersion');
+    expect(encoded).toBe(encodedWithoutSelectedAsset);
     expect(encoded.length).toBeLessThan(stringifySceneDocument(sourceScene).length * 0.45);
     expect(decoded.ok).toBe(true);
     if (!decoded.ok) {
@@ -76,7 +84,7 @@ describe('SceneDocument short string codec', () => {
       ],
       workspaceState: {
         currentBuildingLevelId: 'level-1',
-        selectedAssetId: 'leafy-plant',
+        selectedAssetId: null,
         selectedCoordinate: { x: 3, y: 2 },
       },
     });
@@ -107,6 +115,32 @@ describe('SceneDocument short string codec', () => {
         skillType: '储水',
       }),
     ]);
+  });
+
+  it('ignores selected assets from legacy scene strings during import', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-legacy-selected-asset',
+      sceneName: '旧字符串',
+      selectedPokemonKey: 'eevee',
+      selectedCoordinate: { x: 2, y: 2 },
+      now: '2026-05-23T09:00:00.000Z',
+    });
+    const encoded = encodeSceneDocumentString(scene);
+    const parts = encoded.split('~');
+    const headerParts = parts[1].split('.');
+    headerParts[3] = 'Gy';
+    parts[1] = headerParts.join('.');
+
+    const decoded = decodeSceneDocumentString(parts.join('~'), '2026-05-23T09:30:00.000Z');
+
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      throw new Error('Expected legacy scene string decode to pass.');
+    }
+    expect(decoded.scene.workspaceState).toMatchObject({
+      selectedAssetId: null,
+      selectedCoordinate: { x: 2, y: 2 },
+    });
   });
 
   it('returns recovery-style errors for invalid strings', () => {

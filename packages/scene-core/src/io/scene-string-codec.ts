@@ -29,7 +29,13 @@ export type SceneStringDecodeResult =
   | { ok: false; errors: SceneDocumentValidationError[] };
 
 export function encodeSceneDocumentString(scene: SceneDocument): string {
-  const payload = serializeSceneDocument(scene);
+  const payload = serializeSceneDocument({
+    ...scene,
+    workspaceState: {
+      ...scene.workspaceState,
+      selectedAssetId: null,
+    },
+  });
   const levelIndexById = new Map(payload.buildingLevels.map((level, index) => [level.id, index]));
   const currentLevelIndex = levelIndexById.get(payload.workspaceState.currentBuildingLevelId) ?? 0;
 
@@ -67,9 +73,7 @@ function encodeHeader(payload: SceneDocumentV1, currentLevelIndex: number): stri
     encodeText(payload.sceneName),
     encodeNumber(knownPokemonKeys.indexOf(payload.selectedPokemonKey)),
     encodeNumber(currentLevelIndex),
-    payload.workspaceState.selectedAssetId
-      ? encodeOfficialAssetId(payload.workspaceState.selectedAssetId)
-      : empty,
+    empty,
     payload.workspaceState.selectedCoordinate
       ? encodeCoordinate(payload.workspaceState.selectedCoordinate)
       : empty,
@@ -124,9 +128,6 @@ function decodeSceneDocumentPayload(value: string, now: string): SceneDocumentV1
     decodeTileInstance(record, index, levelIdByIndex),
   );
   const skillMarkers = decodeRecordList(encodedMarkers).map((record) => decodeSkillMarker(record, levelIdByIndex));
-  const selectedAssetId = header.selectedAssetOfficialId
-    ? getAssetIdByOfficialId(header.selectedAssetOfficialId)
-    : null;
 
   return {
     schemaVersion: 1,
@@ -139,7 +140,7 @@ function decodeSceneDocumentPayload(value: string, now: string): SceneDocumentV1
     skillMarkers,
     workspaceState: {
       currentBuildingLevelId: levelIdByIndex[header.currentLevelIndex] ?? levelIdByIndex[0],
-      selectedAssetId,
+      selectedAssetId: null,
       selectedCoordinate: header.selectedCoordinate,
     },
     metadata: {
@@ -174,7 +175,6 @@ function decodeHeader(value: string) {
     sceneName: decodeText(sceneName),
     selectedPokemonKey: pokemonKey,
     currentLevelIndex: decodeNumber(currentLevelIndex),
-    selectedAssetOfficialId: selectedAssetOfficialId === empty ? null : decodeOfficialAssetId(selectedAssetOfficialId),
     selectedCoordinate: selectedCoordinate === empty ? null : decodeCoordinate(selectedCoordinate),
   };
 }
