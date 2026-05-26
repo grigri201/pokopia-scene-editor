@@ -3,6 +3,7 @@ import { getPokopiaAssetUrl } from './asset-base-url';
 import { sourcePlaceableAssetNameTranslations } from './source-placeable-item-translations';
 import { sourcePlaceableAssetItems, type SourcePlaceableAssetItem } from './source-placeable-items';
 import { sourceItemPreferenceTerms, sourcePokemonPreferences } from './source-pokemon-preferences';
+import { assetFootprintOverrideAssetIds, getAssetFootprint, type AssetFootprint } from './footprint-overrides';
 
 export const assetCategories = [
   'buildings',
@@ -32,6 +33,7 @@ export interface AssetDefinition {
   searchKeywords: readonly string[];
   favoritePokemonKeys: readonly PokemonKey[];
   dyeable: boolean;
+  footprint: AssetFootprint;
   thumbnailUrl: string;
   thumbnailAlt: string;
 }
@@ -154,6 +156,7 @@ function buildAssetDefinition(sourceItem: SourcePlaceableAssetItem, sourceIndex:
       searchKeywords: buildSearchKeywords(sourceItem, displayName),
       favoritePokemonKeys: buildFavoritePokemonKeys(sourceItem, override),
       dyeable: override?.dyeable ?? inferDyeable(sourceItem),
+      footprint: getAssetFootprint(assetId),
       thumbnailUrl: getAssetThumbnailUrl(sourceItem.imageFileName),
       thumbnailAlt: override?.thumbnailAlt ?? `${displayName}缩略图`,
     },
@@ -286,6 +289,7 @@ assertUniqueCatalogValues(
 );
 
 const assetIdSet = new Set(assetCatalog.map((asset) => asset.assetId));
+assertKnownAssetFootprintOverrideIds(assetFootprintOverrideAssetIds, assetIdSet);
 
 export function isKnownAssetId(value: string): boolean {
   return assetIdSet.has(value);
@@ -360,5 +364,13 @@ function assertUniqueCatalogValues(values: readonly string[], fieldName: string)
     }
 
     seen.add(value);
+  }
+}
+
+function assertKnownAssetFootprintOverrideIds(overrideAssetIds: readonly string[], knownAssetIds: ReadonlySet<string>): void {
+  for (const assetId of overrideAssetIds) {
+    if (!knownAssetIds.has(assetId)) {
+      throw new RangeError(`Unknown asset footprint override assetId: ${assetId}`);
+    }
   }
 }

@@ -159,6 +159,21 @@ describe('worker MCP endpoint', () => {
     }));
     expect(assets.result.structuredContent.data.assets).toHaveLength(3);
     expect(assets.result.structuredContent.data.filteredCount).toBeGreaterThan(3);
+    expect(assets.result.structuredContent.data.assets[0].footprint).toMatchObject({
+      length: expect.any(Number),
+      width: expect.any(Number),
+      height: expect.any(Number),
+    });
+
+    const assetCatalog = await readJson(await mcpRpc('resources/read', { uri: 'pokopia://assets/catalog' }));
+    expect(JSON.parse(assetCatalog.result.contents[0].text).assets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          assetId: 'wooden-bench',
+          footprint: { length: 2, width: 1, height: 1 },
+        }),
+      ]),
+    );
 
     const version = await readJson(await mcpRpc('resources/read', { uri: 'pokopia://service/version' }));
     expect(JSON.parse(version.result.contents[0].text)).toMatchObject({

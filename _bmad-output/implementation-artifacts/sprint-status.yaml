@@ -1,5 +1,5 @@
 # generated: 2026-05-16T06:01:02+0800
-# last_updated: 2026-05-27T05:45:36+0800
+# last_updated: 2026-05-27T07:43:06+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -34,7 +34,7 @@
 # - Dev moves story to 'review', then code-review triages findings before done.
 
 generated: 2026-05-16T06:01:02+0800
-last_updated: 2026-05-27T05:45:36+0800
+last_updated: 2026-05-27T07:43:06+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -94,8 +94,8 @@ development_status:
   7-4-codex-skill-wrapper-and-examples: done
   7-5-worker-mcp-skill-hardening-and-release-gates: done
   epic-7-retrospective: optional
-  epic-8: backlog
-  8-1-asset-catalog-footprint-metadata: backlog
+  epic-8: in-progress
+  8-1-asset-catalog-footprint-metadata: done
   8-2-scene-core-footprint-occupancy-rules: backlog
   8-3-web-placement-canvas-footprint-feedback: backlog
   8-4-preview-export-footprint-rendering: backlog

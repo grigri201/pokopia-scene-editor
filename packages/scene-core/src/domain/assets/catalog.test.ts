@@ -9,6 +9,7 @@ import {
   isAssetSkillType,
   toAssetSkillType,
 } from './catalog';
+import { assetFootprintOverrideAssetIds } from './footprint-overrides';
 import { knownPokemonKeys } from './pokemon';
 import { sourceItemPreferenceTerms, sourcePokemonPreferences } from './source-pokemon-preferences';
 
@@ -25,6 +26,17 @@ describe('asset catalog', () => {
       expect(asset.searchKeywords.length).toBeGreaterThan(0);
       expect(asset.thumbnailUrl).toMatch(/^\/assets\/pokopia_image_sources\/item_portraits\/.+\.(png|webp)$/);
       expect(asset.thumbnailAlt).toContain('缩略图');
+      expect(asset.footprint).toEqual({
+        length: expect.any(Number),
+        width: expect.any(Number),
+        height: expect.any(Number),
+      });
+      expect(Number.isInteger(asset.footprint.length)).toBe(true);
+      expect(Number.isInteger(asset.footprint.width)).toBe(true);
+      expect(Number.isInteger(asset.footprint.height)).toBe(true);
+      expect(asset.footprint.length).toBeGreaterThan(0);
+      expect(asset.footprint.width).toBeGreaterThan(0);
+      expect(asset.footprint.height).toBeGreaterThan(0);
       expect('applicableAreas' in asset).toBe(false);
       expect('defaultRequiresSkill' in asset).toBe(false);
       expect('defaultSkillType' in asset).toBe(false);
@@ -69,6 +81,14 @@ describe('asset catalog', () => {
     expect(woodenFloor).not.toBeNull();
     expect(gardenPlant).toMatchObject({ officialId: '1052', name: '绿叶植物', category: 'misc' });
     expect(woodenFloor).toMatchObject({ officialId: '390', name: '木制栅栏', category: 'buildings' });
+  });
+
+  it('defaults uncovered assets to 1x1x1 footprint and applies audited large-asset overrides', () => {
+    expect(getAssetById('leafy-plant')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
+    expect(getAssetById('wooden-bench')?.footprint).toEqual({ length: 2, width: 1, height: 1 });
+    expect(getAssetById('large-narrow-rug')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
+    expect(getAssetById('large-boulder')?.footprint).toEqual({ length: 2, width: 1, height: 2 });
+    expect(assetFootprintOverrideAssetIds.every((assetId) => getAssetById(assetId))).toBe(true);
   });
 
   it('normalizes Ditto skill vocabulary and one-character markers', () => {

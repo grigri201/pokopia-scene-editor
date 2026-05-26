@@ -94,6 +94,17 @@ describe('worker HTTP API', () => {
     expect(body.data.totalCount).toBeGreaterThan(body.data.filteredCount);
   });
 
+  it('returns asset footprint metadata from HTTP asset search', async () => {
+    const response = await request('/api/assets?query=wooden-bench&pageSize=1');
+    const body = await readJson(response);
+
+    expect(response.status).toBe(200);
+    expect(body.data.assets[0]).toMatchObject({
+      assetId: 'wooden-bench',
+      footprint: { length: 2, width: 1, height: 1 },
+    });
+  });
+
   it('rejects invalid scene recovery without stack traces or raw payloads', async () => {
     const response = await post('/api/scene/recover', { scene: { sceneName: 'broken' } });
     const bodyText = await response.text();
