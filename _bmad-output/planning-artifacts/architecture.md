@@ -40,18 +40,19 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 我已审阅 `pokopia-scene-editor` 的 PRD、PRD 验证报告、UX 设计规格、UX 方向稿和原始需求文档。
 
-当前架构基线覆盖 77 条 Functional Requirements，主要分为：
+当前架构基线覆盖 86 条 Functional Requirements，主要分为：
 
 - Scene & Canvas Model：固定 7x7 实际编辑画布、中心 5x5 主体区、外围 1 圈装饰区、0-based 坐标和区域识别。
 - Open Design Workbench Context：顶部 Pokemon/场景名/保存状态、右侧浮动素材栏、中央 7x7 画布、左侧建筑层面板和左下双预览检查器。
-- Asset Placement & Editing：素材选择、放置、删除、替换、移动、跨建筑层移动、朝向、染色、备注和同层叠放规则。
+- Asset Placement & Editing：素材选择、放置、删除、替换、移动、跨建筑层移动、朝向、染色、备注、同层叠放规则、footprint 占用和跨层阻塞规则。
 - Building Level Management：默认 0/1/2 建筑层，层号递增，数据按 0 层到 n 层组织，UI 按 L2/L1/L0 这类高层到低层顺序展示，支持创建、删除、重命名、复制、隐藏、显示、锁定、解锁和当前编辑层。
-- Asset Catalog & Selection：素材列表、缩略图、名称、分类、标签、适用区域、官方 `No.` 素材 ID、Pokemon 喜好、搜索、筛选、技能条件和素材详情。
+- Asset Catalog & Selection：素材列表、缩略图、名称、分类、标签、适用区域、官方 `No.` 素材 ID、Pokemon 喜好、footprint、搜索、筛选、技能条件和素材详情。
 - Ditto Skill / Instance Visual State：放置前默认技能状态、放置后实例级技能标记、`树叶`/`耕地`/`储水` 技能词表、一字技能标签、可染色状态、非默认旋转标记，以及画布/预览标识。
 - Preview：左下 Preview Inspector 同屏展示俯视图和正视图、完整 7x7 展示、主体边界、当前层/全部可见层、网格和技能标记开关。
 - Properties, Save & Recovery：上下文/检查器字段、保存/自动保存、重新打开、恢复校验、SceneDocument 序列化和字段级错误提示；显式 JSON 导出/导入 UI 后置。
 - Image Export：从 SceneDocument、asset catalog 和 preview/export selectors 派生图片导出摘要、导出预览和图片下载；不修改 scene，不写入 storage。
 - Scene Worker, MCP & Codex Skill：pnpm workspace monorepo、共享 `scene-core`、无状态 Cloudflare Worker HTTP API、Streamable HTTP MCP server、repo-scoped Codex skill 和 Worker/MCP/skill release gates。
+- Asset Footprint & Occupancy：asset catalog 默认 1x1x1，真实大素材 override，90/270 度 length/width 交换，height 派生上层 blocking cells，所有端复用 `scene-core` rules。
 
 ### Approved Course Correction - 2026-05-19
 
@@ -83,12 +84,19 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 Worker 第一阶段无状态，不引入数据库、账号、云保存、分享链接、在线发布或服务端图片生成。`apps/worker` 只做 HTTP/MCP adapter、request parsing、result envelope、cache/header/security/logging 和 Wrangler 配置；不得重新实现 scene 业务规则。`packages/scene-core` 不得依赖 React、DOM、localStorage、Worker runtime 或 UI components。
 
-另有 36 条 Non-Functional Requirements，核心架构约束包括：
+### Approved Course Correction - 2026-05-27
+
+本 Architecture 已按 `sprint-change-proposal-2026-05-27.md` 增加 Epic 8 footprint/occupancy 边界。当前 `SceneDocument v1` 继续作为保存、恢复、短字符串、Worker API 和 MCP tools 的输入/输出契约；本次不创建 `SceneDocument v2`，不保存 blocking cells，不在 tile instance 上保存 footprint snapshot 或 override。
+
+Footprint 是 asset catalog metadata：每个 asset 拥有 `footprint.length`、`footprint.width`、`footprint.height`，默认 1x1x1，真实大素材通过集中 override 覆盖。`packages/scene-core` 必须提供 DOM-free helpers 计算 effective footprint、occupied cells、same-layer overlap、canvas bounds 和 height-derived blocking cells。`apps/web`、`apps/worker`、MCP tools/resources 和 Codex skill 只能调用这些 helpers，不能复制规则。
+
+另有 40 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
 - 预览切换需要在 300ms 内完成首个可见更新；素材搜索筛选 1000 个素材以内需要在 200ms 内返回可见结果。
 - 画布、上下文/检查器字段、建筑层列表、预览和序列化结果必须从同一场景数据源派生。
 - 保存/序列化/恢复/重新打开必须通过往返恢复测试，恢复后建筑层数量、素材实例数量、染色数量和技能标记数量必须一致。
+- Footprint、effective footprint、occupied cells 和 height blocking cells 必须由 `scene-core` 确定性派生；不得保存为独立 state。
 - 恢复数据或未来导入 JSON 必须作为数据处理，用户自定义名称、备注和技能说明必须按安全文本渲染，不得作为 HTML 或脚本执行。
 - 基础可访问性目标是 WCAG 2.2 AA，关键状态不能只依赖颜色表达。
 - 1280px 及以上使用完整 Open Design 浮动工作台，768px 以下进入 Mobile View-only Mode，不允许任何场景写操作。
@@ -104,7 +112,7 @@ Open Design UI 确认了新的工作台形态。架构上应支持一个桌面�
 - `<768px` 的只读边界不能只靠隐藏按钮实现；command 层、canvas pointer handler 和 keyboard handler 都必须检查 `interactionMode`。
 - 建筑层、素材实例、染色/朝向/技能状态和保存/恢复 schema 是最重要的领域模型边界，应优先稳定。
 - 正视图在 MVP 中应是结构化高度关系预览，不做真实游戏视角和复杂遮挡模拟。
-- 素材库在 MVP 中可以使用静态/本地数据源，但数据结构必须支持官方素材 ID、Pokemon 喜好、可染色性、后续批量导入、模板、更多技能类型和更大画布扩展。
+- 素材库在 MVP 中可以使用静态/本地数据源，但数据结构必须支持官方素材 ID、Pokemon 喜好、可染色性、footprint、后续批量导入、模板、更多技能类型和更大画布扩展。
 
 项目复杂度判断：中等。已完成 MVP 没有账号、实时协作、监管合规或复杂持久化基础设施，但 Epic 7 新增 monorepo、Worker API、MCP、Codex skill、Wrangler 部署、bundle 边界和日志/安全约束，需要更严格的模块边界和 release gate。
 
@@ -289,6 +297,20 @@ MVP schema 固定为 `1`。恢复流程应先读取 `schemaVersion`：
 - 缺失或未知版本：显示明确错误。
 - 当前 MVP 不接受旧字段名、缺省字段或隐式迁移。后续如果产品决定引入新的 schema，应先更新 PRD、Architecture、Epics 和测试，再定义新的当前 schema。
 
+**Decision: Footprint lives in the asset catalog, while occupancy is derived.**
+
+本次 Epic 8 不需要 `SceneDocument v2`。`SceneDocument v1` 已经保存足够的实例事实：`assetId`、anchor `coordinate`、`buildingLevelId` 和 `rotationDegrees`。真实占用格应从当前 asset catalog 的 `footprint` 元数据派生：
+
+- `AssetDefinition.footprint = { length: positive int, width: positive int, height: positive int }`。
+- 未显式覆盖的素材默认 1x1x1。
+- 0/180 度使用原 length/width；90/270 度交换 length/width；height 不随旋转变化。
+- `coordinate` 是 footprint anchor，occupied cells 从 anchor 向正 x/y 方向展开。
+- occupied cells 必须全部在 7x7 canvas 内。
+- 同一 building level 的 occupied cells 不得重叠。
+- `height > 1` 时，上方 `height - 1` 个 `levelNumber` 范围内的相同 occupied cells 派生为 blocked cells。
+
+派生的 `effectiveFootprint`、`occupiedCells`、`blockingCells` 和 `blockedBy` 不进入 `SceneDocument v1`、autosave payload 或短字符串。短字符串仍编码 asset official id、anchor coordinate、building level、rotation、dye 和 skill fields；decode 后通过当前 catalog 重新派生 occupancy。若未来必须保存 catalog snapshot、历史 footprint 解释或实例级 footprint override，才需要新的 course correction 和 `SceneDocument v2`。
+
 ### Authentication & Security
 
 **Decision: MVP has no authentication or authorization.**
@@ -315,14 +337,14 @@ MVP schema 固定为 `1`。恢复流程应先读取 `schemaVersion`：
 - local UI preferences：persist asset search/filter/favorite-only to a separate localStorage namespace, outside `SceneDocument`
 - asset catalog：MVP 使用 repo-local static data 或 bundled JSON/TS data
 
-Epic 7 新增无状态 service layer：
+Epic 7/8 新增无状态 service layer 与 shared domain rules：
 
-- `packages/scene-core`：共享 `SceneDocument v1` schema、serializer/recovery、short code codec、asset query、selectors、default scene generation 和 export summary JSON。
+- `packages/scene-core`：共享 `SceneDocument v1` schema、serializer/recovery、short code codec、asset query、footprint/occupancy helpers、selectors、default scene generation 和 export summary JSON。
 - `apps/worker`：Cloudflare Worker HTTP API 和 Streamable HTTP MCP server，复用 `scene-core`。
 - HTTP API：`/api/health`、`/api/scene/generate`、`/api/scene/validate`、`/api/scene/recover`、`/api/scene/export-summary`、`/api/scene/encode`、`/api/scene/decode`、`/api/assets`。
 - MCP tools：`generate_scene_document`、`validate_scene_document`、`recover_scene_document`、`summarize_scene_export`、`search_pokopia_assets`。
 - 统一 result envelope：`{ ok, data?, errors?, warnings?, meta }`，`meta` 至少包含 service/schema/catalog version。
-- 第一阶段不保存用户 scene，不引入账号、权限、云同步、分享链接、在线发布或服务端 PNG 生成。
+- 第一阶段不保存用户 scene，不引入账号、权限、云同步、分享链接、在线发布或服务端 PNG 生成；Worker/MCP 也不得保存 derived blocking cells 或复制 footprint rules。
 
 **Decision: Internal operations use typed Result objects.**
 
@@ -503,8 +525,8 @@ Epic 7 已批准的 HTTP route 使用 kebab-case/resource-task 混合风格，�
 - `apps/web/src/theme/`：动态宝可梦主题 tokens、语义色 tokens 和 theme helpers。
 - `apps/web/src/test/`：web 测试工具、fixtures、render helpers。
 - `apps/web/e2e/`：Playwright specs。
-- `packages/scene-core/src/domain/`：scene document 类型、area 计算、level ordering、tile instance 规则。
-- `packages/scene-core/src/assets/`：asset catalog 类型、搜索筛选、适用区域展示/筛选元数据和默认技能规则。
+- `packages/scene-core/src/domain/`：scene document 类型、area 计算、level ordering、tile instance 规则、footprint 几何和 occupancy map。
+- `packages/scene-core/src/domain/assets/`：asset catalog 类型、footprint metadata、搜索筛选、适用区域展示/筛选元数据和默认技能规则。
 - `packages/scene-core/src/io/`：shared JSON parse、Zod schema、serialization/recovery 和 short code codec。
 - `apps/worker/src/`：Worker routes、MCP adapter 和 result envelope。
 
@@ -539,6 +561,8 @@ type Result<T, E> =
 - 技能备注字段必须显式存在；未填写时使用空字符串。普通实例备注 `note` 不属于 MVP payload 必填字段。
 - `areaType` 只允许 `main | outer`。
 - `rotationDegrees` 只允许 `0 | 90 | 180 | 270`；默认 0 度必须显式保存为 `0`，但 UI 不显示额外旋转标记。
+- `footprint.length`、`footprint.width`、`footprint.height` 只存在于 asset catalog，使用正整数；SceneDocument tile instance 不保存 footprint。
+- `effectiveFootprint`、`occupiedCells`、`blockingCells` 只允许作为 selector/export-summary/API/MCP 派生输出，不允许写入保存 payload。
 - `dyeColor` 未设置时必须显式使用 `null`；支持染色且已选择颜色的实例必须保留可恢复颜色值。
 - `skillType` 在未设置时使用 `null`，已设置时只允许 `树叶`、`耕地`、`储水`；`skillNote` 使用空字符串。
 - `selectedAssetId`、`selectedCoordinate`、`dyeColor`、`skillType` 这类可空字段必须以显式 `null` 表达空状态，不允许缺失字段。
@@ -620,12 +644,12 @@ MVP 不引入全局 event bus。组件通信走 React props/context + command di
 **All AI Agents MUST**
 
 - 不直接 mutate `SceneDocument`；所有业务写操作走 command layer。
-- 不在组件中重复 area、level ordering、preview ordering 或 recovery validation 规则；使用 domain helpers / selectors。
+- 不在组件中重复 area、level ordering、preview ordering、footprint/occupancy 或 recovery validation 规则；使用 domain helpers / selectors。
 - 不引入数据库、auth、routing、外部状态库、云保存或服务端图片生成，除非 architecture 先更新；Epic 7 的后端 API 只允许作为无状态 Worker adapter 调用 `packages/scene-core`。
 - 不把用户文本作为 HTML 渲染。
 - 不绕过 mobile read-only command guard。
 - 新增 command 时同时新增 domain/unit tests。
-- 新增恢复字段时同时更新 TypeScript type、Zod schema、serializer/parser、fixture 和 roundtrip test。
+- 新增恢复字段时同时更新 TypeScript type、Zod schema、serializer/parser、fixture 和 roundtrip test；本次 footprint 不是恢复字段，必须保持 SceneDocument v1 shape 不变。
 
 **Pattern Enforcement**
 
@@ -877,7 +901,7 @@ MVP web app 不使用 service/repository/database layer。跨组件业务操作�
 
 **Data Boundaries**
 
-- `packages/scene-core/src/*` 定义可共享的业务规则、SceneDocument schema、serializer/recovery、selectors、asset filtering、default scene generation 和 export summary JSON。
+- `packages/scene-core/src/*` 定义可共享的业务规则、SceneDocument schema、serializer/recovery、selectors、asset filtering、footprint/occupancy helpers、default scene generation 和 export summary JSON。
 - `apps/web/src/state/*` 是浏览器 UI 的 scene write boundary。
 - `apps/web/src/io/*` 保留浏览器专属 IO，例如 localStorage scene storage、UI preferences 和 `html-to-image` 图片下载。
 - `apps/web/src/components/*` 只消费 state、selectors、command dispatcher 和 view options。
@@ -891,21 +915,22 @@ MVP web app 不使用 service/repository/database layer。跨组件业务操作�
 - FR1-FR7 Scene & Canvas Model：`packages/scene-core/src/domain/scene/`、`apps/web/src/components/scene-canvas/`。
 - FR8-FR18 Asset Placement & Editing：`packages/scene-core/src/domain/scene/`、`apps/web/src/state/`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/selection-inspector/`；FR13/14/15/17/18 已从 MVP 删除。
 - FR19-FR27 Building Level Management：`packages/scene-core/src/domain/scene/levels.ts`、`apps/web/src/state/`、`apps/web/src/components/building-level-panel/`；FR25/26 已从 MVP 删除。
-- FR28-FR35 and FR59 Asset Catalog & Selection：`packages/scene-core/src/assets/`、`apps/web/src/components/asset-picker/`。
+- FR28-FR35 and FR59 Asset Catalog & Selection：`packages/scene-core/src/domain/assets/`、`apps/web/src/components/asset-picker/`。
 - FR36-FR40 and FR60-FR62 Ditto Skill / Instance Visual State：`apps/web/src/state/`、`packages/scene-core/src/domain/scene/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/scene-canvas/`。
 - FR41-FR47 and FR63 Preview：`packages/scene-core/src/domain/scene/selectors.ts`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/scene-canvas/`；FR43/47 已从 MVP 删除。
 - FR48-FR49 Properties：`apps/web/src/components/selection-inspector/`、`packages/scene-core/src/domain/scene/selectors.ts`、`apps/web/src/state/`。
 - FR50-FR55 Save & Recovery：`packages/scene-core/src/io/scene-schema.ts`、`scene-serializer.ts`、`recover-scene.ts`、`apps/web/src/io/scene-storage.ts`、`apps/web/src/components/recovery-validator/`。
 - FR56-FR58 Open Design Workbench Context：`apps/web/src/components/app-shell/`、`apps/web/src/components/pokemon-scene-controls/`、`apps/web/src/theme/`、`apps/web/src/state/`。
 - FR69-FR77 Scene Worker, MCP & Codex Skill：`packages/scene-core/`、`apps/worker/src/routes/`、`apps/worker/src/mcp.ts`、`.agents/skills/pokopia-scene-worker/`、root `package.json` pnpm scripts、`pnpm-workspace.yaml` 和 `apps/worker/wrangler.toml`。
+- FR78-FR86 Asset Footprint & Occupancy Rules：`packages/scene-core/src/domain/assets/catalog.ts`、`packages/scene-core/src/domain/scene/footprint.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/io/scene-schema.ts`、`apps/web/src/state/asset-placement.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
 
 **Cross-Cutting Concerns**
 
-- Single source of truth：`apps/web/src/state/scene-state.ts`、`scene-reducer.ts`、`packages/scene-core` selectors。
+- Single source of truth：`apps/web/src/state/scene-state.ts`、`scene-reducer.ts`、`packages/scene-core` selectors 和 occupancy helpers。
 - Mobile read-only：`apps/web/src/state/interaction-mode.ts`、scene commands、canvas handlers、`apps/web/e2e/mobile-readonly.spec.ts`。
 - Safe text rendering：`apps/web/src/io/safe-text.ts` 或 shared safe-text helper、React text rendering conventions、web/shared unsafe text fixtures、`apps/web/e2e/unsafe-text.spec.ts`。
 - Accessibility：component tests for accessible names, Playwright smoke across desktop/mobile.
-- Performance：domain selectors kept pure and memoizable in `packages/scene-core`; asset filtering lives in `packages/scene-core/src/assets/filters.ts`; virtualization/pagination added inside `apps/web/src/components/asset-picker/` only when implementation requires it.
+- Performance：domain selectors kept pure and memoizable in `packages/scene-core`; asset filtering lives in `packages/scene-core/src/domain/assets/filters.ts`; virtualization/pagination added inside `apps/web/src/components/asset-picker/` only when implementation requires it.
 - Service safety：Worker body limits, redacted logs, no raw scene payload logging, no React/DOM dependencies in Worker bundle, and `wrangler types --check` in release gate.
 
 ### Integration Points
@@ -1047,9 +1072,9 @@ Deployment uses `apps/worker/wrangler.toml`. `pnpm run worker:deploy` and `pnpm 
 
 **Decision Compatibility**
 
-All major decisions work together without conflict. Vite + React + TypeScript supports the chosen single-page editor shape. Zod provides runtime validation for recovered SceneDocument data while TypeScript covers compile-time domain contracts. Vitest, React Testing Library and Playwright align with the selected Vite/React stack. Epic 7 extends the deployment model to Cloudflare Workers static assets while preserving the no-account, no-database, no-cloud-save first-stage service boundary.
+All major decisions work together without conflict. Vite + React + TypeScript supports the chosen single-page editor shape. Zod provides runtime validation for recovered SceneDocument data while TypeScript covers compile-time domain contracts. Vitest, React Testing Library and Playwright align with the selected Vite/React stack. Epic 7 extends the deployment model to Cloudflare Workers static assets while preserving the no-account, no-database, no-cloud-save first-stage service boundary. Epic 8 keeps footprint as catalog metadata and derived scene-core rules, so it improves placement fidelity without changing the SceneDocument v1 payload shape.
 
-The deferred decisions are also coherent: explicit JSON import/export UI, database, auth, routing, external state libraries, sharing, collaboration, online publishing and complex front-view rendering are all outside MVP and do not block the current static editor architecture.
+The deferred decisions are also coherent: explicit JSON import/export UI, database, auth, routing, external state libraries, sharing, collaboration, online publishing, SceneDocument v2, saved catalog snapshots, instance-level footprint overrides and complex front-view rendering are all outside MVP and do not block the current architecture.
 
 **Pattern Consistency**
 
@@ -1063,7 +1088,7 @@ Implementation patterns support the architecture decisions:
 
 **Structure Alignment**
 
-The project structure supports the required boundaries. `packages/scene-core` owns DOM-free domain/schema/selector/catalog/export-summary rules. `apps/web` owns React UI, command/state write paths, browser-only IO, localStorage, and image download. `apps/worker` owns HTTP/MCP adapters, request validation, result envelopes, headers/cache, security, logging, and Wrangler deployment. E2E tests cover desktop editing, mobile read-only behavior, save/recovery roundtrip, unsafe text, and browser image export; Worker/MCP smoke covers the new service layer.
+The project structure supports the required boundaries. `packages/scene-core` owns DOM-free domain/schema/selector/catalog/footprint/occupancy/export-summary rules. `apps/web` owns React UI, command/state write paths, browser-only IO, localStorage, and image download. `apps/worker` owns HTTP/MCP adapters, request validation, result envelopes, headers/cache, security, logging, and Wrangler deployment. E2E tests cover desktop editing, mobile read-only behavior, save/recovery roundtrip, unsafe text, and browser image export; Worker/MCP smoke covers the service layer and must include the shared footprint fixture.
 
 ### Requirements Coverage Validation ✅
 
@@ -1075,26 +1100,27 @@ All PRD feature groups have architectural support:
 - Open Design Workbench Context maps to `apps/web/src/components/app-shell/`, `apps/web/src/components/pokemon-scene-controls/`, theme tokens and interaction mode state.
 - Asset Placement & Editing maps to `packages/scene-core/src/domain/scene/`, `apps/web/src/state/`, `apps/web/src/components/scene-canvas/` and `apps/web/src/components/selection-inspector/`.
 - Building Level Management maps to `packages/scene-core/src/domain/scene/levels.ts`, web command handling and `apps/web/src/components/building-level-panel/`.
-- Asset Catalog & Selection maps to `packages/scene-core/src/assets/` and `apps/web/src/components/asset-picker/`.
+- Asset Catalog & Selection maps to `packages/scene-core/src/domain/assets/` and `apps/web/src/components/asset-picker/`.
 - Ditto Skill / Instance Visual State maps to tile commands, selection inspector, scene canvas badges, dye controls and preview selectors.
 - Preview maps to shared selectors and `apps/web/src/components/preview-inspector/`.
 - Properties, Save & Recovery maps to selection inspector, IO schema, serializer/storage/recovery modules and validator UI.
 - Image Export maps to `packages/scene-core` export summary JSON, browser-only `apps/web/src/io/image-export.ts`, `apps/web/src/components/export-preview/` and preview/export selectors; it must be derived from SceneDocument and asset catalog.
 - Scene Worker, MCP and Codex Skill maps to `apps/worker/`, `packages/scene-core/`, `.agents/skills/pokopia-scene-worker/`, `pnpm-workspace.yaml`, root pnpm scripts and `apps/worker/wrangler.toml`.
+- Asset Footprint & Occupancy maps to `packages/scene-core` asset catalog, footprint helpers, occupancy selectors, schema validation, web placement/canvas rendering, preview/export rendering, Worker routes, MCP tools/resources and Codex skill examples.
 
 **Functional Requirements Coverage**
 
-FR1-FR77 are architecturally supported. The architecture gives each functional area an owning module and prevents duplicated business rules through domain helpers/selectors and command-layer write boundaries. FR65-FR68 are covered by browser-only image export preview, export summary derivation and download helpers that do not mutate SceneDocument or storage. FR69-FR77 are covered by the pnpm workspace structure, shared `scene-core`, stateless Worker HTTP API, Streamable HTTP MCP server, and repo-scoped Codex skill wrapper.
+FR1-FR86 are architecturally supported. The architecture gives each functional area an owning module and prevents duplicated business rules through domain helpers/selectors and command-layer write boundaries. FR65-FR68 are covered by browser-only image export preview, export summary derivation and download helpers that do not mutate SceneDocument or storage. FR69-FR77 are covered by the pnpm workspace structure, shared `scene-core`, stateless Worker HTTP API, Streamable HTTP MCP server, and repo-scoped Codex skill wrapper. FR78-FR86 are covered by catalog-level footprint metadata, shared occupancy helpers, schema validation, web rendering updates, export-summary parity and MCP/Codex no-copy boundaries.
 
 **Non-Functional Requirements Coverage**
 
 NFR coverage is sufficient for implementation:
 
 - Performance: fixed 7x7 canvas, pure selectors, local state, static asset deployment and optional asset-list pagination/virtualization path support the required response targets.
-- Reliability and data integrity: single source of truth, Zod schema validation, strict schemaVersion, command layer, SceneDocument-derived image export data and roundtrip Playwright tests support save/recovery consistency.
+- Reliability and data integrity: single source of truth, Zod schema validation, strict schemaVersion, command layer, catalog-derived footprint rules, SceneDocument-derived image export data and roundtrip Playwright tests support save/recovery consistency.
 - Usability and accessibility: component boundaries, semantic state tokens, accessible-name tests and Playwright responsive checks support the UX/NFR requirements.
 - Compatibility and responsive behavior: Vite static build plus Playwright desktop/mobile coverage supports the browser and viewport matrix.
-- Security and data safety: no account/cloud persistence in Epic 7, redacted Worker logs, body limits, safe text rendering and JSON-as-data validation address the security NFRs.
+- Security and data safety: no account/cloud persistence in Epic 7, no saved blocking cells or SceneDocument v2 in Epic 8, redacted Worker logs, body limits, safe text rendering and JSON-as-data validation address the security NFRs.
 
 ### Implementation Readiness Validation ✅
 
@@ -1118,12 +1144,12 @@ None.
 
 **Important Gaps**
 
-None blocking. The architecture now admits a tightly scoped stateless Worker/API/MCP backend for Epic 7, while still deferring auth, persistence, cloud save, routing, external state libraries, sharing, collaboration, online publishing, server-side image generation, complex front-view rendering and configurable canvas sizes.
+None blocking. The architecture now admits a tightly scoped stateless Worker/API/MCP backend for Epic 7 and derived footprint/occupancy rules for Epic 8, while still deferring auth, persistence, cloud save, routing, external state libraries, sharing, collaboration, online publishing, server-side image generation, complex front-view rendering, SceneDocument v2 and configurable canvas sizes.
 
 **Nice-to-Have Gaps**
 
 - CI details for real Edge and Safari coverage can be refined during release planning. Playwright Chromium/Firefox/WebKit and manual browser acceptance are enough for architecture readiness.
-- Asset catalog source format can be refined during implementation once real素材 data is available. The architecture reserves `packages/scene-core/src/assets/` for shared metadata and `apps/web/public/` / `apps/web/src/assets/` for browser-rendered assets.
+- Asset catalog source format can be refined during implementation once real素材 data is available. The architecture reserves `packages/scene-core/src/domain/assets/` for shared metadata and `apps/web/public/` / `apps/web/src/assets/` for browser-rendered assets.
 - A future incompatible schema can be designed only after PRD, Architecture, Epics and tests are updated together; MVP intentionally supports only the current v1 payload.
 
 ### Validation Issues Addressed
@@ -1172,7 +1198,7 @@ No blocking validation issues were found. Minor future refinements were classifi
 - Clear command layer that supports validation, command rejection, autosave/recovery boundaries and mobile read-only guard without reintroducing undo/redo or dirty/saved UI state.
 - Explicit save/recovery schema and safe text rendering strategy.
 - Component boundaries match the selected UX direction.
-- Requirements-to-structure mapping is complete for FR1-FR77.
+- Requirements-to-structure mapping is complete for FR1-FR86.
 - Testing responsibilities are defined at shared unit, web component/E2E, Worker runtime and MCP smoke levels.
 
 **Areas for Future Enhancement**
@@ -1190,17 +1216,18 @@ No blocking validation issues were found. Minor future refinements were classifi
 - Use implementation patterns consistently across all components.
 - Respect project structure and module dependency direction.
 - Do not introduce auth, database, cloud persistence, public sharing, online publishing, server-side image generation, routing, or external state libraries unless architecture is updated first. Epic 7's approved backend scope is limited to stateless Worker API/MCP adapters over `packages/scene-core`.
+- Do not introduce `SceneDocument v2`, saved blocking cells, instance-level footprint overrides, or duplicated Worker/MCP/skill footprint rules for Epic 8.
 - Route all scene writes through the command layer.
 - Use Zod validation for recovered or future imported JSON and preserve safe text rendering.
 - Maintain tests with every new domain rule, command, schema field, UI boundary, Worker route, MCP tool and Codex skill workflow.
 
 **First Implementation Priority**
 
-Continue with BMAD implementation routing from the newly added Epic 7 backlog. The next implementation story is:
+Continue with BMAD implementation routing from the newly added Epic 8 backlog. The next implementation story is:
 
-- `7-1-extract-scene-core-shared-package`
+- `8-1-asset-catalog-footprint-metadata`
 
-Story 7.1 must establish the pnpm workspace shape, move the existing browser app into `apps/web`, extract DOM-free rules into `packages/scene-core`, and keep existing web editing, autosave/recovery, export preview/download, tests, build and smoke behavior green.
+Story 8.1 must add catalog-level footprint metadata with default 1x1x1 behavior and audited overrides, while preserving current asset IDs, display names, filtering and Worker/MCP catalog resources.
 
 Recommended next command:
 

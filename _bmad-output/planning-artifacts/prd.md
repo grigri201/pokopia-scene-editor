@@ -76,9 +76,15 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 
 新增服务化范围只覆盖无状态 Worker 能力：默认/确定性 `SceneDocument` 生成、schema 校验、恢复/decode、导出摘要 JSON、素材查询、短字符串 encode/decode、MCP tools/resources/prompts 和 repo-scoped Codex skill workflow。第一阶段不新增账号、数据库、云保存、公开方案库、分享链接、在线发布、服务端 PNG/图片生成或 AI 自动创作完整布景。
 
+### Approved Course Correction - 2026-05-27
+
+本 PRD 已按 `sprint-change-proposal-2026-05-27.md` 增加 Epic 8，用于真实素材 footprint、旋转后占用格、跨建筑层阻塞、跨格显示和全端规则一致性。当前 `SceneDocument v1` 继续作为保存、恢复、短字符串和 Worker/MCP 输入的当前契约；本次不创建 `SceneDocument v2`，因为 footprint 属于 asset catalog 元数据，阻塞状态和占用状态必须由 `scene-core` 从 `assetId`、`coordinate`、`buildingLevelId`、`rotationDegrees` 和当前 catalog 派生，不能作为独立 scene state 保存。
+
+现有素材迁移策略是：所有 catalog asset 默认 footprint 为 `{ length: 1, width: 1, height: 1 }`，再用可审计 override 补充真实大素材。90/270 度旋转时 length/width 占用格必须交换；height 大于 1 时，上方建筑层对应 footprint cells 显示为不可放置。Web 编辑画布、俯视/正视预览、图片导出、Worker validate/recover/export-summary、MCP resources/tools 和 Codex skill 必须复用同一套 `scene-core` footprint/occupancy helpers。
+
 ### What Makes This Special
 
-本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：中心 5×5 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材实例级技能标记，以及完整 7×7 预览。
+本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：中心 5×5 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、素材实例级技能标记，以及完整 7×7 预览。
 
 产品的核心洞察是：布景方案的复现难点不在于记录素材名称，而在于记录素材所在区域、坐标、建筑层、朝向、技能需求和预览关系。通过将这些信息结构化，编辑器可以帮助用户把灵感图、搭建步骤和最终布景数据统一到一个可继续编辑和分享的方案中。
 
@@ -109,7 +115,7 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 
 ### Technical Success
 
-系统必须稳定维护 5×5 主体尺寸、7×7 画布尺寸、外围扩展格数、场景名称、当前 Pokemon、建筑层、素材实例、坐标、区域类型、朝向、染色、技能标记、技能备注、当前编辑建筑层、当前素材和选中坐标等核心数据。自动保存、恢复、预览和图片导出数据派生必须使用同一个 SceneDocument v1 事实来源，并能完整还原 Open Design 工作台的必需持久上下文；图片导出不得维护第二套业务状态。
+系统必须稳定维护 5×5 主体尺寸、7×7 画布尺寸、外围扩展格数、场景名称、当前 Pokemon、建筑层、素材实例、坐标、区域类型、朝向、染色、技能标记、技能备注、当前编辑建筑层、当前素材和选中坐标等核心数据。素材 footprint、旋转后占用格和跨层阻塞必须从 asset catalog 与 SceneDocument v1 共同派生，不进入独立保存状态。自动保存、恢复、预览和图片导出数据派生必须使用同一个 SceneDocument v1 事实来源，并能完整还原 Open Design 工作台的必需持久上下文；图片导出不得维护第二套业务状态。
 
 编辑操作应即时响应；7×7 画布、建筑层切换、素材放置、删除、技能标记切换和预览切换不应出现明显卡顿。素材数量增长时，素材列表应支持分页或虚拟滚动，保证搜索和筛选仍可快速返回结果。
 
@@ -125,10 +131,11 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 - 用户可以在素材放置前或放置后设置百变怪技能标记。
 - 技能标记在画布和保存数据中保持一致，技能类型使用 `树叶`、`耕地`、`储水` 词表，并以一字标签辅助识别；预览不显示技能标记。
 - 可染色素材在格子内显示染色入口和当前颜色；非默认朝向只在 90/180/270 度时显示旋转标记，默认 0 度不额外占用画布信息层。
+- 大于 1x1 或 height 大于 1 的素材能够在画布、俯视预览、正视预览和图片导出中按 footprint 跨格或跨层表达；由 height 派生的上方阻塞格不可被保存为独立 state。
 - 左下检查器在同一工作台内同时展示正视图和俯视图缩略预览，正视图可独立滚动。
-- 自动保存数据重新打开后，场景名称、Decor Dex Pokemon key、画布、建筑层、当前编辑建筑层、当前素材、选中坐标、素材实例、坐标、区域类型、朝向、染色、技能标记和技能备注能够完整还原。
+- 自动保存数据重新打开后，场景名称、Decor Dex Pokemon key、画布、建筑层、当前编辑建筑层、当前素材、选中坐标、素材实例、坐标、区域类型、朝向、染色、技能标记和技能备注能够完整还原；footprint 和阻塞状态按当前 asset catalog 重新派生。
 - 搜索词、分类/区域/技能筛选和 favorite-only 不会写入 SceneDocument payload，但会在同一浏览器的 localStorage 中恢复。预览网格、主体边界和技能标记不提供显示选项。
-- 用户可以打开图片导出预览，并下载一张包含整体使用素材、每层图形和每层使用素材的布景说明图片。
+- 用户可以打开图片导出预览，并下载一张包含整体使用素材、每层图形、跨格素材 footprint 和每层使用素材的布景说明图片。
 
 MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 Decor Dex Pokemon key、场景名称、7×7 画布、默认 3 个建筑层、当前编辑建筑层、当前素材、选中坐标、主体区素材、外围装饰区素材、至少 1 个技能标记、可染色素材、非默认朝向素材、俯视图预览、正视图预览、自动保存和重新打开流程。验收通过标准是上述结果均可在同一 Open Design 工作台中复现，且重新打开的数据与自动保存前的 SceneDocument v1 payload 语义一致。
 
@@ -158,7 +165,9 @@ MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 
 - 素材列表、缩略图、名称、分类、标签、适用区域和 `No.` 官方素材 ID 展示。
 - 素材搜索、分类筛选、喜好素材筛选、适用区域筛选和技能相关筛选。
 - 当前素材固定展示，素材结果计数使用稳定宽度，不因数字变化挤压布局。
-- 当前素材选择、素材放置、删除、替换和旋转；所有素材均可旋转。
+- 当前素材选择、素材放置、删除、替换和旋转；所有素材均可旋转，且 90/270 度旋转会交换 footprint length/width 占用格。
+- Asset catalog 提供素材 footprint 元数据；未覆盖素材默认 1x1x1，真实大素材通过 override 增补。
+- 放置、替换和预览前反馈必须使用 footprint 计算同层占用、跨层阻塞和画布边界越界。
 - 建筑层创建、删除、重命名、复制和当前编辑层设置；MVP 不提供建筑层隐藏、显示、锁定或解锁。
 - 按 0 层到 n 层维护建筑层；在工作台左侧按高层到低层视觉顺序展示，例如 L2、L1、L0。
 - 素材实例级百变怪技能标记、技能类型和技能备注。
@@ -168,8 +177,8 @@ MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 
 - 选中格上下文区域或检查器字段，支持查看和编辑坐标、区域、素材、建筑层、朝向、技能标记和备注。
 - 左下检查器同时展示俯视图和正视图缩略预览；预览固定不显示网格、主体边界和技能标记，正视图表达主体区、外围装饰区和建筑层高度关系。
 - 自动保存和本地重新打开恢复；MVP 不提供手动保存入口，也不要求展示 dirty/saved/saveError 状态。
-- SceneDocument v1 结构化序列化和恢复校验，用于保存、自动保存、恢复、roundtrip 校验和图片导出数据派生；图片导出必须从同一 SceneDocument v1 和 asset catalog 派生，不维护第二套导出业务状态。
-- 用户可以在导出前预览一张布景说明图片，并将该图片下载到本机；图片必须包含整体使用的素材、每层的图形和每层使用的素材。
+- SceneDocument v1 结构化序列化和恢复校验，用于保存、自动保存、恢复、roundtrip 校验和图片导出数据派生；图片导出必须从同一 SceneDocument v1 和 asset catalog 派生，不维护第二套导出业务状态或保存派生阻塞状态。
+- 用户可以在导出前预览一张布景说明图片，并将该图片下载到本机；图片必须包含整体使用的素材、每层的图形、跨格 footprint 表达和每层使用的素材。
 - 重新打开自动保存数据后完整还原场景名称、Decor Dex Pokemon key、画布、建筑层、当前编辑建筑层、当前素材、选中坐标、素材、坐标、区域、朝向、染色、技能标记和技能备注。
 - 素材搜索词、分类/区域/技能筛选和 favorite-only 使用 localStorage 保存为浏览器本地 UI 偏好，不进入 SceneDocument v1 payload。
 - 基础恢复校验，字段缺失时给出明确错误提示。
@@ -206,7 +215,7 @@ MVP 不包含账号系统、云端同步、协作编辑、公开方案库、分�
 
 MVP 同样不包含：建筑层隐藏/显示/锁定/解锁、手动保存、dirty/saved/saveError 状态区分、Undo/Redo、素材空状态恢复动作、放置时素材适用区域阻断校验、同层素材堆叠、素材实例移动、普通实例备注 `note`、按素材区分是否可旋转，以及预览网格/主体边界/技能标记显示开关。
 
-MVP 的保存、自动保存、结构化序列化和恢复能力只覆盖单个布景方案的数据闭环，不承诺跨用户权限、在线发布、多人合并或版本历史。当前新增的导出入口只覆盖图片导出预览和图片下载；SceneDocument v1 作为内部事实来源参与导出数据派生，但 JSON 文件导出/导入 UI 仍是 Post-MVP，不作为 Epic 6 的用户可见交付。Epic 7 的 Worker/MCP/Codex skill 服务化也不得被解释为云保存、账号、分享链接、在线发布或服务端图片生成。
+MVP 的保存、自动保存、结构化序列化和恢复能力只覆盖单个布景方案的数据闭环，不承诺跨用户权限、在线发布、多人合并或版本历史。当前新增的导出入口只覆盖图片导出预览和图片下载；SceneDocument v1 作为内部事实来源参与导出数据派生，但 JSON 文件导出/导入 UI 仍是 Post-MVP，不作为 Epic 6 的用户可见交付。Epic 7 的 Worker/MCP/Codex skill 服务化也不得被解释为云保存、账号、分享链接、在线发布或服务端图片生成。Epic 8 的 footprint 占用和 height 阻塞属于规则化矩形占用，不等同于复杂真实视角遮挡模拟，也不得引入 `SceneDocument v2`、保存 blocking cells、实例级 footprint override 或可配置画布尺寸，除非另行完成新的 course correction。
 
 ### Risk Mitigation Strategy
 
@@ -353,14 +362,26 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 ### Asset Catalog & Selection
 
 - FR28: 用户可以浏览素材列表。
-- FR29: 用户可以查看素材缩略图、名称、分类、标签、适用区域和带 `No.` 前缀的官方素材 ID。
+- FR29: 用户可以查看素材缩略图、名称、分类、标签、适用区域、footprint 和带 `No.` 前缀的官方素材 ID。
 - FR30: 用户可以通过关键词搜索素材。
 - FR31: 用户可以按素材分类筛选素材。
 - FR32: 用户可以按适用区域筛选素材。
 - FR33: 用户可以按技能相关条件筛选素材，包括是否默认需要百变怪技能、技能类型和是否可作为本次放置的技能标记候选。
-- FR34: 用户可以查看素材详情，详情至少包含素材 ID、名称、分类、标签、适用区域、喜好状态、默认技能需求、是否可染色和缩略图；所有素材均视为可旋转，MVP 不展示可叠放能力。
-- FR35: 素材维护者可以为素材维护分类、标签、适用区域、喜好状态、默认技能需求、可染色性和缩略图地址；MVP 不维护可旋转性差异或可叠放性。
+- FR34: 用户可以查看素材详情，详情至少包含素材 ID、名称、分类、标签、适用区域、喜好状态、默认技能需求、footprint、是否可染色和缩略图；所有素材均视为可旋转，MVP 不展示可叠放能力。
+- FR35: 素材维护者可以为素材维护分类、标签、适用区域、喜好状态、默认技能需求、可染色性、footprint 和缩略图地址；MVP 不维护可旋转性差异或可叠放性。
 - FR59: 用户可以只显示当前 Pokemon 喜好的素材，筛选结果计数应保持稳定宽度并通过可访问方式更新。
+
+### Asset Footprint & Occupancy Rules
+
+- FR78: Asset catalog 必须为每个可放置素材提供 `footprint.length`、`footprint.width`、`footprint.height` 三个正整数；现有素材默认 1x1x1，真实大素材通过集中 override 覆盖。
+- FR79: `scene-core` 必须根据素材 footprint 和 `rotationDegrees` 派生有效占用尺寸；0/180 度使用原 length/width，90/270 度交换 length/width，height 不随旋转变化。
+- FR80: 放置、替换、保存校验和恢复校验必须检查素材 footprint 的所有占用格均在 7x7 画布内，并且同一建筑层内不同实例的 footprint cells 不得重叠。
+- FR81: 当素材 footprint height 大于 1 时，`scene-core` 必须在上方建筑层对应 footprint cells 派生 blocking cells；这些 blocking cells 在画布中显示为不可放置，但不得写入 SceneDocument payload。
+- FR82: 放置预览必须显示跨格 footprint、将被替换或阻塞的格子、越界原因和跨层阻塞来源；错误提示应包含阻塞 instance id、asset id、building level 和坐标。
+- FR83: 编辑画布、俯视预览、正视预览和图片导出必须按 effective footprint 跨格渲染大素材；导出摘要 JSON 必须包含每个实例的 footprint、effectiveFootprint 和 occupiedCells。
+- FR84: 保存/恢复和短字符串继续使用 `SceneDocument v1`；短字符串不得编码 footprint 或 blocking cells，decode 后必须通过当前 asset catalog 与 `scene-core` occupancy rules 重新派生。
+- FR85: Worker validate/recover/export-summary、MCP tools/resources/prompts 和 Codex skill 必须调用同一套 `scene-core` footprint/occupancy helpers，不得复制 schema、catalog override、占用计算或跨层阻塞规则。
+- FR86: 旧 SceneDocument v1 payload 和旧短字符串迁移时不改写 shape；若当前 catalog footprint 使旧场景产生越界、同层重叠或跨层阻塞冲突，恢复/校验必须返回结构化错误或修复建议，而不是静默调整坐标或保存派生状态。
 
 ### Ditto Skill Marking
 
@@ -400,19 +421,19 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 
 - FR65: 用户可以从 Open Design 工作台打开图片导出预览，查看即将导出的布景说明图片。
 - FR66: 导出图片必须包含整体使用的素材清单，至少包含素材名称、官方 No. 或 asset id、总使用数量。
-- FR67: 导出图片必须按建筑层展示每层图形，并表达该层 7×7 布局、主体区/外围区关系和素材位置。
+- FR67: 导出图片必须按建筑层展示每层图形，并表达该层 7×7 布局、主体区/外围区关系、素材位置和跨格 footprint。
 - FR68: 导出图片必须按建筑层展示每层使用的素材清单；导出预览和下载不得写入 SceneDocument、autosave storage、saved storage 或 UI preferences。
 
 ### Scene Worker, MCP & Codex Skill
 
 - FR69: 系统可以迁移为 pnpm workspace monorepo：现有 React 浏览器 UI 放入 `apps/web`，Cloudflare Worker/MCP 放入 `apps/worker`，共享领域核心放入 `packages/scene-core`。
-- FR70: 系统可以将 `SceneDocument v1` 类型、Zod schema、序列化/恢复、短字符串 codec、asset catalog 查询、selectors、导出摘要 JSON 和默认 scene 生成抽取为共享 `scene-core`。
+- FR70: 系统可以将 `SceneDocument v1` 类型、Zod schema、序列化/恢复、短字符串 codec、asset catalog 查询、footprint/occupancy helpers、selectors、导出摘要 JSON 和默认 scene 生成抽取为共享 `scene-core`。
 - FR71: Worker 可以提供无状态 HTTP API：`/api/health`、`/api/scene/generate`、`/api/scene/validate`、`/api/scene/recover`、`/api/scene/export-summary`、`/api/scene/encode`、`/api/scene/decode` 和 `/api/assets`。
 - FR72: Worker API 必须返回统一 result envelope，包含 `ok`、`data`、`errors`、`warnings` 和 `meta`；`meta` 至少暴露 service version、schema version 和 catalog version。
 - FR73: Worker 第一阶段不得保存用户 scene，不引入 D1/KV/R2/Durable Objects 作为用户数据存储，不引入账号、权限、云同步、分享链接或在线发布。
 - FR74: MCP server 可以暴露高语义 tools：`generate_scene_document`、`validate_scene_document`、`recover_scene_document`、`summarize_scene_export` 和 `search_pokopia_assets`；MCP tools 不得机械镜像所有 HTTP endpoints。
 - FR75: MCP resources 可以提供 scene schema、asset catalog、Pokemon catalog、默认 scene 示例和服务版本信息；MCP prompts 可以封装修复 scene、准备导出摘要和按主题找素材等高频 workflow。
-- FR76: Codex skill 必须通过 MCP 调用权威 Worker/scene-core 能力完成校验、摘要和素材搜索；skill 不得复制业务逻辑、schema、asset catalog 或导出摘要实现。
+- FR76: Codex skill 必须通过 MCP 调用权威 Worker/scene-core 能力完成校验、摘要和素材搜索；skill 不得复制业务逻辑、schema、asset catalog、footprint/occupancy rules 或导出摘要实现。
 - FR77: 现有 React UI 必须继续复用同一 `scene-core`，并保持当前编辑、自动保存、恢复、导出预览和图片下载体验不回退。
 
 ## Non-Functional Requirements
@@ -420,7 +441,7 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 ### Performance
 
 - NFR1: 在桌面浏览器 1280×720 视口、1,000 个素材以内、10 个建筑层以内的测试场景中，7×7 画布上的选中格子、放置素材、删除素材、切换技能标记和切换当前建筑层操作应在 100ms 内完成可见状态更新，使用浏览器性能标记或等效自动化计时测量。
-- NFR2: 在 7×7 画布、10 个建筑层、每层 49 个素材实例以内的测试场景中，俯视图和基础正视图切换应在 300ms 内完成首个可见预览更新，使用浏览器性能标记或等效自动化计时测量。
+- NFR2: 在 7×7 画布、10 个建筑层、每层 49 个素材实例以内的测试场景中，俯视图和基础正视图切换应在 300ms 内完成首个可见预览更新；测试场景必须包含至少一个 2x1、1x2 和 height > 1 的 footprint 素材。
 - NFR3: 素材搜索和筛选在 1,000 个素材以内时应在 200ms 内返回可见结果，测量范围从用户输入或筛选变更到结果列表完成首屏更新。
 - NFR4: 素材列表达到 1,000 个素材时，搜索输入、筛选切换、列表滚动和画布选中操作的可见响应时间均应保持在 200ms 内；若一次性渲染超过 100 个素材卡片，应采用分页、虚拟滚动或等效机制限制首屏渲染量。
 - NFR5: [Removed from MVP 2026-05-19] MVP 不提供建筑层隐藏、显示、锁定或解锁状态。
@@ -432,6 +453,10 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - NFR8: 恢复数据时，如果关键字段缺失、类型错误或坐标超出 7×7 范围，系统必须给出错误提示，提示至少包含字段路径、期望类型或范围、实际问题和修复方向。
 - NFR9: 每次放置、删除、替换素材、切换建筑层、修改技能标记、修改染色或更新技能备注后，画布、上下文/属性字段、建筑层列表、预览和序列化结果必须从同一场景数据源派生；自动化一致性测试应验证五个视图读取的同一素材实例字段完全一致。
 - NFR10: 删除建筑层等破坏性操作必须在执行前显示确认提示，提示至少包含建筑层名称、受影响素材实例数量、操作后果，以及确认或取消操作。
+- NFR37: Footprint、effective footprint、occupied cells 和 height blocking cells 必须由 `scene-core` 纯函数确定性派生；任何端不得保存或缓存会与 SceneDocument/catalog 漂移的独立阻塞状态。
+- NFR38: `SceneDocument v1` 仍是当前 schema；本次变更不得新增 `SceneDocument v2`、实例级 footprint 字段或 blocking cell 字段。若未来需要保存 catalog snapshot 或实例级 footprint override，必须先进行新的 PRD/Architecture/Epics 同步。
+- NFR39: `scene-core`、web UI、Worker API、MCP tools 和 Codex skill 示例必须有契约测试覆盖同一个 footprint fixture，至少验证 90/270 度 length/width 交换、同层重叠、height 跨层阻塞、短字符串 roundtrip 和 export-summary parity。
+- NFR40: Footprint 校验错误必须包含字段路径、冲突类型、触发实例、阻塞实例、建筑层和坐标集合；Worker/MCP/Codex skill 输出不得只给出 generic validation failed。
 
 ### Usability
 
@@ -471,5 +496,5 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - NFR32: Worker 必须限制 request body、content type、tool timeout 和 output size；错误响应不得暴露 stack trace。
 - NFR33: Worker bundle 不得包含 React、React DOM、`html-to-image`、Playwright、jsdom 或大型图片源。
 - NFR34: `scene-core`、Worker API、MCP tools 和 Codex skill 必须有 contract tests；release gate 增加 Worker runtime tests、MCP smoke、`wrangler types` 和 `wrangler types --check`。
-- NFR35: API/MCP 结果必须与浏览器 UI 当前 `SceneDocument v1`、asset catalog、locale 显示规则和导出摘要语义一致。
+- NFR35: API/MCP 结果必须与浏览器 UI 当前 `SceneDocument v1`、asset catalog、footprint/occupancy rules、locale 显示规则和导出摘要语义一致。
 - NFR36: 根 `package.json` 必须提供 pnpm monorepo orchestration scripts；Wrangler dev/types/deploy/dry-run 命令必须能通过 `pnpm run worker:*` 和 `pnpm run deploy` 执行。

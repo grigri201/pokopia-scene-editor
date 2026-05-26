@@ -35,6 +35,10 @@ Epic 5 已完成并保留为已完成历史。后续新功能不得通过重写 
 
 `sprint-change-proposal-2026-05-25.md` 已批准。Epic 1-6 保留为已完成历史；当前新增 Epic 7，用于 pnpm workspace monorepo、`scene-core` 共享领域核心、Cloudflare Worker HTTP API、Streamable HTTP MCP server 和 repo-scoped Codex skill。第一阶段不新增账号、数据库、云保存、分享链接、在线发布、服务端图片渲染或 AI 自动生成完整布景。
 
+## Approved Course Correction - 2026-05-27
+
+`sprint-change-proposal-2026-05-27.md` 已批准。Epic 1-7 保留为已完成历史；当前新增 Epic 8，用于真实素材 footprint metadata、旋转后占用格、height 跨层阻塞、跨格渲染、保存/恢复/短字符串兼容，以及 Worker/MCP/Codex skill 与 `scene-core` 的规则一致性。本次不创建 `SceneDocument v2`，不保存 blocking cells，也不把 footprint 作为实例级 payload 字段。
+
 ## Requirements Inventory
 
 ### Functional Requirements
@@ -101,7 +105,7 @@ FR27: 系统可以按建筑层层号从 0 层到 n 层组织和展示布景内�
 
 FR28: 用户可以浏览素材列表。
 
-FR29: 用户可以查看素材缩略图、名称、分类、标签、适用区域和带 `No.` 前缀的官方素材 ID。
+FR29: 用户可以查看素材缩略图、名称、分类、标签、适用区域、footprint 和带 `No.` 前缀的官方素材 ID。
 
 FR30: 用户可以通过关键词搜索素材。
 
@@ -111,9 +115,9 @@ FR32: 用户可以按适用区域筛选素材。
 
 FR33: 用户可以按技能相关条件筛选素材，包括是否默认需要百变怪技能、技能类型和是否可作为本次放置的技能标记候选。
 
-FR34: 用户可以查看素材详情，详情至少包含素材 ID、名称、分类、标签、适用区域、喜好状态、默认技能需求、是否可旋转、是否可叠放、是否可染色和缩略图。
+FR34: 用户可以查看素材详情，详情至少包含素材 ID、名称、分类、标签、适用区域、喜好状态、默认技能需求、footprint、是否可旋转、是否可叠放、是否可染色和缩略图。
 
-FR35: 素材维护者可以为素材维护分类、标签、适用区域、喜好状态、默认技能需求、可旋转性、可叠放性、可染色性和缩略图地址。
+FR35: 素材维护者可以为素材维护分类、标签、适用区域、喜好状态、默认技能需求、可旋转性、可叠放性、可染色性、footprint 和缩略图地址。
 
 FR59: 用户可以只显示当前 Pokemon 喜好的素材，筛选结果计数应保持稳定宽度并通过可访问方式更新。
 
@@ -171,13 +175,13 @@ FR65: 用户可以从 Open Design 工作台打开图片导出预览，查看即�
 
 FR66: 导出图片必须包含整体使用的素材清单，至少包含素材名称、官方 No. 或 asset id、总使用数量。
 
-FR67: 导出图片必须按建筑层展示每层图形，并表达该层 7×7 布局、主体区/外围区关系和素材位置。
+FR67: 导出图片必须按建筑层展示每层图形，并表达该层 7×7 布局、主体区/外围区关系、素材位置和跨格 footprint。
 
 FR68: 导出图片必须按建筑层展示每层使用的素材清单；导出预览和下载不得写入 SceneDocument、autosave storage、saved storage 或 UI preferences。
 
 FR69: 系统可以迁移为 pnpm workspace monorepo：现有 React 浏览器 UI 放入 `apps/web`，Cloudflare Worker/MCP 放入 `apps/worker`，共享领域核心放入 `packages/scene-core`。
 
-FR70: 系统可以将 `SceneDocument v1` 类型、Zod schema、序列化/恢复、短字符串 codec、asset catalog 查询、selectors、导出摘要 JSON 和默认 scene 生成抽取为共享 `scene-core`。
+FR70: 系统可以将 `SceneDocument v1` 类型、Zod schema、序列化/恢复、短字符串 codec、asset catalog 查询、footprint/occupancy helpers、selectors、导出摘要 JSON 和默认 scene 生成抽取为共享 `scene-core`。
 
 FR71: Worker 可以提供无状态 HTTP API：`/api/health`、`/api/scene/generate`、`/api/scene/validate`、`/api/scene/recover`、`/api/scene/export-summary`、`/api/scene/encode`、`/api/scene/decode` 和 `/api/assets`。
 
@@ -189,15 +193,33 @@ FR74: MCP server 可以暴露高语义 tools：`generate_scene_document`、`vali
 
 FR75: MCP resources 可以提供 scene schema、asset catalog、Pokemon catalog、默认 scene 示例和服务版本信息；MCP prompts 可以封装修复 scene、准备导出摘要和按主题找素材等高频 workflow。
 
-FR76: Codex skill 必须通过 MCP 调用权威 Worker/scene-core 能力完成校验、摘要和素材搜索；skill 不得复制业务逻辑、schema、asset catalog 或导出摘要实现。
+FR76: Codex skill 必须通过 MCP 调用权威 Worker/scene-core 能力完成校验、摘要和素材搜索；skill 不得复制业务逻辑、schema、asset catalog、footprint/occupancy rules 或导出摘要实现。
 
 FR77: 现有 React UI 必须继续复用同一 `scene-core`，并保持当前编辑、自动保存、恢复、导出预览和图片下载体验不回退。
+
+FR78: Asset catalog 必须为每个可放置素材提供 `footprint.length`、`footprint.width`、`footprint.height` 三个正整数；现有素材默认 1x1x1，真实大素材通过集中 override 覆盖。
+
+FR79: `scene-core` 必须根据素材 footprint 和 `rotationDegrees` 派生有效占用尺寸；0/180 度使用原 length/width，90/270 度交换 length/width，height 不随旋转变化。
+
+FR80: 放置、替换、保存校验和恢复校验必须检查素材 footprint 的所有占用格均在 7x7 画布内，并且同一建筑层内不同实例的 footprint cells 不得重叠。
+
+FR81: 当素材 footprint height 大于 1 时，`scene-core` 必须在上方建筑层对应 footprint cells 派生 blocking cells；这些 blocking cells 在画布中显示为不可放置，但不得写入 SceneDocument payload。
+
+FR82: 放置预览必须显示跨格 footprint、将被替换或阻塞的格子、越界原因和跨层阻塞来源；错误提示应包含阻塞 instance id、asset id、building level 和坐标。
+
+FR83: 编辑画布、俯视预览、正视预览和图片导出必须按 effective footprint 跨格渲染大素材；导出摘要 JSON 必须包含每个实例的 footprint、effectiveFootprint 和 occupiedCells。
+
+FR84: 保存/恢复和短字符串继续使用 `SceneDocument v1`；短字符串不得编码 footprint 或 blocking cells，decode 后必须通过当前 asset catalog 与 `scene-core` occupancy rules 重新派生。
+
+FR85: Worker validate/recover/export-summary、MCP tools/resources/prompts 和 Codex skill 必须调用同一套 `scene-core` footprint/occupancy helpers，不得复制 schema、catalog override、占用计算或跨层阻塞规则。
+
+FR86: 旧 SceneDocument v1 payload 和旧短字符串迁移时不改写 shape；若当前 catalog footprint 使旧场景产生越界、同层重叠或跨层阻塞冲突，恢复/校验必须返回结构化错误或修复建议，而不是静默调整坐标或保存派生状态。
 
 ### NonFunctional Requirements
 
 NFR1: 在桌面浏览器 1280×720 视口、1,000 个素材以内、10 个建筑层以内的测试场景中，7×7 画布上的选中格子、放置素材、删除素材、切换技能标记和切换当前建筑层操作应在 100ms 内完成可见状态更新，使用浏览器性能标记或等效自动化计时测量。
 
-NFR2: 在 7×7 画布、10 个建筑层、每层 49 个素材实例以内的测试场景中，俯视图和基础正视图切换应在 300ms 内完成首个可见预览更新，使用浏览器性能标记或等效自动化计时测量。
+NFR2: 在 7×7 画布、10 个建筑层、每层 49 个素材实例以内的测试场景中，俯视图和基础正视图切换应在 300ms 内完成首个可见预览更新；测试场景必须包含至少一个 2x1、1x2 和 height > 1 的 footprint 素材。
 
 NFR3: 素材搜索和筛选在 1,000 个素材以内时应在 200ms 内返回可见结果，测量范围从用户输入或筛选变更到结果列表完成首屏更新。
 
@@ -263,13 +285,23 @@ NFR33: Worker bundle 不得包含 React、React DOM、`html-to-image`、Playwrig
 
 NFR34: `scene-core`、Worker API、MCP tools 和 Codex skill 必须有 contract tests；release gate 增加 Worker runtime tests、MCP smoke、`wrangler types` 和 `wrangler types --check`。
 
-NFR35: API/MCP 结果必须与浏览器 UI 当前 `SceneDocument v1`、asset catalog、locale 显示规则和导出摘要语义一致。
+NFR35: API/MCP 结果必须与浏览器 UI 当前 `SceneDocument v1`、asset catalog、footprint/occupancy rules、locale 显示规则和导出摘要语义一致。
 
 NFR36: 根 `package.json` 必须提供 pnpm monorepo orchestration scripts；Wrangler dev/types/deploy/dry-run 命令必须能通过 `pnpm run worker:*` 和 `pnpm run deploy` 执行。
+
+NFR37: Footprint、effective footprint、occupied cells 和 height blocking cells 必须由 `scene-core` 纯函数确定性派生；任何端不得保存或缓存会与 SceneDocument/catalog 漂移的独立阻塞状态。
+
+NFR38: `SceneDocument v1` 仍是当前 schema；本次变更不得新增 `SceneDocument v2`、实例级 footprint 字段或 blocking cell 字段。若未来需要保存 catalog snapshot 或实例级 footprint override，必须先进行新的 PRD/Architecture/Epics 同步。
+
+NFR39: `scene-core`、web UI、Worker API、MCP tools 和 Codex skill 示例必须有契约测试覆盖同一个 footprint fixture，至少验证 90/270 度 length/width 交换、同层重叠、height 跨层阻塞、短字符串 roundtrip 和 export-summary parity。
+
+NFR40: Footprint 校验错误必须包含字段路径、冲突类型、触发实例、阻塞实例、建筑层和坐标集合；Worker/MCP/Codex skill 输出不得只给出 generic validation failed。
 
 ### Additional Requirements
 
 - 已完成 MVP 保持客户端优先静态 Web App；Epic 7 批准新增无状态 Worker/API/MCP 服务层，但不得引入数据库、认证、云同步、分享链接、在线发布或后端管理控制台。
+
+- Epic 8 批准新增真实素材 footprint 与 occupancy rules；当前 `SceneDocument v1` 继续作为保存、恢复、短字符串和 Worker/MCP 输入契约。Footprint 属于 asset catalog 元数据，阻塞格和占用格由 `scene-core` 派生，不得作为独立 scene payload 字段保存。
 
 - Starter template 使用 Vite + React + TypeScript (`react-ts`)。第一条实施 story 应初始化该 starter，并建立 `typecheck`、build、Vitest 和 Playwright scaffold。
 
@@ -1939,3 +1971,166 @@ So that 服务化能力不会引入 schema 漂移、bundle 污染或日志泄漏
 **Given** MCP smoke 运行
 **When** 调用 validate、recover、summarize 和 search tools
 **Then** 返回结构化结果并与 `packages/scene-core` direct-call contract tests 一致。
+
+## Epic 8: 真实素材 Footprint 与跨层占用规则
+
+用户可以在同一个 7x7 多建筑层工作台中正确放置、预览、保存和导出真实 Pokopia 素材 footprint；大素材会按 length/width 跨格显示，90/270 度旋转会交换占用方向，height 大于 1 的素材会在上方建筑层派生不可放置格。Web、Worker、MCP 和 Codex skill 必须共用 `scene-core` 的权威规则，不出现 schema 或规则漂移。
+
+### Story 8.1: 为 asset catalog 增加 footprint 元数据和真实大素材覆盖
+
+**Requirements covered:** FR29, FR34, FR35, FR78, FR86, NFR37, NFR39.
+
+As a 素材维护者,
+I want 在 asset catalog 中维护素材 footprint,
+So that 编辑器可以知道素材真实占用格数和高度，而不是默认所有素材都是 1x1x1。
+
+**Acceptance Criteria:**
+
+**Given** 当前 catalog 已从 Pokopia placeable items 生成
+**When** dev agent 执行 Story 8.1
+**Then** `AssetDefinition` 必须包含 `footprint: { length, width, height }`
+**And** 三个字段都是正整数。
+
+**Given** 现有素材没有显式 footprint override
+**When** catalog 构建 asset definition
+**Then** 默认 footprint 必须为 `{ length: 1, width: 1, height: 1 }`
+**And** 现有素材数量、官方 No.、名称、分类、标签、喜好和缩略图不应因为默认迁移而丢失。
+
+**Given** 已知真实大素材清单可维护
+**When** dev agent 增加 overrides
+**Then** overrides 必须集中在 `packages/scene-core/src/domain/assets/` 的可审计结构中
+**And** 至少覆盖 1x2x1、2x1x1、2x1x2 或等价大素材示例。
+
+**Given** MCP resource `pokopia://assets/catalog` 或 HTTP `/api/assets` 返回 asset catalog
+**When** 客户端读取素材
+**Then** 结果必须包含 footprint metadata
+**And** Codex skill 示例不得复制 override 列表。
+
+### Story 8.2: 在 scene-core 实现 footprint 旋转、占用和跨层阻塞规则
+
+**Requirements covered:** FR79, FR80, FR81, FR82, FR84, FR85, NFR37, NFR38, NFR39, NFR40.
+
+As a 开发者,
+I want `scene-core` 统一计算 footprint、occupied cells 和 blocking cells,
+So that Web、Worker、MCP 和 skill 都使用同一套放置与恢复规则。
+
+**Acceptance Criteria:**
+
+**Given** 一个素材 footprint 为 length 2、width 1、height 1
+**When** `rotationDegrees` 为 0 或 180
+**Then** effective footprint 为 2x1x1
+**And** 当 `rotationDegrees` 为 90 或 270 时 effective footprint 为 1x2x1。
+
+**Given** 一个素材从 anchor coordinate 派生 occupied cells
+**When** 任一 occupied cell 超出 7x7 canvas
+**Then** validate/recover/placement 必须返回结构化错误
+**And** 不得静默裁剪 footprint。
+
+**Given** 同一建筑层已有实例 footprint cells
+**When** 新实例 footprint 与其相交
+**Then** placement preview 必须返回 blocked 或 will-replace 状态
+**And** save/recover validation 必须拒绝同层 footprint overlap。
+
+**Given** 一个素材 footprint height 大于 1
+**When** scene-core 构建 occupancy map
+**Then** 上方 `height - 1` 个 levelNumber 范围内的对应 footprint cells 必须派生为 blocked
+**And** blocking cells 不得进入 `SceneDocument v1`、short string 或 autosave payload。
+
+**Given** `SceneDocument v1` payload 或 PSE1 短字符串被恢复
+**When** 当前 catalog footprint 产生越界、重叠或跨层阻塞冲突
+**Then** recovery 必须返回字段路径、冲突类型、相关 instance id、asset id、buildingLevelId 和坐标集合
+**And** 不得把 payload 升级为 `SceneDocument v2`。
+
+### Story 8.3: 更新 Web 放置、画布跨格显示和不可放置反馈
+
+**Requirements covered:** FR79, FR80, FR81, FR82, FR83, NFR1, NFR11, NFR12, NFR14, NFR15, NFR40.
+
+As a 布景创作者,
+I want 在编辑画布中看到大素材真实占用范围和上层阻塞,
+So that 我不会把素材放进已经被 footprint 占用或被下层高度阻塞的位置。
+
+**Acceptance Criteria:**
+
+**Given** 用户选择一个 footprint 大于 1x1 的素材
+**When** 悬停在可放置 anchor cell 上
+**Then** 画布必须显示跨格放置预览
+**And** 预览覆盖所有 effective footprint occupied cells。
+
+**Given** 用户旋转当前素材到 90 或 270 度
+**When** 再次悬停同一 anchor cell
+**Then** 放置预览必须交换 length/width 方向
+**And** 占用状态、越界状态和覆盖提示同步更新。
+
+**Given** 下方建筑层存在 height 大于 1 的素材
+**When** 用户切换到被阻塞的上方建筑层
+**Then** 对应格子显示为不可放置
+**And** 不可放置说明包含阻塞来源素材和建筑层。
+
+**Given** 当前 scene 中已有大素材
+**When** 用户查看主画布
+**Then** 素材图片必须跨格显示且保持网格尺寸稳定
+**And** 技能、染色、旋转和选中状态仍绑定到 anchor instance。
+
+### Story 8.4: 更新俯视/正视预览、图片导出和导出摘要
+
+**Requirements covered:** FR67, FR68, FR83, FR85, NFR2, NFR29, NFR30, NFR35, NFR39.
+
+As a 布景创作者,
+I want 预览和导出图片也能准确表达大素材 footprint,
+So that 保存给他人的布景说明图不会把大素材误显示成单格素材。
+
+**Acceptance Criteria:**
+
+**Given** scene 包含 footprint 大于 1x1 的素材
+**When** 用户打开俯视图预览
+**Then** 预览必须跨格显示该素材
+**And** 不重复渲染成多个独立素材实例。
+
+**Given** scene 包含 height 大于 1 的素材
+**When** 用户打开正视图预览
+**Then** 正视图必须表达该素材占据多层高度
+**And** 不把派生阻塞格误当作真实素材实例计数。
+
+**Given** 用户打开图片导出预览或下载图片
+**When** export render data 从 `SceneDocument v1` 和 catalog 派生
+**Then** 导出图片必须按 footprint 跨格显示大素材
+**And** 每层素材清单仍按真实实例计数，不按 occupied cell 计数。
+
+**Given** Worker/MCP 调用 export summary
+**When** scene 中存在大素材
+**Then** summary 中每个实例必须包含 `footprint`、`effectiveFootprint`、`occupiedCells` 和由 height 派生的 blocking 信息或 warning
+**And** Web 图片导出使用同一语义。
+
+### Story 8.5: 保存、短字符串、Worker/MCP/Codex skill 规则一致性门禁
+
+**Requirements covered:** FR84, FR85, FR86, NFR34, NFR35, NFR37, NFR38, NFR39, NFR40.
+
+As a 维护者,
+I want 保存/恢复、短字符串、Worker、MCP 和 Codex skill 都通过同一组 footprint 契约测试,
+So that 后续不会出现 schema 或规则漂移。
+
+**Acceptance Criteria:**
+
+**Given** 一个包含 1x1、2x1、1x2 和 height > 1 素材的 shared fixture
+**When** scene-core unit tests、web tests、Worker tests 和 MCP smoke 运行
+**Then** 它们必须对 occupied cells、blocking cells、validation errors 和 export summary 得到一致结果。
+
+**Given** scene 被保存或自动保存
+**When** 系统序列化 `SceneDocument v1`
+**Then** payload 不包含 footprint、effectiveFootprint、occupiedCells 或 blocking cells
+**And** roundtrip 后通过当前 catalog 重新派生相同结果。
+
+**Given** scene 被编码为 PSE1 短字符串
+**When** 用户 decode 该字符串
+**Then** 字符串不包含 footprint 字段
+**And** decode/recover 后仍通过当前 `scene-core` footprint rules 校验。
+
+**Given** Codex skill 示例调用 MCP
+**When** 执行 validate scene、recover scene、summarize export 或 search assets
+**Then** skill 输出必须把 MCP structuredContent 作为权威结果
+**And** 不得在 skill 文档或示例中复制 footprint 规则。
+
+**Given** release gate 运行
+**When** dev agent 完成 Epic 8
+**Then** `pnpm run release:verify` 必须通过
+**And** 覆盖 footprint catalog、occupancy helpers、web canvas、preview/export、Worker routes、MCP smoke、short string codec 和 skill examples。
