@@ -1,4 +1,5 @@
 import { jsonError, jsonOk, type ApiError } from './api-result';
+import { handleMcpRequest } from './mcp';
 import { getRequestId, readJsonRequest, ApiRequestError } from './request';
 import { searchAssetsFromBody, searchAssetsFromUrl } from './routes/assets';
 import {
@@ -22,6 +23,10 @@ export default {
 
 export async function handleRequest(request: Request, env: WorkerEnv, _context?: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
+
+  if (url.pathname === '/mcp') {
+    return handleMcpRequest(request, env, _context ?? createNoopExecutionContext());
+  }
 
   if (!url.pathname.startsWith('/api/')) {
     return env.ASSETS.fetch(request);
@@ -140,4 +145,17 @@ function logApiRequest(event: {
   errorCategory: string;
 }): void {
   console.info('worker_api_request', event);
+}
+
+function createNoopExecutionContext(): ExecutionContext {
+  return {
+    waitUntil() {
+      // Test-only fallback when handleRequest is called without a Worker context.
+    },
+    passThroughOnException() {
+      // Test-only fallback when handleRequest is called without a Worker context.
+    },
+    exports: {},
+    props: {},
+  } as unknown as ExecutionContext;
 }

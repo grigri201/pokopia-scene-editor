@@ -1,0 +1,310 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDefaultSceneDocument } from '@pokopia-scene-editor/scene-core';
+import { handleRequest, type WorkerEnv } from './index';
+
+vi.mock('agents/mcp', () => ({
+  createMcpHandler: (server: any, options: { route?: string } = {}) => async (request: Request) => {
+    const url = new URL(request.url);
+    if (url.pathname !== (options.route ?? '/mcp')) {
+      return jsonRpcError(null, -32004, 'MCP route was not found.', 404);
+    }
+
+    if (request.method !== 'POST') {
+      return jsonRpcError(null, -32005, 'MCP method is not allowed.', 405);
+    }
+
+    const message = await request.json() as {
+      id?: string | number | null;
+      method?: string;
+      params?: Record<string, any>;
+    };
+    const id = message.id ?? null;
+
+    switch (message.method) {
+      case 'initialize':
+        return jsonRpcOk(id, {
+          protocolVersion: message.params?.protocolVersion ?? '2025-11-25',
+          capabilities: {},
+          serverInfo: { name: 'pokopia-scene-editor', version: '0.1.0' },
+        });
+      case 'tools/list':
+        return jsonRpcOk(id, {
+          tools: Object.entries(server._registeredTools).map(([name, tool]: [string, any]) => ({
+            name,
+            title: tool.title,
+            description: tool.description,
+          })),
+        });
+      case 'tools/call': {
+        const tool = server._registeredTools[message.params?.name];
+        if (!tool) {
+          return jsonRpcError(id, -32602, 'Unknown tool.', 200);
+        }
+        return jsonRpcOk(id, await tool.handler(message.params?.arguments ?? {}, {}));
+      }
+      case 'resources/list':
+        return jsonRpcOk(id, {
+          resources: Object.entries(server._registeredResources).map(([uri, resource]: [string, any]) => ({
+            uri,
+            name: resource.name,
+            title: resource.title,
+            ...resource.metadata,
+          })),
+        });
+      case 'resources/read': {
+        const resource = server._registeredResources[message.params?.uri];
+        if (!resource) {
+          return jsonRpcError(id, -32602, 'Unknown resource.', 200);
+        }
+        return jsonRpcOk(id, await resource.readCallback(new URL(message.params?.uri), {}));
+      }
+      case 'prompts/list':
+        return jsonRpcOk(id, {
+          prompts: Object.entries(server._registeredPrompts).map(([name, prompt]: [string, any]) => ({
+            name,
+            title: prompt.title,
+            description: prompt.description,
+          })),
+        });
+      default:
+        return jsonRpcError(id, -32601, 'Unknown MCP method.', 200);
+    }
+  },
+}));
+
+const env: WorkerEnv = {
+  ASSETS: {
+    fetch: vi.fn(() => Promise.resolve(new Response('asset fallback', { status: 200 }))),
+  } as unknown as Fetcher,
+};
+
+describe('worker MCP endpoint', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('serves Streamable HTTP MCP initialize metadata', async () => {
+    const response = await mcpRpc('initialize', {
+      protocolVersion: '2025-11-25',
+      capabilities: {},
+      clientInfo: { name: 'pokopia-worker-test', version: '0.1.0' },
+    });
+    const body = await readJson(response);
+
+    expect(response.status).toBe(200);
+    expect(body.result.serverInfo).toMatchObject({
+      name: 'pokopia-scene-editor',
+      version: '0.1.0',
+    });
+  });
+
+  it('lists high-semantic tools, resources, and prompts', async () => {
+    const tools = await readJson(await mcpRpc('tools/list'));
+    const resources = await readJson(await mcpRpc('resources/list'));
+    const prompts = await readJson(await mcpRpc('prompts/list'));
+
+    expect(tools.result.tools.map((tool: { name: string }) => tool.name)).toEqual(
+      expect.arrayContaining([
+        'generate_scene_document',
+        'validate_scene_document',
+        'recover_scene_document',
+        'summarize_scene_export',
+        'search_pokopia_assets',
+      ]),
+    );
+    expect(tools.result.tools.map((tool: { name: string }) => tool.name)).not.toContain('encode_scene_document');
+
+    expect(resources.result.resources.map((resource: { uri: string }) => resource.uri)).toEqual(
+      expect.arrayContaining([
+        'pokopia://scene/schema/v1',
+        'pokopia://assets/catalog',
+        'pokopia://pokemon/catalog',
+        'pokopia://scene/examples/default',
+        'pokopia://service/version',
+      ]),
+    );
+
+    expect(prompts.result.prompts.map((prompt: { name: string }) => prompt.name)).toEqual(
+      expect.arrayContaining([
+        'repair_scene_document',
+        'prepare_scene_export_summary',
+        'find_assets_by_theme',
+      ]),
+    );
+  });
+
+  it('generates scenes, searches assets, and reads resources through MCP', async () => {
+    const generated = await readJson(await mcpRpc('tools/call', {
+      name: 'generate_scene_document',
+      arguments: {
+        selectedPokemonKey: 'pikachu',
+        sceneName: 'MCP Scene',
+        now: '2026-05-26T00:00:00.000Z',
+      },
+    }));
+    expect(generated.result.structuredContent).toMatchObject({
+      ok: true,
+      data: {
+        scene: {
+          sceneName: 'MCP Scene',
+          selectedPokemonKey: 'pikachu',
+          schemaVersion: 1,
+        },
+      },
+    });
+
+    const assets = await readJson(await mcpRpc('tools/call', {
+      name: 'search_pokopia_assets',
+      arguments: { query: 'wood', pageSize: 3 },
+    }));
+    expect(assets.result.structuredContent.data.assets).toHaveLength(3);
+    expect(assets.result.structuredContent.data.filteredCount).toBeGreaterThan(3);
+
+    const version = await readJson(await mcpRpc('resources/read', { uri: 'pokopia://service/version' }));
+    expect(JSON.parse(version.result.contents[0].text)).toMatchObject({
+      serviceVersion: '0.1.0',
+      schemaVersion: 1,
+    });
+
+    const schema = await readJson(await mcpRpc('resources/read', { uri: 'pokopia://scene/schema/v1' }));
+    expect(JSON.parse(schema.result.contents[0].text)).toMatchObject({
+      type: 'object',
+      properties: expect.objectContaining({
+        schemaVersion: expect.any(Object),
+        sceneId: expect.any(Object),
+        selectedPokemonKey: expect.any(Object),
+      }),
+    });
+  });
+
+  it('returns structured validation errors without stack traces or raw scene payloads', async () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+
+    try {
+      const response = await mcpRpc('tools/call', {
+        name: 'recover_scene_document',
+        arguments: { scene: { sceneName: 'private broken scene' } },
+      });
+      const bodyText = await response.text();
+      const body = JSON.parse(bodyText);
+
+      expect(response.status).toBe(200);
+      expect(body.result.isError).toBe(true);
+      expect(body.result.structuredContent).toMatchObject({
+        ok: false,
+        errors: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'scene_validation_failed',
+            fieldPath: expect.any(String),
+            recoveryAction: expect.any(String),
+          }),
+        ]),
+        warnings: expect.arrayContaining([expect.any(String)]),
+        fixSuggestions: expect.arrayContaining([expect.any(String)]),
+      });
+      expect(bodyText).not.toContain('ZodError');
+      expect(bodyText).not.toContain('private broken scene');
+      expect(JSON.stringify(infoSpy.mock.calls)).not.toContain('private broken scene');
+      expect(infoSpy).toHaveBeenCalledWith(
+        'worker_mcp_tool',
+        expect.objectContaining({
+          tool: 'recover_scene_document',
+          status: 'error',
+          errorCategory: 'scene_validation_failed',
+        }),
+      );
+    } finally {
+      infoSpy.mockRestore();
+    }
+  });
+
+  it('returns structured generate input errors with field-level fix suggestions', async () => {
+    const response = await mcpRpc('tools/call', {
+      name: 'generate_scene_document',
+      arguments: {
+        selectedPokemonKey: 'not-a-real-pokemon',
+      },
+    });
+    const body = await readJson(response);
+
+    expect(body.result.isError).toBe(true);
+    expect(body.result.structuredContent).toMatchObject({
+      ok: false,
+      errors: [
+        expect.objectContaining({
+          code: 'invalid_pokemon_key',
+          fieldPath: 'selectedPokemonKey',
+        }),
+      ],
+      fixSuggestions: expect.arrayContaining([expect.any(String)]),
+    });
+    expect(JSON.stringify(body)).not.toContain('not-a-real-pokemon');
+  });
+
+  it('keeps MCP routing isolated from API and static assets', async () => {
+    const api = await request('/api/health');
+    const staticAsset = await request('/mcp-client-route');
+
+    expect(api.status).toBe(200);
+    expect((await readJson(api)).data.status).toBe('ok');
+    expect(staticAsset.status).toBe(200);
+    expect(await staticAsset.text()).toBe('asset fallback');
+    expect(env.ASSETS.fetch).toHaveBeenCalledOnce();
+  });
+
+  it('summarizes export data for valid scenes', async () => {
+    const scene = createDefaultSceneDocument({ now: '2026-05-26T00:00:00.000Z' });
+    const summary = await readJson(await mcpRpc('tools/call', {
+      name: 'summarize_scene_export',
+      arguments: { scene },
+    }));
+
+    expect(summary.result.structuredContent).toMatchObject({
+      ok: true,
+      data: {
+        summary: {
+          sceneId: scene.sceneId,
+        },
+      },
+    });
+  });
+});
+
+function mcpRpc(method: string, params?: unknown) {
+  return request('/mcp', {
+    method: 'POST',
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: `${method}-test`,
+      method,
+      params,
+    }),
+    headers: {
+      'accept': 'application/json, text/event-stream',
+      'content-type': 'application/json',
+      'mcp-protocol-version': '2025-11-25',
+    },
+  });
+}
+
+function request(path: string, init: RequestInit = {}) {
+  return handleRequest(new Request(`https://example.test${path}`, init), env);
+}
+
+async function readJson(response: Response): Promise<Record<string, any>> {
+  return await response.json() as Record<string, any>;
+}
+
+function jsonRpcOk(id: string | number | null, result: unknown, status = 200): Response {
+  return new Response(JSON.stringify({ jsonrpc: '2.0', id, result }), {
+    status,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  });
+}
+
+function jsonRpcError(id: string | number | null, code: number, message: string, status = 200): Response {
+  return new Response(JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } }), {
+    status,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  });
+}

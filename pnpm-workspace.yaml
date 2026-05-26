@@ -2,10 +2,12 @@ packages:
   - apps/*
   - packages/*
 onlyBuiltDependencies:
+  - core-js-pure
   - esbuild
   - sharp
   - workerd
 allowBuilds:
+  core-js-pure: true
   esbuild: true
   sharp: true
   workerd: true

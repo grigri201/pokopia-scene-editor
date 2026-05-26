@@ -1,5 +1,5 @@
 # generated: 2026-05-16T06:01:02+0800
-# last_updated: 2026-05-26T07:54:09+0800
+# last_updated: 2026-05-26T08:07:54+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -34,7 +34,7 @@
 # - Dev moves story to 'review', then code-review triages findings before done.
 
 generated: 2026-05-16T06:01:02+0800
-last_updated: 2026-05-26T07:54:09+0800
+last_updated: 2026-05-26T08:07:54+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -90,7 +90,7 @@ development_status:
   epic-7: in-progress
   7-1-extract-scene-core-shared-package: done
   7-2-worker-http-api-and-deploy-scripts: done
-  7-3-mcp-server-tools-resources-prompts: backlog
+  7-3-mcp-server-tools-resources-prompts: done
   7-4-codex-skill-wrapper-and-examples: backlog
   7-5-worker-mcp-skill-hardening-and-release-gates: backlog
   epic-7-retrospective: optional

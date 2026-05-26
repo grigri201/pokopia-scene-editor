@@ -14,9 +14,13 @@
     "build": "pnpm run deploy:dry-run"
   },
   "dependencies": {
-    "@pokopia-scene-editor/scene-core": "workspace:*"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@pokopia-scene-editor/scene-core": "workspace:*",
+    "agents": "^0.13.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/node": "24.10.1",
     "typescript": "6.0.3",
     "vitest": "4.1.6",
     "wrangler": "4.94.0"
