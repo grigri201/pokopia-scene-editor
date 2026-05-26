@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDefaultSceneDocument } from '@pokopia-scene-editor/scene-core';
+import { createDefaultSceneDocument, validateSceneDocument } from '@pokopia-scene-editor/scene-core';
 import { handleRequest, type WorkerEnv } from './index';
 
 vi.mock('agents/mcp', () => ({
@@ -216,6 +216,38 @@ describe('worker MCP endpoint', () => {
     } finally {
       infoSpy.mockRestore();
     }
+  });
+
+  it('validates scenes through MCP with scene-core contract parity', async () => {
+    const scene = createDefaultSceneDocument({ now: '2026-05-26T00:00:00.000Z' });
+    const validResponse = await readJson(await mcpRpc('tools/call', {
+      name: 'validate_scene_document',
+      arguments: { scene },
+    }));
+
+    expect(validResponse.result.structuredContent).toMatchObject({
+      ok: true,
+      data: { valid: true, errors: [] },
+      errors: [],
+      warnings: [],
+    });
+
+    const invalidScene = { ...scene, selectedPokemonKey: 'not-a-real-pokemon' };
+    const directErrors = validateSceneDocument(invalidScene);
+    const invalidResponse = await readJson(await mcpRpc('tools/call', {
+      name: 'validate_scene_document',
+      arguments: { scene: invalidScene },
+    }));
+
+    expect(invalidResponse.result.isError).toBe(true);
+    expect(invalidResponse.result.structuredContent.errors).toEqual(
+      directErrors.map((error) => expect.objectContaining({
+        fieldPath: error.fieldPath,
+        message: error.reason,
+        expected: error.expected,
+        recoveryAction: error.recoveryAction,
+      })),
+    );
   });
 
   it('returns structured generate input errors with field-level fix suggestions', async () => {

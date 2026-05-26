@@ -9,6 +9,8 @@
     "types:check": "wrangler types --config wrangler.toml --check",
     "deploy:dry-run": "pnpm --filter @pokopia-scene-editor/web build && wrangler deploy --config wrangler.toml --dry-run",
     "deploy": "pnpm --filter @pokopia-scene-editor/web build && wrangler deploy --config wrangler.toml",
+    "mcp:smoke": "vitest run --environment node src/mcp.test.ts",
+    "bundle:check": "pnpm --filter @pokopia-scene-editor/web build && wrangler deploy --config wrangler.toml --dry-run --outdir dist/worker-bundle --metafile dist/worker-bundle/metafile.json && node ../../scripts/verify-worker-bundle.mjs dist/worker-bundle",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --environment node",
     "build": "pnpm run deploy:dry-run"

@@ -12,11 +12,14 @@
     "build": "pnpm --filter @pokopia-scene-editor/scene-core build && pnpm --filter @pokopia-scene-editor/web build && pnpm --filter @pokopia-scene-editor/worker build",
     "smoke": "pnpm --filter @pokopia-scene-editor/web smoke",
     "skill:verify": "node scripts/verify-pokopia-scene-worker-skill.mjs",
+    "worker:mcp:smoke": "pnpm --filter @pokopia-scene-editor/worker mcp:smoke",
+    "worker:bundle:check": "pnpm --filter @pokopia-scene-editor/worker bundle:check",
     "worker:dev": "pnpm --filter @pokopia-scene-editor/worker dev",
     "worker:types": "pnpm --filter @pokopia-scene-editor/worker types",
     "worker:types:check": "pnpm --filter @pokopia-scene-editor/worker types:check",
     "worker:deploy:dry-run": "pnpm --filter @pokopia-scene-editor/worker deploy:dry-run",
     "worker:deploy": "pnpm --filter @pokopia-scene-editor/worker deploy",
-    "deploy": "pnpm run worker:deploy"
+    "deploy": "pnpm run worker:deploy",
+    "release:verify": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm run smoke && pnpm run worker:types:check && pnpm run worker:deploy:dry-run && pnpm run worker:mcp:smoke && pnpm run worker:bundle:check && pnpm run skill:verify"
   }
 }
