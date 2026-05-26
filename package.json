@@ -11,6 +11,7 @@
     "test:watch": "pnpm --filter @pokopia-scene-editor/web test:watch",
     "build": "pnpm --filter @pokopia-scene-editor/scene-core build && pnpm --filter @pokopia-scene-editor/web build && pnpm --filter @pokopia-scene-editor/worker build",
     "smoke": "pnpm --filter @pokopia-scene-editor/web smoke",
+    "skill:verify": "node scripts/verify-pokopia-scene-worker-skill.mjs",
     "worker:dev": "pnpm --filter @pokopia-scene-editor/worker dev",
     "worker:types": "pnpm --filter @pokopia-scene-editor/worker types",
     "worker:types:check": "pnpm --filter @pokopia-scene-editor/worker types:check",
