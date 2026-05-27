@@ -202,17 +202,17 @@ describe('PreviewInspector', () => {
 
     const overlay = screen.getByTestId(`top-footprint-overlay-${footprintContractFixtureIds.bench}`);
     const anchor = container.querySelector('.top-cell[data-preview-coordinate="2,1"]');
-    const occupied = container.querySelector('.top-cell[data-preview-coordinate="3,1"]');
+    const occupied = container.querySelector('.top-cell[data-preview-coordinate="2,2"]');
 
     expect(overlay).toHaveAttribute('data-footprint-asset-id', 'wooden-bench');
-    expect(overlay).toHaveAttribute('data-effective-footprint', '2x1x1');
+    expect(overlay).toHaveAttribute('data-effective-footprint', '1x2x1');
     expect(overlay).toHaveAttribute('data-footprint-anchor-coordinate', '2,1');
     expect(anchor).toHaveAttribute('data-preview-footprint-role', 'anchor');
     expect(anchor).toHaveAttribute('data-preview-footprint-instance-id', footprintContractFixtureIds.bench);
     expect(occupied).toHaveAttribute('data-preview-footprint-role', 'occupied');
     expect(occupied).toHaveAttribute('data-preview-footprint-instance-id', footprintContractFixtureIds.bench);
     expect(occupied).toHaveAttribute('data-preview-footprint-anchor-coordinate', '2,1');
-    expect(container.querySelectorAll('[data-testid^="top-footprint-overlay-"]')).toHaveLength(5);
+    expect(container.querySelectorAll('[data-testid^="top-footprint-overlay-"]')).toHaveLength(4);
     expect(container.querySelectorAll(`.top-cell[data-preview-instance-id="${footprintContractFixtureIds.bench}"]`)).toHaveLength(1);
   });
 
@@ -230,11 +230,11 @@ describe('PreviewInspector', () => {
     const overlay = screen.getByTestId(`front-height-footprint-overlay-${footprintContractFixtureIds.boulder}`);
     const blockedCell = container.querySelector('.front-cell[data-front-level-id="level-1"][data-front-x="1"]');
 
-    expect(overlay).toHaveAttribute('data-footprint-asset-id', 'large-boulder');
-    expect(overlay).toHaveAttribute('data-effective-footprint', '2x1x2');
+    expect(overlay).toHaveAttribute('data-footprint-asset-id', 'strength-rock');
+    expect(overlay).toHaveAttribute('data-effective-footprint', '1x1x2');
     expect(overlay).toHaveAttribute('data-footprint-height-span', '2');
     expect(overlay).toHaveAttribute('data-blocked-level-ids', 'level-1');
-    expect(overlay).toHaveAttribute('data-footprint-x-span', '2');
+    expect(overlay).toHaveAttribute('data-footprint-x-span', '1');
     expect(blockedCell).toHaveAttribute('data-preview-has-instance', 'false');
     expect(blockedCell).toHaveAttribute('data-front-footprint-blocked', 'true');
     expect(blockedCell).toHaveAttribute('data-front-blocked-by-instance-id', footprintContractFixtureIds.boulder);

@@ -377,6 +377,7 @@ describe('SceneCanvas', () => {
     expect(rotationMarker).toHaveAttribute('aria-label', '旋转 90 度');
     expect(rotationMarker).toHaveAttribute('data-tooltip', '旋转 90 度');
     expect(rotationMarker?.querySelector('svg')).toBeInTheDocument();
+    expect(screen.queryByLabelText('高度 +1')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Dye #56ccf2')).toBeVisible();
     const skillMarker = screen.getByLabelText('Skill marker 砖瓦屋顶装饰 耕');
     expect(skillMarker).toHaveAttribute('data-tooltip', '耕地');
@@ -386,6 +387,41 @@ describe('SceneCanvas', () => {
     );
 
     expect(screen.getByLabelText('Cell 4,4, main area, level-0, placeable, Unknown asset: missing-asset')).toBeVisible();
+  });
+
+  it('renders a height marker to the left of the rotation marker for tall assets', () => {
+    const sceneWithTallAsset = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-office-locker',
+          assetId: 'office-locker',
+          coordinate: { x: 3, y: 3 },
+          buildingLevelId: 'level-0',
+          rotationDegrees: 270,
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={sceneWithTallAsset}
+        cells={getCanvasCellContexts(sceneWithTallAsset)}
+        readOnly={false}
+      />,
+    );
+
+    const tallCell = screen.getByLabelText(
+      'Cell 3,3, main area, level-0, placeable, 办公储物柜, rotated 270',
+    );
+    const heightMarker = screen.getByLabelText('高度 +1');
+    const rotationMarker = screen.getByLabelText('旋转 270 度');
+
+    expect(tallCell).toHaveAttribute('data-footprint-height', '2');
+    expect(heightMarker).toHaveClass('cell-height-marker');
+    expect(heightMarker).toHaveTextContent('+1');
+    expect(rotationMarker).toHaveClass('cell-rotation-marker--with-height');
   });
 
   it('does not surface skill markers from ignored duplicate same-layer instances', () => {
@@ -448,15 +484,15 @@ describe('SceneCanvas', () => {
     );
 
     const anchor = screen.getByLabelText(/Cell 2,3, main area, level-0, placeable, placement preview anchor/);
-    const occupied = screen.getByLabelText(/Cell 2,4, main area, level-0, placeable, placement preview footprint/);
-    const sideCell = screen.getByLabelText('Cell 3,3, main area, level-0, placeable');
+    const occupied = screen.getByLabelText(/Cell 3,3, main area, level-0, placeable, placement preview footprint/);
+    const sideCell = screen.getByLabelText('Cell 2,4, main area, level-0, placeable');
     const overlay = screen.getByTestId('placement-footprint-overlay');
 
-    expect(preview?.effectiveFootprint).toEqual({ length: 1, width: 2, height: 1 });
+    expect(preview?.effectiveFootprint).toEqual({ length: 2, width: 1, height: 1 });
     expect(anchor).toHaveAttribute('data-placement-preview', 'anchor');
     expect(occupied).toHaveAttribute('data-placement-preview', 'occupied');
     expect(sideCell).toHaveAttribute('data-placement-preview', 'none');
-    expect(overlay).toHaveAttribute('data-effective-footprint', '1x2x1');
+    expect(overlay).toHaveAttribute('data-effective-footprint', '2x1x1');
     expect(overlay).toHaveAttribute('data-placement-status', 'ready');
   });
 
@@ -487,7 +523,7 @@ describe('SceneCanvas', () => {
     );
 
     const anchor = screen.getByLabelText(/Cell 2,3, main area, level-0, placeable, 木长椅/);
-    const occupied = screen.getByLabelText(/Cell 3,3, main area, level-0, placeable, occupied by 木长椅 anchor 2,3/);
+    const occupied = screen.getByLabelText(/Cell 2,4, main area, level-0, placeable, occupied by 木长椅 anchor 2,3/);
     const overlay = screen.getByTestId('scene-footprint-overlay-tile-bench');
 
     expect(anchor).toHaveAttribute('data-footprint-role', 'anchor');
@@ -499,7 +535,7 @@ describe('SceneCanvas', () => {
     expect(occupied).toHaveAttribute('data-footprint-anchor-coordinate', '2,3');
     expect(occupied).toHaveAttribute('data-has-instance', 'false');
     expect(occupied).not.toHaveTextContent('木长椅');
-    expect(overlay).toHaveAttribute('data-effective-footprint', '2x1x1');
+    expect(overlay).toHaveAttribute('data-effective-footprint', '1x2x1');
     expect(overlay.querySelectorAll('img')).toHaveLength(1);
   });
 
@@ -511,7 +547,7 @@ describe('SceneCanvas', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-boulder',
-          assetId: 'large-boulder',
+          assetId: 'strength-rock',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
         }),
@@ -528,17 +564,14 @@ describe('SceneCanvas', () => {
     );
 
     const blockedAnchor = getRenderedCell('2,2');
-    const blockedFootprint = getRenderedCell('3,2');
 
     expect(blockedAnchor).toHaveAttribute('data-height-blocked', 'true');
     expect(blockedAnchor).toHaveAttribute('data-placeable', 'false');
     expect(blockedAnchor).toHaveAttribute('data-editable', 'false');
-    expect(blockedAnchor).toHaveAccessibleName(expect.stringContaining('blocked by 大石头 on level-0'));
+    expect(blockedAnchor).toHaveAccessibleName(expect.stringContaining('blocked by 怪力岩 on level-0'));
     expect(blockedAnchor).toHaveAttribute('data-blocked-by-instance-id', 'tile-boulder');
-    expect(blockedAnchor).toHaveAttribute('data-blocked-by-asset-id', 'large-boulder');
+    expect(blockedAnchor).toHaveAttribute('data-blocked-by-asset-id', 'strength-rock');
     expect(blockedAnchor).toHaveAttribute('data-blocked-by-building-level-id', 'level-0');
-    expect(blockedFootprint).toHaveAttribute('data-height-blocked', 'true');
-    expect(blockedFootprint).toHaveAccessibleName(expect.stringContaining('blocked by 大石头 on level-0'));
   });
 
   it('renders current layer instances because hidden layer state is no longer persisted', () => {

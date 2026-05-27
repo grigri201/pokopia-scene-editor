@@ -148,7 +148,7 @@ describe('SceneDocument v1 serializer', () => {
     expect(json).not.toContain('"occupiedCells"');
     expect(json).not.toContain('"blockingCells"');
     expect(payload.tileInstances.find((instance) => instance.instanceId === footprintContractFixtureIds.boulder)).toMatchObject({
-      assetId: 'large-boulder',
+      assetId: 'strength-rock',
       coordinate: { x: 1, y: 4 },
       rotationDegrees: 0,
     });

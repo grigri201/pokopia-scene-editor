@@ -57,6 +57,94 @@ describe('asset instance edit command', () => {
     }
   });
 
+  it('rotates an already placed wide asset when the next footprint is valid', () => {
+    const scene = {
+      ...createScene(),
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-bench',
+          assetId: 'wooden-bench',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+
+    const result = editAssetInstance(scene, {
+      type: 'rotate',
+      instanceId: 'tile-bench',
+      rotationDegrees: 90,
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.instance).toMatchObject({
+        instanceId: 'tile-bench',
+        rotationDegrees: 90,
+      });
+      expect(result.scene.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 2 });
+    }
+  });
+
+  it('blocks placed-asset rotation when the rotated footprint would conflict', () => {
+    const outOfBoundsScene = {
+      ...createScene(),
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-edge-bench',
+          assetId: 'wooden-bench',
+          coordinate: { x: 6, y: 5 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const overlapScene = {
+      ...createScene(),
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-bench',
+          assetId: 'wooden-bench',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-plant',
+          assetId: 'leafy-plant',
+          coordinate: { x: 3, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+
+    const outOfBounds = editAssetInstance(outOfBoundsScene, {
+      type: 'rotate',
+      instanceId: 'tile-edge-bench',
+      rotationDegrees: 90,
+      interactionMode: 'edit',
+      now,
+    });
+    const overlap = editAssetInstance(overlapScene, {
+      type: 'rotate',
+      instanceId: 'tile-bench',
+      rotationDegrees: 90,
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(outOfBounds.ok).toBe(false);
+    if (!outOfBounds.ok) {
+      expect(outOfBounds.reason).toBe('footprint-conflict');
+      expect(outOfBounds.message).toContain('footprint-out-of-bounds');
+    }
+    expect(overlap.ok).toBe(false);
+    if (!overlap.ok) {
+      expect(overlap.reason).toBe('footprint-conflict');
+      expect(overlap.message).toContain('same-level-footprint-overlap');
+    }
+  });
+
   it('changes instance assets without applying applicable-area or stackable behavior branches', () => {
     const scene = createScene();
     const result = editAssetInstance(scene, {

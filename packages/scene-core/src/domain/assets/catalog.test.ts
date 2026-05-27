@@ -85,10 +85,28 @@ describe('asset catalog', () => {
 
   it('defaults uncovered assets to 1x1x1 footprint and applies audited large-asset overrides', () => {
     expect(getAssetById('leafy-plant')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
-    expect(getAssetById('wooden-bench')?.footprint).toEqual({ length: 2, width: 1, height: 1 });
-    expect(getAssetById('large-narrow-rug')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
-    expect(getAssetById('large-boulder')?.footprint).toEqual({ length: 2, width: 1, height: 2 });
+    expect(getAssetById('wooden-bench')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
+    expect(getAssetById('large-narrow-rug')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
+    expect(getAssetById('large-boulder')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
     expect(assetFootprintOverrideAssetIds.every((assetId) => getAssetById(assetId))).toBe(true);
+  });
+
+  it('covers each audited numeric footprint volume from the checklist', () => {
+    const auditedFootprintExamples = [
+      ['leppa-berry', { length: 1, width: 1, height: 1 }],
+      ['strength-rock', { length: 1, width: 1, height: 2 }],
+      ['office-locker', { length: 1, width: 1, height: 2 }],
+      ['pointy-tree', { length: 1, width: 1, height: 3 }],
+      ['driftwood', { length: 1, width: 2, height: 1 }],
+      ['stalagmites', { length: 1, width: 2, height: 2 }],
+      ['deck-chair', { length: 2, width: 1, height: 1 }],
+      ['large-boulder', { length: 2, width: 2, height: 1 }],
+      ['lift-platform', { length: 2, width: 2, height: 2 }],
+    ] as const;
+
+    for (const [assetId, footprint] of auditedFootprintExamples) {
+      expect(getAssetById(assetId)?.footprint).toEqual(footprint);
+    }
   });
 
   it('normalizes Ditto skill vocabulary and one-character markers', () => {

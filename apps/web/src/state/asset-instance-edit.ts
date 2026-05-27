@@ -1,4 +1,5 @@
 import {
+  validateSceneOccupancy,
   type RotationDegrees,
   type SceneDocument,
   type TileInstance,
@@ -16,6 +17,7 @@ export type InstanceEditFailureReason =
   | 'missing-instance'
   | 'missing-layer'
   | 'unknown-asset'
+  | 'footprint-conflict'
   | 'not-dyeable'
   | 'invalid-skill-type';
 
@@ -72,16 +74,7 @@ export function editAssetInstance(
     case 'asset':
       return changeInstanceAsset(scene, guard.instance, input.assetId, input.now);
     case 'rotate':
-      return updateInstance(
-        scene,
-        guard.instance,
-        input.now,
-        'Rotation updated',
-        (instance) => ({
-          ...instance,
-          rotationDegrees: input.rotationDegrees,
-        }),
-      );
+      return rotateInstance(scene, guard.instance, input.rotationDegrees, input.now);
     case 'dye':
       return updateInstance(
         scene,
@@ -97,6 +90,42 @@ export function editAssetInstance(
     case 'skill':
       return updateSkill(scene, guard.instance, input.requiresSkill, input.skillType, input.skillNote, input.now);
   }
+}
+
+function rotateInstance(
+  scene: SceneDocument,
+  instance: TileInstance,
+  rotationDegrees: RotationDegrees,
+  now: string,
+): AssetInstanceEditResult {
+  const result = updateInstance(
+    scene,
+    instance,
+    now,
+    'Rotation updated',
+    (current) => ({
+      ...current,
+      rotationDegrees,
+    }),
+  );
+
+  if (!result.ok || result.scene === scene) {
+    return result;
+  }
+
+  const conflicts = validateSceneOccupancy(result.scene).filter((conflict) =>
+    conflict.instanceId === instance.instanceId || conflict.blockingInstanceId === instance.instanceId,
+  );
+
+  if (conflicts.length === 0) {
+    return result;
+  }
+
+  return failure(
+    'footprint-conflict',
+    `Rotation blocked by ${conflicts.map((conflict) => conflict.conflictType).join(', ')}`,
+    'Choose another orientation, move/remove the blocking material, or rotate after clearing the conflict.',
+  );
 }
 
 function validateEditableInstance(

@@ -269,14 +269,14 @@ describe('scene recovery', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-boulder',
-          assetId: 'large-boulder',
+          assetId: 'strength-rock',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
         }),
         createTileInstance({
           instanceId: 'tile-upper',
           assetId: 'leafy-plant',
-          coordinate: { x: 3, y: 2 },
+          coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-1',
         }),
       ],

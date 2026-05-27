@@ -128,7 +128,7 @@ function createOpenDesignDemoInstances() {
       ['demo-ground-6', 'stepping-stones', 3, 5],
       ['demo-ground-7', 'stepping-stones', 4, 5],
       ['demo-ground-8', 'wooden-bench', 4, 1],
-      ['demo-ground-9', 'wooden-bench', 4, 2],
+      ['demo-ground-9', 'wooden-bench', 5, 1],
       ['demo-ground-10', 'wooden-bench', 0, 3],
       ['demo-ground-11', 'wooden-bench', 5, 3],
       ['demo-ground-12', 'leafy-plant', 0, 6],

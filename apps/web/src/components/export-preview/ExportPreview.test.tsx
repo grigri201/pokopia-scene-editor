@@ -100,14 +100,14 @@ describe('ExportPreview', () => {
     const layerGraphic = screen.getByLabelText('L0 7x7 图形');
     const layerMaterials = screen.getByLabelText('L0 使用素材清单');
     const benchOverlay = screen.getByTestId(`export-footprint-overlay-${footprintContractFixtureIds.bench}`);
-    const boulderOverlay = screen.getByTestId(`export-footprint-overlay-${footprintContractFixtureIds.boulder}`);
+    const chairOverlay = screen.getByTestId(`export-footprint-overlay-${footprintContractFixtureIds.rug}`);
 
     expect(layerGraphic.querySelectorAll('.export-layer-cell')).toHaveLength(49);
     expect(benchOverlay).toHaveAttribute('data-footprint-asset-id', 'wooden-bench');
-    expect(benchOverlay).toHaveAttribute('data-effective-footprint', '2x1x1');
-    expect(benchOverlay).toHaveAttribute('data-occupied-cells', '2,1 3,1');
-    expect(boulderOverlay).toHaveAttribute('data-footprint-asset-id', 'large-boulder');
-    expect(boulderOverlay).toHaveAttribute('data-effective-footprint', '2x1x2');
+    expect(benchOverlay).toHaveAttribute('data-effective-footprint', '1x2x1');
+    expect(benchOverlay).toHaveAttribute('data-occupied-cells', '2,1 2,2');
+    expect(chairOverlay).toHaveAttribute('data-footprint-asset-id', 'deck-chair');
+    expect(chairOverlay).toHaveAttribute('data-effective-footprint', '2x1x1');
     expect(layerMaterials.querySelectorAll('li')).toHaveLength(5);
     expect(Array.from(layerMaterials.querySelectorAll('.export-material-list__row span')).map((node) => node.textContent)).toEqual([
       'x2',

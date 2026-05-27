@@ -986,11 +986,11 @@ describe('AppShell scene storage integration', () => {
     fireEvent.click(screen.getByRole('button', { name: '旋转待放置素材 90 度' }));
     fireEvent.mouseEnter(screen.getByLabelText('Cell 2,3, main area, level-0, placeable'));
 
-    expect(screen.getByLabelText(/Cell 2,4, main area, level-0, placeable, placement preview footprint/)).toHaveAttribute(
+    expect(screen.getByLabelText(/Cell 3,3, main area, level-0, placeable, placement preview footprint/)).toHaveAttribute(
       'data-placement-preview',
       'occupied',
     );
-    expect(screen.getByLabelText('Cell 3,3, main area, level-0, placeable')).toHaveAttribute(
+    expect(screen.getByLabelText('Cell 2,4, main area, level-0, placeable')).toHaveAttribute(
       'data-placement-preview',
       'none',
     );
@@ -1005,6 +1005,53 @@ describe('AppShell scene storage integration', () => {
         coordinate: { x: 2, y: 3 },
         rotationDegrees: 90,
       });
+    });
+  });
+
+  it('rotates an already placed wide asset from the selected-cell action bar', async () => {
+    render(<AppShell />);
+
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '木长椅' } });
+    const benchButton = document.querySelector<HTMLButtonElement>('[data-asset-id="wooden-bench"] .asset-select-button');
+    if (!benchButton) {
+      throw new Error('Expected wooden-bench asset button.');
+    }
+
+    fireEvent.click(benchButton);
+    fireEvent.click(screen.getByLabelText('Cell 2,3, main area, level-0, placeable'));
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toHaveLength(1);
+      expect(payload.tileInstances[0]).toMatchObject({
+        assetId: 'wooden-bench',
+        coordinate: { x: 2, y: 3 },
+        rotationDegrees: 0,
+      });
+      expect(screen.getByLabelText(/Cell 2,4, main area, level-0, placeable, occupied by 木长椅 anchor 2,3/)).toHaveAttribute(
+        'data-footprint-role',
+        'occupied',
+      );
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '旋转 90' }));
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toHaveLength(1);
+      expect(payload.tileInstances[0]).toMatchObject({
+        assetId: 'wooden-bench',
+        coordinate: { x: 2, y: 3 },
+        rotationDegrees: 90,
+      });
+      expect(screen.getByLabelText(/Cell 3,3, main area, level-0, placeable, occupied by 木长椅 anchor 2,3/)).toHaveAttribute(
+        'data-footprint-role',
+        'occupied',
+      );
+      expect(screen.getByLabelText('Cell 2,4, main area, level-0, placeable')).toHaveAttribute(
+        'data-footprint-role',
+        'none',
+      );
     });
   });
 

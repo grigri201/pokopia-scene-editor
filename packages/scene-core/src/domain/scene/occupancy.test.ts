@@ -35,7 +35,7 @@ describe('scene occupancy rules', () => {
           expect.objectContaining({
             ...cell,
             blockedByInstanceId: footprintContractFixtureIds.boulder,
-            blockedByAssetId: 'large-boulder',
+            blockedByAssetId: 'strength-rock',
             blockedByBuildingLevelId: footprintContractFixtureIds.level0,
           }),
         ),
@@ -54,7 +54,7 @@ describe('scene occupancy rules', () => {
           blockingInstanceId: footprintContractFixtureIds.bench,
           blockingAssetId: 'wooden-bench',
           blockingBuildingLevelId: footprintContractFixtureIds.level0,
-          coordinates: [{ x: 3, y: 1 }],
+          coordinates: [{ x: 2, y: 2 }],
         }),
       ]),
     );
@@ -66,7 +66,7 @@ describe('scene occupancy rules', () => {
           assetId: 'leafy-plant',
           buildingLevelId: footprintContractFixtureIds.level1,
           blockingInstanceId: footprintContractFixtureIds.boulder,
-          blockingAssetId: 'large-boulder',
+          blockingAssetId: 'strength-rock',
           blockingBuildingLevelId: footprintContractFixtureIds.level0,
           coordinates: [{ x: 1, y: 4 }],
         }),
@@ -81,7 +81,7 @@ describe('scene occupancy rules', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-boulder',
-          assetId: 'large-boulder',
+          assetId: 'strength-rock',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
         }),
@@ -93,11 +93,10 @@ describe('scene occupancy rules', () => {
     expect(occupancy.conflicts).toEqual([]);
     expect(occupancy.instances[0]).toMatchObject({
       instanceId: 'tile-boulder',
-      assetId: 'large-boulder',
-      effectiveFootprint: { length: 2, width: 1, height: 2 },
+      assetId: 'strength-rock',
+      effectiveFootprint: { length: 1, width: 1, height: 2 },
       occupiedCells: [
         { x: 2, y: 2 },
-        { x: 3, y: 2 },
       ],
     });
     expect(occupancy.blockingCells).toEqual(
@@ -105,11 +104,6 @@ describe('scene occupancy rules', () => {
         expect.objectContaining({
           buildingLevelId: 'level-1',
           coordinate: { x: 2, y: 2 },
-          blockedByInstanceId: 'tile-boulder',
-        }),
-        expect.objectContaining({
-          buildingLevelId: 'level-1',
-          coordinate: { x: 3, y: 2 },
           blockedByInstanceId: 'tile-boulder',
         }),
       ]),
@@ -130,6 +124,7 @@ describe('scene occupancy rules', () => {
           assetId: 'wooden-bench',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
+          rotationDegrees: 90,
         }),
         createTileInstance({
           instanceId: 'tile-overlap',
@@ -144,14 +139,14 @@ describe('scene occupancy rules', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-boulder',
-          assetId: 'large-boulder',
+          assetId: 'strength-rock',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
         }),
         createTileInstance({
           instanceId: 'tile-upper',
           assetId: 'leafy-plant',
-          coordinate: { x: 3, y: 2 },
+          coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-1',
         }),
       ],
@@ -173,7 +168,7 @@ describe('scene occupancy rules', () => {
           conflictType: 'height-blocked-by-lower-footprint',
           instanceId: 'tile-upper',
           blockingInstanceId: 'tile-boulder',
-          coordinates: [{ x: 3, y: 2 }],
+          coordinates: [{ x: 2, y: 2 }],
         }),
       ]),
     );
@@ -187,12 +182,12 @@ describe('scene occupancy rules', () => {
         createTileInstance({
           instanceId: 'tile-existing',
           assetId: 'leafy-plant',
-          coordinate: { x: 3, y: 2 },
+          coordinate: { x: 2, y: 3 },
           buildingLevelId: 'level-0',
         }),
         createTileInstance({
           instanceId: 'tile-boulder',
-          assetId: 'large-boulder',
+          assetId: 'strength-rock',
           coordinate: { x: 2, y: 4 },
           buildingLevelId: 'level-0',
         }),
@@ -212,7 +207,7 @@ describe('scene occupancy rules', () => {
     });
     expect(evaluateScenePlacementFootprint(scene, {
       asset: woodenBench,
-      coordinate: { x: 6, y: 2 },
+      coordinate: { x: 2, y: 6 },
       buildingLevelId: 'level-0',
       rotationDegrees: 0,
     })).toMatchObject({

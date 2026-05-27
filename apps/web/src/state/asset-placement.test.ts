@@ -216,7 +216,7 @@ describe('asset placement command', () => {
         createTileInstance({
           instanceId: 'tile-neighbor',
           assetId: 'leafy-plant',
-          coordinate: { x: 3, y: 2 },
+          coordinate: { x: 2, y: 3 },
           buildingLevelId: 'level-0',
         }),
       ],
@@ -254,7 +254,7 @@ describe('asset placement command', () => {
   it('blocks placement when footprint extends outside the canvas or a lower level height blocks the target', () => {
     const selectedScene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'wooden-bench', 'edit', now);
     const outOfBounds = placeSelectedAsset(selectedScene, {
-      coordinate: { x: 6, y: 2 },
+      coordinate: { x: 2, y: 6 },
       interactionMode: 'edit',
       now,
       instanceId: 'tile-outside',
@@ -267,14 +267,14 @@ describe('asset placement command', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-boulder',
-          assetId: 'large-boulder',
+          assetId: 'strength-rock',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
         }),
       ],
     };
     const heightBlocked = placeSelectedAsset(levelScene, {
-      coordinate: { x: 3, y: 2 },
+      coordinate: { x: 2, y: 2 },
       interactionMode: 'edit',
       now,
       instanceId: 'tile-upper',
@@ -305,10 +305,10 @@ describe('asset placement command', () => {
       rotationDegrees: 90,
     });
 
-    expect(preview?.effectiveFootprint).toEqual({ length: 1, width: 2, height: 1 });
+    expect(preview?.effectiveFootprint).toEqual({ length: 2, width: 1, height: 1 });
     expect(preview?.occupiedCells).toEqual([
       { x: 2, y: 2 },
-      { x: 2, y: 3 },
+      { x: 3, y: 2 },
     ]);
     expect(result.ok).toBe(true);
     if (!result.ok) {

@@ -176,7 +176,7 @@ describe('SceneDocument short string codec', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-wide',
-          assetId: 'wooden-bench',
+          assetId: 'deck-chair',
           coordinate: { x: 5, y: 2 },
           buildingLevelId: 'level-0',
         }),
@@ -227,17 +227,17 @@ describe('SceneDocument short string codec', () => {
     expect(occupancy.instances.find((instance) =>
       instance.assetId === 'wooden-bench' &&
       instance.instance.rotationDegrees === 90 &&
-      instance.instance.coordinate.x === 5 &&
-      instance.instance.coordinate.y === 2,
+      instance.instance.coordinate.x === 4 &&
+      instance.instance.coordinate.y === 4,
     )).toMatchObject({
       effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedBench],
       occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedBench],
     });
     expect(occupancy.instances.find((instance) =>
-      instance.assetId === 'large-narrow-rug' &&
-      instance.instance.rotationDegrees === 270 &&
-      instance.instance.coordinate.x === 5 &&
-      instance.instance.coordinate.y === 5,
+      instance.assetId === 'deck-chair' &&
+      instance.instance.rotationDegrees === 90 &&
+      instance.instance.coordinate.x === 6 &&
+      instance.instance.coordinate.y === 4,
     )).toMatchObject({
       effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedRug],
       occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedRug],
@@ -246,9 +246,9 @@ describe('SceneDocument short string codec', () => {
       expect.arrayContaining([
         expect.objectContaining({
           buildingLevelId: footprintContractFixtureIds.level1,
-          blockedByAssetId: 'large-boulder',
+          blockedByAssetId: 'strength-rock',
           blockedByBuildingLevelId: footprintContractFixtureIds.level0,
-          coordinate: { x: 2, y: 4 },
+          coordinate: { x: 1, y: 4 },
         }),
       ]),
     );

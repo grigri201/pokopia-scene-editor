@@ -137,17 +137,17 @@ describe('worker HTTP API', () => {
     expect(buildSceneOccupancy(decodedBody.data.scene).instances.find((instance) =>
       instance.assetId === 'wooden-bench' &&
       instance.instance.rotationDegrees === 90 &&
-      instance.instance.coordinate.x === 5 &&
-      instance.instance.coordinate.y === 2,
+      instance.instance.coordinate.x === 4 &&
+      instance.instance.coordinate.y === 4,
     )).toMatchObject({
       effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedBench],
       occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedBench],
     });
     expect(buildSceneOccupancy(decodedBody.data.scene).instances.find((instance) =>
-      instance.assetId === 'large-narrow-rug' &&
-      instance.instance.rotationDegrees === 270 &&
-      instance.instance.coordinate.x === 5 &&
-      instance.instance.coordinate.y === 5,
+      instance.assetId === 'deck-chair' &&
+      instance.instance.rotationDegrees === 90 &&
+      instance.instance.coordinate.x === 6 &&
+      instance.instance.coordinate.y === 4,
     )).toMatchObject({
       effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedRug],
       occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedRug],
@@ -164,7 +164,7 @@ describe('worker HTTP API', () => {
           instanceId: footprintContractFixtureIds.overlap,
           blockingInstanceId: footprintContractFixtureIds.bench,
           buildingLevelId: footprintContractFixtureIds.level0,
-          coordinates: [{ x: 3, y: 1 }],
+          coordinates: [{ x: 2, y: 2 }],
         }),
       ]),
     );
@@ -178,7 +178,7 @@ describe('worker HTTP API', () => {
       conflictType: 'height-blocked-by-lower-footprint',
       instanceId: footprintContractFixtureIds.heightBlocked,
       blockingInstanceId: footprintContractFixtureIds.boulder,
-      blockingAssetId: 'large-boulder',
+      blockingAssetId: 'strength-rock',
       blockingBuildingLevelId: footprintContractFixtureIds.level0,
       coordinates: [{ x: 1, y: 4 }],
     });
@@ -227,7 +227,7 @@ describe('worker HTTP API', () => {
           conflictType: 'same-level-footprint-overlap',
           instanceId: footprintContractFixtureIds.overlap,
           blockingInstanceId: footprintContractFixtureIds.bench,
-          coordinates: [{ x: 3, y: 1 }],
+          coordinates: [{ x: 2, y: 2 }],
         }),
         expect.objectContaining({
           conflictType: 'height-blocked-by-lower-footprint',
@@ -258,7 +258,7 @@ describe('worker HTTP API', () => {
     expect(response.status).toBe(200);
     expect(body.data.assets[0]).toMatchObject({
       assetId: 'wooden-bench',
-      footprint: { length: 2, width: 1, height: 1 },
+      footprint: { length: 1, width: 2, height: 1 },
     });
   });
 

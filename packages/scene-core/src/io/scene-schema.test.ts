@@ -216,7 +216,7 @@ describe('SceneDocument v1 schema', () => {
         createTileInstance({
           instanceId: 'tile-wide',
           assetId: 'wooden-bench',
-          coordinate: { x: 6, y: 2 },
+          coordinate: { x: 2, y: 6 },
           buildingLevelId: 'level-0',
         }),
       ],
@@ -229,6 +229,7 @@ describe('SceneDocument v1 schema', () => {
           assetId: 'wooden-bench',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
+          rotationDegrees: 90,
         }),
         createTileInstance({
           instanceId: 'tile-overlap',
@@ -244,14 +245,14 @@ describe('SceneDocument v1 schema', () => {
       tileInstances: [
         createTileInstance({
           instanceId: 'tile-boulder',
-          assetId: 'large-boulder',
+          assetId: 'strength-rock',
           coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-0',
         }),
         createTileInstance({
           instanceId: 'tile-upper',
           assetId: 'leafy-plant',
-          coordinate: { x: 3, y: 2 },
+          coordinate: { x: 2, y: 2 },
           buildingLevelId: 'level-1',
         }),
       ],
@@ -265,7 +266,7 @@ describe('SceneDocument v1 schema', () => {
           instanceId: 'tile-wide',
           assetId: 'wooden-bench',
           buildingLevelId: 'level-0',
-          coordinates: [{ x: 7, y: 2 }],
+          coordinates: [{ x: 2, y: 7 }],
         }),
       ]),
     );
@@ -287,9 +288,9 @@ describe('SceneDocument v1 schema', () => {
           conflictType: 'height-blocked-by-lower-footprint',
           instanceId: 'tile-upper',
           blockingInstanceId: 'tile-boulder',
-          blockingAssetId: 'large-boulder',
+          blockingAssetId: 'strength-rock',
           blockingBuildingLevelId: 'level-0',
-          coordinates: [{ x: 3, y: 2 }],
+          coordinates: [{ x: 2, y: 2 }],
         }),
       ]),
     );

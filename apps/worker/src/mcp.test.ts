@@ -178,7 +178,7 @@ describe('worker MCP endpoint', () => {
       expect.arrayContaining([
         expect.objectContaining({
           assetId: 'wooden-bench',
-          footprint: { length: 2, width: 1, height: 1 },
+          footprint: { length: 1, width: 2, height: 1 },
         }),
       ]),
     );
@@ -320,7 +320,7 @@ describe('worker MCP endpoint', () => {
           conflictType: 'height-blocked-by-lower-footprint',
           instanceId: footprintContractFixtureIds.heightBlocked,
           blockingInstanceId: footprintContractFixtureIds.boulder,
-          blockingAssetId: 'large-boulder',
+          blockingAssetId: 'strength-rock',
           buildingLevelId: footprintContractFixtureIds.level1,
           coordinates: [{ x: 1, y: 4 }],
         }),

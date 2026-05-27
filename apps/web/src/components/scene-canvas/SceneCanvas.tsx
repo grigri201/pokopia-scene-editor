@@ -106,6 +106,8 @@ export function SceneCanvas({
               : topCellSkillMarker
                 ? getCellSkillMarkerLabel(skillMarkerLabel, locale)
                 : null;
+            const footprintHeight = topInstance && topAsset ? topAsset.footprint.height : 1;
+            const heightMarkerExtra = footprintHeight > 1 ? footprintHeight - 1 : 0;
             const rotationDegrees = topInstance?.rotationDegrees ?? 0;
             const rotationLabel = rotationDegrees ? `${rotationDegrees}` : null;
             const dyeColor = topInstance?.dyeColor ?? null;
@@ -207,6 +209,7 @@ export function SceneCanvas({
                 data-requires-skill={hasSkillMarker}
                 data-skill-marker-label={skillMarkerLabel ?? ''}
                 data-rotation={topInstance?.rotationDegrees ?? 0}
+                data-footprint-height={topInstance && topAsset ? footprintHeight : ''}
                 data-dye-color={dyeColor ?? ''}
                 key={cell.id}
               >
@@ -220,9 +223,23 @@ export function SceneCanvas({
                 ) : topAssetLabel ? (
                   <span className="cell-asset-label">{topAssetLabel}</span>
                 ) : null}
+                {heightMarkerExtra ? (
+                  <span
+                    className="cell-height-marker"
+                    data-tooltip={t(locale, 'heightMarker', { extra: heightMarkerExtra })}
+                    title={t(locale, 'heightMarker', { extra: heightMarkerExtra })}
+                    aria-label={t(locale, 'heightMarker', { extra: heightMarkerExtra })}
+                  >
+                    +{heightMarkerExtra}
+                  </span>
+                ) : null}
                 {rotationLabel ? (
                   <span
-                    className="cell-rotation-marker has-icon-tooltip"
+                    className={[
+                      'cell-rotation-marker',
+                      'has-icon-tooltip',
+                      heightMarkerExtra ? 'cell-rotation-marker--with-height' : '',
+                    ].filter(Boolean).join(' ')}
                     data-tooltip={t(locale, 'rotationDegrees', { degrees: rotationLabel })}
                     title={t(locale, 'rotationDegrees', { degrees: rotationLabel })}
                     aria-label={t(locale, 'rotationDegrees', { degrees: rotationLabel })}

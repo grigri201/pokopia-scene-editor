@@ -230,13 +230,13 @@ describe('image export summary', () => {
     expect(layerZero?.cells.flatMap((cell) => cell.tileInstances)).toHaveLength(6);
     expect(layerZero?.materials.find((material) => material.assetId === 'leafy-plant')?.count).toBe(1);
     expect(layerZero?.materials.find((material) => material.assetId === 'wooden-bench')?.count).toBe(2);
-    expect(layerZero?.materials.find((material) => material.assetId === 'large-narrow-rug')?.count).toBe(2);
-    expect(layerZero?.materials.find((material) => material.assetId === 'large-boulder')?.count).toBe(1);
+    expect(layerZero?.materials.find((material) => material.assetId === 'deck-chair')?.count).toBe(2);
+    expect(layerZero?.materials.find((material) => material.assetId === 'strength-rock')?.count).toBe(1);
     expect(layerOne?.materialCount).toBe(0);
 
     const bench = getLayerInstance(summary, 'level-0', footprintContractFixtureIds.bench);
     expect(bench).toMatchObject({
-      footprint: { length: 2, width: 1, height: 1 },
+      footprint: { length: 1, width: 2, height: 1 },
       effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.bench],
       occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.bench],
       blockingCells: [],
@@ -245,28 +245,28 @@ describe('image export summary', () => {
 
     const rug = getLayerInstance(summary, 'level-0', footprintContractFixtureIds.rug);
     expect(rug).toMatchObject({
-      footprint: { length: 1, width: 2, height: 1 },
+      footprint: { length: 2, width: 1, height: 1 },
       effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rug],
       occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rug],
     });
 
     const rotatedBench = getLayerInstance(summary, 'level-0', footprintContractFixtureIds.rotatedBench);
     expect(rotatedBench).toMatchObject({
-      footprint: { length: 2, width: 1, height: 1 },
+      footprint: { length: 1, width: 2, height: 1 },
       effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedBench],
       occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedBench],
     });
 
     const rotatedRug = getLayerInstance(summary, 'level-0', footprintContractFixtureIds.rotatedRug);
     expect(rotatedRug).toMatchObject({
-      footprint: { length: 1, width: 2, height: 1 },
+      footprint: { length: 2, width: 1, height: 1 },
       effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedRug],
       occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedRug],
     });
 
     const boulder = getLayerInstance(summary, 'level-0', footprintContractFixtureIds.boulder);
     expect(boulder).toMatchObject({
-      footprint: { length: 2, width: 1, height: 2 },
+      footprint: { length: 1, width: 1, height: 2 },
       effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.boulder],
       occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.boulder],
       blockingCells: [
@@ -275,13 +275,8 @@ describe('image export summary', () => {
           buildingLevelNumber: 1,
           coordinate: { x: 1, y: 4 },
           blockedByInstanceId: footprintContractFixtureIds.boulder,
-          blockedByAssetId: 'large-boulder',
+          blockedByAssetId: 'strength-rock',
           blockedByBuildingLevelId: 'level-0',
-        }),
-        expect.objectContaining({
-          buildingLevelId: 'level-1',
-          buildingLevelNumber: 1,
-          coordinate: { x: 2, y: 4 },
         }),
       ],
       footprintWarnings: [],
