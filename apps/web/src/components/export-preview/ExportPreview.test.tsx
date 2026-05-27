@@ -142,13 +142,12 @@ describe('ExportPreview', () => {
     opener.remove();
   });
 
-  it('enables download when a handler exists and renders download feedback', () => {
+  it('enables download when a handler exists and delegates download feedback', () => {
     const onDownloadImage = vi.fn();
 
     render(
       <ExportPreview
         summary={buildImageExportSummary(createPreviewScene())}
-        downloadStatus="图片已准备下载"
         onClose={vi.fn()}
         onDownloadImage={onDownloadImage}
       />,
@@ -159,7 +158,7 @@ describe('ExportPreview', () => {
     fireEvent.click(downloadButton);
 
     expect(onDownloadImage).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('status', { name: 'Image export download status' })).toHaveTextContent('图片已准备下载');
+    expect(screen.queryByRole('status', { name: 'Image export download status' })).not.toBeInTheDocument();
   });
 });
 

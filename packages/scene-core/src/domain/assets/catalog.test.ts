@@ -85,6 +85,7 @@ describe('asset catalog', () => {
 
   it('defaults uncovered assets to 1x1x1 footprint and applies audited large-asset overrides', () => {
     expect(getAssetById('leafy-plant')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
+    expect(getAssetById('garden-ornament')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('wooden-bench')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
     expect(getAssetById('large-narrow-rug')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('large-boulder')?.footprint).toEqual({ length: 2, width: 2, height: 1 });

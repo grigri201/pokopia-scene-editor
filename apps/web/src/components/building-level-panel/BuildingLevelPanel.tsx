@@ -6,7 +6,6 @@ interface BuildingLevelPanelProps {
   locale?: Locale;
   levels: BuildingLevelContext[];
   readOnly: boolean;
-  feedback: string | null;
   onCreateLayer: () => void;
   onSelectLayer: (levelId: string) => void;
   onRenameLayer: (levelId: string, name: string) => void;
@@ -18,7 +17,6 @@ export function BuildingLevelPanel({
   locale = defaultLocale,
   levels,
   readOnly,
-  feedback,
   onCreateLayer,
   onSelectLayer,
   onRenameLayer,
@@ -84,14 +82,13 @@ export function BuildingLevelPanel({
           <span aria-hidden="true">+</span>
         </button>
       </div>
-      <div className="level-toolbar">
-        {readOnly ? (
+      {readOnly ? (
+        <div className="level-toolbar">
           <span aria-label={t(locale, 'buildingLayerEditMode')}>
             {t(locale, 'mobileViewOnlyMode')}
           </span>
-        ) : null}
-        {feedback ? <span aria-label={t(locale, 'buildingLayerFeedback')} role="status">{feedback}</span> : null}
-      </div>
+        </div>
+      ) : null}
       <div className="level-list" role="list" aria-label={t(locale, 'buildingLevelsHighToLow')}>
         {levels.map((level) => (
           <article

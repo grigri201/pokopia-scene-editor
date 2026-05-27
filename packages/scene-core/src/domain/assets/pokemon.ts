@@ -7,6 +7,7 @@ export interface PokemonThemeDefinition {
   key: PokemonKey;
   name: string;
   englishName: string;
+  pokedexNumber: number;
   background: string;
   accent: string;
   portraitUrl: string;
@@ -41,11 +42,16 @@ export const pokemonThemeCatalog: readonly PokemonThemeDefinition[] = sourcePoke
     key: pokemon.key,
     name: pokemon.name,
     englishName: pokemon.englishName,
+    pokedexNumber: pokemon.pokedexNumber,
     background: theme.background,
     accent: theme.accent,
     portraitUrl: getPokemonPortraitUrl(pokemon.portraitFileName),
   };
 });
+
+export const pokemonThemeCatalogByNumber: readonly PokemonThemeDefinition[] = [...pokemonThemeCatalog].sort(
+  (left, right) => left.pokedexNumber - right.pokedexNumber,
+);
 
 const knownPokemonKeySet = new Set<string>(knownPokemonKeys);
 

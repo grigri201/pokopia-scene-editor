@@ -182,7 +182,7 @@ describe('AppShell scene storage integration', () => {
     expect(exportedString).toMatch(/^PSE1~/);
     expect(exportedString).not.toContain('{');
     expect(exportedString).not.toContain('schemaVersion');
-    expect(screen.getByRole('status', { name: 'Scene string import export status' })).toHaveTextContent(
+    expect(screen.getByRole('status', { name: '字符串提示' })).toHaveTextContent(
       '已生成布景字符串',
     );
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
@@ -214,8 +214,8 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText('布景名称')).toHaveValue('导入庭院');
-      expect(screen.getByLabelText('Current Pokemon')).toHaveValue('eevee');
-      expect(screen.getByRole('status', { name: 'Scene string import export status' })).toHaveTextContent(
+      expect(screen.getByLabelText('Current Pokemon')).toHaveValue('伊布');
+      expect(screen.getByRole('status', { name: '字符串提示' })).toHaveTextContent(
         '已导入布景字符串',
       );
     });
@@ -241,7 +241,7 @@ describe('AppShell scene storage integration', () => {
 
     expect(readSceneSnapshot()).toBe(beforeSnapshot);
     expect(confirmSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert', { name: 'Scene string import export status' })).toHaveTextContent(
+    expect(screen.getByRole('alert', { name: '字符串提示' })).toHaveTextContent(
       '导入字符串无效',
     );
     expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'error');
@@ -339,7 +339,12 @@ describe('AppShell scene storage integration', () => {
 
     expect(screen.getByRole('button', { name: 'Download Preview' })).toBeVisible();
     expect(screen.getByLabelText('Scene name')).toBeVisible();
-    expect(screen.getByRole('option', { name: 'Ditto' })).toHaveValue('ditto');
+    expect(screen.getByLabelText('Current Pokemon')).toHaveValue('Ditto');
+    fireEvent.focus(screen.getByLabelText('Current Pokemon'));
+    expect(screen.getByRole('option', { name: /#047.*Ditto.*百变怪/ })).toHaveAttribute(
+      'data-pokemon-key',
+      'ditto',
+    );
     expect(JSON.parse(window.localStorage.getItem(uiPreferencesStorageKey) ?? '{}')).toMatchObject({
       locale: 'en-US',
     });
@@ -448,7 +453,7 @@ describe('AppShell scene storage integration', () => {
       }),
     );
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:image-export');
-    expect(screen.getByRole('status', { name: 'Image export download status' })).toHaveTextContent('图片已准备下载');
+    expect(screen.getByRole('status', { name: '图片导出提示' })).toHaveTextContent('图片已准备下载');
     expect((window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.()).toBe(beforeSnapshot);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
@@ -491,12 +496,63 @@ describe('AppShell scene storage integration', () => {
     expect(workbench.style.getPropertyValue('--pokemon-background-ink')).toBe('');
     expect(workbench.style.getPropertyValue('--pokemon-accent')).toBe('');
 
-    fireEvent.change(pokemonSelect, { target: { value: 'eevee' } });
+    selectPokemonBySearch('eevee', /#280.*伊布.*Eevee/);
 
-    expect(pokemonSelect).toHaveValue('eevee');
+    expect(pokemonSelect).toHaveValue('伊布');
     expect(workbench.style.getPropertyValue('--pokemon-background')).toBe('');
     expect(workbench.style.getPropertyValue('--pokemon-background-ink')).toBe('');
     expect(workbench.style.getPropertyValue('--pokemon-accent')).toBe('');
+  });
+
+  it('shows scene name validation through a toast', () => {
+    render(<AppShell />);
+
+    const sceneNameInput = screen.getByLabelText('布景名称');
+    fireEvent.change(sceneNameInput, { target: { value: '   ' } });
+    fireEvent.blur(sceneNameInput);
+
+    expect(screen.getByRole('alert', { name: '布景名称提示' })).toHaveTextContent('请输入布景名称。');
+    expect(screen.getByRole('alert', { name: '布景名称提示' })).toHaveAttribute('data-toast-id', 'scene-name');
+    expect(screen.queryByText('请输入布景名称。', { selector: '.field-error' })).not.toBeInTheDocument();
+  });
+
+  it('auto-dismisses generic notification toasts after three seconds', () => {
+    vi.useFakeTimers();
+    render(<AppShell />);
+
+    const sceneNameInput = screen.getByLabelText('布景名称');
+    fireEvent.change(sceneNameInput, { target: { value: '   ' } });
+    fireEvent.blur(sceneNameInput);
+
+    expect(screen.getByRole('alert', { name: '布景名称提示' })).toBeVisible();
+
+    act(() => {
+      vi.advanceTimersByTime(3_000);
+    });
+
+    expect(screen.queryByRole('alert', { name: '布景名称提示' })).not.toBeInTheDocument();
+  });
+
+  it('pauses generic notification toast auto-dismiss while hovered', () => {
+    vi.useFakeTimers();
+    render(<AppShell />);
+
+    const sceneNameInput = screen.getByLabelText('布景名称');
+    fireEvent.change(sceneNameInput, { target: { value: '   ' } });
+    fireEvent.blur(sceneNameInput);
+    const toast = screen.getByRole('alert', { name: '布景名称提示' });
+
+    fireEvent.mouseEnter(toast);
+    act(() => {
+      vi.advanceTimersByTime(3_000);
+    });
+    expect(screen.getByRole('alert', { name: '布景名称提示' })).toBeVisible();
+
+    fireEvent.mouseLeave(toast);
+    act(() => {
+      vi.advanceTimersByTime(3_000);
+    });
+    expect(screen.queryByRole('alert', { name: '布景名称提示' })).not.toBeInTheDocument();
   });
 
   it('starts new scene data with only empty 0层', () => {
@@ -638,8 +694,8 @@ describe('AppShell scene storage integration', () => {
     fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Blocked Autosave Layout' } });
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Autosave warning')).toHaveAttribute('data-autosave-status', 'error');
-      expect(screen.getByLabelText('Autosave warning')).toHaveTextContent('Autosave failed');
+      expect(screen.getByLabelText('自动保存提示')).toHaveAttribute('data-toast-tone', 'error');
+      expect(screen.getByLabelText('自动保存提示')).toHaveTextContent('Autosave failed');
     });
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
     expectNoSaveStatus();
@@ -654,7 +710,7 @@ describe('AppShell scene storage integration', () => {
         sceneName: 'Recovered Autosave Layout',
       });
       expect(JSON.parse(rawAutosavePayload ?? '{}').workspaceState).not.toHaveProperty('saveStatus');
-      expect(screen.queryByLabelText('Autosave warning')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('自动保存提示')).not.toBeInTheDocument();
     });
   }, 15_000);
 
@@ -1266,7 +1322,7 @@ describe('AppShell scene storage integration', () => {
     expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
     expect(screen.queryByLabelText('Recovery toast')).not.toBeInTheDocument();
     expect(screen.getByLabelText('布景名称')).toHaveValue('Mobile Restored Recovery');
-    expect(screen.getByLabelText('Current Pokemon')).toHaveValue('pikachu');
+    expect(screen.getByLabelText('Current Pokemon')).toHaveValue('皮卡丘');
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).not.toBeNull();
     expectNoSaveStatus();
@@ -1304,7 +1360,7 @@ describe('AppShell scene storage integration', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'success');
       expect(screen.getByLabelText('布景名称')).toHaveValue('Mobile Retry Recovery');
-      expect(screen.getByLabelText('Current Pokemon')).toHaveValue('pikachu');
+      expect(screen.getByLabelText('Current Pokemon')).toHaveValue('皮卡丘');
       expectNoSaveStatus();
     });
   });
@@ -1392,6 +1448,15 @@ function setViewportWidth(width: number): void {
 function expectNoSaveStatus(): void {
   expect(screen.queryByLabelText('Save status')).not.toBeInTheDocument();
   expect(screen.queryByRole('status', { name: 'Save status' })).not.toBeInTheDocument();
+}
+
+function selectPokemonBySearch(query: string, optionName: RegExp): HTMLElement {
+  const pokemonSearch = screen.getByLabelText('Current Pokemon');
+  fireEvent.focus(pokemonSearch);
+  fireEvent.change(pokemonSearch, { target: { value: query } });
+  fireEvent.mouseDown(screen.getByRole('option', { name: optionName }));
+
+  return pokemonSearch;
 }
 
 function readSceneSnapshot(): string {

@@ -84,6 +84,15 @@ interface HelpGuideLayout {
   arrowPath: string;
 }
 
+type NotificationToastTone = 'info' | 'success' | 'error';
+
+interface NotificationToast {
+  id: string;
+  tone: NotificationToastTone;
+  title: string;
+  message: string;
+}
+
 const helpGuideTargets: HelpGuideTarget[] = [
   {
     key: 'layers',
@@ -126,11 +135,14 @@ export function AppShell() {
     initialSceneState.recoveryErrors.length > 0 ? 'error' : 'idle',
   );
   const [locale, setLocale] = useState<Locale>(initialUiPreferences.locale);
-  const [autosaveError, setAutosaveError] = useState<string | null>(null);
   const autosaveReadyRef = useRef(false);
   const recoveryToastTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const recoveryToastStartedAtRef = useRef(0);
   const recoveryToastRemainingMsRef = useRef(toastAutoDismissMs);
+  const [notificationToasts, setNotificationToasts] = useState<NotificationToast[]>([]);
+  const notificationToastTimersRef = useRef(new Map<string, ReturnType<typeof window.setTimeout>>());
+  const notificationToastStartedAtRef = useRef(new Map<string, number>());
+  const notificationToastRemainingMsRef = useRef(new Map<string, number>());
   const pendingSelectionMeasureRef = useRef<string | null>(null);
   const selectionMeasureCounterRef = useRef(0);
   const replacementConfirmationExpiresAtRef = useRef(0);
@@ -141,15 +153,9 @@ export function AppShell() {
   const [placementRotationDegrees, setPlacementRotationDegrees] = useState<RotationDegrees>(0);
   const [assetSelectionMode, setAssetSelectionMode] = useState<AssetSelectionMode>('single');
   const [placementFeedback, setPlacementFeedback] = useState<AssetPlacementPreview | null>(null);
-  const [buildingLayerFeedback, setBuildingLayerFeedback] = useState<string | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [readOnlyViewingLevelId, setReadOnlyViewingLevelId] = useState<string | null>(null);
   const [exportPreviewSummary, setExportPreviewSummary] = useState<ImageExportSummary | null>(null);
-  const [exportPreviewError, setExportPreviewError] = useState<string | null>(null);
-  const [exportDownloadStatus, setExportDownloadStatus] = useState<string | null>(null);
-  const [exportDownloadError, setExportDownloadError] = useState<string | null>(null);
-  const [sceneStringStatus, setSceneStringStatus] = useState<string | null>(null);
-  const [sceneStringError, setSceneStringError] = useState<string | null>(null);
   const [viewportWidth, setViewportWidth] = useState(initialViewportWidth);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(initialInteractionMode);
   const [helpOverlayOpen, setHelpOverlayOpen] = useState(
@@ -166,6 +172,7 @@ export function AppShell() {
   const exportPreviewOpen = exportPreviewSummary !== null;
   const helpOverlayAvailable = !isReadOnly && viewportWidth >= helpOverlayMinimumWidth;
   const helpOverlayVisible = helpOverlayOpen && helpOverlayAvailable;
+  const toastStackVisible = recoveryStatus !== 'idle' || notificationToasts.length > 0;
   const helpGuideLayouts = helpGuideSnapshot ? getHelpGuideLayouts(helpGuideSnapshot) : {};
   const activeBuildingLevelId = isReadOnly
     ? readOnlyViewingLevelId ?? scene.workspaceState.currentBuildingLevelId
@@ -245,6 +252,74 @@ export function AppShell() {
     startRecoveryToastTimer(recoveryToastRemainingMsRef.current);
   };
 
+  const clearNotificationToastTimer = (toastId: string) => {
+    const timer = notificationToastTimersRef.current.get(toastId);
+    if (!timer) {
+      return;
+    }
+
+    window.clearTimeout(timer);
+    notificationToastTimersRef.current.delete(toastId);
+  };
+
+  const dismissNotificationToast = (toastId: string) => {
+    clearNotificationToastTimer(toastId);
+    notificationToastStartedAtRef.current.delete(toastId);
+    notificationToastRemainingMsRef.current.delete(toastId);
+    setNotificationToasts((currentToasts) => currentToasts.filter((toast) => toast.id !== toastId));
+  };
+
+  const dismissAllNotificationToasts = () => {
+    for (const toastId of Array.from(notificationToastTimersRef.current.keys())) {
+      clearNotificationToastTimer(toastId);
+    }
+
+    notificationToastStartedAtRef.current.clear();
+    notificationToastRemainingMsRef.current.clear();
+    setNotificationToasts([]);
+  };
+
+  const startNotificationToastTimer = (
+    toastId: string,
+    delayMs = notificationToastRemainingMsRef.current.get(toastId) ?? toastAutoDismissMs,
+  ) => {
+    clearNotificationToastTimer(toastId);
+    notificationToastStartedAtRef.current.set(toastId, Date.now());
+    notificationToastTimersRef.current.set(
+      toastId,
+      window.setTimeout(() => dismissNotificationToast(toastId), delayMs),
+    );
+  };
+
+  const pauseNotificationToastTimer = (toastId: string) => {
+    const timer = notificationToastTimersRef.current.get(toastId);
+    if (!timer) {
+      return;
+    }
+
+    const startedAt = notificationToastStartedAtRef.current.get(toastId) ?? Date.now();
+    const remainingMs = notificationToastRemainingMsRef.current.get(toastId) ?? toastAutoDismissMs;
+    notificationToastRemainingMsRef.current.set(toastId, Math.max(0, remainingMs - (Date.now() - startedAt)));
+    clearNotificationToastTimer(toastId);
+  };
+
+  const resumeNotificationToastTimer = (toastId: string) => {
+    if (notificationToastTimersRef.current.has(toastId)) {
+      return;
+    }
+
+    startNotificationToastTimer(toastId);
+  };
+
+  const showNotificationToast = (toast: NotificationToast) => {
+    notificationToastRemainingMsRef.current.set(toast.id, toastAutoDismissMs);
+    setNotificationToasts((currentToasts) => [
+      toast,
+      ...currentToasts.filter((currentToast) => currentToast.id !== toast.id),
+    ]);
+    startNotificationToastTimer(toast.id, toastAutoDismissMs);
+  };
+
   useEffect(() => {
     const updateViewportState = () => {
       setViewportWidth(window.innerWidth);
@@ -253,6 +328,15 @@ export function AppShell() {
 
     window.addEventListener('resize', updateViewportState);
     return () => window.removeEventListener('resize', updateViewportState);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      for (const timer of notificationToastTimersRef.current.values()) {
+        window.clearTimeout(timer);
+      }
+      notificationToastTimersRef.current.clear();
+    };
   }, []);
 
   useEffect(() => {
@@ -371,7 +455,7 @@ export function AppShell() {
 
   useEffect(() => {
     if (isReadOnly) {
-      setAutosaveError(null);
+      dismissNotificationToast('autosave');
       setHoveredCoordinate(null);
       setFocusedCoordinate(null);
       document
@@ -387,17 +471,27 @@ export function AppShell() {
 
     const storage = getBrowserStorage();
     if (!storage) {
-      setAutosaveError('Autosave is unavailable. Your latest edits are not stored locally.');
+      showNotificationToast({
+        id: 'autosave',
+        tone: 'error',
+        title: t(locale, 'autosaveToastTitle'),
+        message: t(locale, 'autosaveUnavailable'),
+      });
       return;
     }
 
     try {
       writeSceneDocumentToStorage(storage, scene, 'autosave');
-      setAutosaveError(null);
+      dismissNotificationToast('autosave');
     } catch {
-      setAutosaveError('Autosave failed. Your latest edits are not stored locally.');
+      showNotificationToast({
+        id: 'autosave',
+        tone: 'error',
+        title: t(locale, 'autosaveToastTitle'),
+        message: t(locale, 'autosaveFailed'),
+      });
     }
-  }, [isReadOnly, scene]);
+  }, [isReadOnly, scene, locale]);
 
   useEffect(() => {
     if (recoveryStatus === 'idle') {
@@ -485,6 +579,15 @@ export function AppShell() {
       sceneName,
       interactionMode,
       now: getCurrentIsoTimestamp(),
+    });
+  };
+
+  const showSceneNameValidationError = (message: string) => {
+    showNotificationToast({
+      id: 'scene-name',
+      tone: 'error',
+      title: t(locale, 'sceneNameToastTitle'),
+      message,
     });
   };
 
@@ -723,12 +826,22 @@ export function AppShell() {
   const handleBuildingLayerResult = (result: BuildingLayerEditResult) => {
     if (result.ok) {
       commitSceneEdit(result.scene);
-      setBuildingLayerFeedback(result.message);
+      showNotificationToast({
+        id: 'building-layer',
+        tone: 'success',
+        title: t(locale, 'buildingLayerToastTitle'),
+        message: result.message,
+      });
       setPlacementFeedback(null);
       return;
     }
 
-    setBuildingLayerFeedback(`${result.message}. ${result.repairHint}`);
+    showNotificationToast({
+      id: 'building-layer',
+      tone: 'error',
+      title: t(locale, 'buildingLayerToastTitle'),
+      message: `${result.message}. ${result.repairHint}`,
+    });
   };
 
   const createBuildingLayer = () => {
@@ -745,7 +858,6 @@ export function AppShell() {
   const selectBuildingLayer = (levelId: string) => {
     if (isReadOnly) {
       setReadOnlyViewingLevelId(levelId);
-      setBuildingLayerFeedback(null);
       return;
     }
 
@@ -810,7 +922,12 @@ export function AppShell() {
     );
 
     if (!confirmed) {
-      setBuildingLayerFeedback(`${result.message}. Canceled; scene unchanged.`);
+      showNotificationToast({
+        id: 'building-layer',
+        tone: 'info',
+        title: t(locale, 'buildingLayerToastTitle'),
+        message: `${result.message}. Canceled; scene unchanged.`,
+      });
       return;
     }
 
@@ -846,15 +963,12 @@ export function AppShell() {
     setScene(nextScene);
     setRecoveryErrors([]);
     setRecoveryStatus('idle');
-    setAutosaveError(null);
+    dismissAllNotificationToasts();
     setSelectedInstanceId(null);
     setPlacementRequiresSkill(false);
     setAssetSelectionMode('single');
     replacementConfirmationExpiresAtRef.current = 0;
     setPlacementFeedback(null);
-    setBuildingLayerFeedback(null);
-    setSceneStringStatus(null);
-    setSceneStringError(null);
   };
 
   const exportSceneString = () => {
@@ -862,11 +976,19 @@ export function AppShell() {
       const sceneString = encodeSceneDocumentString(scene);
       navigator.clipboard?.writeText(sceneString).catch(() => undefined);
       window.prompt(t(locale, 'sceneStringExportPrompt'), sceneString);
-      setSceneStringStatus(t(locale, 'sceneStringExported', { count: sceneString.length }));
-      setSceneStringError(null);
+      showNotificationToast({
+        id: 'scene-string',
+        tone: 'success',
+        title: t(locale, 'sceneStringToastTitle'),
+        message: t(locale, 'sceneStringExported', { count: sceneString.length }),
+      });
     } catch {
-      setSceneStringStatus(null);
-      setSceneStringError(t(locale, 'sceneStringExportFailed'));
+      showNotificationToast({
+        id: 'scene-string',
+        tone: 'error',
+        title: t(locale, 'sceneStringToastTitle'),
+        message: t(locale, 'sceneStringExportFailed'),
+      });
     }
   };
 
@@ -884,15 +1006,23 @@ export function AppShell() {
     if (!decoded.ok) {
       setRecoveryErrors(decoded.errors);
       setRecoveryStatus('error');
-      setSceneStringStatus(null);
-      setSceneStringError(t(locale, 'sceneStringInvalid'));
+      showNotificationToast({
+        id: 'scene-string',
+        tone: 'error',
+        title: t(locale, 'sceneStringToastTitle'),
+        message: t(locale, 'sceneStringInvalid'),
+      });
       return;
     }
 
     const confirmed = window.confirm(t(locale, 'sceneStringImportConfirm'));
     if (!confirmed) {
-      setSceneStringStatus(null);
-      setSceneStringError(t(locale, 'sceneStringImportCanceled'));
+      showNotificationToast({
+        id: 'scene-string',
+        tone: 'info',
+        title: t(locale, 'sceneStringToastTitle'),
+        message: t(locale, 'sceneStringImportCanceled'),
+      });
       return;
     }
 
@@ -903,41 +1033,49 @@ export function AppShell() {
     if (!appliedRecovery.ok) {
       setRecoveryErrors(appliedRecovery.errors);
       setRecoveryStatus('error');
-      setSceneStringStatus(null);
-      setSceneStringError(t(locale, 'sceneStringInvalid'));
+      showNotificationToast({
+        id: 'scene-string',
+        tone: 'error',
+        title: t(locale, 'sceneStringToastTitle'),
+        message: t(locale, 'sceneStringInvalid'),
+      });
       return;
     }
 
     setScene(appliedRecovery.scene);
     setRecoveryErrors([]);
     setRecoveryStatus('success');
-    setAutosaveError(null);
+    dismissNotificationToast('autosave');
     setPlacementFeedback(null);
     setAssetSelectionMode('single');
     setSelectedInstanceId(null);
     replacementConfirmationExpiresAtRef.current = 0;
-    setBuildingLayerFeedback(null);
-    setSceneStringStatus(t(locale, 'sceneStringImported'));
-    setSceneStringError(null);
+    showNotificationToast({
+      id: 'scene-string',
+      tone: 'success',
+      title: t(locale, 'sceneStringToastTitle'),
+      message: t(locale, 'sceneStringImported'),
+    });
   };
 
   const openExportPreview = () => {
     try {
       setExportPreviewSummary(buildImageExportSummary(scene, locale));
-      setExportPreviewError(null);
-      setExportDownloadStatus(null);
-      setExportDownloadError(null);
+      dismissNotificationToast('image-export');
+      dismissNotificationToast('image-download');
     } catch {
       setExportPreviewSummary(null);
-      setExportPreviewError(t(locale, 'imagePreviewFailed'));
+      showNotificationToast({
+        id: 'image-export',
+        tone: 'error',
+        title: t(locale, 'imageExportToastTitle'),
+        message: t(locale, 'imagePreviewFailed'),
+      });
     }
   };
 
   const closeExportPreview = () => {
     setExportPreviewSummary(null);
-    setExportPreviewError(null);
-    setExportDownloadStatus(null);
-    setExportDownloadError(null);
   };
 
   const downloadExportImage = async (previewElement: HTMLElement) => {
@@ -960,12 +1098,20 @@ export function AppShell() {
       downloadLink.rel = 'noopener';
       document.body.append(downloadLink);
       downloadLink.click();
-      setExportDownloadStatus(t(locale, 'imageReady'));
-      setExportDownloadError(null);
+      showNotificationToast({
+        id: 'image-download',
+        tone: 'success',
+        title: t(locale, 'imageExportToastTitle'),
+        message: t(locale, 'imageReady'),
+      });
     } catch (error) {
       console.error('Image export download failed.', error);
-      setExportDownloadStatus(null);
-      setExportDownloadError(t(locale, 'imageDownloadFailed'));
+      showNotificationToast({
+        id: 'image-download',
+        tone: 'error',
+        title: t(locale, 'imageExportToastTitle'),
+        message: t(locale, 'imageDownloadFailed'),
+      });
     } finally {
       downloadLink?.remove();
       if (objectUrl) {
@@ -1027,13 +1173,10 @@ export function AppShell() {
     setScene(appliedRecovery.scene);
     setRecoveryErrors([]);
     setRecoveryStatus('success');
-    setAutosaveError(null);
+    dismissNotificationToast('autosave');
     setPlacementFeedback(null);
     setAssetSelectionMode('single');
     replacementConfirmationExpiresAtRef.current = 0;
-    setBuildingLayerFeedback(null);
-    setSceneStringStatus(null);
-    setSceneStringError(null);
   };
 
   const cancelSceneRecovery = () => {
@@ -1252,94 +1395,93 @@ export function AppShell() {
           </button>
         </div>
       ) : null}
-      {autosaveError ? (
-        <section
-          className="autosave-warning"
-          role="alert"
-          aria-label="Autosave warning"
-          data-autosave-status="error"
-        >
-          <strong>{t(locale, 'autosavePaused')}</strong>
-          <span>{autosaveError}</span>
-        </section>
-      ) : null}
-      {recoveryStatus !== 'idle' ? (
+      {toastStackVisible ? (
         <div className="toast-stack" aria-label={t(locale, 'notifications')}>
-          <section
-            className={`recovery-toast recovery-toast--${recoveryStatus}`}
-            role={recoveryStatus === 'error' ? 'alert' : 'status'}
-            aria-live={recoveryStatus === 'error' ? 'assertive' : 'polite'}
-            aria-label={t(locale, 'recoveryToast')}
-            data-recovery-status={recoveryStatus}
-            onMouseEnter={pauseRecoveryToastTimer}
-            onMouseLeave={resumeRecoveryToastTimer}
-            onFocus={pauseRecoveryToastTimer}
-            onBlur={resumeRecoveryToastTimer}
-          >
-            <div className="recovery-toast__header">
-              <div>
-                <p className="eyebrow">{t(locale, 'recovery')}</p>
-                <h2>{getRecoveryStatusTitle(recoveryStatus, locale)}</h2>
-                <p>{getRecoveryStatusMessage(recoveryStatus, locale)}</p>
+          {recoveryStatus !== 'idle' ? (
+            <section
+              className={`recovery-toast recovery-toast--${recoveryStatus}`}
+              role={recoveryStatus === 'error' ? 'alert' : 'status'}
+              aria-live={recoveryStatus === 'error' ? 'assertive' : 'polite'}
+              aria-label={t(locale, 'recoveryToast')}
+              data-recovery-status={recoveryStatus}
+              onMouseEnter={pauseRecoveryToastTimer}
+              onMouseLeave={resumeRecoveryToastTimer}
+              onFocus={pauseRecoveryToastTimer}
+              onBlur={resumeRecoveryToastTimer}
+            >
+              <div className="recovery-toast__header">
+                <div>
+                  <p className="eyebrow">{t(locale, 'recovery')}</p>
+                  <h2>{getRecoveryStatusTitle(recoveryStatus, locale)}</h2>
+                  <p>{getRecoveryStatusMessage(recoveryStatus, locale)}</p>
+                </div>
+                <div className="recovery-toast__actions" aria-label={t(locale, 'recoveryActions')}>
+                  {recoveryStatus === 'error' ? (
+                    <>
+                      <button type="button" onClick={retrySceneRecovery}>
+                        {t(locale, 'retry')}
+                      </button>
+                      <button type="button" onClick={cancelSceneRecovery}>
+                        {t(locale, 'cancel')}
+                      </button>
+                    </>
+                  ) : null}
+                  <button type="button" onClick={dismissRecoveryToast}>
+                    {t(locale, 'close')}
+                  </button>
+                </div>
               </div>
-              <div className="recovery-toast__actions" aria-label={t(locale, 'recoveryActions')}>
-                {recoveryStatus === 'error' ? (
-                  <>
-                    <button type="button" onClick={retrySceneRecovery}>
-                      {t(locale, 'retry')}
-                    </button>
-                    <button type="button" onClick={cancelSceneRecovery}>
-                      {t(locale, 'cancel')}
-                    </button>
-                  </>
-                ) : null}
-                <button type="button" onClick={dismissRecoveryToast}>
-                  {t(locale, 'close')}
-                </button>
+              {recoveryStatus === 'error' ? (
+                <ul className="recovery-toast__errors" aria-label={t(locale, 'recoveryDetails')}>
+                  {recoveryErrors.map((error, index) => (
+                    <li key={`${error.fieldPath}-${index}`}>
+                      <strong>{error.fieldPath}</strong>
+                      <span>{error.reason}</span>
+                      <span>{t(locale, 'expected')}: {error.expected}</span>
+                      <span>{t(locale, 'actual')}: {error.actual}</span>
+                      <span>{error.recoveryAction}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
+          ) : null}
+          {notificationToasts.map((toast) => (
+            <section
+              className={`app-toast app-toast--${toast.tone}`}
+              role={toast.tone === 'error' ? 'alert' : 'status'}
+              aria-live={toast.tone === 'error' ? 'assertive' : 'polite'}
+              aria-label={toast.title}
+              data-toast-id={toast.id}
+              data-toast-tone={toast.tone}
+              key={toast.id}
+              onMouseEnter={() => pauseNotificationToastTimer(toast.id)}
+              onMouseLeave={() => resumeNotificationToastTimer(toast.id)}
+              onFocus={() => pauseNotificationToastTimer(toast.id)}
+              onBlur={() => resumeNotificationToastTimer(toast.id)}
+            >
+              <div className="app-toast__header">
+                <div>
+                  <h2>{toast.title}</h2>
+                  <p>{toast.message}</p>
+                </div>
+                <div className="app-toast__actions">
+                  <button type="button" onClick={() => dismissNotificationToast(toast.id)}>
+                    {t(locale, 'close')}
+                  </button>
+                </div>
               </div>
-            </div>
-            {recoveryStatus === 'error' ? (
-              <ul className="recovery-toast__errors" aria-label={t(locale, 'recoveryDetails')}>
-                {recoveryErrors.map((error, index) => (
-                  <li key={`${error.fieldPath}-${index}`}>
-                    <strong>{error.fieldPath}</strong>
-                    <span>{error.reason}</span>
-                    <span>{t(locale, 'expected')}: {error.expected}</span>
-                    <span>{t(locale, 'actual')}: {error.actual}</span>
-                    <span>{error.recoveryAction}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </section>
+            </section>
+          ))}
         </div>
-      ) : null}
-      {exportPreviewError ? (
-        <section className="export-preview-error" role="alert" aria-label={t(locale, 'imageExportError')}>
-          <span>{exportPreviewError}</span>
-          <button type="button" className="app-action-button" onClick={closeExportPreview}>
-            {t(locale, 'close')}
-          </button>
-        </section>
       ) : null}
       {exportPreviewSummary ? (
         <ExportPreview
           locale={locale}
           summary={exportPreviewSummary}
-          downloadError={exportDownloadError}
-          downloadStatus={exportDownloadStatus}
           onClose={closeExportPreview}
           onDownloadImage={downloadExportImage}
         />
-      ) : null}
-      {sceneStringStatus || sceneStringError ? (
-        <section
-          className="scene-string-status"
-          role={sceneStringError ? 'alert' : 'status'}
-          aria-label={t(locale, 'sceneStringStatus')}
-        >
-          {sceneStringError ?? sceneStringStatus}
-        </section>
       ) : null}
       <section
         className="workbench-grid"
@@ -1355,12 +1497,12 @@ export function AppShell() {
             sceneName={scene.sceneName}
             onPokemonChange={updatePokemon}
             onSceneNameChange={updateSceneName}
+            onSceneNameValidationError={showSceneNameValidationError}
           />
           <BuildingLevelPanel
             locale={locale}
             levels={displayedBuildingLevelContexts}
             readOnly={isReadOnly}
-            feedback={buildingLayerFeedback}
             onCreateLayer={createBuildingLayer}
             onSelectLayer={selectBuildingLayer}
             onRenameLayer={renameBuildingLayer}

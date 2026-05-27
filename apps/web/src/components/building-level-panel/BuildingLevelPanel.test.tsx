@@ -156,7 +156,6 @@ describe('BuildingLevelPanel', () => {
 
 function defaultProps() {
   return {
-    feedback: null,
     onCreateLayer: vi.fn(),
     onSelectLayer: vi.fn(),
     onRenameLayer: vi.fn(),

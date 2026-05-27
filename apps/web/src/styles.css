@@ -441,8 +441,9 @@ button:disabled {
 }
 
 .pokemon-select-control {
+  position: relative;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: 28px 46px minmax(0, 1fr);
   align-items: center;
   gap: 7px;
   width: 100%;
@@ -454,6 +455,11 @@ button:disabled {
   background: rgba(255, 255, 255, 0.5);
 }
 
+.pokemon-select-control:focus-within {
+  border-color: #2684ff;
+  box-shadow: 0 0 0 2px rgba(38, 132, 255, 0.18);
+}
+
 .pokemon-select-control__image {
   display: block;
   width: 28px;
@@ -461,27 +467,137 @@ button:disabled {
   object-fit: contain;
 }
 
-.pokemon-select-control select {
+.pokemon-select-control__number {
+  min-width: 0;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: right;
+}
+
+.pokemon-combobox {
+  position: relative;
+  min-width: 0;
+  height: 100%;
+}
+
+.scene-controls .pokemon-combobox__input {
   width: 100%;
   min-width: 0;
   height: 100%;
   border: 0;
-  padding: 0 22px 0 0;
+  border-radius: 0;
+  padding: 0;
   color: var(--ink);
   background: transparent;
+}
+
+.scene-controls .pokemon-combobox__input:focus {
+  outline: 0;
+}
+
+.scene-controls .pokemon-combobox__input::placeholder {
+  color: var(--ink);
+  opacity: 0.68;
+}
+
+.scene-controls .pokemon-combobox__input:disabled {
+  opacity: 1;
+  color: var(--ink);
+}
+
+.pokemon-combobox__list {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  display: grid;
+  max-height: 224px;
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 4px;
+  background: #fffefb;
+  box-shadow: 0 14px 30px rgba(64, 45, 38, 0.2);
+  overscroll-behavior: contain;
+}
+
+.pokemon-combobox__option {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 5px 7px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.pokemon-combobox__option.is-active,
+.pokemon-combobox__option:hover {
+  border-color: rgba(37, 111, 104, 0.3);
+  background: rgba(195, 225, 218, 0.38);
+}
+
+.pokemon-combobox__option.is-selected {
+  border-color: rgba(37, 111, 104, 0.52);
+}
+
+.pokemon-combobox__option-image {
+  display: block;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.pokemon-combobox__option-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.pokemon-combobox__option-title {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.pokemon-combobox__option-title span:last-child,
+.pokemon-combobox__option-secondary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pokemon-combobox__option-number {
+  flex: 0 0 auto;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.pokemon-combobox__option-secondary {
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.pokemon-combobox__empty {
+  padding: 10px 8px;
+  color: var(--ink-muted);
+  font-size: 12px;
 }
 
 .scene-controls input[aria-invalid="true"] {
   border-color: var(--color-error);
   outline-color: var(--color-error);
-}
-
-.field-error {
-  max-width: 220px;
-  color: var(--color-error);
-  font-size: 11px;
-  font-weight: 800;
-  overflow-wrap: anywhere;
 }
 
 .scene-controls button {
@@ -522,7 +638,8 @@ button:disabled {
   pointer-events: none;
 }
 
-.recovery-toast {
+.recovery-toast,
+.app-toast {
   display: grid;
   gap: 10px;
   max-height: calc(100vh - 96px);
@@ -536,19 +653,23 @@ button:disabled {
   pointer-events: auto;
 }
 
-.recovery-toast--error {
+.recovery-toast--error,
+.app-toast--error {
   border-color: rgba(179, 38, 30, 0.58);
 }
 
-.recovery-toast--success {
+.recovery-toast--success,
+.app-toast--success {
   border-color: rgba(37, 111, 104, 0.5);
 }
 
-.recovery-toast--canceled {
+.recovery-toast--canceled,
+.app-toast--info {
   border-color: rgba(113, 104, 95, 0.45);
 }
 
-.recovery-toast__header {
+.recovery-toast__header,
+.app-toast__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -556,27 +677,34 @@ button:disabled {
 }
 
 .recovery-toast h2,
-.recovery-toast p {
+.recovery-toast p,
+.app-toast h2,
+.app-toast p {
   margin: 0;
 }
 
-.recovery-toast h2 {
+.recovery-toast h2,
+.app-toast h2 {
   font-size: 16px;
   line-height: 1.2;
 }
 
-.recovery-toast p {
+.recovery-toast p,
+.app-toast p {
   font-size: 13px;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
-.recovery-toast__actions {
+.recovery-toast__actions,
+.app-toast__actions {
   display: flex;
   flex-shrink: 0;
   gap: 8px;
 }
 
-.recovery-toast__actions button {
+.recovery-toast__actions button,
+.app-toast__actions button {
   min-height: 34px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -668,21 +796,6 @@ button:disabled {
 .export-preview__header p,
 .export-layer__header h3 {
   margin: 0;
-}
-
-.export-preview__feedback {
-  margin: 0;
-  border-bottom: 1px solid var(--line);
-  padding: 10px 16px;
-  color: #164c46;
-  background: rgba(232, 246, 239, 0.86);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.export-preview__feedback--error {
-  color: var(--color-error);
-  background: rgba(179, 38, 30, 0.07);
 }
 
 .export-preview__actions {
@@ -877,64 +990,6 @@ button:disabled {
   margin: 0;
   color: var(--muted);
   font-size: 13px;
-}
-
-.export-preview-error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  max-width: 1440px;
-  margin: 12px auto 0;
-  border: 1px solid rgba(179, 38, 30, 0.52);
-  border-radius: 8px;
-  padding: 12px 14px;
-  background: #fffefb;
-  color: var(--ink);
-}
-
-.scene-string-status {
-  max-width: 1440px;
-  margin: 12px auto 0;
-  border: 1px solid rgba(37, 111, 104, 0.28);
-  border-radius: 8px;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.6);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 800;
-  overflow-wrap: anywhere;
-}
-
-.scene-string-status[role="alert"] {
-  border-color: color-mix(in srgb, var(--color-error) 55%, var(--line));
-  background: rgba(179, 38, 30, 0.08);
-  color: var(--color-error);
-}
-
-.autosave-warning {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  max-width: 1440px;
-  margin: 12px auto 0;
-  border: 1px solid color-mix(in srgb, var(--color-error) 55%, var(--line));
-  border-radius: 8px;
-  padding: 10px 14px;
-  color: var(--ink);
-  background: rgba(179, 38, 30, 0.08);
-  overflow-wrap: anywhere;
-}
-
-.autosave-warning strong {
-  color: var(--color-error);
-  white-space: nowrap;
-}
-
-.autosave-warning span {
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 700;
 }
 
 .workbench-grid {

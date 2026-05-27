@@ -15,9 +15,7 @@ import type {
 interface ExportPreviewProps {
   locale?: Locale;
   summary: ImageExportSummary;
-  downloadError?: string | null;
   downloadDisabled?: boolean;
-  downloadStatus?: string | null;
   onClose: () => void;
   onDownloadImage?: (previewElement: HTMLElement) => void | Promise<void>;
 }
@@ -25,9 +23,7 @@ interface ExportPreviewProps {
 export function ExportPreview({
   locale = defaultLocale,
   summary,
-  downloadError = null,
   downloadDisabled = false,
-  downloadStatus = null,
   onClose,
   onDownloadImage,
 }: ExportPreviewProps) {
@@ -145,27 +141,6 @@ export function ExportPreview({
             </button>
           </div>
         </header>
-        {downloadStatus ? (
-          <p
-            className="export-preview__feedback"
-            role="status"
-            aria-label={t(locale, 'imageExportStatus')}
-            data-image-export-exclude="true"
-          >
-            {downloadStatus}
-          </p>
-        ) : null}
-        {downloadError ? (
-          <p
-            className="export-preview__feedback export-preview__feedback--error"
-            role="alert"
-            aria-label={t(locale, 'imageExportError')}
-            data-image-export-exclude="true"
-          >
-            {downloadError}
-          </p>
-        ) : null}
-
         <section className="export-preview__body" aria-label={t(locale, 'imageExportContent')}>
           <section className="export-preview__summary" aria-label={t(locale, 'overallMaterialsList')}>
             <h3>{t(locale, 'overallMaterials')}</h3>
