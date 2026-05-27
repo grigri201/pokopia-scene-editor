@@ -24,6 +24,8 @@ Use MCP tools as the source of truth:
 
 Do not copy or reimplement `scene-core` schema, asset catalog filtering, export-summary logic, or recovery rules inside this skill. If MCP is unavailable, report that the Worker MCP endpoint is unavailable and stop or start the repo Worker dev server when the task allows it; do not fall back to local business-rule reconstruction.
 
+Footprint, effective footprint, occupied cells, and height blocking details must also come from MCP `structuredContent`. Never paste local footprint override tables, recalculate occupied cells, or infer blocking rules inside the skill.
+
 ## Setup Check
 
 Before calling tools, confirm the production Worker MCP endpoint is available:
@@ -46,6 +48,7 @@ For MCP tool results, treat `structuredContent` as authoritative:
 
 - `ok: true`: use `data` and preserve `warnings` in the response when relevant.
 - `ok: false` or `isError: true`: report `errors`, `fieldPath`, `warnings`, and `fixSuggestions`; make only the smallest repair implied by the tool result before retrying.
+- Footprint conflicts: preserve the full `structuredContent.errors[]` objects, including `conflictType`, instance ids, asset ids, building level ids, blocking fields, and `coordinates`.
 - `meta`: keep service/schema/catalog version information when comparing outputs or explaining provenance.
 
 Never echo a full user scene payload back in error text unless the user explicitly asks to inspect that file and it is already in the repo.

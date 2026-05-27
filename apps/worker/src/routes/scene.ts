@@ -7,6 +7,7 @@ import {
   validateSceneDocument,
   type SceneDocumentValidationError,
 } from '@pokopia-scene-editor/scene-core';
+import type { ApiError } from '../api-result';
 import { ApiRequestError } from '../request';
 
 export function generateScene(body: unknown) {
@@ -28,7 +29,7 @@ export function validateScene(body: unknown) {
 
   return {
     valid: errors.length === 0,
-    errors,
+    errors: errors.map(toApiValidationError),
   };
 }
 
@@ -84,10 +85,26 @@ function extractSceneInput(body: unknown): unknown {
 }
 
 function validationError(errors: SceneDocumentValidationError[]): ApiRequestError {
-  const firstError = errors[0];
-  const error = new ApiRequestError(422, 'scene_validation_failed', 'SceneDocument validation failed.');
-  error.apiError.fieldPath = firstError?.fieldPath;
-  return error;
+  return new ApiRequestError(422, 'scene_validation_failed', 'SceneDocument validation failed.', errors.map(toApiValidationError));
+}
+
+function toApiValidationError(error: SceneDocumentValidationError): ApiError {
+  return {
+    code: 'scene_validation_failed',
+    message: 'SceneDocument validation failed.',
+    fieldPath: error.fieldPath,
+    expected: error.expected,
+    reason: error.reason,
+    recoveryAction: error.recoveryAction,
+    conflictType: error.conflictType,
+    instanceId: error.instanceId,
+    assetId: error.assetId,
+    buildingLevelId: error.buildingLevelId,
+    coordinates: error.coordinates?.map((coordinate) => ({ x: coordinate.x, y: coordinate.y })),
+    blockingInstanceId: error.blockingInstanceId,
+    blockingAssetId: error.blockingAssetId,
+    blockingBuildingLevelId: error.blockingBuildingLevelId,
+  };
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

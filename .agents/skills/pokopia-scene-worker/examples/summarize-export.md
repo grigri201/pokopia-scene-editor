@@ -13,8 +13,9 @@ Workflow:
 }
 ```
 
-3. Use `structuredContent.data.summary` as the authoritative summary.
+3. Use `structuredContent.data.summary` as the authoritative summary, including each instance's `footprint`, `effectiveFootprint`, `occupiedCells`, `blockingCells`, and `footprintWarnings`.
 4. If the tool returns `isError`, follow `fieldPath` and `fixSuggestions`, then retry.
 5. Explain that browser PNG/image generation remains outside the Worker MCP workflow.
 
 The summary must come from MCP, not from a local recreation of export-summary rules.
+Do not compute footprint spans or material counts in the skill.

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { createBuildingLevel, createDefaultSceneDocument, createTileInstance, type SceneDocument } from '../domain/scene';
+import {
+  buildSceneOccupancy,
+  createBuildingLevel,
+  createDefaultSceneDocument,
+  createFootprintContractScene,
+  createTileInstance,
+  footprintContractExpected,
+  footprintContractFixtureIds,
+  type SceneDocument,
+} from '../domain/scene';
 import { parseSceneDocument } from './scene-schema';
 import { serializeSceneDocument, stringifySceneDocument } from './scene-serializer';
 
@@ -126,6 +135,31 @@ describe('SceneDocument v1 serializer', () => {
 
     expect(parseSceneDocument(parsed).ok).toBe(true);
     expect(json).toContain('"schemaVersion": 1');
+  });
+
+  it('serializes the shared footprint fixture without storing derived occupancy state', () => {
+    const scene = createFootprintContractScene();
+    const json = stringifySceneDocument(scene);
+    const payload = serializeSceneDocument(scene);
+    const parsed = parseSceneDocument(JSON.parse(json) as unknown);
+
+    expect(json).not.toContain('"footprint"');
+    expect(json).not.toContain('"effectiveFootprint"');
+    expect(json).not.toContain('"occupiedCells"');
+    expect(json).not.toContain('"blockingCells"');
+    expect(payload.tileInstances.find((instance) => instance.instanceId === footprintContractFixtureIds.boulder)).toMatchObject({
+      assetId: 'large-boulder',
+      coordinate: { x: 1, y: 4 },
+      rotationDegrees: 0,
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) {
+      throw new Error('Expected footprint contract payload to parse.');
+    }
+    expect(buildSceneOccupancy(parsed.scene).instances.find((instance) => instance.instanceId === footprintContractFixtureIds.boulder)).toMatchObject({
+      effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.boulder],
+      occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.boulder],
+    });
   });
 });
 

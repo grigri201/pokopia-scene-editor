@@ -17,6 +17,8 @@ const skill = read(skillPath);
 assert(/^---\n[\s\S]*?\n---/.test(skill), 'SKILL.md must include YAML frontmatter.');
 assert(/name:\s*pokopia-scene-worker/.test(skill), 'SKILL.md frontmatter must name the skill.');
 assert(/description:\s*.+MCP/.test(skill), 'SKILL.md description must mention MCP.');
+assert(skill.includes('structuredContent'), 'SKILL.md must instruct agents to use MCP structuredContent.');
+assert(skill.includes('Footprint') || skill.includes('footprint'), 'SKILL.md must mention footprint handling.');
 
 for (const tool of [
   'generate_scene_document',
@@ -41,6 +43,10 @@ for (const file of collectFiles(skillRoot)) {
 const exampleText = examples.map((file) => read(join(examplesRoot, file))).join('\n');
 assert(exampleText.includes('validate_scene_document'), 'Examples must cover validate scene workflow.');
 assert(exampleText.includes('summarize_scene_export'), 'Examples must cover summarize export workflow.');
+assert(exampleText.includes('effectiveFootprint'), 'Examples must require export summaries to preserve effectiveFootprint.');
+assert(exampleText.includes('occupiedCells'), 'Examples must require export summaries to preserve occupiedCells.');
+assert(exampleText.includes('blockingCells'), 'Examples must require export summaries to preserve blockingCells.');
+assert(exampleText.includes('conflictType'), 'Examples must require validation workflows to preserve footprint conflictType.');
 assert(
   exampleText.includes('search_pokopia_assets') && exampleText.includes('generate_scene_document'),
   'Examples must cover asset search and default scene generation workflow.',
@@ -52,6 +58,10 @@ for (const [file, text] of allSkillFiles) {
   assert(!/sceneDocumentV1Schema\s*=/.test(text), `${file} must not define a copied scene schema.`);
   assert(!/assetCatalog\s*=/.test(text), `${file} must not define a copied asset catalog.`);
   assert(!/function\s+buildImageExportSummary/.test(text), `${file} must not define export-summary logic.`);
+  assert(!/(?:function|const|let|var)\s+buildSceneOccupancy\b/.test(text), `${file} must not define occupancy logic.`);
+  assert(!/(?:function|const|let|var)\s+getFootprintCells\b/.test(text), `${file} must not define footprint geometry.`);
+  assert(!/(?:const|let|var)\s+assetFootprintOverride\s*=/.test(text), `${file} must not copy footprint overrides.`);
+  assert(!/"wooden-bench"\s*:\s*\{\s*"?length"?\s*:/.test(text), `${file} must not copy fixture footprint tables.`);
 }
 
 console.log(`Pokopia Scene Worker skill verification passed (${examples.length} examples).`);

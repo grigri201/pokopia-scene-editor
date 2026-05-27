@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultSceneDocument, createTileInstance, type SceneDocument } from '../domain/scene';
+import {
+  buildSceneOccupancy,
+  createDefaultSceneDocument,
+  createFootprintContractScene,
+  createTileInstance,
+  footprintContractExpected,
+  footprintContractFixtureIds,
+  type SceneDocument,
+} from '../domain/scene';
 import { unsafeScriptText } from '../test/fixtures/unsafe-text';
 import { roundtripSceneDocument } from './scene-roundtrip';
 
@@ -173,6 +181,29 @@ describe('SceneDocument v1 roundtrip', () => {
     });
     expect(JSON.stringify(roundtrip.roundtrippedPayload)).toContain(unsafeScriptText);
     expect(roundtrip.sourcePayload.tileInstances[0]).not.toHaveProperty('note');
+  });
+
+  it('roundtrips the shared footprint fixture through SceneDocument v1 and re-derives occupancy', () => {
+    const roundtrip = expectRoundtrip(createFootprintContractScene());
+    const payloadText = JSON.stringify(roundtrip.sourcePayload);
+
+    expect(payloadText).not.toContain('"footprint"');
+    expect(payloadText).not.toContain('"effectiveFootprint"');
+    expect(payloadText).not.toContain('"occupiedCells"');
+    expect(payloadText).not.toContain('"blockingCells"');
+    expect(buildSceneOccupancy(roundtrip.recoveredScene).instances.find((instance) => instance.instanceId === footprintContractFixtureIds.rotatedBench)).toMatchObject({
+      effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedBench],
+      occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedBench],
+    });
+    expect(buildSceneOccupancy(roundtrip.recoveredScene).blockingCells).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          buildingLevelId: footprintContractFixtureIds.level1,
+          blockedByInstanceId: footprintContractFixtureIds.boulder,
+          coordinate: { x: 1, y: 4 },
+        }),
+      ]),
+    );
   });
 });
 

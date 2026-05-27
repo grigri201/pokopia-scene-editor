@@ -4,6 +4,17 @@ export interface ApiError {
   code: string;
   message: string;
   fieldPath?: string;
+  expected?: string;
+  reason?: string;
+  recoveryAction?: string;
+  conflictType?: string;
+  instanceId?: string;
+  assetId?: string;
+  buildingLevelId?: string;
+  coordinates?: { x: number; y: number }[];
+  blockingInstanceId?: string;
+  blockingAssetId?: string;
+  blockingBuildingLevelId?: string;
 }
 
 export interface ApiMeta {

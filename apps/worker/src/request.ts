@@ -5,12 +5,14 @@ export const maxRequestBodyBytes = 128 * 1024;
 export class ApiRequestError extends Error {
   readonly status: number;
   readonly apiError: ApiError;
+  readonly apiErrors: ApiError[];
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, apiErrors?: ApiError[]) {
     super(message);
     this.name = 'ApiRequestError';
     this.status = status;
-    this.apiError = { code, message };
+    this.apiError = apiErrors?.[0] ?? { code, message };
+    this.apiErrors = apiErrors?.length ? apiErrors : [this.apiError];
   }
 }
 

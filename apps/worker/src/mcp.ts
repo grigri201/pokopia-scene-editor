@@ -31,6 +31,14 @@ interface McpErrorDetail {
   fieldPath?: string;
   expected?: string;
   recoveryAction?: string;
+  conflictType?: string;
+  instanceId?: string;
+  assetId?: string;
+  buildingLevelId?: string;
+  coordinates?: { x: number; y: number }[];
+  blockingInstanceId?: string;
+  blockingAssetId?: string;
+  blockingBuildingLevelId?: string;
 }
 
 interface McpToolStructuredResult<T extends Record<string, unknown>> {
@@ -542,6 +550,14 @@ function toMcpValidationError(error: SceneDocumentValidationError): McpErrorDeta
     fieldPath: error.fieldPath,
     expected: error.expected,
     recoveryAction: error.recoveryAction,
+    conflictType: error.conflictType,
+    instanceId: error.instanceId,
+    assetId: error.assetId,
+    buildingLevelId: error.buildingLevelId,
+    coordinates: error.coordinates?.map((coordinate) => ({ x: coordinate.x, y: coordinate.y })),
+    blockingInstanceId: error.blockingInstanceId,
+    blockingAssetId: error.blockingAssetId,
+    blockingBuildingLevelId: error.blockingBuildingLevelId,
   };
 }
 

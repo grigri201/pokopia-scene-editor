@@ -2,6 +2,7 @@ export * from './area';
 export * from './default-scene';
 export * from './export-summary';
 export * from './footprint';
+export * from './footprint-contract-fixture';
 export * from './levels';
 export * from './occupancy';
 export * from './selectors';

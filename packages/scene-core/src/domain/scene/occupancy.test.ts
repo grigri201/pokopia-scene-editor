@@ -6,11 +6,74 @@ import {
   buildSceneOccupancy,
   evaluateScenePlacementFootprint,
 } from './occupancy';
+import {
+  createFootprintContractHeightBlockedScene,
+  createFootprintContractOverlapScene,
+  createFootprintContractScene,
+  footprintContractExpected,
+  footprintContractFixtureIds,
+} from './footprint-contract-fixture';
 import { getAssetById } from '../assets';
 
 const now = '2026-05-27T00:00:00.000Z';
 
 describe('scene occupancy rules', () => {
+  it('keeps the shared footprint contract fixture deterministic across occupied and blocking cells', () => {
+    const occupancy = buildSceneOccupancy(createFootprintContractScene());
+
+    expect(occupancy.conflicts).toEqual([]);
+    for (const instanceId of Object.keys(footprintContractExpected.effectiveFootprints) as Array<keyof typeof footprintContractExpected.effectiveFootprints>) {
+      expect(occupancy.instances.find((instance) => instance.instanceId === instanceId)).toMatchObject({
+        instanceId,
+        effectiveFootprint: footprintContractExpected.effectiveFootprints[instanceId],
+        occupiedCells: footprintContractExpected.occupiedCells[instanceId],
+      });
+    }
+    expect(occupancy.blockingCells).toEqual(
+      expect.arrayContaining(
+        footprintContractExpected.blockingCells[footprintContractFixtureIds.boulder].map((cell) =>
+          expect.objectContaining({
+            ...cell,
+            blockedByInstanceId: footprintContractFixtureIds.boulder,
+            blockedByAssetId: 'large-boulder',
+            blockedByBuildingLevelId: footprintContractFixtureIds.level0,
+          }),
+        ),
+      ),
+    );
+  });
+
+  it('reports shared fixture overlap and height-blocking variants with structured conflict details', () => {
+    expect(buildSceneOccupancy(createFootprintContractOverlapScene()).conflicts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          conflictType: 'same-level-footprint-overlap',
+          instanceId: footprintContractFixtureIds.overlap,
+          assetId: 'leafy-plant',
+          buildingLevelId: footprintContractFixtureIds.level0,
+          blockingInstanceId: footprintContractFixtureIds.bench,
+          blockingAssetId: 'wooden-bench',
+          blockingBuildingLevelId: footprintContractFixtureIds.level0,
+          coordinates: [{ x: 3, y: 1 }],
+        }),
+      ]),
+    );
+    expect(buildSceneOccupancy(createFootprintContractHeightBlockedScene()).conflicts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          conflictType: 'height-blocked-by-lower-footprint',
+          instanceId: footprintContractFixtureIds.heightBlocked,
+          assetId: 'leafy-plant',
+          buildingLevelId: footprintContractFixtureIds.level1,
+          blockingInstanceId: footprintContractFixtureIds.boulder,
+          blockingAssetId: 'large-boulder',
+          blockingBuildingLevelId: footprintContractFixtureIds.level0,
+          coordinates: [{ x: 1, y: 4 }],
+        }),
+      ]),
+    );
+  });
+
   it('builds occupied cells and height-derived blocking cells without mutating scene payload', () => {
     const scene = {
       ...createDefaultSceneDocument({ sceneId: 'scene-occupancy', now }),

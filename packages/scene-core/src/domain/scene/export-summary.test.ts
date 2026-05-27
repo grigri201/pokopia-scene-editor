@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { createBuildingLevel, createDefaultSceneDocument, createSkillMarker, createTileInstance, type TileInstance } from './index';
+import {
+  createBuildingLevel,
+  createDefaultSceneDocument,
+  createFootprintContractScene,
+  createSkillMarker,
+  createTileInstance,
+  footprintContractExpected,
+  footprintContractFixtureIds,
+  type TileInstance,
+} from './index';
 import { buildImageExportSummary } from './export-summary';
 
 describe('image export summary', () => {
@@ -213,53 +222,59 @@ describe('image export summary', () => {
   });
 
   it('includes derived footprint, occupied cells and height blocking details without inflating instance counts', () => {
-    const summary = buildImageExportSummary(createFootprintExportScene());
+    const summary = buildImageExportSummary(createFootprintContractScene());
     const layerZero = summary.layers.find((layer) => layer.id === 'level-0');
     const layerOne = summary.layers.find((layer) => layer.id === 'level-1');
 
-    expect(layerZero?.materialCount).toBe(3);
-    expect(layerZero?.cells.flatMap((cell) => cell.tileInstances)).toHaveLength(3);
-    expect(layerZero?.materials.find((material) => material.assetId === 'wooden-bench')?.count).toBe(1);
-    expect(layerZero?.materials.find((material) => material.assetId === 'large-narrow-rug')?.count).toBe(1);
+    expect(layerZero?.materialCount).toBe(6);
+    expect(layerZero?.cells.flatMap((cell) => cell.tileInstances)).toHaveLength(6);
+    expect(layerZero?.materials.find((material) => material.assetId === 'leafy-plant')?.count).toBe(1);
+    expect(layerZero?.materials.find((material) => material.assetId === 'wooden-bench')?.count).toBe(2);
+    expect(layerZero?.materials.find((material) => material.assetId === 'large-narrow-rug')?.count).toBe(2);
     expect(layerZero?.materials.find((material) => material.assetId === 'large-boulder')?.count).toBe(1);
     expect(layerOne?.materialCount).toBe(0);
 
-    const bench = getLayerInstance(summary, 'level-0', 'tile-bench');
+    const bench = getLayerInstance(summary, 'level-0', footprintContractFixtureIds.bench);
     expect(bench).toMatchObject({
       footprint: { length: 2, width: 1, height: 1 },
-      effectiveFootprint: { length: 2, width: 1, height: 1 },
-      occupiedCells: [
-        { x: 2, y: 2 },
-        { x: 3, y: 2 },
-      ],
+      effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.bench],
+      occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.bench],
       blockingCells: [],
       footprintWarnings: [],
     });
 
-    const rotatedRug = getLayerInstance(summary, 'level-0', 'tile-rug');
-    expect(rotatedRug).toMatchObject({
+    const rug = getLayerInstance(summary, 'level-0', footprintContractFixtureIds.rug);
+    expect(rug).toMatchObject({
       footprint: { length: 1, width: 2, height: 1 },
-      effectiveFootprint: { length: 2, width: 1, height: 1 },
-      occupiedCells: [
-        { x: 5, y: 1 },
-        { x: 6, y: 1 },
-      ],
+      effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rug],
+      occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rug],
     });
 
-    const boulder = getLayerInstance(summary, 'level-0', 'tile-boulder');
+    const rotatedBench = getLayerInstance(summary, 'level-0', footprintContractFixtureIds.rotatedBench);
+    expect(rotatedBench).toMatchObject({
+      footprint: { length: 2, width: 1, height: 1 },
+      effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedBench],
+      occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedBench],
+    });
+
+    const rotatedRug = getLayerInstance(summary, 'level-0', footprintContractFixtureIds.rotatedRug);
+    expect(rotatedRug).toMatchObject({
+      footprint: { length: 1, width: 2, height: 1 },
+      effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedRug],
+      occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedRug],
+    });
+
+    const boulder = getLayerInstance(summary, 'level-0', footprintContractFixtureIds.boulder);
     expect(boulder).toMatchObject({
       footprint: { length: 2, width: 1, height: 2 },
-      effectiveFootprint: { length: 2, width: 1, height: 2 },
-      occupiedCells: [
-        { x: 1, y: 4 },
-        { x: 2, y: 4 },
-      ],
+      effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.boulder],
+      occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.boulder],
       blockingCells: [
         expect.objectContaining({
           buildingLevelId: 'level-1',
           buildingLevelNumber: 1,
           coordinate: { x: 1, y: 4 },
-          blockedByInstanceId: 'tile-boulder',
+          blockedByInstanceId: footprintContractFixtureIds.boulder,
           blockedByAssetId: 'large-boulder',
           blockedByBuildingLevelId: 'level-0',
         }),
@@ -364,45 +379,5 @@ function createExportScene() {
         skillType: '储水',
       }),
     ],
-  };
-}
-
-function createFootprintExportScene() {
-  const baseScene = createDefaultSceneDocument({
-    sceneId: 'scene-export-footprint-summary',
-    sceneName: 'Export Footprint Scene',
-    selectedPokemonKey: 'ditto',
-    now: '2026-05-27T08:00:00.000Z',
-  });
-
-  return {
-    ...baseScene,
-    buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
-    workspaceState: {
-      ...baseScene.workspaceState,
-      currentBuildingLevelId: 'level-0',
-    },
-    tileInstances: [
-      createTileInstance({
-        instanceId: 'tile-bench',
-        assetId: 'wooden-bench',
-        coordinate: { x: 2, y: 2 },
-        buildingLevelId: 'level-0',
-      }),
-      createTileInstance({
-        instanceId: 'tile-rug',
-        assetId: 'large-narrow-rug',
-        coordinate: { x: 5, y: 1 },
-        buildingLevelId: 'level-0',
-        rotationDegrees: 90,
-      }),
-      createTileInstance({
-        instanceId: 'tile-boulder',
-        assetId: 'large-boulder',
-        coordinate: { x: 1, y: 4 },
-        buildingLevelId: 'level-0',
-      }),
-    ],
-    skillMarkers: [],
   };
 }

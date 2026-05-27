@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDefaultSceneDocument, validateSceneDocument } from '@pokopia-scene-editor/scene-core';
+import {
+  buildImageExportSummary,
+  createDefaultSceneDocument,
+  createFootprintContractHeightBlockedScene,
+  createFootprintContractScene,
+  footprintContractExpected,
+  footprintContractFixtureIds,
+  validateSceneDocument,
+} from '@pokopia-scene-editor/scene-core';
 import { handleRequest, type WorkerEnv } from './index';
 
 vi.mock('agents/mcp', () => ({
@@ -265,6 +273,62 @@ describe('worker MCP endpoint', () => {
     );
   });
 
+  it('keeps MCP tools aligned with the shared footprint contract fixture', async () => {
+    const scene = createFootprintContractScene();
+    const validation = await readJson(await mcpRpc('tools/call', {
+      name: 'validate_scene_document',
+      arguments: { scene },
+    }));
+    const summary = await readJson(await mcpRpc('tools/call', {
+      name: 'summarize_scene_export',
+      arguments: { scene },
+    }));
+    const recovery = await readJson(await mcpRpc('tools/call', {
+      name: 'recover_scene_document',
+      arguments: { scene },
+    }));
+    const blocked = await readJson(await mcpRpc('tools/call', {
+      name: 'recover_scene_document',
+      arguments: { scene: createFootprintContractHeightBlockedScene() },
+    }));
+
+    expect(validation.result.structuredContent).toMatchObject({
+      ok: true,
+      data: { valid: true, errors: [] },
+    });
+    expect(summary.result.structuredContent.data.summary).toEqual(buildImageExportSummary(scene));
+    expect(findSummaryInstance(summary.result.structuredContent.data.summary, footprintContractFixtureIds.rotatedBench)).toMatchObject({
+      effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedBench],
+      occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedBench],
+    });
+    expect(findSummaryInstance(summary.result.structuredContent.data.summary, footprintContractFixtureIds.rotatedRug)).toMatchObject({
+      effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedRug],
+      occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedRug],
+    });
+    expect(recovery.result.structuredContent).toMatchObject({
+      ok: true,
+      data: {
+        scene,
+        warnings: [],
+      },
+    });
+    expect(blocked.result.isError).toBe(true);
+    expect(blocked.result.structuredContent.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'scene_validation_failed',
+          conflictType: 'height-blocked-by-lower-footprint',
+          instanceId: footprintContractFixtureIds.heightBlocked,
+          blockingInstanceId: footprintContractFixtureIds.boulder,
+          blockingAssetId: 'large-boulder',
+          buildingLevelId: footprintContractFixtureIds.level1,
+          coordinates: [{ x: 1, y: 4 }],
+        }),
+      ]),
+    );
+    expect(blocked.result.structuredContent.fixSuggestions).toEqual(expect.arrayContaining([expect.any(String)]));
+  });
+
   it('returns structured generate input errors with field-level fix suggestions', async () => {
     const response = await mcpRpc('tools/call', {
       name: 'generate_scene_document',
@@ -352,6 +416,19 @@ function request(path: string, init: RequestInit = {}) {
 
 async function readJson(response: Response): Promise<Record<string, any>> {
   return await response.json() as Record<string, any>;
+}
+
+function findSummaryInstance(summary: any, instanceId: string) {
+  const instance = summary.layers
+    .flatMap((layer: any) => layer.materials)
+    .flatMap((material: any) => material.instances)
+    .find((candidate: any) => candidate.instanceId === instanceId);
+
+  if (!instance) {
+    throw new Error(`Expected summary instance ${instanceId}.`);
+  }
+
+  return instance;
 }
 
 function jsonRpcOk(id: string | number | null, result: unknown, status = 200): Response {

@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createBuildingLevel, createDefaultSceneDocument, createTileInstance, type SceneDocument } from '@pokopia-scene-editor/scene-core';
+import {
+  buildSceneOccupancy,
+  createBuildingLevel,
+  createDefaultSceneDocument,
+  createFootprintContractScene,
+  createTileInstance,
+  footprintContractExpected,
+  footprintContractFixtureIds,
+  type SceneDocument,
+} from '@pokopia-scene-editor/scene-core';
 import {
   autosavedSceneStorageKey,
   readLatestSceneDocumentFromStorage,
@@ -64,6 +73,29 @@ describe('scene storage', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBe(
       window.localStorage.getItem(autosavedSceneStorageKey),
     );
+  });
+
+  it('stores the shared footprint fixture without persisting derived occupancy fields', () => {
+    writeSceneDocumentToAllStorageSlots(window.localStorage, createFootprintContractScene());
+
+    const rawSaved = window.localStorage.getItem(savedSceneStorageKey);
+    const rawAutosaved = window.localStorage.getItem(autosavedSceneStorageKey);
+    expect(rawSaved).not.toBeNull();
+    expect(rawSaved).toBe(rawAutosaved);
+    expect(rawSaved).not.toContain('"footprint"');
+    expect(rawSaved).not.toContain('"effectiveFootprint"');
+    expect(rawSaved).not.toContain('"occupiedCells"');
+    expect(rawSaved).not.toContain('"blockingCells"');
+
+    const recovered = readSceneDocumentFromStorage(window.localStorage, 'autosave');
+    expect(recovered?.ok).toBe(true);
+    if (!recovered?.ok) {
+      throw new Error('Expected footprint fixture autosave to recover.');
+    }
+    expect(buildSceneOccupancy(recovered.scene).instances.find((instance) => instance.instanceId === footprintContractFixtureIds.boulder)).toMatchObject({
+      effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.boulder],
+      occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.boulder],
+    });
   });
 
   it('restores the latest valid saved or autosaved scene by metadata.updatedAt', () => {

@@ -15,7 +15,7 @@ Workflow:
 }
 ```
 
-2. Return asset ids, display names, categories, and the reason each result fits the theme.
+2. Return asset ids, display names, categories, `footprint`, and the reason each result fits the theme.
 3. Call `generate_scene_document` when the user asks for a starter/default scene:
 
 ```json
@@ -29,3 +29,4 @@ Workflow:
 4. If the tool returns a structured input error, use `fieldPath` and `fixSuggestions` to adjust the request and retry once.
 
 Do not infer hidden catalog entries or fabricate asset ids.
+Do not copy footprint override lists into the answer; use `structuredContent.data.assets[].footprint`.

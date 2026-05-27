@@ -81,8 +81,8 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
   } catch (error) {
     const normalizedError = normalizeError(error);
     status = normalizedError.status;
-    errorCategory = normalizedError.error.code;
-    return jsonError([normalizedError.error], requestId, { status });
+    errorCategory = normalizedError.errors[0]?.code ?? 'internal_error';
+    return jsonError(normalizedError.errors, requestId, { status });
   } finally {
     logApiRequest({
       method: request.method,
@@ -153,20 +153,22 @@ function assertMethod(request: Request, methods: readonly string[]): void {
   }
 }
 
-function normalizeError(error: unknown): { status: number; error: ApiError } {
+function normalizeError(error: unknown): { status: number; errors: ApiError[] } {
   if (error instanceof ApiRequestError) {
     return {
       status: error.status,
-      error: error.apiError,
+      errors: error.apiErrors,
     };
   }
 
   return {
     status: 500,
-    error: {
-      code: 'internal_error',
-      message: 'The service could not complete the request.',
-    },
+    errors: [
+      {
+        code: 'internal_error',
+        message: 'The service could not complete the request.',
+      },
+    ],
   };
 }
 

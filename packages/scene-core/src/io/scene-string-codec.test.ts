@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createBuildingLevel, createDefaultSceneDocument, createTileInstance } from '../domain/scene';
+import {
+  buildSceneOccupancy,
+  createBuildingLevel,
+  createDefaultSceneDocument,
+  createFootprintContractScene,
+  createTileInstance,
+  footprintContractExpected,
+  footprintContractFixtureIds,
+} from '../domain/scene';
 import {
   decodeSceneDocumentString,
   encodeSceneDocumentString,
@@ -196,6 +204,51 @@ describe('SceneDocument short string codec', () => {
         expect.objectContaining({
           conflictType: 'footprint-out-of-bounds',
           fieldPath: 'tileInstances[0].coordinate',
+        }),
+      ]),
+    );
+  });
+
+  it('roundtrips the shared footprint contract fixture through PSE1 without encoded derived fields', () => {
+    const encoded = encodeSceneDocumentString(createFootprintContractScene());
+    const decoded = decodeSceneDocumentString(encoded, '2026-05-27T00:10:00.000Z');
+
+    expect(encoded).toMatch(/^PSE1~/);
+    expect(encoded).not.toContain('footprint');
+    expect(encoded).not.toContain('effectiveFootprint');
+    expect(encoded).not.toContain('occupiedCells');
+    expect(encoded).not.toContain('blockingCells');
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      throw new Error('Expected footprint fixture decode to pass.');
+    }
+
+    const occupancy = buildSceneOccupancy(decoded.scene);
+    expect(occupancy.instances.find((instance) =>
+      instance.assetId === 'wooden-bench' &&
+      instance.instance.rotationDegrees === 90 &&
+      instance.instance.coordinate.x === 5 &&
+      instance.instance.coordinate.y === 2,
+    )).toMatchObject({
+      effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedBench],
+      occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedBench],
+    });
+    expect(occupancy.instances.find((instance) =>
+      instance.assetId === 'large-narrow-rug' &&
+      instance.instance.rotationDegrees === 270 &&
+      instance.instance.coordinate.x === 5 &&
+      instance.instance.coordinate.y === 5,
+    )).toMatchObject({
+      effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedRug],
+      occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedRug],
+    });
+    expect(occupancy.blockingCells).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          buildingLevelId: footprintContractFixtureIds.level1,
+          blockedByAssetId: 'large-boulder',
+          blockedByBuildingLevelId: footprintContractFixtureIds.level0,
+          coordinate: { x: 2, y: 4 },
         }),
       ]),
     );
