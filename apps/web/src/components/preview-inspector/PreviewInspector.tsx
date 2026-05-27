@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
+  buildSceneOccupancy,
   getAllVisibleFrontProjectionCellContexts,
   getCurrentLayerPreviewCellContexts,
+  getAssetById,
+  toAssetSkillType,
+  type AssetDefinition,
+  type BlockingCell,
   type FrontProjectionCellContext,
   type GridCoordinate,
+  type OccupancyInstance,
   type PreviewCanvasCellContext,
   type SceneDocument,
 } from '@pokopia-scene-editor/scene-core';
-import { getAssetById, toAssetSkillType } from '@pokopia-scene-editor/scene-core';
 import { defaultLocale, getAssetDisplay, getSkillDisplay, t, type Locale } from '../../i18n';
 
 interface PreviewInspectorProps {
@@ -33,6 +38,8 @@ export function PreviewInspector({
   });
   const currentLayerCells = getCurrentLayerPreviewCellContexts(scene, activeBuildingLevelId);
   const frontProjectionCells = getAllVisibleFrontProjectionCellContexts(scene);
+  const topFootprintView = buildTopFootprintView(scene, activeBuildingLevelId);
+  const frontFootprintView = buildFrontFootprintView(scene, frontProjectionCells);
   const frontProjectionLevelCount = new Set(frontProjectionCells.map((cell) => cell.buildingLevel.id)).size;
   const hasFrontOverflowingLevels = frontProjectionLevelCount > 7;
   const frontScrollCanUp = frontScrollHints.canScrollUp;
@@ -124,6 +131,7 @@ export function PreviewInspector({
                 locale={locale}
                 ariaLabel={t(locale, 'frontPreview')}
                 cells={frontProjectionCells}
+                footprintView={frontFootprintView}
               />
             </div>
             <span className="preview-scroll-cue preview-scroll-cue--down" aria-hidden="true">
@@ -139,6 +147,7 @@ export function PreviewInspector({
             className="top-preview"
             cellClassName="top-cell"
             cells={currentLayerCells}
+            footprintView={topFootprintView}
           />
         </section>
       </div>
@@ -192,10 +201,12 @@ function FrontProjectionGrid({
   locale,
   ariaLabel,
   cells,
+  footprintView,
 }: {
   locale: Locale;
   ariaLabel: string;
   cells: FrontProjectionCellContext[];
+  footprintView: FrontFootprintView;
 }) {
   return (
     <div
@@ -205,8 +216,12 @@ function FrontProjectionGrid({
       {cells.map((cell) => {
         const projectionInstance = cell.projectedInstance;
         const projectionAsset = getAssetById(projectionInstance?.assetId);
+        const shouldRenderInlineAsset = Boolean(
+          projectionInstance && !footprintView.overlayInstanceIds.has(projectionInstance.instanceId),
+        );
         const skillType = toAssetSkillType(cell.skillInstance?.skillType);
         const skillMarkerLabel = skillType ? getSkillDisplay(skillType, locale).marker : '';
+        const blockedState = footprintView.cellsByKey.get(getFrontCellKey(cell.buildingLevel.id, cell.x));
         const cellLabel = projectionInstance
           ? `${cell.buildingLevel.displayId} x${cell.x}, projected y${projectionInstance.coordinate.y} ${getInstanceLabel(projectionInstance.assetId, locale)}`
           : `${cell.buildingLevel.displayId} x${cell.x}`;
@@ -217,6 +232,7 @@ function FrontProjectionGrid({
               'front-cell',
               cell.areaType === 'outer' ? 'outer' : '',
               projectionInstance ? 'fill' : '',
+              blockedState ? 'front-cell--footprint-blocked' : '',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -233,16 +249,46 @@ function FrontProjectionGrid({
             data-preview-instance-id={projectionInstance?.instanceId ?? ''}
             data-preview-requires-skill={Boolean(cell.skillInstance)}
             data-preview-skill-marker-label={skillMarkerLabel}
+            data-front-footprint-blocked={Boolean(blockedState)}
+            data-front-blocked-by-instance-id={blockedState?.blockedByInstanceId ?? ''}
+            data-front-blocked-by-asset-id={blockedState?.blockedByAssetId ?? ''}
+            data-front-blocked-by-building-level-id={blockedState?.blockedByBuildingLevelId ?? ''}
             key={cell.id}
           >
-            {projectionAsset?.thumbnailUrl ? (
+            {shouldRenderInlineAsset && projectionAsset?.thumbnailUrl ? (
               <img src={projectionAsset.thumbnailUrl} alt="" />
-            ) : projectionInstance ? (
+            ) : shouldRenderInlineAsset && projectionInstance ? (
               getInstanceShortLabel(projectionInstance.assetId, locale)
             ) : null}
           </span>
         );
       })}
+      {footprintView.overlays.length > 0 ? (
+        <div
+          className="front-footprint-layer"
+          aria-hidden="true"
+          style={{
+            gridTemplateRows: `repeat(${footprintView.levelCount}, var(--preview-cell-size))`,
+          }}
+        >
+          {footprintView.overlays.map((overlay) => (
+            <span
+              className="front-footprint-overlay"
+              data-testid={`front-height-footprint-overlay-${overlay.instanceId}`}
+              data-footprint-instance-id={overlay.instanceId}
+              data-footprint-asset-id={overlay.asset.assetId}
+              data-effective-footprint={formatFootprint(overlay.effectiveFootprint)}
+              data-footprint-height-span={overlay.heightSpan}
+              data-blocked-level-ids={overlay.blockedLevelIds.join(',')}
+              data-footprint-x-span={overlay.xSpan}
+              key={overlay.instanceId}
+              style={getFrontFootprintOverlayStyle(overlay)}
+            >
+              {overlay.asset.thumbnailUrl ? <img src={overlay.asset.thumbnailUrl} alt="" /> : getInstanceShortLabel(overlay.asset.assetId, locale)}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -253,12 +299,14 @@ function PreviewGrid({
   className,
   cellClassName,
   cells,
+  footprintView,
 }: {
   locale: Locale;
   ariaLabel: string;
   className: string;
   cellClassName: string;
   cells: PreviewCanvasCellContext[];
+  footprintView: TopFootprintView;
 }) {
   return (
     <div
@@ -269,6 +317,8 @@ function PreviewGrid({
         const visibleCellInstances = cell.hidden ? [] : cell.tileInstances;
         const topInstance = visibleCellInstances.at(-1) ?? null;
         const topAsset = getAssetById(topInstance?.assetId);
+        const footprintState = footprintView.cellsByCoordinate.get(formatCoordinate(cell.coordinate)) ?? emptyTopFootprintCellState;
+        const shouldRenderInlineAsset = Boolean(topInstance && !footprintView.overlayInstanceIds.has(topInstance.instanceId));
         const skillInstance = visibleCellInstances.find((instance) => instance.requiresSkill) ?? null;
         const skillType = toAssetSkillType(skillInstance?.skillType);
         const skillMarkerLabel = skillType ? getSkillDisplay(skillType, locale).marker : '';
@@ -282,6 +332,7 @@ function PreviewGrid({
               cellClassName,
               cell.areaType === 'outer' ? 'outer' : '',
               topInstance ? 'fill' : '',
+              footprintState.role === 'occupied' ? `${cellClassName}--footprint-occupied` : '',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -295,18 +346,263 @@ function PreviewGrid({
             data-preview-instance-id={topInstance?.instanceId ?? ''}
             data-preview-requires-skill={Boolean(skillInstance)}
             data-preview-skill-marker-label={skillMarkerLabel}
+            data-preview-footprint-role={footprintState.role}
+            data-preview-footprint-instance-id={footprintState.instanceId ?? ''}
+            data-preview-footprint-anchor-coordinate={footprintState.anchorCoordinate ? formatCoordinate(footprintState.anchorCoordinate) : ''}
+            data-preview-effective-footprint={footprintState.effectiveFootprint ? formatFootprint(footprintState.effectiveFootprint) : ''}
             key={`${className}-${cell.id}`}
           >
-            {topAsset?.thumbnailUrl ? (
+            {shouldRenderInlineAsset && topAsset?.thumbnailUrl ? (
               <img src={topAsset.thumbnailUrl} alt="" />
-            ) : topInstance ? (
+            ) : shouldRenderInlineAsset && topInstance ? (
               getInstanceShortLabel(topInstance.assetId, locale)
             ) : null}
           </span>
         );
       })}
+      {footprintView.overlays.length > 0 ? (
+        <div className="top-footprint-layer" aria-hidden="true">
+          {footprintView.overlays.map((overlay) => (
+            <span
+              className="top-footprint-overlay"
+              data-testid={`top-footprint-overlay-${overlay.instanceId}`}
+              data-footprint-instance-id={overlay.instanceId}
+              data-footprint-asset-id={overlay.asset.assetId}
+              data-effective-footprint={formatFootprint(overlay.effectiveFootprint)}
+              data-footprint-anchor-coordinate={formatCoordinate(overlay.anchor)}
+              key={overlay.instanceId}
+              style={getTopFootprintOverlayStyle(overlay)}
+            >
+              {overlay.asset.thumbnailUrl ? <img src={overlay.asset.thumbnailUrl} alt="" /> : getInstanceShortLabel(overlay.asset.assetId, locale)}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
+}
+
+interface TopFootprintCellState {
+  role: 'none' | 'anchor' | 'occupied';
+  instanceId: string | null;
+  anchorCoordinate: GridCoordinate | null;
+  effectiveFootprint: AssetDefinition['footprint'] | null;
+}
+
+interface TopFootprintOverlay {
+  instanceId: string;
+  asset: AssetDefinition;
+  anchor: GridCoordinate;
+  effectiveFootprint: AssetDefinition['footprint'];
+}
+
+interface TopFootprintView {
+  overlays: TopFootprintOverlay[];
+  overlayInstanceIds: Set<string>;
+  cellsByCoordinate: Map<string, TopFootprintCellState>;
+}
+
+interface FrontFootprintCellState {
+  blockedByInstanceId: string;
+  blockedByAssetId: string;
+  blockedByBuildingLevelId: string;
+}
+
+interface FrontFootprintOverlay {
+  instanceId: string;
+  asset: AssetDefinition;
+  effectiveFootprint: AssetDefinition['footprint'];
+  rowStart: number;
+  rowSpan: number;
+  columnStart: number;
+  xSpan: number;
+  heightSpan: number;
+  blockedLevelIds: string[];
+}
+
+interface FrontFootprintView {
+  overlays: FrontFootprintOverlay[];
+  overlayInstanceIds: Set<string>;
+  cellsByKey: Map<string, FrontFootprintCellState>;
+  levelCount: number;
+}
+
+const emptyTopFootprintCellState: TopFootprintCellState = {
+  role: 'none',
+  instanceId: null,
+  anchorCoordinate: null,
+  effectiveFootprint: null,
+};
+
+function buildTopFootprintView(scene: SceneDocument, activeBuildingLevelId: string): TopFootprintView {
+  const occupancy = buildSceneOccupancy(scene);
+  const overlays: TopFootprintOverlay[] = [];
+  const overlayInstanceIds = new Set<string>();
+  const cellsByCoordinate = new Map<string, TopFootprintCellState>();
+
+  for (const occupancyInstance of occupancy.instances.filter((instance) => instance.buildingLevelId === activeBuildingLevelId)) {
+    const shouldUseOverlay = isMultiCellFootprint(occupancyInstance.effectiveFootprint);
+
+    if (shouldUseOverlay) {
+      overlays.push({
+        instanceId: occupancyInstance.instanceId,
+        asset: occupancyInstance.asset,
+        anchor: { ...occupancyInstance.instance.coordinate },
+        effectiveFootprint: cloneFootprint(occupancyInstance.effectiveFootprint),
+      });
+      overlayInstanceIds.add(occupancyInstance.instanceId);
+    }
+
+    for (const coordinate of occupancyInstance.occupiedCells) {
+      const anchor = occupancyInstance.instance.coordinate;
+      const isAnchor = coordinate.x === anchor.x && coordinate.y === anchor.y;
+      cellsByCoordinate.set(formatCoordinate(coordinate), {
+        role: isAnchor ? 'anchor' : 'occupied',
+        instanceId: occupancyInstance.instanceId,
+        anchorCoordinate: { ...anchor },
+        effectiveFootprint: cloneFootprint(occupancyInstance.effectiveFootprint),
+      });
+    }
+  }
+
+  return {
+    overlays,
+    overlayInstanceIds,
+    cellsByCoordinate,
+  };
+}
+
+function buildFrontFootprintView(scene: SceneDocument, cells: readonly FrontProjectionCellContext[]): FrontFootprintView {
+  const occupancy = buildSceneOccupancy(scene);
+  const visibleLevels = getUniqueFrontLevels(cells);
+  const rowByLevelId = new Map(visibleLevels.map((level, index) => [level.id, index + 1]));
+  const cellsByKey = buildFrontBlockedCells(occupancy.blockingCells);
+  const overlays: FrontFootprintOverlay[] = [];
+  const overlayInstanceIds = new Set<string>();
+
+  for (const occupancyInstance of occupancy.instances) {
+    if (occupancyInstance.effectiveFootprint.height <= 1) {
+      continue;
+    }
+
+    const overlay = buildFrontFootprintOverlay(occupancyInstance, occupancy.blockingCells, rowByLevelId);
+
+    if (!overlay) {
+      continue;
+    }
+
+    overlays.push(overlay);
+    overlayInstanceIds.add(occupancyInstance.instanceId);
+  }
+
+  return {
+    overlays,
+    overlayInstanceIds,
+    cellsByKey,
+    levelCount: visibleLevels.length,
+  };
+}
+
+function buildFrontFootprintOverlay(
+  occupancyInstance: OccupancyInstance,
+  blockingCells: readonly BlockingCell[],
+  rowByLevelId: ReadonlyMap<string, number>,
+): FrontFootprintOverlay | null {
+  const baseRow = rowByLevelId.get(occupancyInstance.buildingLevelId);
+  const ownBlockingCells = blockingCells.filter((cell) => cell.blockedByInstanceId === occupancyInstance.instanceId);
+  const blockedLevelIds = Array.from(new Set(ownBlockingCells.map((cell) => cell.buildingLevelId)));
+  const levelRows = [baseRow, ...blockedLevelIds.map((levelId) => rowByLevelId.get(levelId))]
+    .filter((row): row is number => typeof row === 'number');
+
+  if (!baseRow || levelRows.length <= 1) {
+    return null;
+  }
+
+  const xCoordinates = occupancyInstance.occupiedCells.map((coordinate) => coordinate.x);
+  const minX = Math.min(...xCoordinates);
+  const maxX = Math.max(...xCoordinates);
+  const minRow = Math.min(...levelRows);
+  const maxRow = Math.max(...levelRows);
+
+  return {
+    instanceId: occupancyInstance.instanceId,
+    asset: occupancyInstance.asset,
+    effectiveFootprint: cloneFootprint(occupancyInstance.effectiveFootprint),
+    rowStart: minRow,
+    rowSpan: maxRow - minRow + 1,
+    columnStart: minX + 1,
+    xSpan: maxX - minX + 1,
+    heightSpan: levelRows.length,
+    blockedLevelIds,
+  };
+}
+
+function buildFrontBlockedCells(blockingCells: readonly BlockingCell[]): Map<string, FrontFootprintCellState> {
+  const cellsByKey = new Map<string, FrontFootprintCellState>();
+
+  for (const cell of blockingCells) {
+    cellsByKey.set(getFrontCellKey(cell.buildingLevelId, cell.coordinate.x), {
+      blockedByInstanceId: cell.blockedByInstanceId,
+      blockedByAssetId: cell.blockedByAssetId,
+      blockedByBuildingLevelId: cell.blockedByBuildingLevelId,
+    });
+  }
+
+  return cellsByKey;
+}
+
+function getUniqueFrontLevels(cells: readonly FrontProjectionCellContext[]): FrontProjectionCellContext['buildingLevel'][] {
+  const levels: FrontProjectionCellContext['buildingLevel'][] = [];
+  const seen = new Set<string>();
+
+  for (const cell of cells) {
+    if (seen.has(cell.buildingLevel.id)) {
+      continue;
+    }
+
+    seen.add(cell.buildingLevel.id);
+    levels.push(cell.buildingLevel);
+  }
+
+  return levels;
+}
+
+function getTopFootprintOverlayStyle(overlay: TopFootprintOverlay): CSSProperties {
+  return {
+    gridColumn: `${overlay.anchor.x + 1} / span ${overlay.effectiveFootprint.length}`,
+    gridRow: `${overlay.anchor.y + 1} / span ${overlay.effectiveFootprint.width}`,
+  };
+}
+
+function getFrontFootprintOverlayStyle(overlay: FrontFootprintOverlay): CSSProperties {
+  return {
+    gridColumn: `${overlay.columnStart} / span ${overlay.xSpan}`,
+    gridRow: `${overlay.rowStart} / span ${overlay.rowSpan}`,
+  };
+}
+
+function isMultiCellFootprint(footprint: AssetDefinition['footprint']): boolean {
+  return footprint.length > 1 || footprint.width > 1;
+}
+
+function cloneFootprint(footprint: AssetDefinition['footprint']): AssetDefinition['footprint'] {
+  return {
+    length: footprint.length,
+    width: footprint.width,
+    height: footprint.height,
+  };
+}
+
+function formatFootprint(footprint: AssetDefinition['footprint']): string {
+  return `${footprint.length}x${footprint.width}x${footprint.height}`;
+}
+
+function formatCoordinate(coordinate: GridCoordinate): string {
+  return `${coordinate.x},${coordinate.y}`;
+}
+
+function getFrontCellKey(buildingLevelId: string, x: number): string {
+  return `${buildingLevelId}:${x}`;
 }
 
 function getInstanceLabel(assetId: string, locale: Locale): string {

@@ -3,6 +3,7 @@ import { getPokemonThemeDefinition } from '@pokopia-scene-editor/scene-core';
 import { defaultLocale, getPokemonDisplay, t, type Locale } from '../../i18n';
 import type {
   ExportLayerMaterialSummary,
+  ExportTileInstanceSummary,
   ExportLayerSkillSummary,
   ExportMaterialSummary,
   ExportSkillSummary,
@@ -200,6 +201,8 @@ function getFocusableElements(root: HTMLElement | null): HTMLElement[] {
 
 function LayerPreview({ locale, layer }: { locale: Locale; layer: ImageExportLayerSummary }) {
   const usageItems = createUsageItems(layer.materials, layer.skills);
+  const footprintOverlays = getLayerFootprintOverlays(layer);
+  const footprintOverlayInstanceIds = new Set(footprintOverlays.map((overlay) => overlay.instance.instanceId));
 
   return (
     <article className="export-layer" aria-label={`${layer.displayId} ${layer.name}`}>
@@ -212,8 +215,30 @@ function LayerPreview({ locale, layer }: { locale: Locale; layer: ImageExportLay
       <div className="export-layer__content">
         <div className="export-layer-grid" aria-label={t(locale, 'layerGraphic', { displayId: layer.displayId })}>
           {layer.cells.map((cell) => (
-            <ExportCell key={cell.id} locale={locale} cell={cell} />
+            <ExportCell key={cell.id} locale={locale} cell={cell} footprintOverlayInstanceIds={footprintOverlayInstanceIds} />
           ))}
+          {footprintOverlays.length > 0 ? (
+            <div className="export-footprint-layer" aria-hidden="true">
+              {footprintOverlays.map((overlay) => (
+                <span
+                  className="export-footprint-overlay"
+                  data-testid={`export-footprint-overlay-${overlay.instance.instanceId}`}
+                  data-footprint-instance-id={overlay.instance.instanceId}
+                  data-footprint-asset-id={overlay.instance.assetId}
+                  data-effective-footprint={formatExportFootprint(overlay.instance.effectiveFootprint)}
+                  data-occupied-cells={overlay.instance.occupiedCells.map(formatExportCoordinate).join(' ')}
+                  key={overlay.instance.instanceId}
+                  style={getExportFootprintOverlayStyle(overlay)}
+                >
+                  {overlay.instance.thumbnailUrl ? (
+                    <img src={overlay.instance.thumbnailUrl} alt="" title={overlay.instance.assetName} />
+                  ) : (
+                    <span>{overlay.instance.assetName.slice(0, 1)}</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
         <section className="export-layer__materials" aria-label={t(locale, 'layerMaterialsList', { displayId: layer.displayId })}>
           {usageItems.length > 0 ? (
@@ -227,9 +252,18 @@ function LayerPreview({ locale, layer }: { locale: Locale; layer: ImageExportLay
   );
 }
 
-function ExportCell({ locale, cell }: { locale: Locale; cell: ImageExportCellSummary }) {
+function ExportCell({
+  locale,
+  cell,
+  footprintOverlayInstanceIds,
+}: {
+  locale: Locale;
+  cell: ImageExportCellSummary;
+  footprintOverlayInstanceIds: ReadonlySet<string>;
+}) {
   const firstInstance = cell.tileInstances[0] ?? null;
   const firstSkillMarker = cell.skillMarkers[0] ?? null;
+  const shouldRenderInlineInstance = Boolean(firstInstance && !footprintOverlayInstanceIds.has(firstInstance.instanceId));
   const label = firstInstance
     ? `${cell.coordinate.x},${cell.coordinate.y}: ${cell.tileInstances.map((instance) => instance.assetName).join(', ')}`
     : firstSkillMarker
@@ -243,10 +277,14 @@ function ExportCell({ locale, cell }: { locale: Locale; cell: ImageExportCellSum
       className="export-layer-cell"
       data-area={cell.areaType}
       data-empty={cell.empty}
+      data-footprint-instance-id={firstInstance?.instanceId ?? ''}
+      data-effective-footprint={firstInstance?.effectiveFootprint ? formatExportFootprint(firstInstance.effectiveFootprint) : ''}
       aria-label={label}
     >
-      {firstInstance?.thumbnailUrl ? (
+      {shouldRenderInlineInstance && firstInstance?.thumbnailUrl ? (
         <img src={firstInstance.thumbnailUrl} alt="" title={firstInstance.assetName} />
+      ) : shouldRenderInlineInstance && firstInstance ? (
+        <span>{firstInstance.assetName.slice(0, 1)}</span>
       ) : firstSkillMarker?.iconUrl ? (
         <img
           src={firstSkillMarker.iconUrl}
@@ -258,6 +296,49 @@ function ExportCell({ locale, cell }: { locale: Locale; cell: ImageExportCellSum
       ) : null}
     </div>
   );
+}
+
+interface ExportFootprintOverlay {
+  instance: ExportTileInstanceSummary;
+  anchorColumn: number;
+  anchorRow: number;
+}
+
+function getLayerFootprintOverlays(layer: ImageExportLayerSummary): ExportFootprintOverlay[] {
+  return layer.materials.flatMap((material) =>
+    material.instances
+      .filter((instance) => isMultiCellExportInstance(instance))
+      .map((instance) => ({
+        instance,
+        anchorColumn: instance.coordinate.x + 1,
+        anchorRow: instance.coordinate.y + 1,
+      })),
+  );
+}
+
+function isMultiCellExportInstance(instance: ExportTileInstanceSummary): boolean {
+  return Boolean(instance.effectiveFootprint && (instance.effectiveFootprint.length > 1 || instance.effectiveFootprint.width > 1));
+}
+
+function getExportFootprintOverlayStyle(overlay: ExportFootprintOverlay): CSSProperties {
+  const footprint = overlay.instance.effectiveFootprint;
+
+  if (!footprint) {
+    return {};
+  }
+
+  return {
+    gridColumn: `${overlay.anchorColumn} / span ${footprint.length}`,
+    gridRow: `${overlay.anchorRow} / span ${footprint.width}`,
+  };
+}
+
+function formatExportFootprint(footprint: ExportTileInstanceSummary['effectiveFootprint']): string {
+  return footprint ? `${footprint.length}x${footprint.width}x${footprint.height}` : '';
+}
+
+function formatExportCoordinate(coordinate: ImageExportCellSummary['coordinate']): string {
+  return `${coordinate.x},${coordinate.y}`;
 }
 
 interface ExportUsageItem {

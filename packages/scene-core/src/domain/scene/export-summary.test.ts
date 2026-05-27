@@ -197,15 +197,80 @@ describe('image export summary', () => {
       materialInstance.assetName = 'Changed by consumer';
       materialInstance.coordinate.x = 0;
       materialInstance.reproductionNotes.push('mutated');
+      materialInstance.footprint = { length: 99, width: 99, height: 99 };
+      materialInstance.occupiedCells[0].x = 99;
     }
 
     expect(cellInstance).toEqual(
       expect.objectContaining({
         assetName: '绿叶植物',
         coordinate: { x: 3, y: 3 },
+        footprint: { length: 1, width: 1, height: 1 },
+        occupiedCells: [{ x: 3, y: 3 }],
         reproductionNotes: ['技能: 树叶', '技能备注: Use <angle brackets> as plain text.', '染色: #88cc44', '旋转: 90°'],
       }),
     );
+  });
+
+  it('includes derived footprint, occupied cells and height blocking details without inflating instance counts', () => {
+    const summary = buildImageExportSummary(createFootprintExportScene());
+    const layerZero = summary.layers.find((layer) => layer.id === 'level-0');
+    const layerOne = summary.layers.find((layer) => layer.id === 'level-1');
+
+    expect(layerZero?.materialCount).toBe(3);
+    expect(layerZero?.cells.flatMap((cell) => cell.tileInstances)).toHaveLength(3);
+    expect(layerZero?.materials.find((material) => material.assetId === 'wooden-bench')?.count).toBe(1);
+    expect(layerZero?.materials.find((material) => material.assetId === 'large-narrow-rug')?.count).toBe(1);
+    expect(layerZero?.materials.find((material) => material.assetId === 'large-boulder')?.count).toBe(1);
+    expect(layerOne?.materialCount).toBe(0);
+
+    const bench = getLayerInstance(summary, 'level-0', 'tile-bench');
+    expect(bench).toMatchObject({
+      footprint: { length: 2, width: 1, height: 1 },
+      effectiveFootprint: { length: 2, width: 1, height: 1 },
+      occupiedCells: [
+        { x: 2, y: 2 },
+        { x: 3, y: 2 },
+      ],
+      blockingCells: [],
+      footprintWarnings: [],
+    });
+
+    const rotatedRug = getLayerInstance(summary, 'level-0', 'tile-rug');
+    expect(rotatedRug).toMatchObject({
+      footprint: { length: 1, width: 2, height: 1 },
+      effectiveFootprint: { length: 2, width: 1, height: 1 },
+      occupiedCells: [
+        { x: 5, y: 1 },
+        { x: 6, y: 1 },
+      ],
+    });
+
+    const boulder = getLayerInstance(summary, 'level-0', 'tile-boulder');
+    expect(boulder).toMatchObject({
+      footprint: { length: 2, width: 1, height: 2 },
+      effectiveFootprint: { length: 2, width: 1, height: 2 },
+      occupiedCells: [
+        { x: 1, y: 4 },
+        { x: 2, y: 4 },
+      ],
+      blockingCells: [
+        expect.objectContaining({
+          buildingLevelId: 'level-1',
+          buildingLevelNumber: 1,
+          coordinate: { x: 1, y: 4 },
+          blockedByInstanceId: 'tile-boulder',
+          blockedByAssetId: 'large-boulder',
+          blockedByBuildingLevelId: 'level-0',
+        }),
+        expect.objectContaining({
+          buildingLevelId: 'level-1',
+          buildingLevelNumber: 1,
+          coordinate: { x: 2, y: 4 },
+        }),
+      ],
+      footprintWarnings: [],
+    });
   });
 
   it('rejects scenes when a standalone skill marker cannot be represented in layer cell graphics', () => {
@@ -228,6 +293,19 @@ describe('image export summary', () => {
     );
   });
 });
+
+function getLayerInstance(summary: ReturnType<typeof buildImageExportSummary>, buildingLevelId: string, instanceId: string) {
+  const instance = summary.layers
+    .find((layer) => layer.id === buildingLevelId)
+    ?.materials.flatMap((material) => material.instances)
+    .find((candidate) => candidate.instanceId === instanceId);
+
+  if (!instance) {
+    throw new Error(`Expected export instance ${instanceId} on ${buildingLevelId}.`);
+  }
+
+  return instance;
+}
 
 function cloneForTest<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -286,5 +364,45 @@ function createExportScene() {
         skillType: '储水',
       }),
     ],
+  };
+}
+
+function createFootprintExportScene() {
+  const baseScene = createDefaultSceneDocument({
+    sceneId: 'scene-export-footprint-summary',
+    sceneName: 'Export Footprint Scene',
+    selectedPokemonKey: 'ditto',
+    now: '2026-05-27T08:00:00.000Z',
+  });
+
+  return {
+    ...baseScene,
+    buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
+    workspaceState: {
+      ...baseScene.workspaceState,
+      currentBuildingLevelId: 'level-0',
+    },
+    tileInstances: [
+      createTileInstance({
+        instanceId: 'tile-bench',
+        assetId: 'wooden-bench',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+      }),
+      createTileInstance({
+        instanceId: 'tile-rug',
+        assetId: 'large-narrow-rug',
+        coordinate: { x: 5, y: 1 },
+        buildingLevelId: 'level-0',
+        rotationDegrees: 90,
+      }),
+      createTileInstance({
+        instanceId: 'tile-boulder',
+        assetId: 'large-boulder',
+        coordinate: { x: 1, y: 4 },
+        buildingLevelId: 'level-0',
+      }),
+    ],
+    skillMarkers: [],
   };
 }

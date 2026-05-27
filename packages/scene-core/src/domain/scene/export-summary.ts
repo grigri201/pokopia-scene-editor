@@ -2,10 +2,12 @@ import {
   assetSkillTypes,
   getAssetById,
   getAssetSkillMarkerIconUrl,
+  type AssetFootprint,
   type AssetDefinition,
   type AssetSkillType,
   type ConcreteAssetSkillType,
 } from '../assets';
+import { buildSceneOccupancy, type BlockingCell, type OccupancyInstance, type SceneOccupancy } from './occupancy';
 import {
   getBuildingLevelContexts,
   getCanvasCellContexts,
@@ -15,6 +17,7 @@ import {
 import { sortBuildingLevelsForRender } from './levels';
 import type { AreaType, GridCoordinate } from './area';
 import type { RotationDegrees, SceneDocument, SkillMarker, TileInstance } from './types';
+import type { FootprintConflict } from './footprint';
 import {
   defaultLocale,
   getAssetDisplay,
@@ -109,11 +112,32 @@ export interface ExportTileInstanceSummary {
   skillType: AssetSkillType;
   skillNote: string;
   reproductionNotes: string[];
+  footprint: AssetFootprint | null;
+  effectiveFootprint: AssetFootprint | null;
+  occupiedCells: GridCoordinate[];
+  blockingCells: ExportFootprintBlockingSummary[];
+  footprintWarnings: string[];
+}
+
+export interface ExportFootprintBlockingSummary {
+  buildingLevelId: string;
+  buildingLevelNumber: number;
+  coordinate: GridCoordinate;
+  blockedByInstanceId: string;
+  blockedByAssetId: string;
+  blockedByBuildingLevelId: string;
+}
+
+interface ExportFootprintContext {
+  occupancyInstancesById: Map<string, OccupancyInstance>;
+  blockingCellsByInstanceId: Map<string, BlockingCell[]>;
+  conflictsByInstanceId: Map<string, FootprintConflict[]>;
 }
 
 export function buildImageExportSummary(scene: SceneDocument, locale: Locale = defaultLocale): ImageExportSummary {
+  const footprintContext = buildExportFootprintContext(buildSceneOccupancy(scene));
   const layers = sortBuildingLevelsForRender(getBuildingLevelContexts(scene)).map((level) =>
-    buildLayerSummary(scene, level, locale),
+    buildLayerSummary(scene, level, locale, footprintContext),
   );
   assertAllInstancesExported(scene, layers);
   assertAllSkillMarkersExported(scene, layers);
@@ -131,8 +155,13 @@ export function buildImageExportSummary(scene: SceneDocument, locale: Locale = d
   };
 }
 
-function buildLayerSummary(scene: SceneDocument, level: BuildingLevelContext, locale: Locale): ImageExportLayerSummary {
-  const cells = getCanvasCellContexts(scene, level.id).map((cell) => toExportCellSummary(cell, locale));
+function buildLayerSummary(
+  scene: SceneDocument,
+  level: BuildingLevelContext,
+  locale: Locale,
+  footprintContext: ExportFootprintContext,
+): ImageExportLayerSummary {
+  const cells = getCanvasCellContexts(scene, level.id).map((cell) => toExportCellSummary(cell, locale, footprintContext));
   const layerInstances = cells.flatMap((cell) => cell.tileInstances);
   const layerSkillMarkers = cells.flatMap((cell) => cell.skillMarkers);
   const skills = aggregateLayerSkills(layerInstances, layerSkillMarkers, locale);
@@ -149,8 +178,12 @@ function buildLayerSummary(scene: SceneDocument, level: BuildingLevelContext, lo
   };
 }
 
-function toExportCellSummary(cell: CanvasCellContext, locale: Locale): ImageExportCellSummary {
-  const tileInstances = cell.tileInstances.map((instance) => toExportTileInstanceSummary(instance, locale));
+function toExportCellSummary(
+  cell: CanvasCellContext,
+  locale: Locale,
+  footprintContext: ExportFootprintContext,
+): ImageExportCellSummary {
+  const tileInstances = cell.tileInstances.map((instance) => toExportTileInstanceSummary(instance, locale, footprintContext));
   const skillMarkers = cell.skillMarkers.map((marker) => toExportSkillMarkerSummary(marker, locale));
 
   return {
@@ -247,9 +280,19 @@ function aggregateLayerSkills(
   return sortSkillSummaries(Array.from(skillsByType.values()));
 }
 
-function toExportTileInstanceSummary(instance: TileInstance, locale: Locale): ExportTileInstanceSummary {
+function toExportTileInstanceSummary(
+  instance: TileInstance,
+  locale: Locale,
+  footprintContext: ExportFootprintContext,
+): ExportTileInstanceSummary {
   const asset = getAssetById(instance.assetId);
   const assetDisplay = asset ? getAssetDisplay(asset, locale) : null;
+  const occupancyInstance = footprintContext.occupancyInstancesById.get(instance.instanceId);
+  const footprintWarnings = footprintContext.conflictsByInstanceId.get(instance.instanceId)?.map((conflict) => conflict.message) ?? [];
+
+  if (!asset) {
+    footprintWarnings.push(`Unknown asset footprint metadata: ${instance.assetId}`);
+  }
 
   return {
     instanceId: instance.instanceId,
@@ -267,6 +310,11 @@ function toExportTileInstanceSummary(instance: TileInstance, locale: Locale): Ex
     skillType: instance.skillType,
     skillNote: instance.skillNote,
     reproductionNotes: buildReproductionNotes(instance, locale),
+    footprint: asset ? cloneFootprint(asset.footprint) : null,
+    effectiveFootprint: occupancyInstance ? cloneFootprint(occupancyInstance.effectiveFootprint) : null,
+    occupiedCells: occupancyInstance ? cloneCoordinates(occupancyInstance.occupiedCells) : [{ ...instance.coordinate }],
+    blockingCells: cloneBlockingCells(footprintContext.blockingCellsByInstanceId.get(instance.instanceId) ?? []),
+    footprintWarnings,
   };
 }
 
@@ -324,7 +372,74 @@ function cloneExportTileInstanceSummary(instance: ExportTileInstanceSummary): Ex
     ...instance,
     coordinate: { ...instance.coordinate },
     reproductionNotes: [...instance.reproductionNotes],
+    footprint: instance.footprint ? cloneFootprint(instance.footprint) : null,
+    effectiveFootprint: instance.effectiveFootprint ? cloneFootprint(instance.effectiveFootprint) : null,
+    occupiedCells: cloneCoordinates(instance.occupiedCells),
+    blockingCells: cloneBlockingCells(instance.blockingCells),
+    footprintWarnings: [...instance.footprintWarnings],
   };
+}
+
+function buildExportFootprintContext(occupancy: SceneOccupancy): ExportFootprintContext {
+  const occupancyInstancesById = new Map<string, OccupancyInstance>();
+  const blockingCellsByInstanceId = new Map<string, BlockingCell[]>();
+  const conflictsByInstanceId = new Map<string, FootprintConflict[]>();
+
+  for (const occupancyInstance of occupancy.instances) {
+    occupancyInstancesById.set(occupancyInstance.instanceId, occupancyInstance);
+  }
+
+  for (const blockingCell of occupancy.blockingCells) {
+    const blockingCells = blockingCellsByInstanceId.get(blockingCell.blockedByInstanceId) ?? [];
+    blockingCells.push(blockingCell);
+    blockingCellsByInstanceId.set(blockingCell.blockedByInstanceId, blockingCells);
+  }
+
+  for (const conflict of occupancy.conflicts) {
+    addConflictByInstanceId(conflictsByInstanceId, conflict.instanceId, conflict);
+    if (conflict.blockingInstanceId) {
+      addConflictByInstanceId(conflictsByInstanceId, conflict.blockingInstanceId, conflict);
+    }
+  }
+
+  return {
+    occupancyInstancesById,
+    blockingCellsByInstanceId,
+    conflictsByInstanceId,
+  };
+}
+
+function addConflictByInstanceId(
+  conflictsByInstanceId: Map<string, FootprintConflict[]>,
+  instanceId: string,
+  conflict: FootprintConflict,
+): void {
+  const conflicts = conflictsByInstanceId.get(instanceId) ?? [];
+  conflicts.push(conflict);
+  conflictsByInstanceId.set(instanceId, conflicts);
+}
+
+function cloneFootprint(footprint: AssetFootprint): AssetFootprint {
+  return {
+    length: footprint.length,
+    width: footprint.width,
+    height: footprint.height,
+  };
+}
+
+function cloneCoordinates(coordinates: readonly GridCoordinate[]): GridCoordinate[] {
+  return coordinates.map((coordinate) => ({ x: coordinate.x, y: coordinate.y }));
+}
+
+function cloneBlockingCells(cells: readonly ExportFootprintBlockingSummary[]): ExportFootprintBlockingSummary[] {
+  return cells.map((cell) => ({
+    buildingLevelId: cell.buildingLevelId,
+    buildingLevelNumber: cell.buildingLevelNumber,
+    coordinate: { x: cell.coordinate.x, y: cell.coordinate.y },
+    blockedByInstanceId: cell.blockedByInstanceId,
+    blockedByAssetId: cell.blockedByAssetId,
+    blockedByBuildingLevelId: cell.blockedByBuildingLevelId,
+  }));
 }
 
 function createSkillSummary(skillType: ConcreteAssetSkillType, locale: Locale): ExportSkillSummary {

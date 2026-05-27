@@ -183,6 +183,58 @@ describe('PreviewInspector', () => {
     );
   });
 
+  it('renders current-layer wide footprint as a single anchor-bound top-view overlay', () => {
+    const { container } = render(
+      <PreviewInspector
+        scene={createFootprintPreviewScene()}
+        activeBuildingLevelId="level-0"
+        selectedCoordinate={{ x: 2, y: 2 }}
+        selectedInstanceId="tile-bench"
+        readOnly={false}
+      />,
+    );
+
+    const overlay = screen.getByTestId('top-footprint-overlay-tile-bench');
+    const anchor = container.querySelector('.top-cell[data-preview-coordinate="2,2"]');
+    const occupied = container.querySelector('.top-cell[data-preview-coordinate="3,2"]');
+
+    expect(overlay).toHaveAttribute('data-footprint-asset-id', 'wooden-bench');
+    expect(overlay).toHaveAttribute('data-effective-footprint', '2x1x1');
+    expect(overlay).toHaveAttribute('data-footprint-anchor-coordinate', '2,2');
+    expect(anchor).toHaveAttribute('data-preview-footprint-role', 'anchor');
+    expect(anchor).toHaveAttribute('data-preview-footprint-instance-id', 'tile-bench');
+    expect(occupied).toHaveAttribute('data-preview-footprint-role', 'occupied');
+    expect(occupied).toHaveAttribute('data-preview-footprint-instance-id', 'tile-bench');
+    expect(occupied).toHaveAttribute('data-preview-footprint-anchor-coordinate', '2,2');
+    expect(container.querySelectorAll('[data-testid^="top-footprint-overlay-"]')).toHaveLength(2);
+    expect(container.querySelectorAll('.top-cell[data-preview-instance-id="tile-bench"]')).toHaveLength(1);
+  });
+
+  it('renders height footprint in front view without counting derived blocking as real instances', () => {
+    const { container } = render(
+      <PreviewInspector
+        scene={createFootprintPreviewScene()}
+        activeBuildingLevelId="level-0"
+        selectedCoordinate={{ x: 1, y: 4 }}
+        selectedInstanceId="tile-boulder"
+        readOnly={false}
+      />,
+    );
+
+    const overlay = screen.getByTestId('front-height-footprint-overlay-tile-boulder');
+    const blockedCell = container.querySelector('.front-cell[data-front-level-id="level-1"][data-front-x="1"]');
+
+    expect(overlay).toHaveAttribute('data-footprint-asset-id', 'large-boulder');
+    expect(overlay).toHaveAttribute('data-effective-footprint', '2x1x2');
+    expect(overlay).toHaveAttribute('data-footprint-height-span', '2');
+    expect(overlay).toHaveAttribute('data-blocked-level-ids', 'level-1');
+    expect(overlay).toHaveAttribute('data-footprint-x-span', '2');
+    expect(blockedCell).toHaveAttribute('data-preview-has-instance', 'false');
+    expect(blockedCell).toHaveAttribute('data-front-footprint-blocked', 'true');
+    expect(blockedCell).toHaveAttribute('data-front-blocked-by-instance-id', 'tile-boulder');
+    expect(screen.getByLabelText('Front preview item summary')).toHaveTextContent('2 visible items projected across 3 layers');
+  });
+
   it('keeps the front view in a scrollable seven-layer viewport when scenes exceed seven layers', () => {
     const manyLevelScene = {
       ...scene,
@@ -262,3 +314,34 @@ describe('PreviewInspector', () => {
     expect(frontScrollShell).toHaveAttribute('data-front-scroll-can-down', 'false');
   });
 });
+
+function createFootprintPreviewScene() {
+  const baseScene = createDefaultSceneDocument({
+    sceneId: 'scene-preview-footprint',
+    selectedCoordinate: { x: 2, y: 2 },
+    now: '2026-05-27T08:20:00.000Z',
+  });
+
+  return {
+    ...baseScene,
+    buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
+    workspaceState: {
+      ...baseScene.workspaceState,
+      currentBuildingLevelId: 'level-0',
+    },
+    tileInstances: [
+      createTileInstance({
+        instanceId: 'tile-bench',
+        assetId: 'wooden-bench',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+      }),
+      createTileInstance({
+        instanceId: 'tile-boulder',
+        assetId: 'large-boulder',
+        coordinate: { x: 1, y: 4 },
+        buildingLevelId: 'level-0',
+      }),
+    ],
+  };
+}

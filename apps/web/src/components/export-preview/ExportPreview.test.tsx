@@ -86,6 +86,27 @@ describe('ExportPreview', () => {
     expect(screen.getByLabelText('Export image content')).not.toHaveTextContent(/[一-龥]/);
   });
 
+  it('renders footprint overlays in layer graphics while keeping material lists instance-count based', () => {
+    render(<ExportPreview summary={buildImageExportSummary(createFootprintPreviewScene())} onClose={vi.fn()} />);
+
+    const layerGraphic = screen.getByLabelText('L0 7x7 图形');
+    const layerMaterials = screen.getByLabelText('L0 使用素材清单');
+    const benchOverlay = screen.getByTestId('export-footprint-overlay-tile-bench');
+    const boulderOverlay = screen.getByTestId('export-footprint-overlay-tile-boulder');
+
+    expect(layerGraphic.querySelectorAll('.export-layer-cell')).toHaveLength(49);
+    expect(benchOverlay).toHaveAttribute('data-footprint-asset-id', 'wooden-bench');
+    expect(benchOverlay).toHaveAttribute('data-effective-footprint', '2x1x1');
+    expect(benchOverlay).toHaveAttribute('data-occupied-cells', '2,2 3,2');
+    expect(boulderOverlay).toHaveAttribute('data-footprint-asset-id', 'large-boulder');
+    expect(boulderOverlay).toHaveAttribute('data-effective-footprint', '2x1x2');
+    expect(layerMaterials.querySelectorAll('li')).toHaveLength(2);
+    expect(Array.from(layerMaterials.querySelectorAll('.export-material-list__row span')).map((node) => node.textContent)).toEqual([
+      'x1',
+      'x1',
+    ]);
+  });
+
   it('focuses the dialog controls, traps tab focus, restores focus and disables download without a handler', () => {
     const opener = document.createElement('button');
     opener.textContent = 'open export';
@@ -162,5 +183,33 @@ function createPreviewScene() {
         skillNote: unsafeAngleText,
       }),
     ],
+  };
+}
+
+function createFootprintPreviewScene() {
+  const baseScene = createDefaultSceneDocument({
+    sceneId: 'scene-export-footprint-preview',
+    sceneName: 'Footprint Export Preview',
+    now: '2026-05-27T08:35:00.000Z',
+  });
+
+  return {
+    ...baseScene,
+    buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
+    tileInstances: [
+      createTileInstance({
+        instanceId: 'tile-bench',
+        assetId: 'wooden-bench',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+      }),
+      createTileInstance({
+        instanceId: 'tile-boulder',
+        assetId: 'large-boulder',
+        coordinate: { x: 1, y: 4 },
+        buildingLevelId: 'level-0',
+      }),
+    ],
+    skillMarkers: [],
   };
 }
