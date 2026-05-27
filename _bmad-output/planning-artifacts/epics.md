@@ -8,10 +8,12 @@ inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/architecture.md
   - _bmad-output/planning-artifacts/ux-design-specification.md
-  - _bmad-output/planning-artifacts/ux-design-directions.html
-  - _bmad-output/planning-artifacts/prd-validation-report.md
-  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-19.md
-  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-22.md
+  - _bmad-output/archive/2026-05-27/planning-artifacts/supporting-documents/ux-design-directions.html
+  - _bmad-output/archive/2026-05-27/planning-artifacts/supporting-documents/prd-validation-report.md
+  - _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-19.md
+  - _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-22.md
+  - _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-25.md
+  - _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-27.md
   - docs/需求文档.md
 ---
 
@@ -23,21 +25,21 @@ This document provides the complete epic and story breakdown for pokopia-scene-e
 
 ## Approved Course Correction - 2026-05-19
 
-`sprint-change-proposal-2026-05-19.md` 已批准。Epic 1-4 保留为已完成历史，但其中涉及以下能力的验收点不再代表当前 MVP 目标：建筑层隐藏/显示/锁定/解锁、手动保存、dirty/saved/saveError 状态区分、Undo/Redo、素材空状态恢复动作、素材适用区域的放置阻断校验、同层素材堆叠、素材实例移动、普通实例备注 `note`、按素材区分是否可旋转、预览网格/主体边界/技能标记显示开关，以及 Mobile 下应用级键盘操作。
+`_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-19.md` 已批准。Epic 1-4 保留为已完成历史，但其中涉及以下能力的验收点不再代表当前 MVP 目标：建筑层隐藏/显示/锁定/解锁、手动保存、dirty/saved/saveError 状态区分、Undo/Redo、素材空状态恢复动作、素材适用区域的放置阻断校验、同层素材堆叠、素材实例移动、普通实例备注 `note`、按素材区分是否可旋转、预览网格/主体边界/技能标记显示开关，以及 Mobile 下应用级键盘操作。
 
 Epic 5 已完成并保留为已完成历史。后续新功能不得通过重写 Epic 1-5 完成记录吸收。
 
 ## Approved Course Correction - 2026-05-22
 
-`sprint-change-proposal-2026-05-22.md` 已批准。Epic 1-5 保留为已完成历史；当前新增 Epic 6，用于图片导出预览与图片导出。导出图片必须包含整体使用素材、每层图形和每层使用素材。当前不新增导入、JSON 文件导出、分享链接、云同步、账号或在线发布。
+`_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-22.md` 已批准。Epic 1-5 保留为已完成历史；当前新增 Epic 6，用于图片导出预览与图片导出。导出图片必须包含整体使用素材、每层图形和每层使用素材。当前不新增导入、JSON 文件导出、分享链接、云同步、账号或在线发布。
 
 ## Approved Course Correction - 2026-05-25
 
-`sprint-change-proposal-2026-05-25.md` 已批准。Epic 1-6 保留为已完成历史；当前新增 Epic 7，用于 pnpm workspace monorepo、`scene-core` 共享领域核心、Cloudflare Worker HTTP API、Streamable HTTP MCP server 和 repo-scoped Codex skill。第一阶段不新增账号、数据库、云保存、分享链接、在线发布、服务端图片渲染或 AI 自动生成完整布景。
+`_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-25.md` 已批准。Epic 1-6 保留为已完成历史；当前新增 Epic 7，用于 pnpm workspace monorepo、`scene-core` 共享领域核心、Cloudflare Worker HTTP API、Streamable HTTP MCP server 和 repo-scoped Codex skill。第一阶段不新增账号、数据库、云保存、分享链接、在线发布、服务端图片渲染或 AI 自动生成完整布景。
 
 ## Approved Course Correction - 2026-05-27
 
-`sprint-change-proposal-2026-05-27.md` 已批准。Epic 1-7 保留为已完成历史；当前新增 Epic 8，用于真实素材 footprint metadata、旋转后占用格、height 跨层阻塞、跨格渲染、保存/恢复/短字符串兼容，以及 Worker/MCP/Codex skill 与 `scene-core` 的规则一致性。本次不创建 `SceneDocument v2`，不保存 blocking cells，也不把 footprint 作为实例级 payload 字段。
+`_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-27.md` 已批准。Epic 1-7 保留为已完成历史；当前新增 Epic 8，用于真实素材 footprint metadata、旋转后占用格、height 跨层阻塞、跨格渲染、保存/恢复/短字符串兼容，以及 Worker/MCP/Codex skill 与 `scene-core` 的规则一致性。本次不创建 `SceneDocument v2`，不保存 blocking cells，也不把 footprint 作为实例级 payload 字段。
 
 ## Requirements Inventory
 

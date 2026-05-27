@@ -10,11 +10,12 @@ stepsCompleted:
   - 8
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
-  - _bmad-output/planning-artifacts/prd-validation-report.md
+  - _bmad-output/archive/2026-05-27/planning-artifacts/supporting-documents/prd-validation-report.md
   - _bmad-output/planning-artifacts/ux-design-specification.md
-  - _bmad-output/planning-artifacts/ux-design-directions.html
-  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-25.md
-  - _bmad-output/planning-artifacts/research/technical-pokopia-scene-editor-cloudflare-worker-mcp-server-codex-skill-research-2026-05-25.md
+  - _bmad-output/archive/2026-05-27/planning-artifacts/supporting-documents/ux-design-directions.html
+  - _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-25.md
+  - _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-27.md
+  - _bmad-output/archive/2026-05-27/planning-artifacts/supporting-documents/research/technical-pokopia-scene-editor-cloudflare-worker-mcp-server-codex-skill-research-2026-05-25.md
   - docs/需求文档.md
 workflowType: 'architecture'
 project_name: 'pokopia-scene-editor'
@@ -56,7 +57,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Approved Course Correction - 2026-05-19
 
-本 Architecture 已按 `sprint-change-proposal-2026-05-19.md` 更新 MVP 架构边界。任何旧段落中关于建筑层隐藏/锁定、手动保存、dirty/saved/saveError、撤销/重做、素材空状态恢复动作、素材适用区域阻断校验、素材堆叠、实例移动、普通实例备注、素材可旋转差异、预览网格/主体边界/技能标记显示开关，以及 Mobile 下键盘查看操作的架构要求均被本节覆盖。
+本 Architecture 已按 `_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-19.md` 更新 MVP 架构边界。任何旧段落中关于建筑层隐藏/锁定、手动保存、dirty/saved/saveError、撤销/重做、素材空状态恢复动作、素材适用区域阻断校验、素材堆叠、实例移动、普通实例备注、素材可旋转差异、预览网格/主体边界/技能标记显示开关，以及 Mobile 下键盘查看操作的架构要求均被本节覆盖。
 
 当前架构约束：
 
@@ -72,13 +73,13 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Approved Course Correction - 2026-05-22
 
-本 Architecture 已按 `sprint-change-proposal-2026-05-22.md` 增加图片导出预览和图片导出边界。当前用户可见导出产物是图片，不是 JSON 文件；图片必须包含整体使用素材、每层图形和每层使用素材。
+本 Architecture 已按 `_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-22.md` 增加图片导出预览和图片导出边界。当前用户可见导出产物是图片，不是 JSON 文件；图片必须包含整体使用素材、每层图形和每层使用素材。
 
 `SceneDocument`、asset catalog 和 preview/export selectors 是图片导出的唯一业务数据源。图片导出不得维护第二套业务状态，不得修改 `SceneDocument`，不得触发 autosave，不得写入 `pokopia.sceneDocument.v1` 或 `pokopia.sceneDocument.autosave.v1`。当前不引入导入、JSON export UI、server route、auth、cloud storage、share URL、账号或在线发布。
 
 ### Approved Course Correction - 2026-05-25
 
-本 Architecture 已按 `sprint-change-proposal-2026-05-25.md` 增加 Epic 7 服务化边界。已完成的 MVP 仍保持浏览器客户端优先；新增工作是把可脱离 DOM、React 和 localStorage 的领域能力抽取到共享 `packages/scene-core`，并通过 pnpm workspace monorepo 中的 `apps/web`、`apps/worker` 和 repo-scoped Codex skill 共同复用。
+本 Architecture 已按 `_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-25.md` 增加 Epic 7 服务化边界。已完成的 MVP 仍保持浏览器客户端优先；新增工作是把可脱离 DOM、React 和 localStorage 的领域能力抽取到共享 `packages/scene-core`，并通过 pnpm workspace monorepo 中的 `apps/web`、`apps/worker` 和 repo-scoped Codex skill 共同复用。
 
 目标目录结构改为 monorepo：现有前端 UI 从根目录迁入 `apps/web/src/`；Cloudflare Worker HTTP API 和 Streamable HTTP MCP server 放入 `apps/worker/`；共享领域逻辑放入 `packages/scene-core/`。根 `package.json` 只做 pnpm workspace orchestration，Wrangler 部署命令通过 `pnpm run worker:*` 和 `pnpm run deploy` 暴露。
 
@@ -86,7 +87,7 @@ Worker 第一阶段无状态，不引入数据库、账号、云保存、分享�
 
 ### Approved Course Correction - 2026-05-27
 
-本 Architecture 已按 `sprint-change-proposal-2026-05-27.md` 增加 Epic 8 footprint/occupancy 边界。当前 `SceneDocument v1` 继续作为保存、恢复、短字符串、Worker API 和 MCP tools 的输入/输出契约；本次不创建 `SceneDocument v2`，不保存 blocking cells，不在 tile instance 上保存 footprint snapshot 或 override。
+本 Architecture 已按 `_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-27.md` 增加 Epic 8 footprint/occupancy 边界。当前 `SceneDocument v1` 继续作为保存、恢复、短字符串、Worker API 和 MCP tools 的输入/输出契约；本次不创建 `SceneDocument v2`，不保存 blocking cells，不在 tile instance 上保存 footprint snapshot 或 override。
 
 Footprint 是 asset catalog metadata：每个 asset 拥有 `footprint.length`、`footprint.width`、`footprint.height`，默认 1x1x1，真实大素材通过集中 override 覆盖。`packages/scene-core` 必须提供 DOM-free helpers 计算 effective footprint、occupied cells、same-layer overlap、canvas bounds 和 height-derived blocking cells。`apps/web`、`apps/worker`、MCP tools/resources 和 Codex skill 只能调用这些 helpers，不能复制规则。
 
@@ -860,12 +861,23 @@ pokopia-scene-editor/
 ├── docs/
 │   └── 需求文档.md
 └── _bmad-output/
-    └── planning-artifacts/
-        ├── prd.md
-        ├── prd-validation-report.md
-        ├── ux-design-specification.md
-        ├── ux-design-directions.html
-        └── architecture.md
+    ├── planning-artifacts/
+    │   ├── prd.md
+    │   ├── ux-design-specification.md
+    │   ├── epics.md
+    │   └── architecture.md
+    ├── implementation-artifacts/
+    │   ├── sprint-status.yaml
+    │   ├── spec-system-i18n-zh-en.md
+    │   └── review-*-system-i18n-zh-en.md
+    └── archive/
+        └── 2026-05-27/
+            ├── implementation-artifacts/
+            │   ├── completed-stories/
+            │   └── completed-specs/
+            └── planning-artifacts/
+                ├── sprint-change-proposals/
+                └── supporting-documents/
 ```
 
 ### Architectural Boundaries

@@ -17,7 +17,7 @@ stepsCompleted:
 lastStep: 14
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
-  - _bmad-output/planning-artifacts/prd-validation-report.md
+  - _bmad-output/archive/2026-05-27/planning-artifacts/supporting-documents/prd-validation-report.md
   - docs/需求文档.md
 ---
 
@@ -38,7 +38,7 @@ pokopia-scene-editor 是一个面向 Pokopia 布景创作者的结构化 5×5 �
 
 ### Approved Course Correction - 2026-05-19
 
-本 UX 规格已按 `sprint-change-proposal-2026-05-19.md` 收敛 MVP。任何旧段落中关于建筑层隐藏/锁定、手动保存、dirty/saved/saveError、撤销/重做、素材空状态恢复动作、素材适用区域阻断校验、素材堆叠、实例移动、普通实例备注、素材可旋转差异、预览网格/主体边界/技能标记开关，以及 Mobile 下键盘查看操作的要求均被本节覆盖。
+本 UX 规格已按 `_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-19.md` 收敛 MVP。任何旧段落中关于建筑层隐藏/锁定、手动保存、dirty/saved/saveError、撤销/重做、素材空状态恢复动作、素材适用区域阻断校验、素材堆叠、实例移动、普通实例备注、素材可旋转差异、预览网格/主体边界/技能标记开关，以及 Mobile 下键盘查看操作的要求均被本节覆盖。
 
 更新后的 MVP 交互原则：
 
@@ -52,19 +52,19 @@ pokopia-scene-editor 是一个面向 Pokopia 布景创作者的结构化 5×5 �
 
 ### Approved Course Correction - 2026-05-22
 
-本 UX 规格已按 `sprint-change-proposal-2026-05-22.md` 增加图片导出预览和图片导出。当前导出入口不再指 JSON 文件导出；它应打开一张即将下载的布景说明图片预览，图片必须包含整体使用素材、逐层图形和逐层素材清单。
+本 UX 规格已按 `_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-22.md` 增加图片导出预览和图片导出。当前导出入口不再指 JSON 文件导出；它应打开一张即将下载的布景说明图片预览，图片必须包含整体使用素材、逐层图形和逐层素材清单。
 
 导出预览和下载不得修改当前场景、不得触发 autosave、不得写入 saved storage 或 UI preferences。导入、JSON 文件导出/导入、分享链接、云同步、账号、公开方案库和在线发布仍为 Post-MVP 或 out of scope。
 
 ### Approved Course Correction - 2026-05-25
 
-本 UX 规格已按 `sprint-change-proposal-2026-05-25.md` 增加 Worker、MCP 和 Codex skill 的 developer/agent workflow。当前终端用户工作台不新增 API console、登录、云保存、分享链接或服务端图片生成入口；现有图片导出预览和下载仍是浏览器内体验。
+本 UX 规格已按 `_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-25.md` 增加 Worker、MCP 和 Codex skill 的 developer/agent workflow。当前终端用户工作台不新增 API console、登录、云保存、分享链接或服务端图片生成入口；现有图片导出预览和下载仍是浏览器内体验。
 
 仓库结构将按 pnpm workspace monorepo 调整：现有 React 浏览器 UI 归入 `apps/web/src/`，只把可脱离 DOM/React/localStorage 的领域规则抽取到 `packages/scene-core/`；`apps/worker/` 和 Codex skill 只提供工具化调用面。任何 agent-facing 输出必须服务布景校验、恢复、素材查询和导出摘要等具体任务，而不是把底层 API 噪音暴露给用户。
 
 ### Approved Course Correction - 2026-05-27
 
-本 UX 规格已按 `sprint-change-proposal-2026-05-27.md` 增加真实素材 footprint 与跨层占用规则。终端用户工作台必须把大素材显示为跨格实例，而不是在每个格子重复显示；90/270 度旋转后，放置预览和已放置素材都要交换 length/width 方向。height 大于 1 的素材会让上方建筑层对应格子显示为不可放置，但这些不可放置状态是 `scene-core` 派生结果，不是用户可编辑或可保存字段。
+本 UX 规格已按 `_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-27.md` 增加真实素材 footprint 与跨层占用规则。终端用户工作台必须把大素材显示为跨格实例，而不是在每个格子重复显示；90/270 度旋转后，放置预览和已放置素材都要交换 length/width 方向。height 大于 1 的素材会让上方建筑层对应格子显示为不可放置，但这些不可放置状态是 `scene-core` 派生结果，不是用户可编辑或可保存字段。
 
 本次 UX 不新增 SceneDocument v2、footprint 编辑器或高级遮挡控制。素材维护者通过 catalog metadata 维护 footprint；创作者只在素材详情、放置预览、不可放置提示、预览和图片导出中看到该规则的结果。
 

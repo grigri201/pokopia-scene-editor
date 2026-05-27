@@ -32,17 +32,21 @@ classification:
 releaseMode: phased
 courseCorrections:
   - date: '2026-05-19'
-    source: _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-19.md
+    source: _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-19.md
     status: approved
     summary: MVP scope reduced; remove layer hidden/locked state, manual save, save status distinction, undo/redo, empty-state recovery actions, area placement validation, stacking, instance movement, ordinary instance notes, can-rotate differentiation, preview overlay toggles; mobile blocks all app keyboard operations.
   - date: '2026-05-22'
-    source: _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-22.md
+    source: _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-22.md
     status: approved
     summary: Add image export preview and image download as Epic 6; exported image must include overall used materials, per-layer graphics, and per-layer material lists; JSON export/import, import, sharing, cloud sync, accounts, and online publishing remain out of scope.
   - date: '2026-05-25'
-    source: _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-25.md
+    source: _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-25.md
     status: approved
     summary: Add Epic 7 for pnpm workspace monorepo serviceization: move the existing React UI into apps/web, extract shared scene-core domain logic, add Cloudflare Worker HTTP API and Streamable HTTP MCP in apps/worker, and wrap the service with a repo-scoped Codex skill without adding accounts, persistence, cloud sync, sharing, or server-side image generation.
+  - date: '2026-05-27'
+    source: _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-27.md
+    status: approved
+    summary: Add Epic 8 for real asset footprint metadata, rotated occupancy, height-derived blocking, cross-cell rendering, persistence compatibility, and Worker/MCP/Codex skill rule parity without introducing SceneDocument v2.
 ---
 
 # 产品需求文档 - pokopia-scene-editor
@@ -60,25 +64,25 @@ Pokopia 5×5 布景编辑器是一个面向 Pokopia 布景创作者的 Web App�
 
 ### Approved Course Correction - 2026-05-19
 
-本 PRD 已按 `sprint-change-proposal-2026-05-19.md` 收敛 MVP 范围。自本节起，任何旧段落中关于以下能力的 MVP 要求均视为废弃：建筑层隐藏/显示/锁定/解锁、手动保存、dirty/saved/saveError 状态区分、Undo/Redo、素材空状态恢复动作、素材适用区域的放置阻断校验、同层素材堆叠、素材实例移动、普通实例备注 `note`、素材是否可旋转的差异，以及预览中的网格/主体边界/技能标记显示控制。
+本 PRD 已按 `_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-19.md` 收敛 MVP 范围。自本节起，任何旧段落中关于以下能力的 MVP 要求均视为废弃：建筑层隐藏/显示/锁定/解锁、手动保存、dirty/saved/saveError 状态区分、Undo/Redo、素材空状态恢复动作、素材适用区域的放置阻断校验、同层素材堆叠、素材实例移动、普通实例备注 `note`、素材是否可旋转的差异，以及预览中的网格/主体边界/技能标记显示控制。
 
 MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区识别、建筑层创建/删除/重命名/复制/切换、素材浏览/筛选/选择、素材放置/删除/替换、所有素材 0/90/180/270 度旋转、染色、实例级百变怪技能标记和技能备注、左下俯视/正视预览、自动保存、重新打开恢复和 SceneDocument v1 校验。Mobile View-only Mode 下必须屏蔽所有应用级键盘操作；桌面/平板键盘操作不作为 MVP 强制要求。
 
 ### Approved Course Correction - 2026-05-22
 
-本 PRD 已按 `sprint-change-proposal-2026-05-22.md` 扩展当前 backlog。新增目标是图片导出预览与图片导出，而不是 JSON 文件导出。导出的图片必须包含整体使用的素材、每层的图形和每层使用的素材。
+本 PRD 已按 `_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-22.md` 扩展当前 backlog。新增目标是图片导出预览与图片导出，而不是 JSON 文件导出。导出的图片必须包含整体使用的素材、每层的图形和每层使用的素材。
 
 `SceneDocument v1` 仍是自动保存、恢复、预览和图片导出的内部事实来源，但不是本次用户可下载的导出产物。当前系统没有导入功能；本次不新增 JSON 导入、图片导入、从导出图片恢复场景、分享链接、云同步、账号、公开方案库或在线发布。
 
 ### Approved Course Correction - 2026-05-25
 
-本 PRD 已按 `sprint-change-proposal-2026-05-25.md` 增加服务化与 agent tooling 范围。当前已完成的浏览器编辑器仍保持客户端优先；新增目标是把可脱离 DOM、React 和 localStorage 的领域能力抽取为共享 `scene-core`，并通过 pnpm workspace monorepo 中的 `apps/web`、`apps/worker` 和 `packages/scene-core` 共同复用。
+本 PRD 已按 `_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-25.md` 增加服务化与 agent tooling 范围。当前已完成的浏览器编辑器仍保持客户端优先；新增目标是把可脱离 DOM、React 和 localStorage 的领域能力抽取为共享 `scene-core`，并通过 pnpm workspace monorepo 中的 `apps/web`、`apps/worker` 和 `packages/scene-core` 共同复用。
 
 新增服务化范围只覆盖无状态 Worker 能力：默认/确定性 `SceneDocument` 生成、schema 校验、恢复/decode、导出摘要 JSON、素材查询、短字符串 encode/decode、MCP tools/resources/prompts 和 repo-scoped Codex skill workflow。第一阶段不新增账号、数据库、云保存、公开方案库、分享链接、在线发布、服务端 PNG/图片生成或 AI 自动创作完整布景。
 
 ### Approved Course Correction - 2026-05-27
 
-本 PRD 已按 `sprint-change-proposal-2026-05-27.md` 增加 Epic 8，用于真实素材 footprint、旋转后占用格、跨建筑层阻塞、跨格显示和全端规则一致性。当前 `SceneDocument v1` 继续作为保存、恢复、短字符串和 Worker/MCP 输入的当前契约；本次不创建 `SceneDocument v2`，因为 footprint 属于 asset catalog 元数据，阻塞状态和占用状态必须由 `scene-core` 从 `assetId`、`coordinate`、`buildingLevelId`、`rotationDegrees` 和当前 catalog 派生，不能作为独立 scene state 保存。
+本 PRD 已按 `_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-27.md` 增加 Epic 8，用于真实素材 footprint、旋转后占用格、跨建筑层阻塞、跨格显示和全端规则一致性。当前 `SceneDocument v1` 继续作为保存、恢复、短字符串和 Worker/MCP 输入的当前契约；本次不创建 `SceneDocument v2`，因为 footprint 属于 asset catalog 元数据，阻塞状态和占用状态必须由 `scene-core` 从 `assetId`、`coordinate`、`buildingLevelId`、`rotationDegrees` 和当前 catalog 派生，不能作为独立 scene state 保存。
 
 现有素材迁移策略是：所有 catalog asset 默认 footprint 为 `{ length: 1, width: 1, height: 1 }`，再用可审计 override 补充真实大素材。90/270 度旋转时 length/width 占用格必须交换；height 大于 1 时，上方建筑层对应 footprint cells 显示为不可放置。Web 编辑画布、俯视/正视预览、图片导出、Worker validate/recover/export-summary、MCP resources/tools 和 Codex skill 必须复用同一套 `scene-core` footprint/occupancy helpers。
 

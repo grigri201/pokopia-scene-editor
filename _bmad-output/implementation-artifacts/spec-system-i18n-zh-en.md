@@ -8,7 +8,7 @@ baseline_commit: '8d481d89a8ea62b7710f8ceb3c298dd7f9f36010'
 context:
   - '_bmad-output/planning-artifacts/prd.md'
   - '_bmad-output/planning-artifacts/architecture.md'
-  - '_bmad-output/implementation-artifacts/4-6-localstorage-ui-preferences.md'
+  - '_bmad-output/archive/2026-05-27/implementation-artifacts/completed-stories/4-6-localstorage-ui-preferences.md'
 ---
 
 # 系统级中英文 i18n
