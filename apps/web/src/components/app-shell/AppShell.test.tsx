@@ -973,6 +973,41 @@ describe('AppShell scene storage integration', () => {
     expect(confirmReplacement).toHaveBeenCalledTimes(1);
   });
 
+  it('rotates the current placement footprint before previewing and placing a wide asset', async () => {
+    render(<AppShell />);
+
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '木长椅' } });
+    const benchButton = document.querySelector<HTMLButtonElement>('[data-asset-id="wooden-bench"] .asset-select-button');
+    if (!benchButton) {
+      throw new Error('Expected wooden-bench asset button.');
+    }
+
+    fireEvent.click(benchButton);
+    fireEvent.click(screen.getByRole('button', { name: '旋转待放置素材 90 度' }));
+    fireEvent.mouseEnter(screen.getByLabelText('Cell 2,3, main area, level-0, placeable'));
+
+    expect(screen.getByLabelText(/Cell 2,4, main area, level-0, placeable, placement preview footprint/)).toHaveAttribute(
+      'data-placement-preview',
+      'occupied',
+    );
+    expect(screen.getByLabelText('Cell 3,3, main area, level-0, placeable')).toHaveAttribute(
+      'data-placement-preview',
+      'none',
+    );
+
+    fireEvent.click(screen.getByLabelText(/Cell 2,3, main area, level-0, placeable, placement preview anchor/));
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toHaveLength(1);
+      expect(payload.tileInstances[0]).toMatchObject({
+        assetId: 'wooden-bench',
+        coordinate: { x: 2, y: 3 },
+        rotationDegrees: 90,
+      });
+    });
+  });
+
   it('stores asset filter preferences separately without dirtying or polluting autosaved SceneDocument payloads', async () => {
     render(<AppShell />);
 

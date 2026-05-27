@@ -5,6 +5,7 @@ import {
   getCurrentBuildingLevel,
   type FootprintConflict,
   type GridCoordinate,
+  type RotationDegrees,
   type SceneDocument,
   type TileInstance,
 } from '@pokopia-scene-editor/scene-core';
@@ -53,6 +54,7 @@ export interface PlaceSelectedAssetInput {
   instanceId: string;
   requiresSkill: boolean;
   confirmReplace?: boolean;
+  rotationDegrees?: RotationDegrees;
 }
 
 export function getAssetPlacementPreview(
@@ -60,12 +62,13 @@ export function getAssetPlacementPreview(
   coordinate: GridCoordinate | null,
   interactionMode: InteractionMode,
   requiresSkill: boolean,
+  rotationDegrees: RotationDegrees = 0,
 ): AssetPlacementPreview | null {
   if (!coordinate) {
     return null;
   }
 
-  return evaluatePlacement(scene, coordinate, interactionMode, requiresSkill, false).preview;
+  return evaluatePlacement(scene, coordinate, interactionMode, requiresSkill, false, rotationDegrees).preview;
 }
 
 export function placeSelectedAsset(
@@ -78,6 +81,7 @@ export function placeSelectedAsset(
     input.interactionMode,
     input.requiresSkill,
     Boolean(input.confirmReplace),
+    input.rotationDegrees ?? 0,
   );
 
   if (evaluation.failureReason) {
@@ -103,6 +107,7 @@ export function placeSelectedAsset(
     assetId: asset.assetId,
     coordinate: input.coordinate,
     buildingLevelId: currentLevel.id,
+    rotationDegrees: input.rotationDegrees ?? 0,
     requiresSkill: input.requiresSkill,
     skillType: null,
   });
@@ -135,6 +140,7 @@ function evaluatePlacement(
   interactionMode: InteractionMode,
   requiresSkill: boolean,
   confirmReplace: boolean,
+  rotationDegrees: RotationDegrees,
 ): {
   preview: AssetPlacementPreview;
   failureReason: PlacementFailureReason | null;
@@ -162,7 +168,7 @@ function evaluatePlacement(
     asset,
     coordinate,
     buildingLevelId: currentLevel.id,
-    rotationDegrees: 0,
+    rotationDegrees,
     confirmReplace,
   });
   const existingInstances = footprintEvaluation.existingInstances;

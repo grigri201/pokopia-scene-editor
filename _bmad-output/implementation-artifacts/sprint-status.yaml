@@ -1,5 +1,5 @@
 # generated: 2026-05-16T06:01:02+0800
-# last_updated: 2026-05-27T07:54:56+0800
+# last_updated: 2026-05-27T08:07:02+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -34,7 +34,7 @@
 # - Dev moves story to 'review', then code-review triages findings before done.
 
 generated: 2026-05-16T06:01:02+0800
-last_updated: 2026-05-27T07:54:56+0800
+last_updated: 2026-05-27T08:07:02+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -97,7 +97,7 @@ development_status:
   epic-8: in-progress
   8-1-asset-catalog-footprint-metadata: done
   8-2-scene-core-footprint-occupancy-rules: done
-  8-3-web-placement-canvas-footprint-feedback: backlog
+  8-3-web-placement-canvas-footprint-feedback: done
   8-4-preview-export-footprint-rendering: backlog
   8-5-footprint-contract-parity-gates: backlog
   epic-8-retrospective: optional

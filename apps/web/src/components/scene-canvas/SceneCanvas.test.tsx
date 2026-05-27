@@ -7,6 +7,7 @@ import {
   createTileInstance,
   getCanvasCellContexts,
 } from '@pokopia-scene-editor/scene-core';
+import { getAssetPlacementPreview } from '../../state';
 import { SceneCanvas } from './SceneCanvas';
 
 const scene = createDefaultSceneDocument({
@@ -425,6 +426,121 @@ describe('SceneCanvas', () => {
     expect(cell).toHaveAttribute('data-instance-count', '1');
   });
 
+  it('renders rotation-aware footprint placement preview across all occupied cells', () => {
+    const placementScene = {
+      ...scene,
+      workspaceState: {
+        ...scene.workspaceState,
+        selectedAssetId: 'wooden-bench',
+      },
+    };
+    const preview = getAssetPlacementPreview(placementScene, { x: 2, y: 3 }, 'edit', false, 90);
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={placementScene}
+        cells={getCanvasCellContexts(placementScene)}
+        targetCoordinate={{ x: 2, y: 3 }}
+        targetPlacement={preview}
+        readOnly={false}
+      />,
+    );
+
+    const anchor = screen.getByLabelText(/Cell 2,3, main area, level-0, placeable, placement preview anchor/);
+    const occupied = screen.getByLabelText(/Cell 2,4, main area, level-0, placeable, placement preview footprint/);
+    const sideCell = screen.getByLabelText('Cell 3,3, main area, level-0, placeable');
+    const overlay = screen.getByTestId('placement-footprint-overlay');
+
+    expect(preview?.effectiveFootprint).toEqual({ length: 1, width: 2, height: 1 });
+    expect(anchor).toHaveAttribute('data-placement-preview', 'anchor');
+    expect(occupied).toHaveAttribute('data-placement-preview', 'occupied');
+    expect(sideCell).toHaveAttribute('data-placement-preview', 'none');
+    expect(overlay).toHaveAttribute('data-effective-footprint', '1x2x1');
+    expect(overlay).toHaveAttribute('data-placement-status', 'ready');
+  });
+
+  it('renders placed wide assets as one anchor-bound footprint overlay without duplicating occupied cells', () => {
+    const sceneWithBench = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-bench',
+          assetId: 'wooden-bench',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-0',
+          requiresSkill: true,
+          skillType: '树叶',
+          rotationDegrees: 0,
+          dyeColor: '#56ccf2',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={sceneWithBench}
+        cells={getCanvasCellContexts(sceneWithBench)}
+        readOnly={false}
+      />,
+    );
+
+    const anchor = screen.getByLabelText(/Cell 2,3, main area, level-0, placeable, 木长椅/);
+    const occupied = screen.getByLabelText(/Cell 3,3, main area, level-0, placeable, occupied by 木长椅 anchor 2,3/);
+    const overlay = screen.getByTestId('scene-footprint-overlay-tile-bench');
+
+    expect(anchor).toHaveAttribute('data-footprint-role', 'anchor');
+    expect(anchor).toHaveAttribute('data-footprint-instance-id', 'tile-bench');
+    expect(anchor).toHaveAttribute('data-skill-marker-label', '树');
+    expect(anchor).toHaveAttribute('data-dye-color', '#56ccf2');
+    expect(occupied).toHaveAttribute('data-footprint-role', 'occupied');
+    expect(occupied).toHaveAttribute('data-footprint-instance-id', 'tile-bench');
+    expect(occupied).toHaveAttribute('data-footprint-anchor-coordinate', '2,3');
+    expect(occupied).toHaveAttribute('data-has-instance', 'false');
+    expect(occupied).not.toHaveTextContent('木长椅');
+    expect(overlay).toHaveAttribute('data-effective-footprint', '2x1x1');
+    expect(overlay.querySelectorAll('img')).toHaveLength(1);
+  });
+
+  it('marks cells blocked by lower-level footprint height with blocking source details', () => {
+    const stackedScene = {
+      ...scene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
+      workspaceState: { ...scene.workspaceState, currentBuildingLevelId: 'level-1' },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-boulder',
+          assetId: 'large-boulder',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={stackedScene}
+        cells={getCanvasCellContexts(stackedScene, 'level-1')}
+        readOnly={false}
+      />,
+    );
+
+    const blockedAnchor = getRenderedCell('2,2');
+    const blockedFootprint = getRenderedCell('3,2');
+
+    expect(blockedAnchor).toHaveAttribute('data-height-blocked', 'true');
+    expect(blockedAnchor).toHaveAttribute('data-placeable', 'false');
+    expect(blockedAnchor).toHaveAttribute('data-editable', 'false');
+    expect(blockedAnchor).toHaveAccessibleName(expect.stringContaining('blocked by 大石头 on level-0'));
+    expect(blockedAnchor).toHaveAttribute('data-blocked-by-instance-id', 'tile-boulder');
+    expect(blockedAnchor).toHaveAttribute('data-blocked-by-asset-id', 'large-boulder');
+    expect(blockedAnchor).toHaveAttribute('data-blocked-by-building-level-id', 'level-0');
+    expect(blockedFootprint).toHaveAttribute('data-height-blocked', 'true');
+    expect(blockedFootprint).toHaveAccessibleName(expect.stringContaining('blocked by 大石头 on level-0'));
+  });
+
   it('renders current layer instances because hidden layer state is no longer persisted', () => {
     const sceneWithInstance = {
       ...scene,
@@ -462,3 +578,13 @@ describe('SceneCanvas', () => {
     });
   });
 });
+
+function getRenderedCell(coordinate: string): HTMLElement {
+  const cell = screen.getAllByTestId('scene-cell').find((candidate) => candidate.dataset.coordinate === coordinate);
+
+  if (!cell) {
+    throw new Error(`Expected rendered cell ${coordinate}.`);
+  }
+
+  return cell;
+}

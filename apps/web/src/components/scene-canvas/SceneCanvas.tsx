@@ -1,17 +1,32 @@
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent } from 'react';
-import { getAssetById, getAssetSkillMarkerIconUrl, toAssetSkillType } from '@pokopia-scene-editor/scene-core';
-import type { CanvasCellContext, GridCoordinate, GridSize } from '@pokopia-scene-editor/scene-core';
+import {
+  buildSceneOccupancy,
+  getAssetById,
+  getAssetSkillMarkerIconUrl,
+  toAssetSkillType,
+} from '@pokopia-scene-editor/scene-core';
+import type {
+  AssetDefinition,
+  BlockingCell,
+  CanvasCellContext,
+  GridCoordinate,
+  GridSize,
+  SceneDocument,
+} from '@pokopia-scene-editor/scene-core';
 import { moveCoordinate } from '../../state';
+import type { AssetPlacementPreview } from '../../state';
 import { defaultLocale, getAssetDisplay, getSkillDisplay, t, type Locale } from '../../i18n';
 
 interface SceneCanvasProps {
   locale?: Locale;
   canvasSize: GridSize;
+  scene?: SceneDocument;
   cells: CanvasCellContext[];
   readOnly: boolean;
   placementMode: boolean;
   selectedCoordinate: GridCoordinate | null;
   targetCoordinate: GridCoordinate | null;
+  targetPlacement?: AssetPlacementPreview | null;
   onSelectCoordinate: (coordinate: GridCoordinate) => void;
   onViewCoordinate: (coordinate: GridCoordinate) => void;
   onDeleteCoordinate: (coordinate: GridCoordinate) => void;
@@ -22,11 +37,13 @@ interface SceneCanvasProps {
 export function SceneCanvas({
   locale = defaultLocale,
   canvasSize,
+  scene,
   cells,
   readOnly,
   placementMode,
   selectedCoordinate,
   targetCoordinate,
+  targetPlacement = null,
   onSelectCoordinate,
   onViewCoordinate,
   onDeleteCoordinate,
@@ -36,6 +53,14 @@ export function SceneCanvas({
   const rows = Array.from({ length: canvasSize.height }, (_, rowIndex) =>
     cells.slice(rowIndex * canvasSize.width, rowIndex * canvasSize.width + canvasSize.width),
   );
+  const footprintView = buildFootprintCanvasView({
+    scene,
+    cells,
+    canvasSize,
+    targetCoordinate,
+    targetPlacement,
+    locale,
+  });
 
   return (
     <div
@@ -55,7 +80,8 @@ export function SceneCanvas({
         <div className="scene-row" role="row" aria-rowindex={rowIndex + 1} key={rowIndex}>
           {row.map((cell) => {
             const coordinate = cell.coordinate;
-            const placeable = cell.placeable;
+            const footprintState = footprintView.cellsByCoordinate.get(getCoordinateKey(coordinate)) ?? emptyFootprintCellState;
+            const placeable = cell.placeable && !footprintState.heightBlocked;
             const editable = isCellEditable(placeable, readOnly);
             const stateLabel = getCellStateLabel(placeable, readOnly);
             const selected = coordinatesEqual(selectedCoordinate, coordinate);
@@ -83,6 +109,8 @@ export function SceneCanvas({
             const rotationDegrees = topInstance?.rotationDegrees ?? 0;
             const rotationLabel = rotationDegrees ? `${rotationDegrees}` : null;
             const dyeColor = topInstance?.dyeColor ?? null;
+            const interactionCoordinate = getInteractionCoordinate(coordinate, footprintState, placementMode);
+            const shouldRenderInlineAsset = Boolean(topAsset && topInstance && !footprintView.overlayInstanceIds.has(topInstance.instanceId));
 
             return (
               <button
@@ -95,6 +123,10 @@ export function SceneCanvas({
                   !editable ? 'scene-cell--non-editable' : '',
                   selected ? 'scene-cell--selected' : '',
                   targeted ? 'scene-cell--targeted' : '',
+                  footprintState.footprintRole === 'occupied' ? 'scene-cell--footprint-occupied' : '',
+                  footprintState.heightBlocked ? 'scene-cell--height-blocked' : '',
+                  footprintState.placementRole !== 'none' ? 'scene-cell--placement-preview' : '',
+                  footprintState.placementConflicts.length > 0 ? 'scene-cell--placement-conflict' : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -120,12 +152,15 @@ export function SceneCanvas({
                   rotationLabel ? `, ${t(locale, 'rotated', { degrees: rotationLabel })}` : ''
                 }${dyeColor ? `, ${t(locale, 'dyed', { color: dyeColor })}` : ''}${
                   skillMarkerAriaLabel ? `, ${skillMarkerAriaLabel}` : ''
+                }${footprintState.footprintLabel ? `, ${footprintState.footprintLabel}` : ''}${
+                  footprintState.heightBlockLabel ? `, ${footprintState.heightBlockLabel}` : ''
+                }${footprintState.placementLabel ? `, ${footprintState.placementLabel}` : ''
                 }`}
                 onClick={() =>
-                  handleCellPointerSelect(readOnly, coordinate, onSelectCoordinate, onViewCoordinate)
+                  handleCellPointerSelect(readOnly, interactionCoordinate, onSelectCoordinate, onViewCoordinate)
                 }
                 onContextMenu={(event) =>
-                  handleCellContextMenu(event, readOnly, coordinate, onDeleteCoordinate)
+                  handleCellContextMenu(event, readOnly, interactionCoordinate, onDeleteCoordinate)
                 }
                 onFocus={(event) =>
                   readOnly ? undefined : handleCellFocus(event, coordinate, onFocusCoordinate)
@@ -140,7 +175,7 @@ export function SceneCanvas({
                 onKeyDown={(event) =>
                   handleCellKeyDown(
                     event,
-                    coordinate,
+                    interactionCoordinate,
                     readOnly,
                     placementMode,
                     onSelectCoordinate,
@@ -158,6 +193,16 @@ export function SceneCanvas({
                 data-main-boundary={cell.mainBoundary}
                 data-has-instance={Boolean(topInstance)}
                 data-instance-count={topInstance ? 1 : 0}
+                data-footprint-role={footprintState.footprintRole}
+                data-footprint-instance-id={footprintState.instanceId ?? ''}
+                data-footprint-anchor-coordinate={footprintState.anchorCoordinate ? formatCoordinate(footprintState.anchorCoordinate) : ''}
+                data-height-blocked={footprintState.heightBlocked}
+                data-blocked-by-instance-id={footprintState.blockingCell?.blockedByInstanceId ?? ''}
+                data-blocked-by-asset-id={footprintState.blockingCell?.blockedByAssetId ?? ''}
+                data-blocked-by-building-level-id={footprintState.blockingCell?.blockedByBuildingLevelId ?? ''}
+                data-placement-preview={footprintState.placementRole}
+                data-placement-status={targetPlacement?.status ?? 'none'}
+                data-placement-conflicts={footprintState.placementConflicts.join(',')}
                 data-other-layer-instance-count={otherLayerInstanceCount}
                 data-requires-skill={hasSkillMarker}
                 data-skill-marker-label={skillMarkerLabel ?? ''}
@@ -167,7 +212,7 @@ export function SceneCanvas({
               >
                 <span className="cell-area">{cell.areaType}</span>
                 <span className="cell-placeable">{readOnly ? t(locale, 'view') : editable ? t(locale, 'place') : stateLabel}</span>
-                {topAsset ? (
+                {shouldRenderInlineAsset && topAsset ? (
                   <span className="cell-asset-token">
                     <img src={topAsset.thumbnailUrl} alt="" className="cell-asset-thumb" />
                     <span className="sr-only">{topAssetLabel}</span>
@@ -223,8 +268,267 @@ export function SceneCanvas({
           })}
         </div>
       ))}
+      {footprintView.overlays.length > 0 ? (
+        <div className="scene-footprint-layer" aria-hidden="true">
+          {footprintView.overlays.map((overlay) => (
+            <span
+              className={[
+                'scene-footprint-overlay',
+                `scene-footprint-overlay--${overlay.kind}`,
+                overlay.conflictTypes.length > 0 ? 'scene-footprint-overlay--conflict' : '',
+              ].filter(Boolean).join(' ')}
+              data-testid={overlay.kind === 'placement' ? 'placement-footprint-overlay' : `scene-footprint-overlay-${overlay.id}`}
+              data-instance-id={overlay.instanceId ?? ''}
+              data-asset-id={overlay.asset.assetId}
+              data-anchor-coordinate={formatCoordinate(overlay.anchor)}
+              data-effective-footprint={formatFootprint(overlay.effectiveFootprint)}
+              data-placement-status={overlay.placementStatus ?? ''}
+              data-conflicts={overlay.conflictTypes.join(',')}
+              style={getOverlayGridStyle(overlay)}
+              key={overlay.id}
+            >
+              <img src={overlay.asset.thumbnailUrl} alt="" />
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
+}
+
+interface BuildFootprintCanvasViewInput {
+  scene: SceneDocument | undefined;
+  cells: readonly CanvasCellContext[];
+  canvasSize: GridSize;
+  targetCoordinate: GridCoordinate | null;
+  targetPlacement: AssetPlacementPreview | null;
+  locale: Locale;
+}
+
+interface FootprintCellState {
+  footprintRole: 'none' | 'anchor' | 'occupied';
+  instanceId: string | null;
+  anchorCoordinate: GridCoordinate | null;
+  footprintLabel: string;
+  heightBlocked: boolean;
+  blockingCell: BlockingCell | null;
+  heightBlockLabel: string;
+  placementRole: 'none' | 'anchor' | 'occupied';
+  placementLabel: string;
+  placementConflicts: string[];
+}
+
+interface FootprintOverlay {
+  id: string;
+  kind: 'placed' | 'placement';
+  asset: AssetDefinition;
+  anchor: GridCoordinate;
+  effectiveFootprint: AssetDefinition['footprint'];
+  gridColumnStart: number;
+  gridRowStart: number;
+  gridColumnSpan: number;
+  gridRowSpan: number;
+  instanceId?: string;
+  placementStatus?: string;
+  conflictTypes: string[];
+}
+
+const emptyFootprintCellState: FootprintCellState = {
+  footprintRole: 'none',
+  instanceId: null,
+  anchorCoordinate: null,
+  footprintLabel: '',
+  heightBlocked: false,
+  blockingCell: null,
+  heightBlockLabel: '',
+  placementRole: 'none',
+  placementLabel: '',
+  placementConflicts: [],
+};
+
+function buildFootprintCanvasView(input: BuildFootprintCanvasViewInput): {
+  cellsByCoordinate: Map<string, FootprintCellState>;
+  overlays: FootprintOverlay[];
+  overlayInstanceIds: Set<string>;
+} {
+  const cellsByCoordinate = new Map<string, FootprintCellState>();
+  const overlays: FootprintOverlay[] = [];
+  const overlayInstanceIds = new Set<string>();
+  const activeLevel = input.cells[0]?.buildingLevel;
+
+  for (const cell of input.cells) {
+    cellsByCoordinate.set(getCoordinateKey(cell.coordinate), createEmptyFootprintCellState());
+  }
+
+  if (!input.scene || !activeLevel) {
+    return { cellsByCoordinate, overlays, overlayInstanceIds };
+  }
+
+  const occupancy = buildSceneOccupancy(input.scene);
+  const activeInstances = occupancy.instances.filter((instance) => instance.buildingLevelId === activeLevel.id);
+
+  for (const occupancyInstance of activeInstances) {
+    const shouldUseOverlay = isMultiCellFootprint(occupancyInstance.effectiveFootprint);
+    const overlay = shouldUseOverlay
+      ? createFootprintOverlay({
+          id: occupancyInstance.instanceId,
+          kind: 'placed',
+          asset: occupancyInstance.asset,
+          anchor: occupancyInstance.instance.coordinate,
+          effectiveFootprint: occupancyInstance.effectiveFootprint,
+          canvasSize: input.canvasSize,
+          instanceId: occupancyInstance.instanceId,
+        })
+      : null;
+
+    if (overlay) {
+      overlays.push(overlay);
+      overlayInstanceIds.add(occupancyInstance.instanceId);
+    }
+
+    for (const coordinate of occupancyInstance.occupiedCells) {
+      const state = cellsByCoordinate.get(getCoordinateKey(coordinate));
+
+      if (!state) {
+        continue;
+      }
+
+      const anchor = occupancyInstance.instance.coordinate;
+      const isAnchor = coordinatesEqual(anchor, coordinate);
+      state.footprintRole = isAnchor ? 'anchor' : 'occupied';
+      state.instanceId = occupancyInstance.instanceId;
+      state.anchorCoordinate = { x: anchor.x, y: anchor.y };
+      state.footprintLabel = isAnchor
+        ? ''
+        : `occupied by ${getInstanceDisplayLabel(occupancyInstance.assetId, input.locale)} anchor ${formatCoordinate(anchor)}`;
+    }
+  }
+
+  for (const blockingCell of occupancy.blockingCells) {
+    if (blockingCell.buildingLevelId !== activeLevel.id) {
+      continue;
+    }
+
+    const state = cellsByCoordinate.get(getCoordinateKey(blockingCell.coordinate));
+
+    if (!state) {
+      continue;
+    }
+
+    state.heightBlocked = true;
+    state.blockingCell = blockingCell;
+    state.heightBlockLabel = `blocked by ${getInstanceDisplayLabel(blockingCell.blockedByAssetId, input.locale)} on ${blockingCell.blockedByBuildingLevelId}`;
+  }
+
+  if (input.targetPlacement && input.targetCoordinate) {
+    const placementConflictTypes = Array.from(new Set(input.targetPlacement.footprintConflicts.map((conflict) => conflict.conflictType)));
+
+    for (const coordinate of input.targetPlacement.occupiedCells) {
+      const state = cellsByCoordinate.get(getCoordinateKey(coordinate));
+
+      if (!state) {
+        continue;
+      }
+
+      const isAnchor = coordinatesEqual(input.targetCoordinate, coordinate);
+      state.placementRole = isAnchor ? 'anchor' : 'occupied';
+      state.placementLabel = isAnchor ? 'placement preview anchor' : 'placement preview footprint';
+      state.placementConflicts = placementConflictTypes;
+    }
+
+    const placementOverlay = input.targetPlacement.asset && input.targetPlacement.effectiveFootprint && isMultiCellFootprint(input.targetPlacement.effectiveFootprint)
+      ? createFootprintOverlay({
+          id: 'placement-preview',
+          kind: 'placement',
+          asset: input.targetPlacement.asset,
+          anchor: input.targetCoordinate,
+          effectiveFootprint: input.targetPlacement.effectiveFootprint,
+          canvasSize: input.canvasSize,
+          placementStatus: input.targetPlacement.status,
+          conflictTypes: placementConflictTypes,
+        })
+      : null;
+
+    if (placementOverlay) {
+      overlays.push(placementOverlay);
+    }
+  }
+
+  return { cellsByCoordinate, overlays, overlayInstanceIds };
+}
+
+function createEmptyFootprintCellState(): FootprintCellState {
+  return {
+    footprintRole: 'none',
+    instanceId: null,
+    anchorCoordinate: null,
+    footprintLabel: '',
+    heightBlocked: false,
+    blockingCell: null,
+    heightBlockLabel: '',
+    placementRole: 'none',
+    placementLabel: '',
+    placementConflicts: [],
+  };
+}
+
+function isMultiCellFootprint(footprint: AssetDefinition['footprint']): boolean {
+  return footprint.length > 1 || footprint.width > 1;
+}
+
+function createFootprintOverlay(input: {
+  id: string;
+  kind: 'placed' | 'placement';
+  asset: AssetDefinition;
+  anchor: GridCoordinate;
+  effectiveFootprint: AssetDefinition['footprint'];
+  canvasSize: GridSize;
+  instanceId?: string;
+  placementStatus?: string;
+  conflictTypes?: string[];
+}): FootprintOverlay | null {
+  const visibleStartX = Math.max(0, input.anchor.x);
+  const visibleStartY = Math.max(0, input.anchor.y);
+  const visibleEndX = Math.min(input.canvasSize.width, input.anchor.x + input.effectiveFootprint.length);
+  const visibleEndY = Math.min(input.canvasSize.height, input.anchor.y + input.effectiveFootprint.width);
+
+  if (visibleEndX <= visibleStartX || visibleEndY <= visibleStartY) {
+    return null;
+  }
+
+  return {
+    id: input.id,
+    kind: input.kind,
+    asset: input.asset,
+    anchor: { x: input.anchor.x, y: input.anchor.y },
+    effectiveFootprint: input.effectiveFootprint,
+    gridColumnStart: visibleStartX + 1,
+    gridRowStart: visibleStartY + 1,
+    gridColumnSpan: visibleEndX - visibleStartX,
+    gridRowSpan: visibleEndY - visibleStartY,
+    instanceId: input.instanceId,
+    placementStatus: input.placementStatus,
+    conflictTypes: input.conflictTypes ?? [],
+  };
+}
+
+function getOverlayGridStyle(overlay: FootprintOverlay): CSSProperties {
+  return {
+    gridColumn: `${overlay.gridColumnStart} / span ${overlay.gridColumnSpan}`,
+    gridRow: `${overlay.gridRowStart} / span ${overlay.gridRowSpan}`,
+  };
+}
+
+function getInteractionCoordinate(
+  coordinate: GridCoordinate,
+  footprintState: FootprintCellState,
+  placementMode: boolean,
+): GridCoordinate {
+  if (placementMode || footprintState.footprintRole !== 'occupied' || !footprintState.anchorCoordinate) {
+    return coordinate;
+  }
+
+  return footprintState.anchorCoordinate;
 }
 
 function handleCellKeyDown(
@@ -351,6 +655,18 @@ function getInstanceSkillMarkerLabel(assetId: string, markerLabel: string | null
 
 function getCellSkillMarkerLabel(markerLabel: string | null, locale: Locale): string {
   return `${t(locale, 'skillMarker')} ${markerLabel ?? t(locale, 'skillMarker')}`;
+}
+
+function getCoordinateKey(coordinate: GridCoordinate): string {
+  return `${coordinate.x},${coordinate.y}`;
+}
+
+function formatCoordinate(coordinate: GridCoordinate): string {
+  return `${coordinate.x},${coordinate.y}`;
+}
+
+function formatFootprint(footprint: AssetDefinition['footprint']): string {
+  return `${footprint.length}x${footprint.width}x${footprint.height}`;
 }
 
 function setGridKeyboardTarget(cell: HTMLButtonElement, coordinate: GridCoordinate): void {

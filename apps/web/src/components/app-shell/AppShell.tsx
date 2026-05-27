@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { type AssetSkillType, type PokemonKey } from '@pokopia-scene-editor/scene-core';
+import { type AssetSkillType, type PokemonKey, type RotationDegrees } from '@pokopia-scene-editor/scene-core';
 import { AssetPicker, type AssetSelectionMode } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
 import { PokemonSceneControls } from '../pokemon-scene-controls/PokemonSceneControls';
@@ -138,6 +138,7 @@ export function AppShell() {
   const [hoveredCoordinate, setHoveredCoordinate] = useState<GridCoordinate | null>(null);
   const [focusedCoordinate, setFocusedCoordinate] = useState<GridCoordinate | null>(null);
   const [placementRequiresSkill, setPlacementRequiresSkill] = useState(false);
+  const [placementRotationDegrees, setPlacementRotationDegrees] = useState<RotationDegrees>(0);
   const [assetSelectionMode, setAssetSelectionMode] = useState<AssetSelectionMode>('single');
   const [placementFeedback, setPlacementFeedback] = useState<AssetPlacementPreview | null>(null);
   const [buildingLayerFeedback, setBuildingLayerFeedback] = useState<string | null>(null);
@@ -189,7 +190,7 @@ export function AppShell() {
   const targetContext = targetCoordinate ? getCellContext(scene, targetCoordinate, activeBuildingLevelId) : null;
   const selectedAssetId = scene.workspaceState.selectedAssetId;
   const targetPlacementPreview = targetCoordinate
-    ? getAssetPlacementPreview(scene, targetCoordinate, interactionMode, placementRequiresSkill)
+    ? getAssetPlacementPreview(scene, targetCoordinate, interactionMode, placementRequiresSkill, placementRotationDegrees)
     : placementFeedback;
   const commitSceneEdit = (nextScene: SceneDocument, currentScene = scene) => {
     if (nextScene === currentScene) {
@@ -493,6 +494,7 @@ export function AppShell() {
     }
 
     setPlacementRequiresSkill(false);
+    setPlacementRotationDegrees(0);
     setPlacementFeedback(null);
     setAssetSelectionMode(mode);
 
@@ -523,6 +525,7 @@ export function AppShell() {
       instanceId: createTileInstanceId(),
       requiresSkill: placementRequiresSkill,
       confirmReplace: canReplaceWithoutPrompt,
+      rotationDegrees: placementRotationDegrees,
     });
 
     if (result.ok) {
@@ -549,6 +552,7 @@ export function AppShell() {
         instanceId: createTileInstanceId(),
         requiresSkill: placementRequiresSkill,
         confirmReplace: true,
+        rotationDegrees: placementRotationDegrees,
       });
 
       if (confirmedResult.ok) {
@@ -571,6 +575,7 @@ export function AppShell() {
     }
 
     setAssetSelectionMode('single');
+    setPlacementRotationDegrees(0);
     commitSceneEdit({
       ...nextScene,
       workspaceState: {
@@ -602,6 +607,15 @@ export function AppShell() {
         now: getCurrentIsoTimestamp(),
       }),
     );
+  };
+
+  const rotatePlacementAsset = () => {
+    if (isReadOnly || !scene.workspaceState.selectedAssetId) {
+      return;
+    }
+
+    setPlacementRotationDegrees((current) => getNextRotation(current));
+    setPlacementFeedback(null);
   };
 
   const deleteInstance = (instanceId: string) => {
@@ -1361,11 +1375,13 @@ export function AppShell() {
           <SceneCanvas
             locale={locale}
             canvasSize={scene.canvasSize}
+            scene={scene}
             cells={canvasCells}
             readOnly={isReadOnly}
             placementMode={Boolean(scene.workspaceState.selectedAssetId && !isReadOnly)}
             selectedCoordinate={selectedCoordinate}
             targetCoordinate={targetCoordinate}
+            targetPlacement={targetCoordinate ? targetPlacementPreview : null}
             onSelectCoordinate={selectCoordinate}
             onViewCoordinate={viewCoordinate}
             onDeleteCoordinate={deleteCoordinateMaterial}
@@ -1405,7 +1421,9 @@ export function AppShell() {
           selectedPokemonKey={scene.selectedPokemonKey}
           currentBuildingLevelName={currentBuildingLevel?.name ?? t(locale, 'noBuildingLayer')}
           placementRequiresSkill={placementRequiresSkill}
+          placementRotationDegrees={placementRotationDegrees}
           onPlacementRequiresSkillChange={setPlacementRequiresSkill}
+          onPlacementRotate={rotatePlacementAsset}
           onAssetSelect={selectAsset}
         />
       </section>
@@ -1784,6 +1802,22 @@ function getRecoveryStatusMessage(status: 'idle' | 'error' | 'success' | 'cancel
 
 function createTileInstanceId(): string {
   return `tile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getNextRotation(rotationDegrees: RotationDegrees): RotationDegrees {
+  if (rotationDegrees === 0) {
+    return 90;
+  }
+
+  if (rotationDegrees === 90) {
+    return 180;
+  }
+
+  if (rotationDegrees === 180) {
+    return 270;
+  }
+
+  return 0;
 }
 
 function createCopiedLayerInstancePrefix(): string {

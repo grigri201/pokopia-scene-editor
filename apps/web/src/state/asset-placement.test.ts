@@ -293,6 +293,33 @@ describe('asset placement command', () => {
     }
   });
 
+  it('uses placement rotation when evaluating and creating a wide asset instance', () => {
+    const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'wooden-bench', 'edit', now);
+    const preview = getAssetPlacementPreview(scene, { x: 2, y: 2 }, 'edit', false, 90);
+    const result = placeSelectedAsset(scene, {
+      coordinate: { x: 2, y: 2 },
+      interactionMode: 'edit',
+      now,
+      instanceId: 'tile-wide',
+      requiresSkill: false,
+      rotationDegrees: 90,
+    });
+
+    expect(preview?.effectiveFootprint).toEqual({ length: 1, width: 2, height: 1 });
+    expect(preview?.occupiedCells).toEqual([
+      { x: 2, y: 2 },
+      { x: 2, y: 3 },
+    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected rotated placement success.');
+    }
+    expect(result.scene.tileInstances[0]).toMatchObject({
+      instanceId: 'tile-wide',
+      rotationDegrees: 90,
+    });
+  });
+
   it('stores requested placement skill requirements as instance-only data', () => {
     const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'wooden-fencing', 'edit', now);
     const result = placeSelectedAsset(scene, {
