@@ -1345,10 +1345,10 @@ button:disabled {
 }
 
 .scene-canvas {
-  --scene-material-frame-margin: 15px;
+  --scene-material-frame-margin: 8px;
   --scene-material-frame-border: 1px solid color-mix(in srgb, var(--line) 72%, var(--ink-muted) 28%);
   --scene-material-frame-radius: 6px;
-  --scene-material-frame-padding: 3px;
+  --scene-material-frame-padding: 2px;
   --scene-material-frame-background: #fffefb;
   --scene-material-frame-shadow:
     0 2px 5px rgba(63, 45, 37, 0.12),

@@ -18,6 +18,7 @@ import {
   getStackingSplitDisplay,
   type StackingFootprint,
 } from '../stacking-display';
+import { createMaterialColor } from './material-colors';
 
 interface ExportPreviewProps {
   locale?: Locale;
@@ -660,14 +661,6 @@ function createMaterialColorMap(materials: readonly ExportMaterialSummary[]): Re
     material.assetId,
     createMaterialColor(index),
   ]));
-}
-
-function createMaterialColor(index: number): string {
-  const hue = (index * 137.508) % 360;
-  const saturation = index % 3 === 1 ? 82 : 74;
-  const lightness = index % 2 === 0 ? 38 : 44;
-
-  return `hsl(${hue.toFixed(1)} ${saturation}% ${lightness}%)`;
 }
 
 function getExportMaterialColorStyle(materialColor: string | null): CSSProperties | undefined {

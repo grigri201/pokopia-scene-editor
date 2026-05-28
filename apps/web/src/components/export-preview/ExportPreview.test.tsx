@@ -117,7 +117,9 @@ describe('ExportPreview', () => {
 
     expect(materialItems).toHaveLength(manyMaterialAssetIds.length);
     expect(materialColors.every(Boolean)).toBe(true);
+    expect(materialColors.every((color) => /^#[0-9A-F]{6}$/.test(color))).toBe(true);
     expect(new Set(materialColors).size).toBe(manyMaterialAssetIds.length);
+    expect(getMinimumOklabDistance(materialColors)).toBeGreaterThan(0.1);
   });
 
   it('renders system-provided export content in English mode', () => {
@@ -457,4 +459,75 @@ function createLargeRugStackingScene() {
       }),
     ],
   };
+}
+
+interface TestRgbColor {
+  red: number;
+  green: number;
+  blue: number;
+}
+
+interface TestOklabColor {
+  lightness: number;
+  redGreen: number;
+  blueYellow: number;
+}
+
+function getMinimumOklabDistance(colors: readonly string[]): number {
+  const oklabColors = colors.map((color) => rgbToOklab(hexToRgb(color)));
+  let minimumDistance = Number.POSITIVE_INFINITY;
+
+  for (let leftIndex = 0; leftIndex < oklabColors.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < oklabColors.length; rightIndex += 1) {
+      minimumDistance = Math.min(
+        minimumDistance,
+        getOklabDistance(oklabColors[leftIndex], oklabColors[rightIndex]),
+      );
+    }
+  }
+
+  return minimumDistance;
+}
+
+function hexToRgb(color: string): TestRgbColor {
+  const match = /^#(?<red>[0-9A-F]{2})(?<green>[0-9A-F]{2})(?<blue>[0-9A-F]{2})$/.exec(color);
+
+  if (!match?.groups) {
+    throw new RangeError(`Invalid test color: ${color}`);
+  }
+
+  return {
+    red: Number.parseInt(match.groups.red, 16) / 255,
+    green: Number.parseInt(match.groups.green, 16) / 255,
+    blue: Number.parseInt(match.groups.blue, 16) / 255,
+  };
+}
+
+function rgbToOklab(rgb: TestRgbColor): TestOklabColor {
+  const red = toLinearRgb(rgb.red);
+  const green = toLinearRgb(rgb.green);
+  const blue = toLinearRgb(rgb.blue);
+  const long = Math.cbrt((0.4122214708 * red) + (0.5363325363 * green) + (0.0514459929 * blue));
+  const medium = Math.cbrt((0.2119034982 * red) + (0.6806995451 * green) + (0.1073969566 * blue));
+  const short = Math.cbrt((0.0883024619 * red) + (0.2817188376 * green) + (0.6299787005 * blue));
+
+  return {
+    lightness: (0.2104542553 * long) + (0.793617785 * medium) - (0.0040720468 * short),
+    redGreen: (1.9779984951 * long) - (2.428592205 * medium) + (0.4505937099 * short),
+    blueYellow: (0.0259040371 * long) + (0.7827717662 * medium) - (0.808675766 * short),
+  };
+}
+
+function getOklabDistance(left: TestOklabColor, right: TestOklabColor): number {
+  return Math.hypot(
+    (left.lightness - right.lightness) * 1.35,
+    left.redGreen - right.redGreen,
+    left.blueYellow - right.blueYellow,
+  );
+}
+
+function toLinearRgb(channel: number): number {
+  return channel <= 0.04045
+    ? channel / 12.92
+    : ((channel + 0.055) / 1.055) ** 2.4;
 }
