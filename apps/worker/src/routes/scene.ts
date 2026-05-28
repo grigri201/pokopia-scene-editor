@@ -104,6 +104,7 @@ function toApiValidationError(error: SceneDocumentValidationError): ApiError {
     blockingInstanceId: error.blockingInstanceId,
     blockingAssetId: error.blockingAssetId,
     blockingBuildingLevelId: error.blockingBuildingLevelId,
+    surfaceKind: error.surfaceKind,
   };
 }
 

@@ -907,6 +907,7 @@ button:disabled {
 }
 
 .export-layer-cell {
+  position: relative;
   display: grid;
   place-items: center;
   min-width: 0;
@@ -927,6 +928,56 @@ button:disabled {
   width: calc(100% - 6px);
   height: calc(100% - 6px);
   object-fit: contain;
+}
+
+.export-layer-cell[data-stacking-state="placed"] {
+  background: color-mix(in srgb, rgba(232, 246, 239, 0.86) 78%, #f4d59a 22%);
+}
+
+.export-stacking-split,
+.preview-stacking-split {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.export-stacking-split__slot,
+.preview-stacking-split__slot {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: color-mix(in srgb, var(--surface) 84%, white 16%);
+  overflow: hidden;
+}
+
+.export-stacking-split__slot--top,
+.preview-stacking-split__slot--top {
+  border-radius: 4px 4px 2px 2px;
+  border-color: color-mix(in srgb, var(--color-hover-cell) 56%, var(--line));
+}
+
+.export-stacking-split__slot--base,
+.preview-stacking-split__slot--base {
+  border-radius: 2px 2px 4px 4px;
+  background: color-mix(in srgb, var(--surface-panel) 72%, white 28%);
+}
+
+.export-stacking-split img,
+.preview-stacking-split img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 1px;
+  object-fit: contain;
+  box-sizing: border-box;
 }
 
 .export-footprint-layer {
@@ -2570,6 +2621,11 @@ button:disabled {
 .front-cell--footprint-blocked,
 .top-cell--footprint-occupied {
   background: color-mix(in srgb, #d8ead8 72%, #f4d59a 28%);
+}
+
+.front-cell--stacking,
+.top-cell--stacking {
+  background: color-mix(in srgb, #d8ead8 76%, #f4d59a 24%);
 }
 
 .front-cell img,

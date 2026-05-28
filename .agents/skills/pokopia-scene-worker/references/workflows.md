@@ -12,7 +12,7 @@ This reference describes how to call the MCP tools without duplicating business 
 ## Summarize Export
 
 1. Call `summarize_scene_export` with `{ "scene": <payload> }`.
-2. Use `structuredContent.data.summary` as the export-summary JSON, including `footprint`, `effectiveFootprint`, `occupiedCells`, `blockingCells`, and `footprintWarnings`.
+2. Use `structuredContent.data.summary` as the export-summary JSON, including `footprint`, `effectiveFootprint`, `occupiedCells`, `blockingCells`, `footprintWarnings`, and derived `stackingRelations`.
 3. Preserve warnings in the answer. Do not generate PNG files or call browser image-export code.
 
 ## Search Assets And Generate Defaults

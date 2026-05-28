@@ -6,8 +6,10 @@ import {
   createDefaultSceneDocument,
   createFootprintContractScene,
   createSkillMarker,
+  createStackingPlateFoodScene,
   createTileInstance,
   footprintContractFixtureIds,
+  stackingContractFixtureIds,
 } from '@pokopia-scene-editor/scene-core';
 import { unsafeAngleText, unsafeScriptText } from '../../test/fixtures/unsafe-text';
 import { ExportPreview } from './ExportPreview';
@@ -135,6 +137,38 @@ describe('ExportPreview', () => {
       'x2',
       'x2',
       'x1',
+      'x1',
+      'x1',
+    ]);
+  });
+
+  it('renders stacking relations as split export cells while keeping material lists instance-count based', () => {
+    const summary = buildImageExportSummary(createStackingPlateFoodScene());
+
+    render(<ExportPreview summary={summary} onClose={vi.fn()} />);
+
+    const layerGraphic = screen.getByLabelText('L1 7x7 图形');
+    const layerMaterials = screen.getByLabelText('L1 使用素材清单');
+    const stackingCell = screen.getByLabelText('2,2: 苹野果 stacked on 盘子');
+
+    expect(summary.stackingRelations).toEqual([
+      expect.objectContaining({
+        topInstanceId: stackingContractFixtureIds.food,
+        topAssetId: 'leppa-berry',
+        baseInstanceId: stackingContractFixtureIds.plate,
+        baseAssetId: 'plate',
+        surfaceKind: 'food-surface',
+      }),
+    ]);
+    expect(layerGraphic.querySelectorAll('.export-layer-cell')).toHaveLength(49);
+    expect(stackingCell).toHaveAttribute('data-stacking-state', 'placed');
+    expect(stackingCell).toHaveAttribute('data-stacking-base-instance-id', stackingContractFixtureIds.plate);
+    expect(stackingCell).toHaveAttribute('data-stacking-top-instance-id', stackingContractFixtureIds.food);
+    expect(stackingCell).toHaveAttribute('data-stacking-surface-kind', 'food-surface');
+    expect(stackingCell.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-asset-id', 'leppa-berry');
+    expect(stackingCell.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-asset-id', 'plate');
+    expect(layerMaterials.querySelectorAll('li')).toHaveLength(2);
+    expect(Array.from(layerMaterials.querySelectorAll('.export-material-list__row span')).map((node) => node.textContent)).toEqual([
       'x1',
       'x1',
     ]);

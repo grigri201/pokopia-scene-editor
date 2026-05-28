@@ -6,8 +6,11 @@ import {
   createFootprintContractHeightBlockedScene,
   createFootprintContractOverlapScene,
   createFootprintContractScene,
+  createStackingPlateFoodScene,
+  createStackingPlateNonFoodScene,
   footprintContractExpected,
   footprintContractFixtureIds,
+  stackingContractFixtureIds,
 } from '@pokopia-scene-editor/scene-core';
 import { handleRequest, type WorkerEnv } from './index';
 import { maxRequestBodyBytes } from './request';
@@ -154,6 +157,56 @@ describe('worker HTTP API', () => {
     });
   });
 
+  it('keeps HTTP scene tools aligned with the shared stacking contract fixture', async () => {
+    const scene = createStackingPlateFoodScene();
+    const directSummary = buildImageExportSummary(scene);
+
+    const validation = await post('/api/scene/validate', { scene });
+    const validationBody = await readJson(validation);
+    expect(validationBody.data).toEqual({ valid: true, errors: [] });
+
+    const recovery = await post('/api/scene/recover', { scene });
+    const recoveryBody = await readJson(recovery);
+    expect(recovery.status).toBe(200);
+    expect(recoveryBody.data.scene).toEqual(scene);
+    expect(JSON.stringify(recoveryBody.data.scene)).not.toContain('stackingRelations');
+    expect(JSON.stringify(recoveryBody.data.scene)).not.toContain('surfaceKind');
+
+    const summary = await post('/api/scene/export-summary', { scene });
+    const summaryBody = await readJson(summary);
+    expect(summaryBody.data.summary).toEqual(directSummary);
+    expect(summaryBody.data.summary.stackingRelations).toEqual([
+      expect.objectContaining({
+        topInstanceId: stackingContractFixtureIds.food,
+        topAssetId: 'leppa-berry',
+        baseInstanceId: stackingContractFixtureIds.plate,
+        baseAssetId: 'plate',
+        surfaceKind: 'food-surface',
+      }),
+    ]);
+    expect(summaryBody.data.summary.layers[0].cells.find((cell: any) => cell.id === '2-2').stackingRelations).toEqual(
+      summaryBody.data.summary.stackingRelations,
+    );
+
+    const encoded = await post('/api/scene/encode', { scene });
+    const encodedBody = await readJson(encoded);
+    expect(encodedBody.data.sceneString).toMatch(/^PSE1~/);
+    expect(encodedBody.data.sceneString).not.toContain('stacking');
+    expect(encodedBody.data.sceneString).not.toContain('surfaceKind');
+    expect(encodedBody.data.sceneString).not.toContain('parentInstanceId');
+    expect(encodedBody.data.sceneString).not.toContain('zIndex');
+
+    const decoded = await post('/api/scene/decode', { sceneString: encodedBody.data.sceneString });
+    const decodedBody = await readJson(decoded);
+    expect(buildSceneOccupancy(decodedBody.data.scene).stackingRelations).toEqual([
+      expect.objectContaining({
+        topAssetId: 'leppa-berry',
+        baseAssetId: 'plate',
+        surfaceKind: 'food-surface',
+      }),
+    ]);
+  });
+
   it('returns structured footprint validation errors from HTTP routes', async () => {
     const overlap = await post('/api/scene/validate', { scene: createFootprintContractOverlapScene() });
     const overlapBody = await readJson(overlap);
@@ -183,6 +236,19 @@ describe('worker HTTP API', () => {
       coordinates: [{ x: 1, y: 4 }],
     });
     expect(JSON.stringify(blockedBody.errors[0])).not.toContain('Footprint Contract Scene');
+
+    const unsupportedStacking = await post('/api/scene/validate', { scene: createStackingPlateNonFoodScene() });
+    const unsupportedStackingBody = await readJson(unsupportedStacking);
+    expect(unsupportedStackingBody.data.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          conflictType: 'unsupported-stack-surface',
+          instanceId: stackingContractFixtureIds.nonFood,
+          blockingInstanceId: stackingContractFixtureIds.plate,
+          surfaceKind: 'food-surface',
+        }),
+      ]),
+    );
   });
 
   it('redacts validate responses and preserves every HTTP validation conflict in error envelopes', async () => {

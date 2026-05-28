@@ -3,10 +3,12 @@ import {
   createBuildingLevel,
   createDefaultSceneDocument,
   createFootprintContractScene,
+  createStackingPlateFoodScene,
   createSkillMarker,
   createTileInstance,
   footprintContractExpected,
   footprintContractFixtureIds,
+  stackingContractFixtureIds,
   type TileInstance,
 } from './index';
 import { buildImageExportSummary } from './export-summary';
@@ -281,6 +283,44 @@ describe('image export summary', () => {
       ],
       footprintWarnings: [],
     });
+  });
+
+  it('includes derived stacking relation summaries without inflating material counts', () => {
+    const scene = createStackingPlateFoodScene();
+    const summary = buildImageExportSummary(scene);
+    const layer = summary.layers.find((candidate) => candidate.id === stackingContractFixtureIds.level0);
+    const stackedCell = layer?.cells.find((cell) => cell.id === '2-2');
+
+    expect(summary.stackingRelations).toEqual([
+      expect.objectContaining({
+        id: `stack:${stackingContractFixtureIds.level0}:${stackingContractFixtureIds.plate}:${stackingContractFixtureIds.food}`,
+        topInstanceId: stackingContractFixtureIds.food,
+        topAssetId: 'leppa-berry',
+        baseInstanceId: stackingContractFixtureIds.plate,
+        baseAssetId: 'plate',
+        buildingLevelId: stackingContractFixtureIds.level0,
+        surfaceKind: 'food-surface',
+        coordinates: [{ x: 2, y: 2 }],
+      }),
+    ]);
+    expect(summary.stackingRelations[0]).toMatchObject({
+      topAssetName: '苹野果',
+      topThumbnailUrl: expect.stringContaining('leppa-berry'),
+      baseAssetName: '盘子',
+      baseThumbnailUrl: expect.stringContaining('plate'),
+    });
+    expect(layer?.stackingRelations).toEqual(summary.stackingRelations);
+    expect(layer?.materialCount).toBe(2);
+    expect(layer?.materials.map((material) => [material.assetId, material.count])).toEqual(expect.arrayContaining([
+      ['leppa-berry', 1],
+      ['plate', 1],
+    ]));
+    expect(stackedCell?.tileInstances.map((instance) => instance.instanceId)).toEqual([
+      stackingContractFixtureIds.plate,
+      stackingContractFixtureIds.food,
+    ]);
+    expect(stackedCell?.stackingRelations).toEqual(summary.stackingRelations);
+    expect(JSON.stringify(scene)).not.toContain('stackingRelations');
   });
 
   it('rejects scenes when a standalone skill marker cannot be represented in layer cell graphics', () => {

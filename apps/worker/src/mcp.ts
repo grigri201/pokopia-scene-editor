@@ -39,6 +39,7 @@ interface McpErrorDetail {
   blockingInstanceId?: string;
   blockingAssetId?: string;
   blockingBuildingLevelId?: string;
+  surfaceKind?: string;
 }
 
 interface McpToolStructuredResult<T extends Record<string, unknown>> {
@@ -558,6 +559,7 @@ function toMcpValidationError(error: SceneDocumentValidationError): McpErrorDeta
     blockingInstanceId: error.blockingInstanceId,
     blockingAssetId: error.blockingAssetId,
     blockingBuildingLevelId: error.blockingBuildingLevelId,
+    surfaceKind: error.surfaceKind,
   };
 }
 
