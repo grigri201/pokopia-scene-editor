@@ -34,6 +34,10 @@ describe('ExportPreview', () => {
     expect(screen.getByLabelText('整体使用素材清单')).not.toHaveTextContent('No. 1052');
     expect(screen.getByLabelText('图片导出内容').firstElementChild).toBe(screen.getByLabelText('整体使用素材清单'));
     expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('绿叶植物缩略图')).toBeVisible();
+    const overallMaterialItem = within(screen.getByLabelText('整体使用素材清单')).getByText('绿叶植物').closest('li');
+    expect(overallMaterialItem).not.toBeNull();
+    expect(overallMaterialItem?.style.getPropertyValue('--export-material-color')).toBe('');
+    expect(overallMaterialItem?.querySelector('.export-material-list__color')).toBeNull();
     expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('树叶');
     expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('储水');
     expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('树叶技能图标')).toBeVisible();
@@ -64,6 +68,14 @@ describe('ExportPreview', () => {
     expect(screen.getByLabelText('L2 使用素材清单')).not.toHaveTextContent(unsafeAngleText);
     expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('树叶');
     expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('储水');
+    const leafyMaterialItem = within(screen.getByLabelText('L2 使用素材清单')).getByText('绿叶植物').closest('li');
+    expect(leafyMaterialItem).not.toBeNull();
+    const leafyMaterialColor = leafyMaterialItem?.style.getPropertyValue('--export-material-color');
+    expect(leafyMaterialColor).toBeTruthy();
+    expect(leafyMaterialItem?.querySelector('.export-material-list__color')).toBeNull();
+    expect(previewCell).toHaveAttribute('data-material-asset-id', 'leafy-plant');
+    expect(previewCell.style.getPropertyValue('--export-material-color')).toBe(leafyMaterialColor);
+    expect(skillCell).toHaveAttribute('data-material-color', '');
     expect(within(screen.getByLabelText('L2 使用素材清单')).getByAltText('储水技能图标')).toBeVisible();
     expect(screen.queryByLabelText('L2 技能数量')).not.toBeInTheDocument();
     expect(screen.getByLabelText('L2 层备注')).toHaveTextContent(unsafeAngleText);
@@ -90,6 +102,19 @@ describe('ExportPreview', () => {
     expect(container.querySelector('script')).toBeNull();
     expect(screen.queryByAltText(unsafeAngleText)).not.toBeInTheDocument();
     expect(screen.queryByAltText(unsafeScriptText)).not.toBeInTheDocument();
+  });
+
+  it('assigns distinct layer material colors beyond the first dozen materials', () => {
+    render(<ExportPreview summary={buildImageExportSummary(createManyMaterialScene())} onClose={vi.fn()} />);
+
+    const materialItems = Array.from(
+      screen.getByLabelText('L1 使用素材清单').querySelectorAll<HTMLElement>('li[data-export-item-kind="material"]'),
+    );
+    const materialColors = materialItems.map((item) => item.style.getPropertyValue('--export-material-color'));
+
+    expect(materialItems).toHaveLength(manyMaterialAssetIds.length);
+    expect(materialColors.every(Boolean)).toBe(true);
+    expect(new Set(materialColors).size).toBe(manyMaterialAssetIds.length);
   });
 
   it('renders system-provided export content in English mode', () => {
@@ -130,11 +155,16 @@ describe('ExportPreview', () => {
     const layerMaterials = screen.getByLabelText('L1 使用素材清单');
     const benchOverlay = screen.getByTestId(`export-footprint-overlay-${footprintContractFixtureIds.bench}`);
     const chairOverlay = screen.getByTestId(`export-footprint-overlay-${footprintContractFixtureIds.rug}`);
+    const benchMaterial = layerMaterials.querySelector<HTMLElement>('li[data-material-asset-id="wooden-bench"]');
 
     expect(layerGraphic.querySelectorAll('.export-layer-cell')).toHaveLength(49);
     expect(benchOverlay).toHaveAttribute('data-footprint-asset-id', 'wooden-bench');
     expect(benchOverlay).toHaveAttribute('data-effective-footprint', '1x2x1');
     expect(benchOverlay).toHaveAttribute('data-occupied-cells', '2,1 2,2');
+    expect(benchMaterial?.querySelector('.export-material-list__color')).toBeNull();
+    expect(benchOverlay.style.getPropertyValue('--export-material-color')).toBe(
+      benchMaterial?.style.getPropertyValue('--export-material-color'),
+    );
     expect(chairOverlay).toHaveAttribute('data-footprint-asset-id', 'deck-chair');
     expect(chairOverlay).toHaveAttribute('data-effective-footprint', '2x1x1');
     expect(layerMaterials.querySelectorAll('li')).toHaveLength(5);
@@ -232,5 +262,49 @@ function createPreviewScene() {
         skillNote: unsafeAngleText,
       }),
     ],
+  };
+}
+
+const manyMaterialAssetIds = [
+  'leppa-berry',
+  'chesto-berry',
+  'rawst-berry',
+  'aspear-berry',
+  'pecha-berry',
+  'lum-berry',
+  'bean',
+  'tomato',
+  'wheat',
+  'potato',
+  'fresh-carrot',
+  'seaweed',
+  'cave-mushrooms',
+  'simple-salad',
+  'leppa-salad',
+  'seaweed-salad',
+  'shredded-salad',
+  'crushed-berry-salad',
+  'crouton-salad',
+  'simple-soup',
+];
+
+function createManyMaterialScene() {
+  const baseScene = createDefaultSceneDocument({
+    sceneId: 'scene-export-preview-many-materials',
+    sceneName: 'Many materials',
+    now: '2026-05-22T05:20:00.000Z',
+  });
+
+  return {
+    ...baseScene,
+    tileInstances: manyMaterialAssetIds.map((assetId, index) => createTileInstance({
+      instanceId: `tile-many-materials-${index + 1}`,
+      assetId,
+      coordinate: {
+        x: (index % 5) + 1,
+        y: Math.floor(index / 5) + 1,
+      },
+      buildingLevelId: 'level-0',
+    })),
   };
 }

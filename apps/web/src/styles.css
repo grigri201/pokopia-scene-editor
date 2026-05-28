@@ -865,6 +865,7 @@ button:disabled {
   display: grid;
   align-content: start;
   gap: 12px;
+  padding-top: 14px;
 }
 
 .export-layer-grid-frame {
@@ -928,6 +929,16 @@ button:disabled {
   background: rgba(232, 246, 239, 0.86);
 }
 
+.export-layer-cell--material {
+  border-color: color-mix(in srgb, var(--export-material-color) 42%, rgba(64, 45, 38, 0.16));
+  background: color-mix(in srgb, var(--export-material-color) 28%, #fffefb 72%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--export-material-color) 28%, transparent);
+}
+
+.export-layer-cell--material[data-area="main"] {
+  background: color-mix(in srgb, var(--export-material-color) 30%, #e8f6ef 70%);
+}
+
 .export-layer-cell img {
   display: block;
   width: calc(100% - 6px);
@@ -955,6 +966,11 @@ button:disabled {
   background: color-mix(in srgb, var(--surface) 80%, white 20%);
   box-shadow: 0 3px 8px rgba(63, 45, 37, 0.14);
   overflow: hidden;
+}
+
+.export-footprint-overlay[data-material-color] {
+  border-color: color-mix(in srgb, var(--export-material-color) 54%, var(--line-strong));
+  background: color-mix(in srgb, var(--export-material-color) 26%, #fffefb 74%);
 }
 
 .export-footprint-overlay img {
@@ -994,6 +1010,17 @@ button:disabled {
   border: 1px solid rgba(37, 111, 104, 0.18);
   padding: 8px 4px;
   text-align: center;
+}
+
+.export-material-list--with-thumbs > li[data-export-item-kind="material"][data-material-color]:not([data-material-color=""]) {
+  border-color: color-mix(in srgb, var(--export-material-color) 38%, rgba(37, 111, 104, 0.18));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--export-material-color) 18%, white 82%),
+      rgba(255, 255, 255, 0.68)
+    );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--export-material-color) 14%, transparent);
 }
 
 .export-layer__materials .export-material-list--with-thumbs {
@@ -2787,6 +2814,10 @@ button:disabled {
   .export-preview__body,
   .export-layer__content {
     grid-template-columns: 1fr;
+  }
+
+  .export-layer__details {
+    padding-top: 0;
   }
 
   .export-preview__summary .export-material-list {

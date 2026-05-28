@@ -32,6 +32,7 @@ export function ExportPreview({
   const isDownloadDisabled = downloadDisabled || !onDownloadImage;
   const selectedPokemon = getPokemonThemeDefinition(summary.selectedPokemonKey);
   const selectedPokemonName = getPokemonDisplay(selectedPokemon, locale);
+  const materialColorByAssetId = createMaterialColorMap(summary.overallMaterials);
   const overallUsageItems = createUsageItems(summary.overallMaterials, summary.overallSkills);
   const canvasBuildingLayersKey = summary.layers.length === 1 ? 'canvasBuildingLayer' : 'canvasBuildingLayers';
   const pokemonTitleImageStyle = {
@@ -154,7 +155,7 @@ export function ExportPreview({
 
           <section className="export-preview__layers" aria-label={t(locale, 'exportLayerGraphicsAndMaterials')}>
             {summary.layers.map((layer) => (
-              <LayerPreview key={layer.id} locale={locale} layer={layer} />
+              <LayerPreview key={layer.id} locale={locale} layer={layer} materialColorByAssetId={materialColorByAssetId} />
             ))}
           </section>
         </section>
@@ -180,9 +181,17 @@ function getFocusableElements(root: HTMLElement | null): HTMLElement[] {
   ).filter((element) => !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true');
 }
 
-function LayerPreview({ locale, layer }: { locale: Locale; layer: ImageExportLayerSummary }) {
-  const usageItems = createUsageItems(layer.materials, layer.skills);
-  const footprintOverlays = getLayerFootprintOverlays(layer);
+function LayerPreview({
+  locale,
+  layer,
+  materialColorByAssetId,
+}: {
+  locale: Locale;
+  layer: ImageExportLayerSummary;
+  materialColorByAssetId: ReadonlyMap<string, string>;
+}) {
+  const usageItems = createUsageItems(layer.materials, layer.skills, materialColorByAssetId);
+  const footprintOverlays = getLayerFootprintOverlays(layer, materialColorByAssetId);
   const footprintOverlayInstanceIds = new Set(footprintOverlays.map((overlay) => overlay.instance.instanceId));
   const coordinateBounds = getLayerCoordinateBounds(layer);
 
@@ -201,7 +210,13 @@ function LayerPreview({ locale, layer }: { locale: Locale; layer: ImageExportLay
           </span>
           <div className="export-layer-grid" aria-label={t(locale, 'layerGraphic', { displayId: layer.displayId })}>
             {layer.cells.map((cell) => (
-              <ExportCell key={cell.id} locale={locale} cell={cell} footprintOverlayInstanceIds={footprintOverlayInstanceIds} />
+              <ExportCell
+                key={cell.id}
+                locale={locale}
+                cell={cell}
+                footprintOverlayInstanceIds={footprintOverlayInstanceIds}
+                materialColorByAssetId={materialColorByAssetId}
+              />
             ))}
             {footprintOverlays.length > 0 ? (
               <div className="export-footprint-layer" aria-hidden="true">
@@ -213,6 +228,7 @@ function LayerPreview({ locale, layer }: { locale: Locale; layer: ImageExportLay
                     data-footprint-asset-id={overlay.instance.assetId}
                     data-effective-footprint={formatExportFootprint(overlay.instance.effectiveFootprint)}
                     data-occupied-cells={overlay.instance.occupiedCells.map(formatExportCoordinate).join(' ')}
+                    data-material-color={overlay.materialColor}
                     key={overlay.instance.instanceId}
                     style={getExportFootprintOverlayStyle(overlay)}
                   >
@@ -277,14 +293,17 @@ function ExportCell({
   locale,
   cell,
   footprintOverlayInstanceIds,
+  materialColorByAssetId,
 }: {
   locale: Locale;
   cell: ImageExportCellSummary;
   footprintOverlayInstanceIds: ReadonlySet<string>;
+  materialColorByAssetId: ReadonlyMap<string, string>;
 }) {
   const firstInstance = cell.tileInstances[0] ?? null;
   const firstSkillMarker = cell.skillMarkers[0] ?? null;
   const shouldRenderInlineInstance = Boolean(firstInstance && !footprintOverlayInstanceIds.has(firstInstance.instanceId));
+  const materialColor = firstInstance ? materialColorByAssetId.get(firstInstance.assetId) ?? null : null;
   const label = firstInstance
     ? `${cell.coordinate.x},${cell.coordinate.y}: ${cell.tileInstances.map((instance) => instance.assetName).join(', ')}`
     : firstSkillMarker
@@ -295,11 +314,14 @@ function ExportCell({
 
   return (
     <div
-      className="export-layer-cell"
+      className={['export-layer-cell', materialColor ? 'export-layer-cell--material' : ''].filter(Boolean).join(' ')}
       data-area={cell.areaType}
       data-empty={cell.empty}
       data-footprint-instance-id={firstInstance?.instanceId ?? ''}
       data-effective-footprint={firstInstance?.effectiveFootprint ? formatExportFootprint(firstInstance.effectiveFootprint) : ''}
+      data-material-asset-id={firstInstance?.assetId ?? ''}
+      data-material-color={materialColor ?? ''}
+      style={getExportMaterialColorStyle(materialColor)}
       aria-label={label}
     >
       {shouldRenderInlineInstance && firstInstance?.thumbnailUrl ? (
@@ -323,9 +345,13 @@ interface ExportFootprintOverlay {
   instance: ExportTileInstanceSummary;
   anchorColumn: number;
   anchorRow: number;
+  materialColor: string;
 }
 
-function getLayerFootprintOverlays(layer: ImageExportLayerSummary): ExportFootprintOverlay[] {
+function getLayerFootprintOverlays(
+  layer: ImageExportLayerSummary,
+  materialColorByAssetId: ReadonlyMap<string, string>,
+): ExportFootprintOverlay[] {
   return layer.materials.flatMap((material) =>
     material.instances
       .filter((instance) => isMultiCellExportInstance(instance))
@@ -333,6 +359,7 @@ function getLayerFootprintOverlays(layer: ImageExportLayerSummary): ExportFootpr
         instance,
         anchorColumn: instance.coordinate.x + 1,
         anchorRow: instance.coordinate.y + 1,
+        materialColor: materialColorByAssetId.get(instance.assetId) ?? defaultMaterialColor,
       })),
   );
 }
@@ -351,6 +378,7 @@ function getExportFootprintOverlayStyle(overlay: ExportFootprintOverlay): CSSPro
   return {
     gridColumn: `${overlay.anchorColumn} / span ${footprint.length}`,
     gridRow: `${overlay.anchorRow} / span ${footprint.width}`,
+    ...getExportMaterialColorStyle(overlay.materialColor),
   };
 }
 
@@ -364,18 +392,27 @@ function formatExportCoordinate(coordinate: ImageExportCellSummary['coordinate']
 
 interface ExportUsageItem {
   id: string;
+  kind: 'material' | 'skill';
+  assetId: string | null;
   name: string;
   count: number;
   thumbnailUrl: string | null;
   thumbnailAlt: string;
   fallbackText: string;
+  materialColor: string | null;
 }
 
 function UsageList({ items }: { items: readonly ExportUsageItem[] }) {
   return (
     <ul className="export-material-list export-material-list--with-thumbs">
       {items.map((item) => (
-        <li key={item.id}>
+        <li
+          key={item.id}
+          data-export-item-kind={item.kind}
+          data-material-asset-id={item.assetId ?? ''}
+          data-material-color={item.materialColor ?? ''}
+          style={getExportMaterialColorStyle(item.materialColor)}
+        >
           <span className="export-material-list__thumb">
             {item.thumbnailUrl ? (
               <img src={item.thumbnailUrl} alt={item.thumbnailAlt} />
@@ -396,23 +433,53 @@ function UsageList({ items }: { items: readonly ExportUsageItem[] }) {
 function createUsageItems(
   materials: readonly (ExportMaterialSummary | ExportLayerMaterialSummary)[],
   skills: readonly (ExportSkillSummary | ExportLayerSkillSummary)[],
+  materialColorByAssetId?: ReadonlyMap<string, string>,
 ): ExportUsageItem[] {
   return [
     ...materials.map((material) => ({
       id: `material:${material.assetId}`,
+      kind: 'material' as const,
+      assetId: material.assetId,
       name: material.assetName,
       count: 'count' in material ? material.count : material.totalCount,
       thumbnailUrl: material.thumbnailUrl,
       thumbnailAlt: material.thumbnailAlt,
       fallbackText: material.assetName.slice(0, 1),
+      materialColor: materialColorByAssetId ? materialColorByAssetId.get(material.assetId) ?? defaultMaterialColor : null,
     })),
     ...skills.map((skill) => ({
       id: `skill:${skill.skillType}`,
+      kind: 'skill' as const,
+      assetId: null,
       name: skill.skillName,
       count: 'count' in skill ? skill.count : skill.totalCount,
       thumbnailUrl: skill.iconUrl,
       thumbnailAlt: skill.iconAlt,
       fallbackText: skill.skillLabel,
+      materialColor: null,
     })),
   ];
+}
+
+const defaultMaterialColor = createMaterialColor(0);
+
+function createMaterialColorMap(materials: readonly ExportMaterialSummary[]): ReadonlyMap<string, string> {
+  return new Map(materials.map((material, index) => [
+    material.assetId,
+    createMaterialColor(index),
+  ]));
+}
+
+function createMaterialColor(index: number): string {
+  const hue = (index * 137.508) % 360;
+  const saturation = index % 3 === 1 ? 82 : 74;
+  const lightness = index % 2 === 0 ? 38 : 44;
+
+  return `hsl(${hue.toFixed(1)} ${saturation}% ${lightness}%)`;
+}
+
+function getExportMaterialColorStyle(materialColor: string | null): CSSProperties | undefined {
+  return materialColor
+    ? ({ '--export-material-color': materialColor } as CSSProperties)
+    : undefined;
 }
