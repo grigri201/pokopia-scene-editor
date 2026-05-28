@@ -12,6 +12,7 @@ import {
 import { assetFootprintOverrideAssetIds } from './footprint-overrides';
 import { knownPokemonKeys } from './pokemon';
 import { sourceItemPreferenceTerms, sourcePokemonPreferences } from './source-pokemon-preferences';
+import { assetStackingOverrideAssetIds, defaultAssetStacking } from './stacking-overrides';
 
 describe('asset catalog', () => {
   it('provides complete static metadata for each seed asset', () => {
@@ -37,6 +38,11 @@ describe('asset catalog', () => {
       expect(asset.footprint.length).toBeGreaterThan(0);
       expect(asset.footprint.width).toBeGreaterThan(0);
       expect(asset.footprint.height).toBeGreaterThan(0);
+      expect(asset.stacking).toEqual({
+        surfaceKind: expect.any(String),
+        allowsSameLevelOverlap: expect.any(Boolean),
+        allowedTopCategories: expect.any(Array),
+      });
       expect('applicableAreas' in asset).toBe(false);
       expect('defaultRequiresSkill' in asset).toBe(false);
       expect('defaultSkillType' in asset).toBe(false);
@@ -90,6 +96,49 @@ describe('asset catalog', () => {
     expect(getAssetById('large-narrow-rug')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('large-boulder')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
     expect(assetFootprintOverrideAssetIds.every((assetId) => getAssetById(assetId))).toBe(true);
+  });
+
+  it('defaults assets to non-stackable metadata unless an audited override exists', () => {
+    expect(getAssetById('leafy-plant')?.stacking).toEqual(defaultAssetStacking);
+    expect(getAssetById('large-boulder')?.stacking).toEqual(defaultAssetStacking);
+    expect(getAssetById('tall-grass')?.stacking).toEqual(defaultAssetStacking);
+    expect(getAssetById('music-mat-low-do')?.stacking).toEqual(defaultAssetStacking);
+    expect(getAssetById('felt-mat')?.stacking).toEqual(defaultAssetStacking);
+    expect(assetStackingOverrideAssetIds).toHaveLength(59);
+    expect(assetStackingOverrideAssetIds.every((assetId) => getAssetById(assetId))).toBe(true);
+  });
+
+  it('marks audited plate assets as food-only stacking surfaces', () => {
+    for (const assetId of ['wooden-plate', 'plate', 'party-platter']) {
+      expect(getAssetById(assetId)?.stacking).toEqual({
+        surfaceKind: 'food-surface',
+        allowsSameLevelOverlap: true,
+        allowedTopCategories: ['food'],
+      });
+    }
+  });
+
+  it('marks only audited low-height and floor-cover surfaces as stackable', () => {
+    expect(getAssetById('green-shoots')?.stacking).toMatchObject({
+      surfaceKind: 'low-height-surface',
+      allowsSameLevelOverlap: true,
+      allowedTopCategories: expect.arrayContaining(['furniture', 'food', 'misc']),
+    });
+    expect(getAssetById('frame')?.stacking).toMatchObject({
+      surfaceKind: 'low-height-surface',
+      allowsSameLevelOverlap: true,
+    });
+    expect(getAssetById('small-narrow-rug')?.stacking).toMatchObject({
+      surfaceKind: 'floor-cover',
+      allowsSameLevelOverlap: true,
+      allowedTopCategories: expect.arrayContaining(['furniture', 'food', 'misc']),
+    });
+    expect(getAssetById('felt-mat-interior')?.stacking).toMatchObject({
+      surfaceKind: 'floor-cover',
+      allowsSameLevelOverlap: true,
+    });
+    expect(getAssetById('felt-mat')?.stacking.surfaceKind).toBe('none');
+    expect(getAssetById('modern-carpeting')?.stacking.surfaceKind).toBe('none');
   });
 
   it('covers each audited numeric footprint volume from the checklist', () => {

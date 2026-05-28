@@ -8,8 +8,8 @@ description: Use this repo-scoped skill in pokopia-scene-editor when a task need
 Use this skill for agent-facing Scene Editor workflows that should run through the repo's Worker MCP endpoint:
 
 - validate or recover a `SceneDocument`
-- summarize export data as JSON
-- search Pokopia placeable assets
+- summarize export data as JSON, including derived footprint and stacking relation fields when present
+- search Pokopia placeable assets, including catalog-provided footprint and stacking metadata
 - generate a default `SceneDocument`
 
 ## Boundary
@@ -22,9 +22,9 @@ Use MCP tools as the source of truth:
 - `summarize_scene_export`
 - `search_pokopia_assets`
 
-Do not copy or reimplement `scene-core` schema, asset catalog filtering, export-summary logic, or recovery rules inside this skill. If MCP is unavailable, report that the Worker MCP endpoint is unavailable and stop or start the repo Worker dev server when the task allows it; do not fall back to local business-rule reconstruction.
+Do not copy or reimplement `scene-core` schema, asset catalog filtering, stacking rules, export-summary logic, or recovery rules inside this skill. If MCP is unavailable, report that the Worker MCP endpoint is unavailable and stop or start the repo Worker dev server when the task allows it; do not fall back to local business-rule reconstruction.
 
-Footprint, effective footprint, occupied cells, and height blocking details must also come from MCP `structuredContent`. Never paste local footprint override tables, recalculate occupied cells, or infer blocking rules inside the skill.
+Footprint, effective footprint, occupied cells, stacking metadata, derived stacking relations, and height blocking details must also come from MCP `structuredContent`. Never paste local footprint or stacking override tables, recalculate occupied cells, or infer blocking rules inside the skill.
 
 ## Setup Check
 
@@ -48,7 +48,7 @@ For MCP tool results, treat `structuredContent` as authoritative:
 
 - `ok: true`: use `data` and preserve `warnings` in the response when relevant.
 - `ok: false` or `isError: true`: report `errors`, `fieldPath`, `warnings`, and `fixSuggestions`; make only the smallest repair implied by the tool result before retrying.
-- Footprint conflicts: preserve the full `structuredContent.errors[]` objects, including `conflictType`, instance ids, asset ids, building level ids, blocking fields, and `coordinates`.
+- Footprint or stacking conflicts: preserve the full `structuredContent.errors[]` objects, including `conflictType`, instance ids, asset ids, building level ids, surface/blocking fields, and `coordinates`.
 - `meta`: keep service/schema/catalog version information when comparing outputs or explaining provenance.
 
 Never echo a full user scene payload back in error text unless the user explicitly asks to inspect that file and it is already in the repo.

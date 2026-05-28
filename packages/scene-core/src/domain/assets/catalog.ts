@@ -4,6 +4,7 @@ import { sourcePlaceableAssetNameTranslations } from './source-placeable-item-tr
 import { sourcePlaceableAssetItems, type SourcePlaceableAssetItem } from './source-placeable-items';
 import { sourceItemPreferenceTerms, sourcePokemonPreferences } from './source-pokemon-preferences';
 import { assetFootprintOverrideAssetIds, getAssetFootprint, type AssetFootprint } from './footprint-overrides';
+import { assetStackingOverrideAssetIds, getAssetStacking, type AssetStackingMetadata } from './stacking-overrides';
 
 export const assetCategories = [
   'buildings',
@@ -34,6 +35,7 @@ export interface AssetDefinition {
   favoritePokemonKeys: readonly PokemonKey[];
   dyeable: boolean;
   footprint: AssetFootprint;
+  stacking: AssetStackingMetadata;
   thumbnailUrl: string;
   thumbnailAlt: string;
 }
@@ -157,6 +159,7 @@ function buildAssetDefinition(sourceItem: SourcePlaceableAssetItem, sourceIndex:
       favoritePokemonKeys: buildFavoritePokemonKeys(sourceItem, override),
       dyeable: override?.dyeable ?? inferDyeable(sourceItem),
       footprint: getAssetFootprint(assetId),
+      stacking: getAssetStacking(assetId),
       thumbnailUrl: getAssetThumbnailUrl(sourceItem.imageFileName),
       thumbnailAlt: override?.thumbnailAlt ?? `${displayName}缩略图`,
     },
@@ -290,6 +293,8 @@ assertUniqueCatalogValues(
 
 const assetIdSet = new Set(assetCatalog.map((asset) => asset.assetId));
 assertKnownAssetFootprintOverrideIds(assetFootprintOverrideAssetIds, assetIdSet);
+assertKnownAssetStackingOverrideIds(assetStackingOverrideAssetIds, assetIdSet);
+assertKnownAssetStackingAllowedCategories(assetCatalog, new Set(assetCategories));
 
 export function isKnownAssetId(value: string): boolean {
   return assetIdSet.has(value);
@@ -371,6 +376,27 @@ function assertKnownAssetFootprintOverrideIds(overrideAssetIds: readonly string[
   for (const assetId of overrideAssetIds) {
     if (!knownAssetIds.has(assetId)) {
       throw new RangeError(`Unknown asset footprint override assetId: ${assetId}`);
+    }
+  }
+}
+
+function assertKnownAssetStackingOverrideIds(overrideAssetIds: readonly string[], knownAssetIds: ReadonlySet<string>): void {
+  for (const assetId of overrideAssetIds) {
+    if (!knownAssetIds.has(assetId)) {
+      throw new RangeError(`Unknown asset stacking override assetId: ${assetId}`);
+    }
+  }
+}
+
+function assertKnownAssetStackingAllowedCategories(
+  assets: readonly AssetDefinition[],
+  knownCategories: ReadonlySet<string>,
+): void {
+  for (const asset of assets) {
+    for (const category of asset.stacking.allowedTopCategories) {
+      if (!knownCategories.has(category)) {
+        throw new RangeError(`Unknown asset stacking allowedTopCategory for ${asset.assetId}: ${category}`);
+      }
     }
   }
 }

@@ -259,6 +259,22 @@ describe('worker HTTP API', () => {
     expect(body.data.assets[0]).toMatchObject({
       assetId: 'wooden-bench',
       footprint: { length: 1, width: 2, height: 1 },
+      stacking: { surfaceKind: 'none', allowsSameLevelOverlap: false, allowedTopCategories: [] },
+    });
+  });
+
+  it('returns asset stacking metadata from HTTP asset search', async () => {
+    const response = await request('/api/assets?query=wooden-plate&pageSize=1');
+    const body = await readJson(response);
+
+    expect(response.status).toBe(200);
+    expect(body.data.assets[0]).toMatchObject({
+      assetId: 'wooden-plate',
+      stacking: {
+        surfaceKind: 'food-surface',
+        allowsSameLevelOverlap: true,
+        allowedTopCategories: ['food'],
+      },
     });
   });
 

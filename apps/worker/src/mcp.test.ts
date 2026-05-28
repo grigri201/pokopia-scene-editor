@@ -172,6 +172,11 @@ describe('worker MCP endpoint', () => {
       width: expect.any(Number),
       height: expect.any(Number),
     });
+    expect(assets.result.structuredContent.data.assets[0].stacking).toMatchObject({
+      surfaceKind: expect.any(String),
+      allowsSameLevelOverlap: expect.any(Boolean),
+      allowedTopCategories: expect.any(Array),
+    });
 
     const assetCatalog = await readJson(await mcpRpc('resources/read', { uri: 'pokopia://assets/catalog' }));
     expect(JSON.parse(assetCatalog.result.contents[0].text).assets).toEqual(
@@ -179,6 +184,15 @@ describe('worker MCP endpoint', () => {
         expect.objectContaining({
           assetId: 'wooden-bench',
           footprint: { length: 1, width: 2, height: 1 },
+          stacking: { surfaceKind: 'none', allowsSameLevelOverlap: false, allowedTopCategories: [] },
+        }),
+        expect.objectContaining({
+          assetId: 'wooden-plate',
+          stacking: {
+            surfaceKind: 'food-surface',
+            allowsSameLevelOverlap: true,
+            allowedTopCategories: ['food'],
+          },
         }),
       ]),
     );
