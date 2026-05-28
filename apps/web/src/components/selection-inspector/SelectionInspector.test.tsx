@@ -1,6 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createBuildingLevel, createDefaultSceneDocument, createTileInstance, getCellContext } from '@pokopia-scene-editor/scene-core';
+import {
+  buildSceneOccupancy,
+  createBuildingLevel,
+  createDefaultSceneDocument,
+  createStackingPlateFoodScene,
+  createTileInstance,
+  getCellContext,
+} from '@pokopia-scene-editor/scene-core';
 import { SelectionInspector } from './SelectionInspector';
 
 const scene = {
@@ -29,11 +36,13 @@ const sceneDimensions = {
 const defaultInspectorProps = {
   targetContext: null,
   targetPlacement: null,
+  stackingRelations: [],
   selectedSkillMarker: null,
   canvasSize: scene.canvasSize,
   sceneDimensions,
   buildingLevels: scene.buildingLevels,
   tileInstances: scene.tileInstances,
+  onSelectInstance: () => undefined,
   onDeleteInstance: () => undefined,
   onRotateInstance: () => undefined,
   onSaveInstanceSkill: () => undefined,
@@ -249,6 +258,39 @@ describe('SelectionInspector', () => {
     fireEvent.click(screen.getByRole('button', { name: '清除选中格子中的素材' }));
     expect(onDeleteInstance).toHaveBeenCalledWith('tile-skill');
     expect(onSaveInstanceSkill).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes stacked base and top instances as selectable compact chips', () => {
+    const stackingScene = createStackingPlateFoodScene();
+    const stackingContext = getCellContext(stackingScene, { x: 2, y: 2 });
+    const onSelectInstance = vi.fn();
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={stackingContext}
+        selectedInstance={stackingContext.tileInstances[1]}
+        selectedInstanceId="stacking-top-food"
+        stackingRelations={buildSceneOccupancy(stackingScene).stackingRelations}
+        buildingLevels={stackingScene.buildingLevels}
+        tileInstances={stackingScene.tileInstances}
+        readOnly={false}
+        onSelectInstance={onSelectInstance}
+      />,
+    );
+
+    const topChip = screen.getByRole('button', { name: 'Stack top: 苹野果' });
+    const baseChip = screen.getByRole('button', { name: 'Stack base: 盘子' });
+
+    expect(screen.getByLabelText('Stacking relation')).toBeVisible();
+    expect(topChip).toHaveAttribute('aria-pressed', 'true');
+    expect(topChip).toHaveAttribute('data-instance-id', 'stacking-top-food');
+    expect(baseChip).toHaveAttribute('data-instance-id', 'stacking-base-plate');
+
+    fireEvent.click(baseChip);
+
+    expect(onSelectInstance).toHaveBeenCalledWith('stacking-base-plate');
+    expect(screen.getByRole('button', { name: '清除选中格子中的素材' })).toBeEnabled();
   });
 
   it('shows retained selected-instance fields without note or move editors', () => {

@@ -7,6 +7,7 @@ import {
   type GridCoordinate,
   type RotationDegrees,
   type SceneDocument,
+  type StackingRelation,
   type TileInstance,
 } from '@pokopia-scene-editor/scene-core';
 import { getAssetById, type AssetDefinition } from '@pokopia-scene-editor/scene-core';
@@ -26,6 +27,7 @@ export interface AssetPlacementPreview {
   occupiedCells: readonly GridCoordinate[];
   footprintConflicts: readonly FootprintConflict[];
   existingInstances: readonly TileInstance[];
+  stackingRelations: readonly StackingRelation[];
 }
 
 export type PlacementFailureReason =
@@ -112,7 +114,8 @@ export function placeSelectedAsset(
     skillType: null,
   });
   const replacementInstanceIds = new Set(evaluation.preview.existingInstances.map((instance) => instance.instanceId));
-  const nextTileInstances = input.confirmReplace
+  const shouldReplaceExistingInstances = input.confirmReplace && evaluation.preview.stackingRelations.length === 0;
+  const nextTileInstances = shouldReplaceExistingInstances
     ? scene.tileInstances.filter((instance) => !replacementInstanceIds.has(instance.instanceId))
     : scene.tileInstances;
 
@@ -174,9 +177,10 @@ function evaluatePlacement(
   const existingInstances = footprintEvaluation.existingInstances;
 
   if (footprintEvaluation.status === 'blocked') {
+    const stackingConflictMessage = getStackingConflictMessage(footprintEvaluation.conflicts, asset.assetId);
     return failure(
       'footprint-blocked',
-      footprintEvaluation.conflicts.map((conflict) => conflict.conflictType).join(', '),
+      stackingConflictMessage ?? footprintEvaluation.conflicts.map((conflict) => conflict.conflictType).join(', '),
       'Choose another anchor cell or remove the blocking footprint conflict.',
       'blocked',
       footprintEvaluation,
@@ -198,15 +202,16 @@ function evaluatePlacement(
     preview: {
       status: 'ready',
       canPlace: true,
-      message: 'Ready to place',
-      repairHint: 'Click or press Enter to place.',
+      message: getReadyPlacementMessage(footprintEvaluation),
+      repairHint: getReadyPlacementRepairHint(footprintEvaluation),
       skillLabel,
-      overwriteLabel: 'No overwrite',
+      overwriteLabel: getReadyPlacementOverwriteLabel(footprintEvaluation),
       asset,
       effectiveFootprint: footprintEvaluation.effectiveFootprint,
       occupiedCells: footprintEvaluation.occupiedCells,
       footprintConflicts: [],
       existingInstances,
+      stackingRelations: footprintEvaluation.stackingRelations,
     },
   };
 
@@ -237,9 +242,65 @@ function evaluatePlacement(
         occupiedCells: footprintEvaluation?.occupiedCells ?? [],
         footprintConflicts: footprintEvaluation?.conflicts ?? [],
         existingInstances: previewExistingInstances,
+        stackingRelations: footprintEvaluation?.stackingRelations ?? [],
       },
     };
   }
+}
+
+function getReadyPlacementMessage(footprintEvaluation: ReturnType<typeof evaluateScenePlacementFootprint>): string {
+  const relation = footprintEvaluation.stackingRelations[0];
+
+  if (!relation) {
+    return 'Ready to place';
+  }
+
+  return `Will stack ${getAssetLabel(relation.topAssetId)} on ${getAssetLabel(relation.baseAssetId)}`;
+}
+
+function getReadyPlacementRepairHint(footprintEvaluation: ReturnType<typeof evaluateScenePlacementFootprint>): string {
+  const relation = footprintEvaluation.stackingRelations[0];
+
+  if (!relation) {
+    return 'Click or press Enter to place.';
+  }
+
+  return `Click or press Enter to place above ${getAssetLabel(relation.baseAssetId)}.`;
+}
+
+function getReadyPlacementOverwriteLabel(footprintEvaluation: ReturnType<typeof evaluateScenePlacementFootprint>): string {
+  const relation = footprintEvaluation.stackingRelations[0];
+
+  if (!relation) {
+    return 'No overwrite';
+  }
+
+  return `Stack on ${getAssetLabel(relation.baseAssetId)}`;
+}
+
+function getStackingConflictMessage(conflicts: readonly FootprintConflict[], topAssetId: string): string | null {
+  const conflict = conflicts.find((candidate) =>
+    candidate.conflictType === 'unsupported-stack-surface' ||
+    candidate.conflictType === 'surface-capacity-conflict',
+  );
+
+  if (!conflict) {
+    return null;
+  }
+
+  return `${conflict.conflictType}: top=${getAssetLabel(topAssetId)} base=${getAssetLabel(conflict.blockingAssetId)} level=${conflict.buildingLevelId} coordinates=${formatCoordinates(conflict.coordinates)}`;
+}
+
+function getAssetLabel(assetId: string | undefined): string {
+  if (!assetId) {
+    return 'unknown asset';
+  }
+
+  return getAssetById(assetId)?.name ?? assetId;
+}
+
+function formatCoordinates(coordinates: readonly GridCoordinate[]): string {
+  return coordinates.map((coordinate) => `${coordinate.x},${coordinate.y}`).join(' ');
 }
 
 function getPlacementSkillLabel(requiresSkill: boolean): string {

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createBuildingLevel,
   createDefaultSceneDocument,
+  createStackingPlateFoodScene,
   createSkillMarker,
   createTileInstance,
   getCanvasCellContexts,
@@ -467,6 +468,115 @@ describe('SceneCanvas', () => {
     expect(cell.querySelector('.cell-asset-label')).toBeNull();
     expect(screen.queryByLabelText('Skill marker 绿叶植物 树')).not.toBeInTheDocument();
     expect(cell).toHaveAttribute('data-instance-count', '1');
+  });
+
+  it('renders legal stacking relations as base and top half-cell regions', () => {
+    const stackingScene = createStackingPlateFoodScene();
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={stackingScene}
+        cells={getCanvasCellContexts(stackingScene)}
+        readOnly={false}
+      />,
+    );
+
+    const cell = getRenderedCell('2,2');
+    const split = cell.querySelector('.cell-stacking-split');
+
+    expect(cell).toHaveAccessibleName(expect.stringContaining('stacked 苹野果 on 盘子'));
+    expect(cell).toHaveAttribute('data-stacking-state', 'placed');
+    expect(cell).toHaveAttribute('data-instance-count', '2');
+    expect(cell).toHaveAttribute('data-stacking-base-instance-id', 'stacking-base-plate');
+    expect(cell).toHaveAttribute('data-stacking-top-instance-id', 'stacking-top-food');
+    expect(cell).toHaveAttribute('data-stacking-base-asset-id', 'plate');
+    expect(cell).toHaveAttribute('data-stacking-top-asset-id', 'leppa-berry');
+    expect(cell).toHaveAttribute('data-stacking-surface-kind', 'food-surface');
+    expect(split?.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-asset-id', 'leppa-berry');
+    expect(split?.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-asset-id', 'plate');
+  });
+
+  it('renders legal stacking placement preview with top and base halves', () => {
+    const placementScene = {
+      ...scene,
+      workspaceState: {
+        ...scene.workspaceState,
+        selectedAssetId: 'leppa-berry',
+      },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-plate',
+          assetId: 'plate',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const preview = getAssetPlacementPreview(placementScene, { x: 2, y: 2 }, 'edit', false);
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={placementScene}
+        cells={getCanvasCellContexts(placementScene)}
+        targetCoordinate={{ x: 2, y: 2 }}
+        targetPlacement={preview}
+        readOnly={false}
+      />,
+    );
+
+    const cell = getRenderedCell('2,2');
+    const split = cell.querySelector('.cell-stacking-split');
+
+    expect(cell).toHaveAccessibleName(expect.stringContaining('placement preview stacking 苹野果 on 盘子'));
+    expect(cell).toHaveAttribute('data-placement-status', 'ready');
+    expect(cell).toHaveAttribute('data-stacking-state', 'placement');
+    expect(cell).toHaveAttribute('data-stacking-base-instance-id', 'tile-plate');
+    expect(cell).toHaveAttribute('data-stacking-top-instance-id', 'placement-preview');
+    expect(split?.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-asset-id', 'leppa-berry');
+    expect(split?.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-asset-id', 'plate');
+  });
+
+  it('renders unsupported stacking placement as a shallow red conflict state', () => {
+    const placementScene = {
+      ...scene,
+      workspaceState: {
+        ...scene.workspaceState,
+        selectedAssetId: 'leafy-plant',
+      },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-plate',
+          assetId: 'plate',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const preview = getAssetPlacementPreview(placementScene, { x: 2, y: 2 }, 'edit', false);
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={placementScene}
+        cells={getCanvasCellContexts(placementScene)}
+        targetCoordinate={{ x: 2, y: 2 }}
+        targetPlacement={preview}
+        readOnly={false}
+      />,
+    );
+
+    const cell = getRenderedCell('2,2');
+
+    expect(cell).toHaveClass('scene-cell--placement-conflict');
+    expect(cell).toHaveClass('scene-cell--stacking-conflict');
+    expect(cell).toHaveAccessibleName(expect.stringContaining('unsupported stacking 绿叶植物 on 盘子'));
+    expect(cell).toHaveAttribute('data-placement-status', 'blocked');
+    expect(cell).toHaveAttribute('data-placement-conflicts', 'unsupported-stack-surface');
+    expect(cell).toHaveAttribute('data-stacking-state', 'conflict');
+    expect(cell).toHaveAttribute('data-stacking-base-instance-id', 'tile-plate');
+    expect(cell).toHaveAttribute('data-stacking-top-asset-id', 'leafy-plant');
   });
 
   it('renders rotation-aware footprint placement preview across all occupied cells', () => {

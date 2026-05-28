@@ -208,6 +208,125 @@ describe('asset placement command', () => {
     expect(result.reason).toBe('replace-confirmation-required');
   });
 
+  it('describes legal stacking placement without replacing the base surface', () => {
+    const selectedScene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'leppa-berry', 'edit', now);
+    const sceneWithPlate = {
+      ...selectedScene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-plate',
+          assetId: 'plate',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const preview = getAssetPlacementPreview(sceneWithPlate, { x: 2, y: 2 }, 'edit', false);
+    const result = placeSelectedAsset(sceneWithPlate, {
+      coordinate: { x: 2, y: 2 },
+      interactionMode: 'edit',
+      now,
+      instanceId: 'tile-food',
+      requiresSkill: false,
+    });
+
+    expect(preview).toMatchObject({
+      status: 'ready',
+      message: 'Will stack 苹野果 on 盘子',
+      repairHint: 'Click or press Enter to place above 盘子.',
+      overwriteLabel: 'Stack on 盘子',
+      stackingRelations: [
+        expect.objectContaining({
+          topInstanceId: 'placement-preview',
+          topAssetId: 'leppa-berry',
+          baseInstanceId: 'tile-plate',
+          baseAssetId: 'plate',
+          surfaceKind: 'food-surface',
+        }),
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected stacking placement success.');
+    }
+    expect(result.scene.tileInstances.map((instance) => instance.instanceId)).toEqual(['tile-plate', 'tile-food']);
+  });
+
+  it('keeps the base surface when legal stacking is placed inside a replacement confirmation window', () => {
+    const selectedScene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'leppa-berry', 'edit', now);
+    const sceneWithPlate = {
+      ...selectedScene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-plate',
+          assetId: 'plate',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const result = placeSelectedAsset(sceneWithPlate, {
+      coordinate: { x: 2, y: 2 },
+      interactionMode: 'edit',
+      now,
+      instanceId: 'tile-food',
+      requiresSkill: false,
+      confirmReplace: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected stacking placement success.');
+    }
+    expect(result.preview.stackingRelations).toHaveLength(1);
+    expect(result.scene.tileInstances.map((instance) => instance.instanceId)).toEqual(['tile-plate', 'tile-food']);
+  });
+
+  it('blocks unsupported stacking surfaces even when replacement was recently confirmed', () => {
+    const selectedScene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'leafy-plant', 'edit', now);
+    const sceneWithPlate = {
+      ...selectedScene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-plate',
+          assetId: 'plate',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const preview = getAssetPlacementPreview(sceneWithPlate, { x: 2, y: 2 }, 'edit', false);
+    const result = placeSelectedAsset(sceneWithPlate, {
+      coordinate: { x: 2, y: 2 },
+      interactionMode: 'edit',
+      now,
+      instanceId: 'tile-plant',
+      requiresSkill: false,
+      confirmReplace: true,
+    });
+
+    expect(preview).toMatchObject({
+      status: 'blocked',
+      message: 'unsupported-stack-surface: top=绿叶植物 base=盘子 level=level-0 coordinates=2,2',
+      footprintConflicts: [
+        expect.objectContaining({
+          conflictType: 'unsupported-stack-surface',
+          blockingInstanceId: 'tile-plate',
+          blockingAssetId: 'plate',
+          surfaceKind: 'food-surface',
+        }),
+      ],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('footprint-blocked');
+      expect(result.preview.footprintConflicts[0]).toMatchObject({
+        conflictType: 'unsupported-stack-surface',
+        blockingInstanceId: 'tile-plate',
+      });
+    }
+  });
+
   it('requires replacement when a wide footprint overlaps a neighboring occupied cell', () => {
     const scene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'wooden-bench', 'edit', now);
     const sceneWithNeighbor = {

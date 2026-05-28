@@ -14,6 +14,7 @@ import {
   type RotationDegrees,
   type SceneDimensions,
   type SkillMarker,
+  type StackingRelation,
   type TileInstance,
 } from '@pokopia-scene-editor/scene-core';
 import type { AssetPlacementPreview } from '../../state';
@@ -25,6 +26,7 @@ interface SelectionInspectorProps {
   selectedInstance: TileInstance | null;
   selectedInstanceId: string | null;
   selectedSkillMarker: SkillMarker | null;
+  stackingRelations: readonly StackingRelation[];
   targetContext: CellContext | null;
   targetPlacement: AssetPlacementPreview | null;
   canvasSize: GridSize;
@@ -32,6 +34,7 @@ interface SelectionInspectorProps {
   buildingLevels: readonly BuildingLevel[];
   tileInstances: readonly TileInstance[];
   readOnly: boolean;
+  onSelectInstance: (instanceId: string) => void;
   onDeleteInstance: (instanceId: string) => void;
   onRotateInstance: (instanceId: string, rotationDegrees: RotationDegrees) => void;
   onSaveInstanceSkill: (
@@ -53,9 +56,12 @@ export function SelectionInspector({
   locale = defaultLocale,
   selectedContext,
   selectedInstance,
+  selectedInstanceId,
   selectedSkillMarker,
+  stackingRelations,
   buildingLevels,
   readOnly,
+  onSelectInstance,
   onDeleteInstance,
   onRotateInstance,
   onSaveInstanceSkill,
@@ -72,6 +78,8 @@ export function SelectionInspector({
   const activeSkillType = selectedSkillMarker?.skillType ?? (selectedInstance?.requiresSkill ? selectedInstance.skillType : null);
   const activeSkillNote = selectedSkillMarker?.skillNote ?? selectedInstance?.skillNote ?? '';
   const nextRotation = getNextRotation(selectedInstance?.rotationDegrees ?? 0);
+  const selectedStackingRelation = getSelectedStackingRelation(stackingRelations, context);
+  const stackItems = selectedStackingRelation ? getStackItems(selectedStackingRelation) : [];
   const selectionSummary = [
     assetDisplay ? assetDisplay.name : (coordinate ? `${coordinate.x},${coordinate.y}` : t(locale, 'noSelection')),
     coordinate ? `x${coordinate.x} y${coordinate.y}` : null,
@@ -114,6 +122,34 @@ export function SelectionInspector({
             <span>{t(locale, 'emptySelectionPrompt')}</span>
           </div>
         )}
+        {stackItems.length > 0 ? (
+          <div className="current-selection-bar__stack" aria-label="Stacking relation">
+            {stackItems.map((item) => {
+              const itemAsset = getAssetById(item.assetId);
+              const itemDisplay = itemAsset ? getAssetDisplay(itemAsset, locale).name : item.assetId;
+
+              return (
+                <button
+                  type="button"
+                  className={[
+                    'current-selection-stack-button',
+                    selectedInstanceId === item.instanceId ? 'current-selection-stack-button--active' : '',
+                  ].filter(Boolean).join(' ')}
+                  aria-label={`Stack ${item.role}: ${itemDisplay}`}
+                  aria-pressed={selectedInstanceId === item.instanceId}
+                  data-stacking-role={item.role}
+                  data-instance-id={item.instanceId}
+                  data-asset-id={item.assetId}
+                  key={item.role}
+                  onClick={() => onSelectInstance(item.instanceId)}
+                >
+                  {itemAsset ? <img src={itemAsset.thumbnailUrl} alt="" /> : null}
+                  <span className="sr-only">{itemDisplay}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
         {coordinate ? (
           <div className="current-selection-bar__actions" aria-label={t(locale, 'selectionEditActions')}>
             {selectedInstance ? (
@@ -233,6 +269,41 @@ const selectionSkillActions: {
     iconUrl: getAssetSkillMarkerIconUrl('储水') ?? '',
   },
 ];
+
+function getSelectedStackingRelation(
+  stackingRelations: readonly StackingRelation[],
+  context: CellContext | null,
+): StackingRelation | null {
+  if (!context) {
+    return null;
+  }
+
+  return stackingRelations.find((relation) =>
+    relation.buildingLevelId === context.buildingLevel.id &&
+    relation.coordinates.some((coordinate) =>
+      coordinate.x === context.coordinate.x &&
+      coordinate.y === context.coordinate.y),
+  ) ?? null;
+}
+
+function getStackItems(relation: StackingRelation): Array<{
+  role: 'top' | 'base';
+  instanceId: string;
+  assetId: string;
+}> {
+  return [
+    {
+      role: 'top',
+      instanceId: relation.topInstanceId,
+      assetId: relation.topAssetId,
+    },
+    {
+      role: 'base',
+      instanceId: relation.baseInstanceId,
+      assetId: relation.baseAssetId,
+    },
+  ];
+}
 
 function RotateIcon() {
   return (
