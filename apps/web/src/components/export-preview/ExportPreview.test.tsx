@@ -22,7 +22,7 @@ describe('ExportPreview', () => {
 
     render(<ExportPreview summary={summary} downloadDisabled onClose={onClose} />);
 
-    expect(screen.getByRole('dialog', { name: '图片导出预览' })).toBeVisible();
+    expect(screen.getByRole('dialog', { name: '下载预览' })).toBeVisible();
     expect(screen.getByRole('heading', { name: unsafeScriptText })).toBeVisible();
     const pokemonTitleImage = screen.getByLabelText('百变怪导出预览宝可梦图片');
     expect(pokemonTitleImage).toBeVisible();
@@ -127,7 +127,7 @@ describe('ExportPreview', () => {
 
     render(<ExportPreview locale="en-US" summary={summary} onClose={vi.fn()} />);
 
-    expect(screen.getByRole('dialog', { name: 'Image export preview' })).toBeVisible();
+    expect(screen.getByRole('dialog', { name: 'Download preview' })).toBeVisible();
     expect(screen.getByLabelText('Ditto export preview Pokemon image')).toBeVisible();
     expect(screen.getByText('7x7 canvas · 3 building layers')).toBeVisible();
     expect(screen.getByLabelText('Overall material list')).toHaveTextContent(/Leafy/i);
@@ -316,10 +316,10 @@ describe('ExportPreview', () => {
     expect(closeButton).toHaveFocus();
     expect(downloadButton).toBeDisabled();
 
-    fireEvent.keyDown(screen.getByRole('dialog', { name: '图片导出预览' }), { key: 'Tab' });
+    fireEvent.keyDown(screen.getByRole('dialog', { name: '下载预览' }), { key: 'Tab' });
     expect(closeButton).toHaveFocus();
 
-    fireEvent.keyDown(screen.getByRole('dialog', { name: '图片导出预览' }), { key: 'Escape' });
+    fireEvent.keyDown(screen.getByRole('dialog', { name: '下载预览' }), { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
 
     unmount();

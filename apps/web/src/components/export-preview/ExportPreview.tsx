@@ -121,7 +121,6 @@ export function ExportPreview({
               <img src={selectedPokemon.portraitUrl} alt={t(locale, 'pokemonImageAlt', { name: selectedPokemonName })} />
             </span>
             <div>
-              <p className="eyebrow">{t(locale, 'imageExportEyebrow')}</p>
               <h2>{summary.sceneName}</h2>
               <p>{t(locale, canvasBuildingLayersKey, {
                 width: summary.canvasSize.width,

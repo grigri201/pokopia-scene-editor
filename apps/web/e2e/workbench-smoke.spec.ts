@@ -133,7 +133,7 @@ test('switches the workbench to English without writing locale into SceneDocumen
 
   await page.getByRole('button', { name: 'Download Preview' }).click();
 
-  await expect(page.getByRole('dialog', { name: 'Image export preview' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Download preview' })).toBeVisible();
   await expect(page.getByLabel('Overall material list')).toContainText('No materials placed');
   await expect(page.getByLabel('L1 material list')).toContainText('No materials on this layer');
   await expect(page.getByLabel('4,4: Empty layer')).toBeVisible();
@@ -190,7 +190,7 @@ test('previews and downloads an image export without mutating scene storage', as
   const beforeSnapshot = JSON.stringify(await readSceneSnapshot(page));
   await page.getByRole('button', { name: '下载预览' }).click();
 
-  await expect(page.getByRole('dialog', { name: '图片导出预览' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: '下载预览' })).toBeVisible();
   const preview = page.locator('.export-preview');
   await expect
     .poll(async () => preview.evaluate((element) => Math.round(element.getBoundingClientRect().width)))

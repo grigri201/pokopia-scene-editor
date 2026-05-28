@@ -310,7 +310,7 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
     fireEvent.click(screen.getByRole('button', { name: '下载预览' }));
 
-    expect(screen.getByRole('dialog', { name: '图片导出预览' })).toBeVisible();
+    expect(screen.getByRole('dialog', { name: '下载预览' })).toBeVisible();
     expect(screen.getByLabelText('Application header')).toHaveAttribute('inert');
     expect(screen.getByLabelText('Open Design editing workbench')).toHaveAttribute('inert');
     expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('未放置素材');
@@ -324,7 +324,7 @@ describe('AppShell scene storage integration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '关闭' }));
 
-    expect(screen.queryByRole('dialog', { name: '图片导出预览' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '下载预览' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Application header')).not.toHaveAttribute('inert');
     expect(screen.getByLabelText('Open Design editing workbench')).not.toHaveAttribute('inert');
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
@@ -448,7 +448,7 @@ describe('AppShell scene storage integration', () => {
     expect(exportedBlob.type).toBe('image/png');
     await expect(exportedBlob.text()).resolves.toBe('png');
     expect(toBlobMock).toHaveBeenCalledWith(
-      screen.getByRole('dialog', { name: '图片导出预览' }),
+      screen.getByRole('dialog', { name: '下载预览' }),
       expect.objectContaining({
         pixelRatio: 2,
         type: 'image/png',
