@@ -371,7 +371,7 @@ describe('SceneDocument v1 schema', () => {
       ...payload,
       buildingLevels: [
         ...payload.buildingLevels,
-        { id: 'level-1', levelNumber: 1, name: '1层' },
+        { id: 'level-1', levelNumber: 1, name: '2层' },
       ],
       tileInstances: [
         payload.tileInstances[0],

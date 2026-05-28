@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { type AssetSkillType, type PokemonKey, type RotationDegrees } from '@pokopia-scene-editor/scene-core';
+import { type AssetSkillType, type PokemonKey } from '@pokopia-scene-editor/scene-core';
 import { AssetPicker, type AssetSelectionMode } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
 import { PokemonSceneControls } from '../pokemon-scene-controls/PokemonSceneControls';
@@ -150,7 +150,6 @@ export function AppShell() {
   const [hoveredCoordinate, setHoveredCoordinate] = useState<GridCoordinate | null>(null);
   const [focusedCoordinate, setFocusedCoordinate] = useState<GridCoordinate | null>(null);
   const [placementRequiresSkill, setPlacementRequiresSkill] = useState(false);
-  const [placementRotationDegrees, setPlacementRotationDegrees] = useState<RotationDegrees>(0);
   const [assetSelectionMode, setAssetSelectionMode] = useState<AssetSelectionMode>('single');
   const [placementFeedback, setPlacementFeedback] = useState<AssetPlacementPreview | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
@@ -197,7 +196,7 @@ export function AppShell() {
   const targetContext = targetCoordinate ? getCellContext(scene, targetCoordinate, activeBuildingLevelId) : null;
   const selectedAssetId = scene.workspaceState.selectedAssetId;
   const targetPlacementPreview = targetCoordinate
-    ? getAssetPlacementPreview(scene, targetCoordinate, interactionMode, placementRequiresSkill, placementRotationDegrees)
+    ? getAssetPlacementPreview(scene, targetCoordinate, interactionMode, placementRequiresSkill, 0)
     : placementFeedback;
   const commitSceneEdit = (nextScene: SceneDocument, currentScene = scene) => {
     if (nextScene === currentScene) {
@@ -491,7 +490,7 @@ export function AppShell() {
         message: t(locale, 'autosaveFailed'),
       });
     }
-  }, [isReadOnly, scene, locale]);
+  }, [isReadOnly, scene]);
 
   useEffect(() => {
     if (recoveryStatus === 'idle') {
@@ -597,7 +596,6 @@ export function AppShell() {
     }
 
     setPlacementRequiresSkill(false);
-    setPlacementRotationDegrees(0);
     setPlacementFeedback(null);
     setAssetSelectionMode(mode);
 
@@ -628,7 +626,7 @@ export function AppShell() {
       instanceId: createTileInstanceId(),
       requiresSkill: placementRequiresSkill,
       confirmReplace: canReplaceWithoutPrompt,
-      rotationDegrees: placementRotationDegrees,
+      rotationDegrees: 0,
     });
 
     if (result.ok) {
@@ -655,7 +653,7 @@ export function AppShell() {
         instanceId: createTileInstanceId(),
         requiresSkill: placementRequiresSkill,
         confirmReplace: true,
-        rotationDegrees: placementRotationDegrees,
+        rotationDegrees: 0,
       });
 
       if (confirmedResult.ok) {
@@ -678,7 +676,6 @@ export function AppShell() {
     }
 
     setAssetSelectionMode('single');
-    setPlacementRotationDegrees(0);
     commitSceneEdit({
       ...nextScene,
       workspaceState: {
@@ -710,15 +707,6 @@ export function AppShell() {
         now: getCurrentIsoTimestamp(),
       }),
     );
-  };
-
-  const rotatePlacementAsset = () => {
-    if (isReadOnly || !scene.workspaceState.selectedAssetId) {
-      return;
-    }
-
-    setPlacementRotationDegrees((current) => getNextRotation(current));
-    setPlacementFeedback(null);
   };
 
   const deleteInstance = (instanceId: string) => {
@@ -823,15 +811,20 @@ export function AppShell() {
     );
   };
 
-  const handleBuildingLayerResult = (result: BuildingLayerEditResult) => {
+  const handleBuildingLayerResult = (
+    result: BuildingLayerEditResult,
+    options: { showSuccessToast?: boolean } = {},
+  ) => {
     if (result.ok) {
       commitSceneEdit(result.scene);
-      showNotificationToast({
-        id: 'building-layer',
-        tone: 'success',
-        title: t(locale, 'buildingLayerToastTitle'),
-        message: result.message,
-      });
+      if (options.showSuccessToast ?? true) {
+        showNotificationToast({
+          id: 'building-layer',
+          tone: 'success',
+          title: t(locale, 'buildingLayerToastTitle'),
+          message: result.message,
+        });
+      }
       setPlacementFeedback(null);
       return;
     }
@@ -868,6 +861,7 @@ export function AppShell() {
         interactionMode,
         now: getCurrentIsoTimestamp(),
       }),
+      { showSuccessToast: false },
     );
   };
 
@@ -1563,9 +1557,7 @@ export function AppShell() {
           selectedPokemonKey={scene.selectedPokemonKey}
           currentBuildingLevelName={currentBuildingLevel?.name ?? t(locale, 'noBuildingLayer')}
           placementRequiresSkill={placementRequiresSkill}
-          placementRotationDegrees={placementRotationDegrees}
           onPlacementRequiresSkillChange={setPlacementRequiresSkill}
-          onPlacementRotate={rotatePlacementAsset}
           onAssetSelect={selectAsset}
         />
       </section>
@@ -1944,22 +1936,6 @@ function getRecoveryStatusMessage(status: 'idle' | 'error' | 'success' | 'cancel
 
 function createTileInstanceId(): string {
   return `tile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function getNextRotation(rotationDegrees: RotationDegrees): RotationDegrees {
-  if (rotationDegrees === 0) {
-    return 90;
-  }
-
-  if (rotationDegrees === 90) {
-    return 180;
-  }
-
-  if (rotationDegrees === 180) {
-    return 270;
-  }
-
-  return 0;
 }
 
 function createCopiedLayerInstancePrefix(): string {

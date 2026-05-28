@@ -7,7 +7,12 @@ import {
   type GridCoordinate,
   type SceneDimensions,
 } from './area';
-import { sortBuildingLevelsForDisplay, sortBuildingLevelsForRender } from './levels';
+import {
+  getBuildingLevelDisplayId,
+  normalizeBuildingLevelDisplayName,
+  sortBuildingLevelsForDisplay,
+  sortBuildingLevelsForRender,
+} from './levels';
 import type { BuildingLevel, SceneDocument, SkillMarker, TileInstance } from './types';
 
 export interface CellContext {
@@ -173,9 +178,9 @@ export function getBuildingLevelContexts(scene: SceneDocument): BuildingLevelCon
 
   return sortBuildingLevelsForDisplay(scene.buildingLevels).map((level) => ({
     id: level.id,
-    displayId: `L${level.levelNumber}`,
+    displayId: getBuildingLevelDisplayId(level.levelNumber),
     levelNumber: level.levelNumber,
-    name: level.name,
+    name: normalizeBuildingLevelDisplayName(level.name, level.levelNumber),
     instanceCount: countTileInstancesForLevel(scene, level.id),
     current: level.id === currentLevel.id,
   }));

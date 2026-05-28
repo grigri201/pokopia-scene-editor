@@ -32,6 +32,8 @@ describe('AssetPicker', () => {
     expect(screen.queryByText(/Showing first/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Current placement asset')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('待放置素材控制')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '旋转待放置素材 90 度' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '清除筛选' })).not.toBeInTheDocument();
     expect(getAssetSelectButton('leppa-berry')).toHaveAttribute('aria-pressed', 'true');
     expect(getAssetRow('leppa-berry')).toHaveAttribute('data-selection-mode', 'single');

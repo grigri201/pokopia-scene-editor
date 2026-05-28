@@ -9,7 +9,6 @@ import {
   type AssetDefinition,
   type AssetFilterState,
   type PokemonKey,
-  type RotationDegrees,
 } from '@pokopia-scene-editor/scene-core';
 import {
   defaultLocale,
@@ -32,9 +31,7 @@ interface AssetPickerProps {
   selectedPokemonKey: PokemonKey;
   currentBuildingLevelName: string;
   placementRequiresSkill: boolean;
-  placementRotationDegrees?: RotationDegrees;
   onPlacementRequiresSkillChange: (requiresSkill: boolean) => void;
-  onPlacementRotate?: () => void;
   onAssetSelect: (assetId: string, placementMode: AssetSelectionMode) => void;
 }
 
@@ -47,9 +44,7 @@ export function AssetPicker({
   selectedAssetMode = 'single',
   selectedPokemonKey,
   placementRequiresSkill,
-  placementRotationDegrees = 0,
   onPlacementRequiresSkillChange,
-  onPlacementRotate = () => undefined,
   onAssetSelect,
 }: AssetPickerProps) {
   const assetPickerId = useId();
@@ -190,13 +185,6 @@ export function AssetPicker({
         onPlacementRequiresSkillChange={onPlacementRequiresSkillChange}
         readOnly={readOnly}
       />
-      <PlacementRotationControl
-        locale={locale}
-        asset={selectedAsset}
-        placementRotationDegrees={placementRotationDegrees}
-        onPlacementRotate={onPlacementRotate}
-        readOnly={readOnly}
-      />
       {filterResult.pageCount > 1 ? (
         <nav className="asset-pagination" aria-label="Asset pagination">
           <button
@@ -281,50 +269,6 @@ export function AssetPicker({
         <AssetDetail locale={locale} asset={viewedAsset} selectedPokemonKey={selectedPokemonKey} />
       </div>
     </aside>
-  );
-}
-
-function PlacementRotationControl({
-  locale,
-  asset,
-  placementRotationDegrees,
-  onPlacementRotate,
-  readOnly,
-}: {
-  locale: Locale;
-  asset: AssetDefinition | null;
-  placementRotationDegrees: RotationDegrees;
-  onPlacementRotate: () => void;
-  readOnly: boolean;
-}) {
-  return (
-    <div className="placement-rotation-control" aria-label={t(locale, 'placementControls')}>
-      <button
-        type="button"
-        className="placement-rotation-button has-icon-tooltip"
-        aria-label={t(locale, 'rotatePlacement90')}
-        data-tooltip={t(locale, 'rotatePlacement90')}
-        title={t(locale, 'rotatePlacement90')}
-        disabled={readOnly || !asset}
-        onClick={onPlacementRotate}
-      >
-        <PlacementRotateIcon />
-      </button>
-      <span className="placement-rotation-status" aria-label={t(locale, 'placementRotationStatus')}>
-        {placementRotationDegrees}°
-      </span>
-    </div>
-  );
-}
-
-function PlacementRotateIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M5 8h7.2a4.8 4.8 0 0 1 4.8 4.8V18" />
-      <path d="m14.2 15.2 2.8 2.8 2.8-2.8" />
-      <path d="M5 8l3-3" />
-      <path d="M5 8l3 3" />
-    </svg>
   );
 }
 

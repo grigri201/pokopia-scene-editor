@@ -30,7 +30,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Pokopia scene editor workbench')).toBeVisible();
   expect(await getShellTransitionDuration(page)).toBe('0s');
   await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
-  await expect(page.getByLabel('Current Pokemon')).toHaveValue('ditto');
+  await expect(page.getByLabel('Current Pokemon')).toHaveValue('百变怪');
   await expect(page.getByLabel('布景名称')).toHaveValue('5x5 布景');
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
   await expect(page.locator('.asset-row')).toHaveCount(10);
@@ -70,7 +70,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
 
   const snapshot = await readSceneSnapshot(page);
   expect(snapshot.sceneName).toBe('5x5 布景');
-  expect(snapshot.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '0层' }]);
+  expect(snapshot.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '1层' }]);
   expect(snapshot.tileInstances).toEqual([]);
   expect(snapshot.workspaceState).toMatchObject({
     currentBuildingLevelId: 'level-0',
@@ -114,7 +114,7 @@ test('switches the workbench to English without writing locale into SceneDocumen
   await expect(page.getByRole('button', { name: 'Download Preview' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible();
   await expect(page.getByLabel('Scene name')).toHaveValue('5x5 布景');
-  await expect(page.getByLabel('Current Pokemon')).toHaveValue('ditto');
+  await expect(page.getByLabel('Current Pokemon')).toHaveValue('Ditto');
   await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('Leppa Berry');
   await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('Food');
   expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
@@ -135,7 +135,7 @@ test('switches the workbench to English without writing locale into SceneDocumen
 
   await expect(page.getByRole('dialog', { name: 'Image export preview' })).toBeVisible();
   await expect(page.getByLabel('Overall material list')).toContainText('No materials placed');
-  await expect(page.getByLabel('L0 material list')).toContainText('No materials on this layer');
+  await expect(page.getByLabel('L1 material list')).toContainText('No materials on this layer');
   await expect(page.getByLabel('4,4: Empty layer')).toBeVisible();
   const exportText = await page.locator('.export-preview').innerText();
   expect(exportText).not.toMatch(/[\u4e00-\u9fff]/);
@@ -222,7 +222,7 @@ test('previews and downloads an image export without mutating scene storage', as
     })
     .toBe(true);
   await expect(page.locator('.export-preview__body > :first-child')).toHaveAttribute('aria-label', '整体使用素材清单');
-  await expect(page.locator('.export-preview__layers > .export-layer').first()).toContainText('L0 · 0层');
+  await expect(page.locator('.export-preview__layers > .export-layer').first()).toContainText('L1 · 1层');
   await expect(page.locator('.export-preview__layers')).not.toContainText('placed items');
   await expect(page.getByLabel('整体使用素材清单')).toContainText('绿叶植物');
   await expect(page.getByLabel('整体使用素材清单')).toContainText('树叶');
@@ -242,8 +242,8 @@ test('previews and downloads an image export without mutating scene storage', as
       }),
     )
     .toBeGreaterThan(0);
-  await expect(page.getByLabel('L1 7x7 图形')).toBeVisible();
-  const layerGrid = page.getByLabel('L1 7x7 图形');
+  await expect(page.getByLabel('L2 7x7 图形')).toBeVisible();
+  const layerGrid = page.getByLabel('L2 7x7 图形');
   await layerGrid.scrollIntoViewIfNeeded();
   await expect
     .poll(async () =>
@@ -281,13 +281,13 @@ test('previews and downloads an image export without mutating scene storage', as
       }),
     )
     .toBe(true);
-  await expect(page.getByLabel('L1 使用素材清单')).toContainText('绿叶植物');
-  await expect(page.getByLabel('L1 使用素材清单')).toContainText('树叶');
-  await expect(page.getByLabel('L1 使用素材清单')).toContainText('储水');
-  await expect(page.getByLabel('L1 使用素材清单')).not.toContainText('No.');
-  await expect(page.getByLabel('L1 使用素材清单')).not.toContainText('restore smoke');
-  await expect(page.getByLabel('L1 使用素材清单').locator('img[alt="绿叶植物缩略图"]')).toBeVisible();
-  const layerWaterSkillIcon = page.getByLabel('L1 使用素材清单').locator('img[alt="储水技能图标"]');
+  await expect(page.getByLabel('L2 使用素材清单')).toContainText('绿叶植物');
+  await expect(page.getByLabel('L2 使用素材清单')).toContainText('树叶');
+  await expect(page.getByLabel('L2 使用素材清单')).toContainText('储水');
+  await expect(page.getByLabel('L2 使用素材清单')).not.toContainText('No.');
+  await expect(page.getByLabel('L2 使用素材清单')).not.toContainText('restore smoke');
+  await expect(page.getByLabel('L2 使用素材清单').locator('img[alt="绿叶植物缩略图"]')).toBeVisible();
+  const layerWaterSkillIcon = page.getByLabel('L2 使用素材清单').locator('img[alt="储水技能图标"]');
   await expect(layerWaterSkillIcon).toBeVisible();
   await expect
     .poll(async () =>
@@ -308,8 +308,8 @@ test('previews and downloads an image export without mutating scene storage', as
       }),
     )
     .toBe(true);
-  await expect(page.getByLabel('L1 技能数量')).toHaveCount(0);
-  const layerMaterialItems = page.getByLabel('L1 使用素材清单').locator('.export-material-list--with-thumbs > li');
+  await expect(page.getByLabel('L2 技能数量')).toHaveCount(0);
+  const layerMaterialItems = page.getByLabel('L2 使用素材清单').locator('.export-material-list--with-thumbs > li');
   await expect(layerMaterialItems).toHaveCount(8);
   await expect
     .poll(async () =>
@@ -353,6 +353,7 @@ test('previews and downloads an image export without mutating scene storage', as
   const download = await downloadPromise;
   const downloadPath = await download.path();
 
+  await expect(page.getByRole('status', { name: '图片导出提示' })).toContainText('图片已准备下载');
   expect(download.suggestedFilename()).toBe('Restored-Smoke-Layout.pokopia-scene.png');
   expect(downloadPath).not.toBeNull();
   const pngBytes = await readFile(downloadPath ?? '');
@@ -363,7 +364,6 @@ test('previews and downloads an image export without mutating scene storage', as
   expect(pngBytes.toString('utf8')).not.toContain('<svg');
   expect(pngBytes.toString('utf8')).not.toContain('restore smoke');
   expect(pngBytes.toString('utf8')).not.toContain('No.');
-  await expect(page.getByRole('status', { name: 'Image export download status' })).toContainText('图片已准备下载');
   expect(JSON.stringify(await readSceneSnapshot(page))).toBe(beforeSnapshot);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
   expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
@@ -592,7 +592,7 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   for (const key of mobileApplicationKeys) {
     await page.keyboard.press(key);
   }
-  await page.getByLabel('L0, 0层, 0 instances, viewing layer').focus();
+  await page.getByLabel('L1, 1层, 0 instances, viewing layer').focus();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Space');
   await page.locator('[data-asset-id="leppa-berry"] .asset-select-button').focus();
@@ -779,9 +779,9 @@ function createEditableScene() {
     canvasSize: { width: 7, height: 7 },
     outerPadding: 1,
     buildingLevels: [
-      { id: 'level-0', levelNumber: 0, name: '0层' },
-      { id: 'level-1', levelNumber: 1, name: '1层' },
-      { id: 'level-2', levelNumber: 2, name: '2层' },
+      { id: 'level-0', levelNumber: 0, name: '1层' },
+      { id: 'level-1', levelNumber: 1, name: '2层' },
+      { id: 'level-2', levelNumber: 2, name: '3层' },
     ],
     tileInstances: [],
     workspaceState: {

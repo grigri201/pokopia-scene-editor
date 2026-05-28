@@ -87,7 +87,7 @@ describe('SceneDocument short string codec', () => {
       sceneName: '庭院 A',
       selectedPokemonKey: 'pikachu',
       buildingLevels: [
-        { id: 'level-0', levelNumber: 0, name: '0层' },
+        { id: 'level-0', levelNumber: 0, name: '1层' },
         { id: 'level-1', levelNumber: 1, name: '主体层' },
       ],
       workspaceState: {

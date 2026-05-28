@@ -120,11 +120,11 @@ describe('scene selectors', () => {
     });
     expect(cells.filter((cell) => cell.areaType === 'main')).toHaveLength(25);
     expect(cells.filter((cell) => cell.mainBoundary)).toHaveLength(16);
-    expect(levels.map((level) => level.displayId)).toEqual(['L2', 'L1', 'L0']);
+    expect(levels.map((level) => level.displayId)).toEqual(['L3', 'L2', 'L1']);
     expect(levels.map((level) => level.instanceCount)).toEqual([1, 0, 1]);
     expect(levels.every((level) => !('visible' in level))).toBe(true);
     expect(levels.every((level) => !('locked' in level))).toBe(true);
-    expect(getCurrentBuildingLevelContext(sceneWithTiles).displayId).toBe('L0');
+    expect(getCurrentBuildingLevelContext(sceneWithTiles).displayId).toBe('L1');
   });
 
   it('rejects invalid building level references before deriving contexts', () => {
@@ -138,7 +138,7 @@ describe('scene selectors', () => {
     };
     const sceneWithDuplicateLevel = {
       ...scene,
-      buildingLevels: [scene.buildingLevels[0], { ...scene.buildingLevels[0], name: 'Duplicate 0层' }],
+      buildingLevels: [scene.buildingLevels[0], { ...scene.buildingLevels[0], name: 'Duplicate 1层' }],
     };
     const sceneWithOrphanTile = {
       ...scene,
@@ -182,7 +182,7 @@ describe('scene selectors', () => {
       'tile-mid',
       'tile-high',
     ]);
-    expect(targetAllCell?.instanceLayerContexts.map((level) => level.displayId)).toEqual(['L0', 'L1', 'L2']);
+    expect(targetAllCell?.instanceLayerContexts.map((level) => level.displayId)).toEqual(['L1', 'L2', 'L3']);
   });
 
   it('derives front preview structures and projection cells for all levels', () => {
@@ -194,14 +194,14 @@ describe('scene selectors', () => {
 
     expect(currentFront).toEqual([
       expect.objectContaining({
-        displayId: 'L0',
+        displayId: 'L1',
         mainInstanceCount: 1,
         outerInstanceCount: 0,
         skillInstanceCount: 0,
         totalInstanceCount: 1,
       }),
     ]);
-    expect(allFront.map((level) => level.displayId)).toEqual(['L0', 'L1', 'L2']);
+    expect(allFront.map((level) => level.displayId)).toEqual(['L1', 'L2', 'L3']);
     expect(allFront.map((level) => level.totalInstanceCount)).toEqual([1, 1, 1]);
     expect(projectionCells).toHaveLength(21);
     expect(projectionCells.slice(0, 7).every((cell) => cell.buildingLevel.id === 'level-2')).toBe(true);

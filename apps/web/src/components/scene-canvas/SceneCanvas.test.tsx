@@ -29,18 +29,21 @@ const defaultProps = {
 };
 
 describe('SceneCanvas', () => {
-  it('renders 49 addressable 0-based canvas cells', () => {
+  it('renders 49 addressable 0-based canvas cells with coordinate watermarks', () => {
     render(<SceneCanvas {...defaultProps} readOnly={false} />);
 
     const cells = screen.getAllByRole('gridcell');
+    const coordinateWatermarks = document.querySelectorAll('.cell-coordinate-watermark');
 
     expect(cells).toHaveLength(49);
     expect(screen.getByLabelText('Cell 0,0, outer area, level-0, placeable')).toBeVisible();
     expect(screen.getByLabelText('Cell 6,6, outer area, level-0, placeable')).toBeVisible();
     expect(screen.getByLabelText('Cell 1,1, main area, level-0, placeable')).toBeVisible();
     expect(screen.getByLabelText('Cell 5,5, main area, level-0, placeable')).toBeVisible();
-    expect(document.querySelector('.cell-coordinate')).toBeNull();
-    expect(cells[0]).not.toHaveTextContent('0,0');
+    expect(coordinateWatermarks).toHaveLength(49);
+    expect(cells[0]).toHaveTextContent('0,0');
+    expect(cells[8]).toHaveTextContent('1,1');
+    expect(cells[0].querySelector('.cell-coordinate-watermark')).toHaveAttribute('aria-hidden', 'true');
   });
 
   it('marks main, outer, main-boundary, and placeable states for tests and styling', () => {
@@ -223,7 +226,7 @@ describe('SceneCanvas', () => {
     expect(onHoverCoordinate).toHaveBeenCalledWith(null);
   });
 
-  it('renders placed asset labels and skill markers on canvas cells', () => {
+  it('renders placed asset thumbnails and skill markers on canvas cells', () => {
     const sceneWithTile = {
       ...scene,
       tileInstances: [
@@ -252,7 +255,11 @@ describe('SceneCanvas', () => {
     expect(cell).toHaveAttribute('data-has-instance', 'true');
     expect(cell).toHaveAttribute('data-requires-skill', 'true');
     expect(cell).toHaveAttribute('data-skill-marker-label', '树');
-    expect(cell).toHaveTextContent('绿叶植物');
+    expect(cell.querySelector('.cell-asset-label')).toBeNull();
+    expect(cell.querySelector('.cell-asset-token img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/assets/pokopia_image_sources/item_portraits/0345-leafy-plant.png'),
+    );
     const skillMarker = screen.getByLabelText('Skill marker 绿叶植物 树');
     expect(skillMarker).toHaveAttribute('data-tooltip', '树叶');
     expect(skillMarker).not.toHaveTextContent('树');
@@ -370,7 +377,7 @@ describe('SceneCanvas', () => {
     expect(duplicateCell).toHaveAttribute('data-skill-marker-label', '耕');
     expect(duplicateCell).toHaveAttribute('data-rotation', '90');
     expect(duplicateCell).toHaveAttribute('data-dye-color', '#56ccf2');
-    expect(duplicateCell).toHaveTextContent('砖瓦屋顶装饰');
+    expect(duplicateCell.querySelector('.cell-asset-label')).toBeNull();
     expect(duplicateCell).not.toHaveTextContent('2x');
     expect(document.querySelector('.cell-stack-count')).toBeNull();
     const rotationMarker = duplicateCell.querySelector('.cell-rotation-marker');
@@ -457,7 +464,7 @@ describe('SceneCanvas', () => {
     const cell = screen.getByLabelText(
       'Cell 2,3, main area, level-0, placeable, 木长椅',
     );
-    expect(cell).toHaveTextContent('木长椅');
+    expect(cell.querySelector('.cell-asset-label')).toBeNull();
     expect(screen.queryByLabelText('Skill marker 绿叶植物 树')).not.toBeInTheDocument();
     expect(cell).toHaveAttribute('data-instance-count', '1');
   });
@@ -603,7 +610,11 @@ describe('SceneCanvas', () => {
     );
     expect(cell).toHaveAttribute('data-has-instance', 'true');
     expect(cell).toHaveAttribute('data-requires-skill', 'true');
-    expect(cell).toHaveTextContent('绿叶植物');
+    expect(cell.querySelector('.cell-asset-label')).toBeNull();
+    expect(cell.querySelector('.cell-asset-token img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/assets/pokopia_image_sources/item_portraits/0345-leafy-plant.png'),
+    );
     expect(sceneWithInstance.tileInstances[0]).toMatchObject({
       requiresSkill: true,
       skillType: '树叶',

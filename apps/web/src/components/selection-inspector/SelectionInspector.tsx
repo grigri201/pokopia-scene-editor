@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import {
   getAssetById,
   getAssetSkillMarkerIconUrl,
+  getBuildingLevelDisplayId,
   type ConcreteAssetSkillType,
   type AssetSkillType,
 } from '@pokopia-scene-editor/scene-core';
@@ -74,7 +75,7 @@ export function SelectionInspector({
   const selectionSummary = [
     assetDisplay ? assetDisplay.name : (coordinate ? `${coordinate.x},${coordinate.y}` : t(locale, 'noSelection')),
     coordinate ? `x${coordinate.x} y${coordinate.y}` : null,
-    selectedLevel ? `L${selectedLevel.levelNumber}` : null,
+    selectedLevel ? getBuildingLevelDisplayId(selectedLevel.levelNumber) : null,
   ]
     .filter(Boolean)
     .join(', ');

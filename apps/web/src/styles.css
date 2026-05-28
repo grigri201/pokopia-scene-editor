@@ -744,7 +744,7 @@ button:disabled {
 
 .export-preview {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(590px, 100%);
   max-height: min(860px, calc(100vh - 48px));
   border: 1px solid rgba(64, 45, 38, 0.28);
@@ -856,9 +856,42 @@ button:disabled {
 
 .export-layer__content {
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr);
+  grid-template-columns: 258px minmax(0, 1fr);
   gap: 12px;
   margin-top: 12px;
+}
+
+.export-layer-grid-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 258px;
+  aspect-ratio: 1;
+  padding: 14px;
+}
+
+.export-layer-coordinate-label {
+  position: absolute;
+  z-index: 2;
+  color: color-mix(in srgb, var(--ink) 58%, transparent);
+  font-size: 11px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+.export-layer-coordinate-label--origin {
+  top: 0;
+  left: 0;
+}
+
+.export-layer-coordinate-label--max {
+  right: 0;
+  bottom: 0;
 }
 
 .export-layer-grid {
@@ -992,6 +1025,30 @@ button:disabled {
   font-size: 13px;
 }
 
+.export-preview__footer {
+  display: grid;
+  place-items: center;
+  border-top: 1px solid var(--line);
+  padding: 12px 16px 14px;
+  background: color-mix(in srgb, #fffefb 92%, #f0e3ce 8%);
+}
+
+.export-preview__pokokit-logo {
+  display: inline-block;
+  background: linear-gradient(90deg, #009bd1, #54aa32, #e48a12, #e25292);
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 1px 0 rgb(75 49 36 / 24%));
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: lowercase;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
 .workbench-grid {
   display: grid;
   grid-template-columns: minmax(320px, 380px) minmax(520px, 1fr) 300px;
@@ -1119,6 +1176,7 @@ button:disabled {
 
 .scene-cell {
   position: relative;
+  container-type: size;
   display: grid;
   place-items: center;
   min-width: 0;
@@ -1278,19 +1336,31 @@ button:disabled {
   display: none;
 }
 
-.cell-asset-label {
-  max-width: 90%;
-  color: var(--ink);
-  font-size: 10px;
+.cell-coordinate-watermark {
+  position: absolute;
+  inset: 15% 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(64, 45, 38, 0.24);
+  font-size: 24px;
   font-weight: 900;
-  line-height: 1.1;
-  overflow-wrap: anywhere;
-  text-align: center;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: 0;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.scene-cell--outer .cell-coordinate-watermark {
+  color: rgba(37, 111, 104, 0.24);
 }
 
 .cell-asset-token {
   position: absolute;
   inset: 12px;
+  z-index: 3;
   display: grid;
   place-items: center;
   box-sizing: border-box;
@@ -1985,53 +2055,6 @@ button:disabled {
   color: var(--ink-muted);
   font-size: 12px;
   font-weight: 800;
-}
-
-.placement-rotation-control {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 4px 8px 4px 4px;
-  background: color-mix(in srgb, var(--surface) 78%, white 22%);
-}
-
-.placement-rotation-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
-  border-radius: 6px;
-  padding: 0;
-  background: var(--surface-panel);
-  color: var(--ink);
-}
-
-.placement-rotation-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.placement-rotation-button svg {
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.placement-rotation-status {
-  color: var(--ink-muted);
-  font-size: 12px;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
 }
 
 .asset-detail > span {

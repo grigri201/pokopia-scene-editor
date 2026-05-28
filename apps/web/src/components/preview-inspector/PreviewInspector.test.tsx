@@ -268,8 +268,8 @@ describe('PreviewInspector', () => {
     expect(container.querySelector('.preview-scroll-cue--up')).toBeInTheDocument();
     expect(container.querySelector('.preview-scroll-cue--down')).toBeInTheDocument();
     expect(container.querySelectorAll('.front-cell')).toHaveLength(63);
-    expect(container.querySelector('.front-cell[data-front-level-display-id="L8"]')).toBeInTheDocument();
-    expect(container.querySelector('.front-cell[data-front-level-display-id="L0"]')).toBeInTheDocument();
+    expect(container.querySelector('.front-cell[data-front-level-display-id="L9"]')).toBeInTheDocument();
+    expect(container.querySelector('.front-cell[data-front-level-display-id="L1"]')).toBeInTheDocument();
   });
 
   it('updates front view scroll arrow hints from the scroll position', async () => {

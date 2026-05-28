@@ -283,7 +283,7 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    expectSelectionCopyRemoved('0,2', 'outer', 'L2 2层', '270 deg', '#56ccf2', '耕地', 'soil roof note');
+    expectSelectionCopyRemoved('0,2', 'outer', 'L3 3层', '270 deg', '#56ccf2', '耕地', 'soil roof note');
     expect(screen.getByText('砖瓦屋顶装饰')).toBeVisible();
     expect(screen.queryByRole('textbox', { name: /note/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();

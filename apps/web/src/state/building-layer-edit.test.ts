@@ -16,7 +16,7 @@ describe('building layer edit command', () => {
     expect(created.scene.buildingLevels.at(-1)).toEqual({
       id: 'level-1',
       levelNumber: 1,
-      name: '1层',
+      name: '2层',
     });
     expect(created.scene.workspaceState.currentBuildingLevelId).toBe('level-1');
 
@@ -49,7 +49,7 @@ describe('building layer edit command', () => {
     const scene = createDefaultSceneDocument({ sceneId: 'scene-test', now });
     const created = editBuildingLayer(scene, {
       type: 'create',
-      name: 'Layer 1',
+      name: 'Layer 2',
       interactionMode: 'edit',
       now,
     });
@@ -59,8 +59,8 @@ describe('building layer edit command', () => {
       throw new Error('Expected create success.');
     }
     expect(created.scene.buildingLevels).toEqual([
-      { id: 'level-0', levelNumber: 0, name: '0层' },
-      { id: 'level-1', levelNumber: 1, name: 'Layer 1' },
+      { id: 'level-0', levelNumber: 0, name: '1层' },
+      { id: 'level-1', levelNumber: 1, name: 'Layer 2' },
     ]);
   });
 
@@ -140,7 +140,7 @@ describe('building layer edit command', () => {
     expect(result.scene.buildingLevels.at(-1)).toEqual({
       id: 'level-3',
       levelNumber: 3,
-      name: '1层 copy',
+      name: '2层 copy',
     });
     expect(result.scene.workspaceState.currentBuildingLevelId).toBe('level-3');
     expect(result.scene.tileInstances).toHaveLength(2);
@@ -253,7 +253,7 @@ describe('building layer edit command', () => {
     }
     expect(deleted.scene.buildingLevels.map((level) => level.id)).toEqual(['level-0', 'level-2']);
     expect(deleted.scene.buildingLevels.map((level) => level.levelNumber)).toEqual([0, 1]);
-    expect(deleted.scene.buildingLevels.map((level) => level.name)).toEqual(['0层', '2层']);
+    expect(deleted.scene.buildingLevels.map((level) => level.name)).toEqual(['1层', '3层']);
     expect(deleted.scene.tileInstances).toEqual([]);
     expect(deleted.scene.workspaceState.currentBuildingLevelId).toBe('level-2');
     expect(lastLayer.ok).toBe(false);
@@ -297,7 +297,7 @@ describe('building layer edit command', () => {
       throw new Error('Expected delete success.');
     }
     expect(deleted.scene.buildingLevels).toEqual([
-      { id: 'level-0', levelNumber: 0, name: '0层' },
+      { id: 'level-0', levelNumber: 0, name: '1层' },
       { id: 'level-2', levelNumber: 1, name: '屋顶层' },
     ]);
     expect(deleted.scene.tileInstances[0]?.buildingLevelId).toBe('level-2');
@@ -313,9 +313,9 @@ describe('building layer edit command', () => {
       throw new Error('Expected create success.');
     }
     expect(created.scene.buildingLevels).toEqual([
-      { id: 'level-0', levelNumber: 0, name: '0层' },
+      { id: 'level-0', levelNumber: 0, name: '1层' },
       { id: 'level-2', levelNumber: 1, name: '屋顶层' },
-      { id: 'level-3', levelNumber: 2, name: '2层' },
+      { id: 'level-3', levelNumber: 2, name: '3层' },
     ]);
     expect(new Set(created.scene.buildingLevels.map((level) => level.id)).size).toBe(3);
     expect(created.scene.workspaceState.currentBuildingLevelId).toBe('level-3');

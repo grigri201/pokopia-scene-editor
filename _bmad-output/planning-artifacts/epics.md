@@ -2136,3 +2136,42 @@ So that 后续不会出现 schema 或规则漂移。
 **When** dev agent 完成 Epic 8
 **Then** `pnpm run release:verify` 必须通过
 **And** 覆盖 footprint catalog、occupancy helpers、web canvas、preview/export、Worker routes、MCP smoke、short string codec 和 skill examples。
+
+## Epic 9: 工作台楼层与导出可读性收敛
+
+布景创作者需要在同一套零基数据模型上看到更接近用户语言的一基楼层标识、稳定的坐标提示和更完整的导出说明图。该 epic 只收敛现有工作台与导出 UI 的可读性，不改变 `SceneDocument v1` schema、`levelNumber` 零基语义、asset catalog、footprint 规则、Worker/MCP API 或保存/短字符串契约。
+
+### Story 9.1: 楼层显示、坐标提示、导出品牌和放置旋转收敛
+
+**Requirements covered:** UX-DR9, NFR2, NFR35, NFR39.
+
+As a 布景创作者,
+I want 工作台、预览和导出图片使用一致、易读的楼层与坐标表达,
+So that 我可以减少 L0/0 层误读，并把导出图直接分享给他人理解。
+
+**Acceptance Criteria:**
+
+**Given** `SceneDocument v1` 仍使用零基 `levelNumber`
+**When** 系统创建默认场景、创建建筑层或展示旧场景
+**Then** 用户可见的默认楼层名称和 display id 必须从 L1/1 层开始
+**And** 底层 `levelNumber`、building level id、schema、autosave、saved scene 和 PSE1 短字符串不得改成一基。
+
+**Given** 旧 payload 或测试 fixture 中存在系统生成的 `0层`、`Layer 0`、`1层` 或 `Layer 1`
+**When** selectors、locale helpers、Building Level Panel、Selection Inspector、Preview Inspector 或 Export Preview 展示楼层
+**Then** 系统生成名称应按当前 `levelNumber + 1` 规范化
+**And** 用户自定义楼层名必须原样保留。
+
+**Given** 用户切换当前编辑建筑层
+**When** 该操作成功且没有修改 scene 内容
+**Then** 当前层应切换
+**And** 不应显示成功 toast 或制造额外提示噪音。
+
+**Given** 用户选择素材后准备放置
+**When** 未编辑已放置实例
+**Then** 资产栏不再暴露待放置素材旋转控件
+**And** 新放置实例使用 `rotationDegrees: 0`；已放置实例的旋转编辑能力仍保留。
+
+**Given** 用户查看主画布或图片导出预览
+**When** 画布/导出图形渲染完成
+**Then** 0,0 和最大坐标提示必须稳定显示且对辅助技术隐藏
+**And** 导出预览必须包含本地化的逐层图形和素材清单标签、单/复数建筑层摘要以及会进入导出图片的 `pokokit` 彩色 logo。

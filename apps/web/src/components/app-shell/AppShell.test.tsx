@@ -314,7 +314,7 @@ describe('AppShell scene storage integration', () => {
     expect(screen.getByLabelText('Application header')).toHaveAttribute('inert');
     expect(screen.getByLabelText('Open Design editing workbench')).toHaveAttribute('inert');
     expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('未放置素材');
-    expect(screen.getByLabelText('L0 使用素材清单')).toHaveTextContent('该层没有素材');
+    expect(screen.getByLabelText('L1 使用素材清单')).toHaveTextContent('该层没有素材');
     expect(createObjectURL).not.toHaveBeenCalled();
     expect(anchorClick).not.toHaveBeenCalled();
     expect(revokeObjectURL).not.toHaveBeenCalled();
@@ -348,6 +348,8 @@ describe('AppShell scene storage integration', () => {
     expect(JSON.parse(window.localStorage.getItem(uiPreferencesStorageKey) ?? '{}')).toMatchObject({
       locale: 'en-US',
     });
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
 
     fireEvent.change(screen.getByLabelText('Scene name'), { target: { value: 'English Garden' } });
 
@@ -369,7 +371,7 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
-        { id: 'level-0', levelNumber: 0, name: '0层' },
+        { id: 'level-0', levelNumber: 0, name: '1层' },
       ]);
     });
 
@@ -377,16 +379,16 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
-        { id: 'level-0', levelNumber: 0, name: '0层' },
-        { id: 'level-1', levelNumber: 1, name: 'Layer 1' },
+        { id: 'level-0', levelNumber: 0, name: '1层' },
+        { id: 'level-1', levelNumber: 1, name: 'Layer 2' },
       ]);
     });
 
     fireEvent.change(screen.getByLabelText('Language'), { target: { value: 'zh-CN' } });
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Layer 1')).toBeVisible();
-      expect(JSON.parse(readSceneSnapshot()).buildingLevels.at(-1)?.name).toBe('Layer 1');
+      expect(screen.getByDisplayValue('Layer 2')).toBeVisible();
+      expect(JSON.parse(readSceneSnapshot()).buildingLevels.at(-1)?.name).toBe('Layer 2');
     });
 
     fireEvent.change(screen.getByLabelText('语言'), { target: { value: 'en-US' } });
@@ -394,7 +396,7 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
-        { id: 'level-0', levelNumber: 0, name: 'Layer 0' },
+        { id: 'level-0', levelNumber: 0, name: 'Layer 1' },
       ]);
     });
     expect(confirmReset).toHaveBeenCalledWith('Reset the current scene and workbench?');
@@ -555,19 +557,19 @@ describe('AppShell scene storage integration', () => {
     expect(screen.queryByRole('alert', { name: '布景名称提示' })).not.toBeInTheDocument();
   });
 
-  it('starts new scene data with only empty 0层', () => {
+  it('starts new scene data with only empty 1层', () => {
     render(<AppShell />);
 
     const snapshot = JSON.parse(readSceneSnapshot());
-    expect(snapshot.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '0层' }]);
+    expect(snapshot.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '1层' }]);
     expect(snapshot.tileInstances).toEqual([]);
     expect(snapshot.workspaceState).toMatchObject({
       currentBuildingLevelId: 'level-0',
       selectedAssetId: null,
       selectedCoordinate: null,
     });
-    expect(screen.getByLabelText('L0, 0层, 0 instances, current editing layer')).toBeVisible();
-    expect(screen.queryByLabelText(/L1,/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('L1, 1层, 0 instances, current editing layer')).toBeVisible();
+    expect(screen.queryByLabelText(/L2,/)).not.toBeInTheDocument();
   });
 
   it('switches the active editing layer when a building level row is clicked', () => {
@@ -582,16 +584,17 @@ describe('AppShell scene storage integration', () => {
     );
     render(<AppShell />);
 
-    const roofRow = screen.getByLabelText('L2, 屋顶与遮挡, 5 instances');
+    const roofRow = screen.getByLabelText('L3, 屋顶与遮挡, 5 instances');
 
-    expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L1');
+    expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L2');
     expect(roofRow).not.toHaveAttribute('aria-current');
 
     fireEvent.click(roofRow);
 
-    expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L2');
+    expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L3');
     expect(roofRow).toHaveAttribute('aria-current', 'true');
     expect(screen.getByLabelText(/Cell 0,0, outer area, level-2/)).toBeVisible();
+    expect(screen.queryByRole('status', { name: '建筑层提示' })).not.toBeInTheDocument();
   }, 15_000);
 
   it('autosaves dirty edits without writing UI save status into payload', async () => {
@@ -645,30 +648,30 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       expect(screen.getAllByTestId('building-level-row').map((row) => row.dataset.displayId)).toEqual([
+        'L3',
         'L2',
         'L1',
-        'L0',
       ]);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Delete 1层 \(L1\)/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Delete 2层 \(L2\)/ }));
 
     await waitFor(() => {
       const rows = screen.getAllByTestId('building-level-row');
-      expect(rows.map((row) => row.dataset.displayId)).toEqual(['L1', 'L0']);
-      expect(screen.getByDisplayValue('2层')).toBeVisible();
-      expect(screen.queryByText('L2')).not.toBeInTheDocument();
+      expect(rows.map((row) => row.dataset.displayId)).toEqual(['L2', 'L1']);
+      expect(screen.getByDisplayValue('3层')).toBeVisible();
+      expect(screen.queryByText('L3')).not.toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: '新建层' }));
 
     await waitFor(() => {
       const rows = screen.getAllByTestId('building-level-row');
-      expect(rows.map((row) => row.dataset.displayId)).toEqual(['L2', 'L1', 'L0']);
+      expect(rows.map((row) => row.dataset.displayId)).toEqual(['L3', 'L2', 'L1']);
       expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
-        { id: 'level-0', levelNumber: 0, name: '0层' },
-        { id: 'level-2', levelNumber: 1, name: '2层' },
-        { id: 'level-3', levelNumber: 2, name: '2层' },
+        { id: 'level-0', levelNumber: 0, name: '1层' },
+        { id: 'level-2', levelNumber: 1, name: '3层' },
+        { id: 'level-3', levelNumber: 2, name: '3层' },
       ]);
     });
     expect(confirmDelete).toHaveBeenCalledTimes(1);
@@ -1029,41 +1032,6 @@ describe('AppShell scene storage integration', () => {
     expect(confirmReplacement).toHaveBeenCalledTimes(1);
   });
 
-  it('rotates the current placement footprint before previewing and placing a wide asset', async () => {
-    render(<AppShell />);
-
-    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '木长椅' } });
-    const benchButton = document.querySelector<HTMLButtonElement>('[data-asset-id="wooden-bench"] .asset-select-button');
-    if (!benchButton) {
-      throw new Error('Expected wooden-bench asset button.');
-    }
-
-    fireEvent.click(benchButton);
-    fireEvent.click(screen.getByRole('button', { name: '旋转待放置素材 90 度' }));
-    fireEvent.mouseEnter(screen.getByLabelText('Cell 2,3, main area, level-0, placeable'));
-
-    expect(screen.getByLabelText(/Cell 3,3, main area, level-0, placeable, placement preview footprint/)).toHaveAttribute(
-      'data-placement-preview',
-      'occupied',
-    );
-    expect(screen.getByLabelText('Cell 2,4, main area, level-0, placeable')).toHaveAttribute(
-      'data-placement-preview',
-      'none',
-    );
-
-    fireEvent.click(screen.getByLabelText(/Cell 2,3, main area, level-0, placeable, placement preview anchor/));
-
-    await waitFor(() => {
-      const payload = JSON.parse(readSceneSnapshot());
-      expect(payload.tileInstances).toHaveLength(1);
-      expect(payload.tileInstances[0]).toMatchObject({
-        assetId: 'wooden-bench',
-        coordinate: { x: 2, y: 3 },
-        rotationDegrees: 90,
-      });
-    });
-  });
-
   it('rotates an already placed wide asset from the selected-cell action bar', async () => {
     render(<AppShell />);
 
@@ -1176,7 +1144,7 @@ describe('AppShell scene storage integration', () => {
     window.addEventListener('keydown', globalKeyHandler);
 
     const cell = screen.getByLabelText(/Cell 3,2, main area, level-0, read-only$/);
-    const levelRow = screen.getByLabelText('L0, 0层, 0 instances, viewing layer');
+    const levelRow = screen.getByLabelText('L1, 1层, 0 instances, viewing layer');
     const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
     if (!assetButton) {
       throw new Error('Expected leppa-berry asset button.');
@@ -1194,7 +1162,7 @@ describe('AppShell scene storage integration', () => {
     } finally {
       window.removeEventListener('keydown', globalKeyHandler);
     }
-    expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L0');
+    expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L1');
     expect(cell).not.toHaveAttribute('aria-selected', 'true');
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();

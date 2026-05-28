@@ -4,6 +4,7 @@ import type {
   ConcreteAssetSkillType,
   PokemonThemeDefinition,
 } from './domain/assets';
+import { getBuildingLevelDisplayNumber } from './domain/scene/levels';
 
 export const locales = ['zh-CN', 'en-US'] as const;
 export type Locale = (typeof locales)[number];
@@ -83,13 +84,21 @@ export function getPokemonDisplay(pokemon: PokemonThemeDefinition, locale: Local
 }
 
 export function getBuildingLevelDisplayName(name: string, levelNumber: number, locale: Locale): string {
-  if (locale === 'en-US' && name === `${levelNumber}层`) {
-    return `Layer ${levelNumber}`;
+  const displayNumber = getBuildingLevelDisplayNumber(levelNumber);
+
+  if (name === `${levelNumber}层` || name === `${displayNumber}层`) {
+    return locale === 'en-US' ? `Layer ${displayNumber}` : `${displayNumber}层`;
+  }
+
+  if (locale === 'en-US' && (name === `Layer ${levelNumber}` || name === `Layer ${displayNumber}`)) {
+    return `Layer ${displayNumber}`;
   }
 
   return name;
 }
 
 export function getDefaultBuildingLevelName(levelNumber: number, locale: Locale): string {
-  return locale === 'en-US' ? `Layer ${levelNumber}` : `${levelNumber}层`;
+  const displayNumber = getBuildingLevelDisplayNumber(levelNumber);
+
+  return locale === 'en-US' ? `Layer ${displayNumber}` : `${displayNumber}层`;
 }

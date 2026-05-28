@@ -13,7 +13,7 @@ describe('building level rules', () => {
 
     expect(levels.map((level) => level.levelNumber)).toEqual([0]);
     expect(levels.map((level) => level.id)).toEqual(['level-0']);
-    expect(levels.map((level) => level.name)).toEqual(['0层']);
+    expect(levels.map((level) => level.name)).toEqual(['1层']);
   });
 
   it('allocates the next building level number from the current maximum', () => {
@@ -39,13 +39,13 @@ describe('building level rules', () => {
   it('resequences visible level numbers while preserving stable ids and every existing name', () => {
     const levels = [
       createBuildingLevel(0),
-      { ...createBuildingLevel(2), name: '2层' },
+      { ...createBuildingLevel(2), name: '3层' },
       { ...createBuildingLevel(4), name: '屋顶层' },
     ];
     const resequenced = resequenceBuildingLevels(levels);
 
     expect(resequenced.map((level) => level.id)).toEqual(['level-0', 'level-2', 'level-4']);
     expect(resequenced.map((level) => level.levelNumber)).toEqual([0, 1, 2]);
-    expect(resequenced.map((level) => level.name)).toEqual(['0层', '2层', '屋顶层']);
+    expect(resequenced.map((level) => level.name)).toEqual(['1层', '3层', '屋顶层']);
   });
 });

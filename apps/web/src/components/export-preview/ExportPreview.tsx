@@ -33,6 +33,7 @@ export function ExportPreview({
   const selectedPokemon = getPokemonThemeDefinition(summary.selectedPokemonKey);
   const selectedPokemonName = getPokemonDisplay(selectedPokemon, locale);
   const overallUsageItems = createUsageItems(summary.overallMaterials, summary.overallSkills);
+  const canvasBuildingLayersKey = summary.layers.length === 1 ? 'canvasBuildingLayer' : 'canvasBuildingLayers';
   const pokemonTitleImageStyle = {
     '--export-pokemon-background': selectedPokemon.background,
     '--export-pokemon-accent': selectedPokemon.accent,
@@ -113,7 +114,7 @@ export function ExportPreview({
             <div>
               <p className="eyebrow">{t(locale, 'imageExportEyebrow')}</p>
               <h2>{summary.sceneName}</h2>
-              <p>{t(locale, 'canvasBuildingLayers', {
+              <p>{t(locale, canvasBuildingLayersKey, {
                 width: summary.canvasSize.width,
                 height: summary.canvasSize.height,
                 count: summary.layers.length,
@@ -151,12 +152,17 @@ export function ExportPreview({
             )}
           </section>
 
-          <section className="export-preview__layers" aria-label="逐层图形和素材清单">
+          <section className="export-preview__layers" aria-label={t(locale, 'exportLayerGraphicsAndMaterials')}>
             {summary.layers.map((layer) => (
               <LayerPreview key={layer.id} locale={locale} layer={layer} />
             ))}
           </section>
         </section>
+        <footer className="export-preview__footer">
+          <span className="export-preview__pokokit-logo" aria-label={t(locale, 'pokokitColorLogo')}>
+            pokokit
+          </span>
+        </footer>
       </section>
     </div>
   );
@@ -178,6 +184,7 @@ function LayerPreview({ locale, layer }: { locale: Locale; layer: ImageExportLay
   const usageItems = createUsageItems(layer.materials, layer.skills);
   const footprintOverlays = getLayerFootprintOverlays(layer);
   const footprintOverlayInstanceIds = new Set(footprintOverlays.map((overlay) => overlay.instance.instanceId));
+  const coordinateBounds = getLayerCoordinateBounds(layer);
 
   return (
     <article className="export-layer" aria-label={`${layer.displayId} ${layer.name}`}>
@@ -188,32 +195,40 @@ function LayerPreview({ locale, layer }: { locale: Locale; layer: ImageExportLay
         {layer.empty ? <span className="status-pill">{t(locale, 'emptyLayer')}</span> : null}
       </header>
       <div className="export-layer__content">
-        <div className="export-layer-grid" aria-label={t(locale, 'layerGraphic', { displayId: layer.displayId })}>
-          {layer.cells.map((cell) => (
-            <ExportCell key={cell.id} locale={locale} cell={cell} footprintOverlayInstanceIds={footprintOverlayInstanceIds} />
-          ))}
-          {footprintOverlays.length > 0 ? (
-            <div className="export-footprint-layer" aria-hidden="true">
-              {footprintOverlays.map((overlay) => (
-                <span
-                  className="export-footprint-overlay"
-                  data-testid={`export-footprint-overlay-${overlay.instance.instanceId}`}
-                  data-footprint-instance-id={overlay.instance.instanceId}
-                  data-footprint-asset-id={overlay.instance.assetId}
-                  data-effective-footprint={formatExportFootprint(overlay.instance.effectiveFootprint)}
-                  data-occupied-cells={overlay.instance.occupiedCells.map(formatExportCoordinate).join(' ')}
-                  key={overlay.instance.instanceId}
-                  style={getExportFootprintOverlayStyle(overlay)}
-                >
-                  {overlay.instance.thumbnailUrl ? (
-                    <img src={overlay.instance.thumbnailUrl} alt="" title={overlay.instance.assetName} />
-                  ) : (
-                    <span>{overlay.instance.assetName.slice(0, 1)}</span>
-                  )}
-                </span>
-              ))}
-            </div>
-          ) : null}
+        <div className="export-layer-grid-frame">
+          <span className="export-layer-coordinate-label export-layer-coordinate-label--origin" aria-hidden="true">
+            {coordinateBounds.origin}
+          </span>
+          <div className="export-layer-grid" aria-label={t(locale, 'layerGraphic', { displayId: layer.displayId })}>
+            {layer.cells.map((cell) => (
+              <ExportCell key={cell.id} locale={locale} cell={cell} footprintOverlayInstanceIds={footprintOverlayInstanceIds} />
+            ))}
+            {footprintOverlays.length > 0 ? (
+              <div className="export-footprint-layer" aria-hidden="true">
+                {footprintOverlays.map((overlay) => (
+                  <span
+                    className="export-footprint-overlay"
+                    data-testid={`export-footprint-overlay-${overlay.instance.instanceId}`}
+                    data-footprint-instance-id={overlay.instance.instanceId}
+                    data-footprint-asset-id={overlay.instance.assetId}
+                    data-effective-footprint={formatExportFootprint(overlay.instance.effectiveFootprint)}
+                    data-occupied-cells={overlay.instance.occupiedCells.map(formatExportCoordinate).join(' ')}
+                    key={overlay.instance.instanceId}
+                    style={getExportFootprintOverlayStyle(overlay)}
+                  >
+                    {overlay.instance.thumbnailUrl ? (
+                      <img src={overlay.instance.thumbnailUrl} alt="" title={overlay.instance.assetName} />
+                    ) : (
+                      <span>{overlay.instance.assetName.slice(0, 1)}</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <span className="export-layer-coordinate-label export-layer-coordinate-label--max" aria-hidden="true">
+            {coordinateBounds.max}
+          </span>
         </div>
         <section className="export-layer__materials" aria-label={t(locale, 'layerMaterialsList', { displayId: layer.displayId })}>
           {usageItems.length > 0 ? (
@@ -225,6 +240,21 @@ function LayerPreview({ locale, layer }: { locale: Locale; layer: ImageExportLay
       </div>
     </article>
   );
+}
+
+function getLayerCoordinateBounds(layer: ImageExportLayerSummary): { origin: string; max: string } {
+  const maxCoordinate = layer.cells.reduce(
+    (max, cell) => ({
+      x: Math.max(max.x, cell.coordinate.x),
+      y: Math.max(max.y, cell.coordinate.y),
+    }),
+    { x: 0, y: 0 },
+  );
+
+  return {
+    origin: '0,0',
+    max: `${maxCoordinate.x},${maxCoordinate.y}`,
+  };
 }
 
 function ExportCell({

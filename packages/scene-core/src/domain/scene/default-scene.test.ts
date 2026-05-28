@@ -22,7 +22,7 @@ describe('default scene document', () => {
     expect(scene.outerPadding).toBe(1);
     expect(scene.tileInstances).toEqual([]);
     expect(scene.skillMarkers).toEqual([]);
-    expect(scene.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '0层' }]);
+    expect(scene.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '1层' }]);
   });
 
   it('keeps the Open Design demo scene explicit instead of using it as new-scene default', () => {
@@ -87,11 +87,11 @@ describe('default scene document', () => {
   it('allows callers to localize only the newly generated initial layer name', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-english-default',
-      initialBuildingLevelName: 'Layer 0',
+      initialBuildingLevelName: 'Layer 1',
       now: '2026-05-16T06:20:00.000Z',
     });
 
-    expect(scene.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: 'Layer 0' }]);
+    expect(scene.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: 'Layer 1' }]);
   });
 
   it('keeps the default Pokemon key inside the known Decor Dex seed keys', () => {

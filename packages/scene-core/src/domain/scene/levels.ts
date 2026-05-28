@@ -8,7 +8,7 @@ export function createBuildingLevel(levelNumber: number): BuildingLevel {
   return {
     id: `level-${levelNumber}`,
     levelNumber,
-    name: `${levelNumber}层`,
+    name: `${getBuildingLevelDisplayNumber(levelNumber)}层`,
   };
 }
 
@@ -28,6 +28,30 @@ export function getNextBuildingLevelNumber(levels: readonly BuildingLevel[]): nu
   }
 
   return Math.max(...levels.map((level) => level.levelNumber)) + 1;
+}
+
+export function getBuildingLevelDisplayNumber(levelNumber: number): number {
+  assertBuildingLevelNumber(levelNumber);
+
+  return levelNumber + 1;
+}
+
+export function getBuildingLevelDisplayId(levelNumber: number): string {
+  return `L${getBuildingLevelDisplayNumber(levelNumber)}`;
+}
+
+export function normalizeBuildingLevelDisplayName(name: string, levelNumber: number): string {
+  const displayNumber = getBuildingLevelDisplayNumber(levelNumber);
+
+  if (name === `${levelNumber}层`) {
+    return `${displayNumber}层`;
+  }
+
+  if (name === `Layer ${levelNumber}`) {
+    return `Layer ${displayNumber}`;
+  }
+
+  return name;
 }
 
 export function resequenceBuildingLevels(levels: readonly BuildingLevel[]): BuildingLevel[] {

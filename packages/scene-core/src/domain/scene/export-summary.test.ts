@@ -48,7 +48,7 @@ describe('image export summary', () => {
         totalCount: 1,
       }),
     ]);
-    expect(summary.layers.map((layer) => layer.displayId)).toEqual(['L0', 'L1', 'L2']);
+    expect(summary.layers.map((layer) => layer.displayId)).toEqual(['L1', 'L2', 'L3']);
     expect(summary.layers.map((layer) => layer.empty)).toEqual([false, false, true]);
     expect(summary.layers.map((layer) => layer.skillCount)).toEqual([1, 2, 0]);
     expect(summary.layers[1].materials).toEqual([

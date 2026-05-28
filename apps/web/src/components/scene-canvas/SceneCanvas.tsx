@@ -213,6 +213,9 @@ export function SceneCanvas({
                 data-dye-color={dyeColor ?? ''}
                 key={cell.id}
               >
+                <span className="cell-coordinate-watermark" aria-hidden="true">
+                  {coordinate.x},{coordinate.y}
+                </span>
                 <span className="cell-area">{cell.areaType}</span>
                 <span className="cell-placeable">{readOnly ? t(locale, 'view') : editable ? t(locale, 'place') : stateLabel}</span>
                 {shouldRenderInlineAsset && topAsset ? (
@@ -220,8 +223,6 @@ export function SceneCanvas({
                     <img src={topAsset.thumbnailUrl} alt="" className="cell-asset-thumb" />
                     <span className="sr-only">{topAssetLabel}</span>
                   </span>
-                ) : topAssetLabel ? (
-                  <span className="cell-asset-label">{topAssetLabel}</span>
                 ) : null}
                 {heightMarkerExtra ? (
                   <span

@@ -81,10 +81,13 @@ describe('image export file generation', () => {
     const filter = options?.filter;
     const chromeNode = document.createElement('div');
     const contentNode = document.createElement('div');
+    const logoNode = document.createElement('footer');
     chromeNode.dataset.imageExportExclude = 'true';
+    logoNode.className = 'export-preview__footer';
 
     expect(filter?.(chromeNode)).toBe(false);
     expect(filter?.(contentNode)).toBe(true);
+    expect(filter?.(logoNode)).toBe(true);
   });
 
   it('rejects hidden previews without a rendered size', () => {
