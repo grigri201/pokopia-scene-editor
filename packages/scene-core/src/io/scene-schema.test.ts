@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBuildingLevel, createDefaultSceneDocument, createTileInstance } from '../domain/scene';
+import { unsafeScriptText } from '../test/fixtures/unsafe-text';
 import { parseSceneDocument, validateSceneDocument, type SceneDocumentV1 } from './scene-schema';
 import { serializeSceneDocument } from './scene-serializer';
 
@@ -80,6 +81,86 @@ describe('SceneDocument v1 schema', () => {
     if (result.ok) {
       expect(result.scene.skillMarkers).toEqual([]);
     }
+  });
+
+  it('defaults missing building level notes for older v1 payloads', () => {
+    const payload = createValidPayload();
+    const result = parseSceneDocument({
+      ...payload,
+      buildingLevels: payload.buildingLevels.map((level) => removeField(level, 'notes')),
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.scene.buildingLevels).toEqual([
+        expect.objectContaining({
+          id: 'level-0',
+          notes: [],
+        }),
+      ]);
+    }
+  });
+
+  it('keeps building level notes as plain text scene data', () => {
+    const payload = createValidPayload();
+    const result = parseSceneDocument({
+      ...payload,
+      buildingLevels: [
+        {
+          ...payload.buildingLevels[0],
+          notes: [{ id: 'note-unsafe', text: unsafeScriptText }],
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.scene.buildingLevels[0].notes).toEqual([{ id: 'note-unsafe', text: unsafeScriptText }]);
+      expect(JSON.stringify(result.scene)).toContain(unsafeScriptText);
+      expect(result.scene.tileInstances[0]).not.toHaveProperty('note');
+    }
+  });
+
+  it('rejects duplicate and blank building level notes', () => {
+    const payload = createValidPayload();
+    const duplicateNotes = {
+      ...payload,
+      buildingLevels: [
+        {
+          ...payload.buildingLevels[0],
+          notes: [
+            { id: 'note-duplicate', text: 'first' },
+            { id: 'note-duplicate', text: 'second' },
+          ],
+        },
+      ],
+    };
+    const blankNotes = {
+      ...payload,
+      buildingLevels: [
+        {
+          ...payload.buildingLevels[0],
+          notes: [{ id: 'note-blank', text: '   ' }],
+        },
+      ],
+    };
+
+    expect(validateSceneDocument(duplicateNotes)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'buildingLevels[0].notes[1].id',
+          reason: 'Duplicate building level note id: note-duplicate',
+        }),
+      ]),
+    );
+    expect(validateSceneDocument(blankNotes)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'buildingLevels[0].notes[0].text',
+          expected: 'Expected non-empty note text',
+        }),
+      ]),
+    );
   });
 
   it('rejects unknown Pokemon and asset ids', () => {
@@ -371,7 +452,7 @@ describe('SceneDocument v1 schema', () => {
       ...payload,
       buildingLevels: [
         ...payload.buildingLevels,
-        { id: 'level-1', levelNumber: 1, name: '2层' },
+        { id: 'level-1', levelNumber: 1, name: '2层', notes: [] },
       ],
       tileInstances: [
         payload.tileInstances[0],

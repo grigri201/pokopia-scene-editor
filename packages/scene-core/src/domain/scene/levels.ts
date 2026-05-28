@@ -9,6 +9,7 @@ export function createBuildingLevel(levelNumber: number): BuildingLevel {
     id: `level-${levelNumber}`,
     levelNumber,
     name: `${getBuildingLevelDisplayNumber(levelNumber)}层`,
+    notes: [],
   };
 }
 

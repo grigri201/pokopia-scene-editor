@@ -36,10 +36,16 @@ const coordinateSchema = z.object({
   y: z.number().int().min(0).max(6),
 }).strict();
 
+const buildingLevelNoteSchema = z.object({
+  id: z.string().min(1),
+  text: z.string().refine((value) => value.trim().length > 0, 'Expected non-empty note text'),
+}).strict();
+
 const buildingLevelSchema = z.object({
   id: z.string().min(1),
   levelNumber: z.number().int().min(0),
   name: z.string(),
+  notes: z.array(buildingLevelNoteSchema).default([]),
 }).strip();
 
 const skillTypeSchema = z.enum(assetSkillTypes);
@@ -108,6 +114,19 @@ export const sceneDocumentV1Schema = z.object({
     }
 
     levelIds.add(level.id);
+
+    const noteIds = new Set<string>();
+    for (const [noteIndex, note] of level.notes.entries()) {
+      if (noteIds.has(note.id)) {
+        context.addIssue({
+          code: 'custom',
+          message: `Duplicate building level note id: ${note.id}`,
+          path: ['buildingLevels', index, 'notes', noteIndex, 'id'],
+        });
+      }
+
+      noteIds.add(note.id);
+    }
   }
 
   if (!levelIds.has(scene.workspaceState.currentBuildingLevelId)) {

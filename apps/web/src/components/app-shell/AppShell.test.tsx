@@ -371,7 +371,7 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
-        { id: 'level-0', levelNumber: 0, name: '1层' },
+        { id: 'level-0', levelNumber: 0, name: '1层', notes: [] },
       ]);
     });
 
@@ -379,8 +379,8 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
-        { id: 'level-0', levelNumber: 0, name: '1层' },
-        { id: 'level-1', levelNumber: 1, name: 'Layer 2' },
+        { id: 'level-0', levelNumber: 0, name: '1层', notes: [] },
+        { id: 'level-1', levelNumber: 1, name: 'Layer 2', notes: [] },
       ]);
     });
 
@@ -396,7 +396,7 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
-        { id: 'level-0', levelNumber: 0, name: 'Layer 1' },
+        { id: 'level-0', levelNumber: 0, name: 'Layer 1', notes: [] },
       ]);
     });
     expect(confirmReset).toHaveBeenCalledWith('Reset the current scene and workbench?');
@@ -561,7 +561,7 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     const snapshot = JSON.parse(readSceneSnapshot());
-    expect(snapshot.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '1层' }]);
+    expect(snapshot.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '1层', notes: [] }]);
     expect(snapshot.tileInstances).toEqual([]);
     expect(snapshot.workspaceState).toMatchObject({
       currentBuildingLevelId: 'level-0',
@@ -669,9 +669,9 @@ describe('AppShell scene storage integration', () => {
       const rows = screen.getAllByTestId('building-level-row');
       expect(rows.map((row) => row.dataset.displayId)).toEqual(['L3', 'L2', 'L1']);
       expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
-        { id: 'level-0', levelNumber: 0, name: '1层' },
-        { id: 'level-2', levelNumber: 1, name: '3层' },
-        { id: 'level-3', levelNumber: 2, name: '3层' },
+        { id: 'level-0', levelNumber: 0, name: '1层', notes: [] },
+        { id: 'level-2', levelNumber: 1, name: '3层', notes: [] },
+        { id: 'level-3', levelNumber: 2, name: '3层', notes: [] },
       ]);
     });
     expect(confirmDelete).toHaveBeenCalledTimes(1);

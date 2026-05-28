@@ -80,6 +80,38 @@ describe('scene recovery', () => {
     );
   });
 
+  it('recovers older v1 payloads that do not include building level notes', () => {
+    const payload = serializeSceneDocument(
+      createDefaultSceneDocument({
+        sceneId: 'scene-old-level-notes',
+        sceneName: 'Old 5x5 notes payload',
+        now: '2026-05-16T08:00:00.000Z',
+      }),
+    );
+    const legacyPayload = {
+      ...payload,
+      buildingLevels: payload.buildingLevels.map((level) => {
+        const copy = { ...level } as Partial<typeof level>;
+        delete copy.notes;
+        return copy;
+      }),
+    };
+
+    const recovered = recoverSceneDocument(legacyPayload);
+
+    expect(recovered.ok).toBe(true);
+    if (!recovered.ok) {
+      throw new Error('Expected legacy notes payload to recover.');
+    }
+    expect(recovered.scene.buildingLevels).toEqual([
+      expect.objectContaining({
+        id: 'level-0',
+        notes: [],
+      }),
+    ]);
+    expect(recovered.payload.buildingLevels[0].notes).toEqual([]);
+  });
+
   it('migrates only the legacy generated scene name to the current Pokemon-based default', () => {
     const legacyDefaultScene = createDefaultSceneDocument({
       sceneId: 'scene-legacy-default-name',

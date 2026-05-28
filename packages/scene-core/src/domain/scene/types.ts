@@ -15,6 +15,12 @@ export interface BuildingLevel {
   id: string;
   levelNumber: number;
   name: string;
+  notes: BuildingLevelNote[];
+}
+
+export interface BuildingLevelNote {
+  id: string;
+  text: string;
 }
 
 export interface WorkspaceState {

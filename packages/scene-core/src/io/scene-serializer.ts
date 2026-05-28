@@ -21,7 +21,10 @@ export function createSceneDocumentV1PayloadInput(scene: SceneDocument): unknown
     sceneSize: { ...scene.sceneSize },
     canvasSize: { ...scene.canvasSize },
     outerPadding: scene.outerPadding,
-    buildingLevels: scene.buildingLevels.map((level) => ({ ...level })),
+    buildingLevels: scene.buildingLevels.map((level) => ({
+      ...level,
+      notes: level.notes.map((note) => ({ ...note })),
+    })),
     tileInstances: scene.tileInstances.map((instance) => ({
       instanceId: instance.instanceId,
       assetId: instance.assetId,

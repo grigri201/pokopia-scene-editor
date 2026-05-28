@@ -101,6 +101,28 @@ describe('SceneDocument v1 serializer', () => {
     expect(JSON.stringify(payload)).not.toContain('"note"');
   });
 
+  it('serializes building level notes explicitly as scene facts', () => {
+    const scene = createSceneWithInstances({
+      buildingLevels: [
+        {
+          ...createBuildingLevel(0),
+          notes: [{ id: 'note-safe-text', text: '<b>place bench first</b>' }],
+        },
+        createBuildingLevel(1),
+      ],
+    });
+
+    const payload = serializeSceneDocument(scene);
+
+    expect(payload.buildingLevels[0]).toEqual({
+      id: 'level-0',
+      levelNumber: 0,
+      name: '1层',
+      notes: [{ id: 'note-safe-text', text: '<b>place bench first</b>' }],
+    });
+    expect(parseSceneDocument(payload).ok).toBe(true);
+  });
+
   it('normalizes unset, invalid, and unsupported dye colors to null', () => {
     const scene = createSceneWithInstances();
 

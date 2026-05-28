@@ -61,16 +61,19 @@ describe('SceneDocument v1 roundtrip', () => {
         id: 'level-0',
         levelNumber: 0,
         name: 'Ground',
+        notes: [],
       },
       {
         id: 'level-1',
         levelNumber: 1,
         name: 'Canopy',
+        notes: [],
       },
       {
         id: 'level-2',
         levelNumber: 2,
         name: 'Roof',
+        notes: [],
       },
     ]);
   });
@@ -183,6 +186,29 @@ describe('SceneDocument v1 roundtrip', () => {
     expect(roundtrip.sourcePayload.tileInstances[0]).not.toHaveProperty('note');
   });
 
+  it('roundtrips unsafe building level notes as plain data', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-unsafe-level-note',
+      sceneName: 'Unsafe level note',
+      now: '2026-05-16T09:30:00.000Z',
+    });
+    const roundtrip = expectRoundtrip({
+      ...scene,
+      buildingLevels: [
+        {
+          ...scene.buildingLevels[0],
+          notes: [{ id: 'note-unsafe-level', text: unsafeScriptText }],
+        },
+      ],
+    });
+
+    expect(roundtrip.sourcePayload).toEqual(roundtrip.roundtrippedPayload);
+    expect(roundtrip.sourcePayload.buildingLevels[0].notes).toEqual([
+      { id: 'note-unsafe-level', text: unsafeScriptText },
+    ]);
+    expect(JSON.stringify(roundtrip.roundtrippedPayload)).toContain(unsafeScriptText);
+  });
+
   it('roundtrips the shared footprint fixture through SceneDocument v1 and re-derives occupancy', () => {
     const roundtrip = expectRoundtrip(createFootprintContractScene());
     const payloadText = JSON.stringify(roundtrip.sourcePayload);
@@ -233,16 +259,19 @@ function createRichScene(): SceneDocument {
         id: 'level-0',
         levelNumber: 0,
         name: 'Ground',
+        notes: [],
       },
       {
         id: 'level-1',
         levelNumber: 1,
         name: 'Canopy',
+        notes: [],
       },
       {
         id: 'level-2',
         levelNumber: 2,
         name: 'Roof',
+        notes: [],
       },
     ],
     tileInstances: [

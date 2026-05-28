@@ -266,6 +266,7 @@ function createDensePreviewScene() {
     id: `level-${levelNumber}`,
     levelNumber,
     name: `${levelNumber}层`,
+    notes: [],
   }));
   const assetIds = assetCatalog.map((asset) => asset.assetId);
   const skillTypes = assetSkillTypes;

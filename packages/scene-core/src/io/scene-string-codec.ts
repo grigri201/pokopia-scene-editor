@@ -81,7 +81,13 @@ function encodeHeader(payload: SceneDocumentV1, currentLevelIndex: number): stri
 }
 
 function encodeLevel(level: SceneDocumentV1['buildingLevels'][number]): string {
-  return `${encodeNumber(level.levelNumber)}.${encodeText(level.name)}`;
+  const encodedBase = `${encodeNumber(level.levelNumber)}.${encodeText(level.name)}`;
+
+  if (level.notes.length === 0) {
+    return encodedBase;
+  }
+
+  return `${encodedBase}.${encodeNotes(level.notes)}`;
 }
 
 function encodeTileInstance(
@@ -180,7 +186,7 @@ function decodeHeader(value: string) {
 }
 
 function decodeLevel(value: string, index: number) {
-  const [levelNumber, name, ...extra] = value.split('.');
+  const [levelNumber, name, encodedNotes, ...extra] = value.split('.');
   if (!levelNumber || name === undefined || extra.length > 0) {
     throw new Error('Invalid building level record.');
   }
@@ -189,7 +195,30 @@ function decodeLevel(value: string, index: number) {
     id: `level-${index}`,
     levelNumber: decodeNumber(levelNumber),
     name: decodeText(name),
+    notes: decodeNotes(encodedNotes),
   };
+}
+
+function encodeNotes(notes: SceneDocumentV1['buildingLevels'][number]['notes']): string {
+  return notes.map((note) => `${encodeText(note.id)}:${encodeText(note.text)}`).join(',');
+}
+
+function decodeNotes(value: string | undefined) {
+  if (!value || value === empty) {
+    return [];
+  }
+
+  return value.split(',').map((record) => {
+    const [id, text, ...extra] = record.split(':');
+    if (!id || text === undefined || extra.length > 0) {
+      throw new Error('Invalid building level note record.');
+    }
+
+    return {
+      id: decodeText(id),
+      text: decodeText(text),
+    };
+  });
 }
 
 function decodeTileInstance(value: string, index: number, levelIdByIndex: readonly string[]) {

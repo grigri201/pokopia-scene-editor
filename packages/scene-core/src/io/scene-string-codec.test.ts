@@ -125,6 +125,38 @@ describe('SceneDocument short string codec', () => {
     ]);
   });
 
+  it('roundtrips building level notes without executing or dropping text', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-short-code-notes',
+      sceneName: '备注场景',
+      selectedPokemonKey: 'ditto',
+      now: '2026-05-23T09:00:00.000Z',
+    });
+    const sourceScene = {
+      ...scene,
+      buildingLevels: [
+        {
+          ...createBuildingLevel(0),
+          notes: [
+            { id: 'note-a', text: '<b>先摆桌子</b>' },
+            { id: 'note-b', text: '保留, 逗号: 冒号; 分号. 点' },
+          ],
+        },
+      ],
+    };
+
+    const decoded = decodeSceneDocumentString(encodeSceneDocumentString(sourceScene), '2026-05-23T09:30:00.000Z');
+
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      throw new Error('Expected scene string decode to pass.');
+    }
+    expect(decoded.scene.buildingLevels[0].notes).toEqual([
+      { id: 'note-a', text: '<b>先摆桌子</b>' },
+      { id: 'note-b', text: '保留, 逗号: 冒号; 分号. 点' },
+    ]);
+  });
+
   it('ignores selected assets from legacy scene strings during import', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-legacy-selected-asset',

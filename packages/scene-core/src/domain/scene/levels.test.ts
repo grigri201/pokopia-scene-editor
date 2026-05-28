@@ -14,6 +14,7 @@ describe('building level rules', () => {
     expect(levels.map((level) => level.levelNumber)).toEqual([0]);
     expect(levels.map((level) => level.id)).toEqual(['level-0']);
     expect(levels.map((level) => level.name)).toEqual(['1层']);
+    expect(levels.map((level) => level.notes)).toEqual([[]]);
   });
 
   it('allocates the next building level number from the current maximum', () => {
