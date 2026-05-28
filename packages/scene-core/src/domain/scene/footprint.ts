@@ -1,11 +1,13 @@
-import type { AssetFootprint } from '../assets';
+import type { AssetFootprint, AssetStackingSurfaceKind } from '../assets';
 import type { GridCoordinate, SceneDimensions } from './area';
 import type { RotationDegrees } from './types';
 
 export type FootprintConflictType =
   | 'footprint-out-of-bounds'
   | 'same-level-footprint-overlap'
-  | 'height-blocked-by-lower-footprint';
+  | 'height-blocked-by-lower-footprint'
+  | 'unsupported-stack-surface'
+  | 'surface-capacity-conflict';
 
 export interface FootprintConflict {
   conflictType: FootprintConflictType;
@@ -17,6 +19,7 @@ export interface FootprintConflict {
   blockingInstanceId?: string;
   blockingAssetId?: string;
   blockingBuildingLevelId?: string;
+  surfaceKind?: AssetStackingSurfaceKind;
 }
 
 export interface FootprintBoundsConflictInput {

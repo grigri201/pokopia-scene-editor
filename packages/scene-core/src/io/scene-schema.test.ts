@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createBuildingLevel, createDefaultSceneDocument, createTileInstance } from '../domain/scene';
+import {
+  createBuildingLevel,
+  createDefaultSceneDocument,
+  createStackingPlateFoodScene,
+  createStackingPlateNonFoodScene,
+  createTileInstance,
+  stackingContractFixtureIds,
+} from '../domain/scene';
 import { parseSceneDocument, validateSceneDocument, type SceneDocumentV1 } from './scene-schema';
 import { serializeSceneDocument } from './scene-serializer';
 
@@ -290,6 +297,25 @@ describe('SceneDocument v1 schema', () => {
           blockingInstanceId: 'tile-boulder',
           blockingAssetId: 'strength-rock',
           blockingBuildingLevelId: 'level-0',
+          coordinates: [{ x: 2, y: 2 }],
+        }),
+      ]),
+    );
+  });
+
+  it('validates compatible stacking scenes and reports unsupported stack surfaces', () => {
+    expect(validateSceneDocument(createStackingPlateFoodScene())).toEqual([]);
+    expect(validateSceneDocument(createStackingPlateNonFoodScene())).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'tileInstances[1].coordinate',
+          conflictType: 'unsupported-stack-surface',
+          instanceId: stackingContractFixtureIds.nonFood,
+          assetId: 'leafy-plant',
+          blockingInstanceId: stackingContractFixtureIds.plate,
+          blockingAssetId: 'plate',
+          blockingBuildingLevelId: stackingContractFixtureIds.level0,
+          surfaceKind: 'food-surface',
           coordinates: [{ x: 2, y: 2 }],
         }),
       ]),

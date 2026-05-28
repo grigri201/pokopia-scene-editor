@@ -7,5 +7,6 @@ export * from './levels';
 export * from './occupancy';
 export * from './selectors';
 export * from './skill-marker';
+export * from './stacking-contract-fixture';
 export * from './tile-instance';
 export * from './types';

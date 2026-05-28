@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createBuildingLevel, createDefaultSceneDocument, createTileInstance } from '../domain/scene';
+import {
+  buildSceneOccupancy,
+  createBuildingLevel,
+  createDefaultSceneDocument,
+  createStackingPlateFoodScene,
+  createStackingPlateNonFoodScene,
+  createTileInstance,
+  stackingContractFixtureIds,
+} from '../domain/scene';
 import { serializeSceneDocument } from './scene-serializer';
 import { applyRecoveredSceneDocument, recoverSceneDocument } from './scene-recovery';
 
@@ -59,6 +67,37 @@ describe('scene recovery', () => {
     });
     expect(recovered.scene.workspaceState).not.toHaveProperty('saveStatus');
     expect(recovered.scene.tileInstances[0]).not.toHaveProperty('note');
+  });
+
+  it('recovers compatible stacking scenes and rejects unsupported stack surfaces', () => {
+    const recovered = recoverSceneDocument(serializeSceneDocument(createStackingPlateFoodScene()));
+    const rejected = recoverSceneDocument(createStackingPlateNonFoodScene());
+
+    expect(recovered.ok).toBe(true);
+    if (!recovered.ok) {
+      throw new Error('Expected compatible stacking scene to recover.');
+    }
+    expect(buildSceneOccupancy(recovered.scene).stackingRelations).toEqual([
+      expect.objectContaining({
+        topInstanceId: stackingContractFixtureIds.food,
+        baseInstanceId: stackingContractFixtureIds.plate,
+        surfaceKind: 'food-surface',
+      }),
+    ]);
+    expect(rejected.ok).toBe(false);
+    if (rejected.ok) {
+      throw new Error('Expected unsupported stacking scene to fail recovery.');
+    }
+    expect(rejected.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          conflictType: 'unsupported-stack-surface',
+          instanceId: stackingContractFixtureIds.nonFood,
+          blockingInstanceId: stackingContractFixtureIds.plate,
+          surfaceKind: 'food-surface',
+        }),
+      ]),
+    );
   });
 
   it('returns validation errors without creating a partial scene', () => {

@@ -4,6 +4,7 @@ import {
   createBuildingLevel,
   createDefaultSceneDocument,
   createFootprintContractScene,
+  createStackingPlateFoodScene,
   createTileInstance,
   footprintContractExpected,
   footprintContractFixtureIds,
@@ -252,5 +253,26 @@ describe('SceneDocument short string codec', () => {
         }),
       ]),
     );
+  });
+
+  it('roundtrips legal stacking scenes through PSE1 without encoded stacking fields', () => {
+    const encoded = encodeSceneDocumentString(createStackingPlateFoodScene());
+    const decoded = decodeSceneDocumentString(encoded, '2026-05-28T00:10:00.000Z');
+
+    expect(encoded).toMatch(/^PSE1~/);
+    expect(encoded).not.toContain('stacking');
+    expect(encoded).not.toContain('stackingRelations');
+    expect(encoded).not.toContain('supportedBy');
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      throw new Error('Expected stacking scene decode to pass.');
+    }
+    expect(buildSceneOccupancy(decoded.scene).stackingRelations).toEqual([
+      expect.objectContaining({
+        topAssetId: 'leppa-berry',
+        baseAssetId: 'plate',
+        surfaceKind: 'food-surface',
+      }),
+    ]);
   });
 });
