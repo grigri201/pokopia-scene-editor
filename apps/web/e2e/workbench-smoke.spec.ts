@@ -233,6 +233,13 @@ test('previews and downloads an image export without mutating scene storage', as
   await expect(page.getByLabel('整体技能数量')).toHaveCount(0);
   const overallMaterialItems = page.getByLabel('整体使用素材清单').locator('.export-material-list--with-thumbs > li');
   await expect(overallMaterialItems).toHaveCount(8);
+  expect(
+    new Set(
+      await overallMaterialItems.evaluateAll((items) =>
+        items.map((item) => getComputedStyle(item).borderTopColor),
+      ),
+    ).size,
+  ).toBe(1);
   await expect
     .poll(async () =>
       overallMaterialItems.first().evaluate((item) => {
@@ -257,6 +264,16 @@ test('previews and downloads an image export without mutating scene storage', as
   await leafyExportCell.scrollIntoViewIfNeeded();
   await expect(leafyExportCell.locator('img[title="绿叶植物"]')).toBeVisible();
   await expect(leafyExportCell).not.toContainText('绿叶');
+  await expect
+    .poll(async () =>
+      leafyExportCell.evaluate((cell) => {
+        const emptyMainCell = cell.parentElement?.querySelector<HTMLElement>('[aria-label="3,3: 空层"]');
+        return emptyMainCell
+          ? getComputedStyle(cell).borderRightColor === getComputedStyle(emptyMainCell).borderRightColor
+          : false;
+      }),
+    )
+    .toBe(true);
   const exportSkillCell = page.getByLabel('2,5: 储水技能');
   await exportSkillCell.scrollIntoViewIfNeeded();
   await expect(exportSkillCell.locator('img[title="储水技能"]')).toBeVisible();
