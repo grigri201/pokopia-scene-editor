@@ -13,6 +13,7 @@ interface CreateImageExportFileInput {
 }
 
 const pngMimeType = 'image/png';
+const imageExportPixelRatio = 2;
 const transparentPixelDataUrl =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
 
@@ -34,7 +35,7 @@ export async function createImageExportFile({
       height,
       imagePlaceholder: transparentPixelDataUrl,
       onImageErrorHandler: () => undefined,
-      pixelRatio: 1,
+      pixelRatio: imageExportPixelRatio,
       type: pngMimeType,
       width,
     });
@@ -49,8 +50,8 @@ export async function createImageExportFile({
   return {
     blob: blob.type === pngMimeType ? blob : blob.slice(0, blob.size, pngMimeType),
     fileName: getImageExportFileName(sceneName),
-    height,
-    width,
+    height: height * imageExportPixelRatio,
+    width: width * imageExportPixelRatio,
   };
 }
 

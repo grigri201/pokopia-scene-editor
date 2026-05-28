@@ -28,8 +28,8 @@ describe('image export file generation', () => {
 
     expect(file.fileName).toBe('Export-Image-Scene.pokopia-scene.png');
     expect(file.blob.type).toBe('image/png');
-    expect(file.width).toBe(591);
-    expect(file.height).toBe(422);
+    expect(file.width).toBe(1182);
+    expect(file.height).toBe(844);
     expect(toBlobMock).toHaveBeenCalledWith(
       previewElement,
       expect.objectContaining({
@@ -38,7 +38,7 @@ describe('image export file generation', () => {
         height: 422,
         imagePlaceholder: expect.stringContaining('data:image/png;base64'),
         onImageErrorHandler: expect.any(Function),
-        pixelRatio: 1,
+        pixelRatio: 2,
         type: 'image/png',
         width: 591,
       }),
@@ -59,7 +59,8 @@ describe('image export file generation', () => {
       sceneName: 'Tall Preview',
     });
 
-    expect(file.height).toBe(961);
+    expect(file.width).toBe(1180);
+    expect(file.height).toBe(1922);
     expect(previewElement.style.height).toBe('');
     expect(previewElement.style.maxHeight).toBe('');
     expect(previewElement.style.overflow).toBe('');
@@ -70,6 +71,7 @@ describe('image export file generation', () => {
       expect.objectContaining({
         canvasHeight: 961,
         height: 961,
+        pixelRatio: 2,
       }),
     );
   });

@@ -374,9 +374,10 @@ test('previews and downloads an image export without mutating scene storage', as
   expect(download.suggestedFilename()).toBe('Restored-Smoke-Layout.pokopia-scene.png');
   expect(downloadPath).not.toBeNull();
   const pngBytes = await readFile(downloadPath ?? '');
+  const expectedPngPixelRatio = 2;
   expect(getPngSize(pngBytes)).toEqual({
-    height: expectedPngSize.height,
-    width: expectedPngSize.width,
+    height: expectedPngSize.height * expectedPngPixelRatio,
+    width: expectedPngSize.width * expectedPngPixelRatio,
   });
   expect(pngBytes.toString('utf8')).not.toContain('<svg');
   expect(pngBytes.toString('utf8')).not.toContain('restore smoke');

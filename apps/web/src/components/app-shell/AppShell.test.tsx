@@ -450,7 +450,7 @@ describe('AppShell scene storage integration', () => {
     expect(toBlobMock).toHaveBeenCalledWith(
       screen.getByRole('dialog', { name: '图片导出预览' }),
       expect.objectContaining({
-        pixelRatio: 1,
+        pixelRatio: 2,
         type: 'image/png',
       }),
     );
