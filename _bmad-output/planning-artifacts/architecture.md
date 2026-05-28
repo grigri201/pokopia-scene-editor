@@ -91,13 +91,20 @@ Worker 第一阶段无状态，不引入数据库、账号、云保存、分享�
 
 Footprint 是 asset catalog metadata：每个 asset 拥有 `footprint.length`、`footprint.width`、`footprint.height`，默认 1x1x1，真实大素材通过集中 override 覆盖。`packages/scene-core` 必须提供 DOM-free helpers 计算 effective footprint、occupied cells、same-layer overlap、canvas bounds 和 height-derived blocking cells。`apps/web`、`apps/worker`、MCP tools/resources 和 Codex skill 只能调用这些 helpers，不能复制规则。
 
-另有 40 条 Non-Functional Requirements，核心架构约束包括：
+### Approved Course Correction - 2026-05-28
+
+本 Architecture 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28.md` 增加 Epic 10 建筑层备注边界。层备注属于 `BuildingLevel` 的用户自填场景事实，不是普通 `TileInstance.note`，也不是 UI preference 或导出专用状态。
+
+`SceneDocument v1` 继续作为当前 schema。本次批准一个向后兼容的 additive exception：旧 payload 或旧 PSE1 短字符串缺少 `buildingLevels[].notes` 时，恢复为空数组；新 serializer、autosave、short string codec、export summary、Worker API 和 MCP summary 必须保留层备注。备注正文必须按纯文本处理，不随 locale 自动翻译。
+
+另有 43 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
 - 预览切换需要在 300ms 内完成首个可见更新；素材搜索筛选 1000 个素材以内需要在 200ms 内返回可见结果。
 - 画布、上下文/检查器字段、建筑层列表、预览和序列化结果必须从同一场景数据源派生。
 - 保存/序列化/恢复/重新打开必须通过往返恢复测试，恢复后建筑层数量、素材实例数量、染色数量和技能标记数量必须一致。
 - Footprint、effective footprint、occupied cells 和 height blocking cells 必须由 `scene-core` 确定性派生；不得保存为独立 state。
+- 层备注必须随 `BuildingLevel` 一起保存、恢复、短字符串 roundtrip 和导出；不得作为 React-only state、localStorage UI preference 或 export-only state。
 - 恢复数据或未来导入 JSON 必须作为数据处理，用户自定义名称、备注和技能说明必须按安全文本渲染，不得作为 HTML 或脚本执行。
 - 基础可访问性目标是 WCAG 2.2 AA，关键状态不能只依赖颜色表达。
 - 1280px 及以上使用完整 Open Design 浮动工作台，768px 以下进入 Mobile View-only Mode，不允许任何场景写操作。
@@ -257,7 +264,7 @@ Vite 提供快速 dev server、HMR、TypeScript/JSX 支持和静态构建。第�
 - `sceneSize`
 - `canvasSize`
 - `outerPadding`
-- `buildingLevels`
+- `buildingLevels`，其中每个 `BuildingLevel` 包含 `id`、`levelNumber`、`name` 和 `notes: BuildingLevelNote[]`
 - `tileInstances`
 - `workspaceState.currentBuildingLevelId`
 - `workspaceState.selectedAssetId`
@@ -266,7 +273,7 @@ Vite 提供快速 dev server、HMR、TypeScript/JSX 支持和静态构建。第�
 - `dyeColor` on tile instances, explicitly `null` when unset
 - metadata such as `createdAt`, `updatedAt` and `lastAutosavedAt`
 
-`SceneDocument` 应表达 PRD 中的固定 MVP 规则：`sceneSize = 5x5`、`canvasSize = 7x7`、`outerPadding = 1`。MVP 只接受当前 SceneDocument v1 的完整字段集合，缺失必需字段必须失败。
+`SceneDocument` 应表达 PRD 中的固定 MVP 规则：`sceneSize = 5x5`、`canvasSize = 7x7`、`outerPadding = 1`。MVP 只接受当前 SceneDocument v1 的完整字段集合，缺失必需字段必须失败；Epic 10 批准的 `buildingLevels[].notes` additive compatibility 除外，旧 payload 缺失该字段时恢复为空数组。
 
 **Decision: Area type is derived, then persisted for serialization integrity.**
 
@@ -296,7 +303,7 @@ MVP schema 固定为 `1`。恢复流程应先读取 `schemaVersion`：
 
 - `schemaVersion === 1`：按当前 schema 校验。
 - 缺失或未知版本：显示明确错误。
-- 当前 MVP 不接受旧字段名、缺省字段或隐式迁移。后续如果产品决定引入新的 schema，应先更新 PRD、Architecture、Epics 和测试，再定义新的当前 schema。
+- 当前 MVP 不接受旧字段名、缺省字段或隐式迁移，除非 course correction 明确批准向后兼容的新增字段。Epic 10 的 `buildingLevels[].notes` 是已批准例外：旧 payload 缺失时补为空数组，新 serializer 必须显式输出该字段。后续如果产品决定引入新的 schema，应先更新 PRD、Architecture、Epics 和测试，再定义新的当前 schema。
 
 **Decision: Footprint lives in the asset catalog, while occupancy is derived.**
 
@@ -312,6 +319,28 @@ MVP schema 固定为 `1`。恢复流程应先读取 `schemaVersion`：
 
 派生的 `effectiveFootprint`、`occupiedCells`、`blockingCells` 和 `blockedBy` 不进入 `SceneDocument v1`、autosave payload 或短字符串。短字符串仍编码 asset official id、anchor coordinate、building level、rotation、dye 和 skill fields；decode 后通过当前 catalog 重新派生 occupancy。若未来必须保存 catalog snapshot、历史 footprint 解释或实例级 footprint override，才需要新的 course correction 和 `SceneDocument v2`。
 
+**Decision: Building level notes are persistent scene facts.**
+
+Epic 10 新增 `BuildingLevelNote`，用于按建筑层记录搭建说明、复现步骤或注意事项。建议初始结构：
+
+```ts
+interface BuildingLevelNote {
+  id: string;
+  text: string;
+}
+
+interface BuildingLevel {
+  id: string;
+  levelNumber: number;
+  name: string;
+  notes: BuildingLevelNote[];
+}
+```
+
+`notes` 数组顺序即显示顺序。空备注必须在 command 层阻止或过滤。层备注不是普通素材实例备注，不得新增或恢复 `TileInstance.note`；它也不是 UI preference，不进入 `pokopia.uiPreferences.v1`。复制建筑层时复制备注正文并为每条备注生成新的稳定 id；删除建筑层时随层删除备注，并在破坏性确认中说明备注数量。
+
+PSE1 短字符串需要兼容旧 level record，同时保留新层备注。旧字符串解码为 `notes: []`；新字符串编码每层备注正文和顺序。备注不得作为 derived data 省略，因为它是用户自填场景事实。
+
 ### Authentication & Security
 
 **Decision: MVP has no authentication or authorization.**
@@ -320,7 +349,7 @@ MVP schema 固定为 `1`。恢复流程应先读取 `schemaVersion`：
 
 **Decision: Recovered or imported content is data only.**
 
-恢复数据或未来导入 JSON 中的素材名称、场景名称、备注和技能说明必须作为纯文本保存和展示。实现中禁止把这些字段传入 `dangerouslySetInnerHTML` 或任何 HTML parser。包含 `<script>`、事件处理属性、`<img onerror>` 等字符串时，UI 只能把它们作为普通文本显示。
+恢复数据或未来导入 JSON 中的素材名称、场景名称、建筑层名称、层备注和技能说明必须作为纯文本保存和展示。实现中禁止把这些字段传入 `dangerouslySetInnerHTML` 或任何 HTML parser。包含 `<script>`、事件处理属性、`<img onerror>` 等字符串时，UI 只能把它们作为普通文本显示。
 
 **Decision: Destructive commands require explicit confirmation at command boundary.**
 
@@ -340,7 +369,7 @@ MVP schema 固定为 `1`。恢复流程应先读取 `schemaVersion`：
 
 Epic 7/8 新增无状态 service layer 与 shared domain rules：
 
-- `packages/scene-core`：共享 `SceneDocument v1` schema、serializer/recovery、short code codec、asset query、footprint/occupancy helpers、selectors、default scene generation 和 export summary JSON。
+- `packages/scene-core`：共享 `SceneDocument v1` schema、serializer/recovery、short code codec、asset query、footprint/occupancy helpers、selectors、default scene generation、building level notes 和 export summary JSON。
 - `apps/worker`：Cloudflare Worker HTTP API 和 Streamable HTTP MCP server，复用 `scene-core`。
 - HTTP API：`/api/health`、`/api/scene/generate`、`/api/scene/validate`、`/api/scene/recover`、`/api/scene/export-summary`、`/api/scene/encode`、`/api/scene/decode`、`/api/assets`。
 - MCP tools：`generate_scene_document`、`validate_scene_document`、`recover_scene_document`、`summarize_scene_export`、`search_pokopia_assets`。
@@ -365,11 +394,11 @@ Epic 7/8 新增无状态 service layer 与 shared domain rules：
 - Scene Canvas reads scene + current view state
 - Asset Picker reads asset catalog + selected asset state
 - Building Level Panel reads building levels + current level
-- Selection Inspector reads selected instance derived from scene
+- Selection Inspector reads selected instance and current building level notes derived from scene
 - Preview Inspector derives front/top previews from scene and layer range
 - Pokemon Scene Controls read selected Pokemon and scene name
 - Recovery Validator reads schema validation result
-- Image Export Preview reads export summary/render data derived from SceneDocument and asset catalog
+- Image Export Preview reads export summary/render data, including layer notes, derived from SceneDocument and asset catalog
 
 组件可以拥有 local UI state，例如 hover cell、focused control、panel open state、search input text、filter controls、favorite-only、zoom/pan 或 modal open state；这些 UI 偏好可以保存到 localStorage，但不能复制 `SceneDocument` 的业务字段作为独立 truth，也不能进入自动保存 payload 或图片导出业务摘要。
 
@@ -560,6 +589,7 @@ type Result<T, E> =
 - 日期使用 ISO 8601 string。
 - Boolean 使用 `true` / `false`。
 - 技能备注字段必须显式存在；未填写时使用空字符串。普通实例备注 `note` 不属于 MVP payload 必填字段。
+- `BuildingLevel.notes` 必须显式存在；未填写时使用空数组。每条备注包含稳定 `id` 和 `text`，`text` 按用户原文保存。
 - `areaType` 只允许 `main | outer`。
 - `rotationDegrees` 只允许 `0 | 90 | 180 | 270`；默认 0 度必须显式保存为 `0`，但 UI 不显示额外旋转标记。
 - `footprint.length`、`footprint.width`、`footprint.height` 只存在于 asset catalog，使用正整数；SceneDocument tile instance 不保存 footprint。
@@ -598,6 +628,7 @@ MVP 不引入全局 event bus。组件通信走 React props/context + command di
 **State Management Patterns**
 
 - `SceneDocument` 写操作只能通过 command。
+- 层备注写操作必须通过 command，例如 `addBuildingLevelNote`、`updateBuildingLevelNote`、`deleteBuildingLevelNote`；组件不得直接 mutate `buildingLevels[].notes`。
 - UI-only state 可以留在组件内，例如 hover cell、search query、panel open state、zoom/pan。
 - 业务派生数据必须通过 selector 统一计算，例如 `selectVisibleLevels`、`selectTileAtCell`、`selectPreviewTiles`。
 - selector 必须是 pure function，不读取 DOM，不触发 side effect。
@@ -630,12 +661,12 @@ MVP 不引入全局 event bus。组件通信走 React props/context + command di
 - `interactionMode` 是权限边界，不是样式变量。
 - `<768px` 必须进入 `readOnly`。
 - read-only 允许通过指针 selection、preview mode、current viewed level、zoom/pan 和查看详情。
-- read-only 禁止 place、delete、rotate、dye, skill toggle、level mutate、recover replace 和 autosave。
+- read-only 禁止 place、delete、rotate、dye, skill toggle、layer note mutate、level mutate、recover replace 和 autosave。
 - command layer 和 canvas pointer handler 必须检查只读边界；mobile application keyboard handler 必须 no-op。
 
 **Safe Text Rendering Patterns**
 
-- 恢复数据或未来导入 JSON 的 `sceneName`、`assetName`、`skillNote` 等字段只能作为文本渲染。
+- 恢复数据或未来导入 JSON 的 `sceneName`、`assetName`、`buildingLevel.name`、`BuildingLevelNote.text`、`skillNote` 等字段只能作为文本渲染。
 - 禁止 `dangerouslySetInnerHTML`。
 - 禁止把恢复字段传给 HTML parser。
 - 测试 fixture 必须覆盖 `<script>`、`<img onerror>` 和普通尖括号文本。
@@ -650,7 +681,7 @@ MVP 不引入全局 event bus。组件通信走 React props/context + command di
 - 不把用户文本作为 HTML 渲染。
 - 不绕过 mobile read-only command guard。
 - 新增 command 时同时新增 domain/unit tests。
-- 新增恢复字段时同时更新 TypeScript type、Zod schema、serializer/parser、fixture 和 roundtrip test；本次 footprint 不是恢复字段，必须保持 SceneDocument v1 shape 不变。
+- 新增恢复字段时同时更新 TypeScript type、Zod schema、serializer/parser、fixture 和 roundtrip test；本次 footprint 不是恢复字段，必须保持 SceneDocument v1 shape 不变。Epic 10 的 `buildingLevels[].notes` 属于新增恢复字段，必须同步 short string codec、export summary、Worker/MCP contract tests 和 unsafe text fixtures。
 
 **Pattern Enforcement**
 
@@ -935,6 +966,7 @@ MVP web app 不使用 service/repository/database layer。跨组件业务操作�
 - FR56-FR58 Open Design Workbench Context：`apps/web/src/components/app-shell/`、`apps/web/src/components/pokemon-scene-controls/`、`apps/web/src/theme/`、`apps/web/src/state/`。
 - FR69-FR77 Scene Worker, MCP & Codex Skill：`packages/scene-core/`、`apps/worker/src/routes/`、`apps/worker/src/mcp.ts`、`.agents/skills/pokopia-scene-worker/`、root `package.json` pnpm scripts、`pnpm-workspace.yaml` 和 `apps/worker/wrangler.toml`。
 - FR78-FR86 Asset Footprint & Occupancy Rules：`packages/scene-core/src/domain/assets/catalog.ts`、`packages/scene-core/src/domain/scene/footprint.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/io/scene-schema.ts`、`apps/web/src/state/asset-placement.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
+- FR87-FR92 Building Level Notes：`packages/scene-core/src/domain/scene/levels.ts`、`packages/scene-core/src/domain/scene/types.ts`、`packages/scene-core/src/io/scene-schema.ts`、`packages/scene-core/src/io/scene-string-codec.ts`、`packages/scene-core/src/domain/scene/export-summary.ts`、`apps/web/src/state/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
 
 **Cross-Cutting Concerns**
 

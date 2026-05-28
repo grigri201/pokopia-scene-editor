@@ -47,6 +47,10 @@ courseCorrections:
     source: _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-27.md
     status: approved
     summary: Add Epic 8 for real asset footprint metadata, rotated occupancy, height-derived blocking, cross-cell rendering, persistence compatibility, and Worker/MCP/Codex skill rule parity without introducing SceneDocument v2.
+  - date: '2026-05-28'
+    source: _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28.md
+    status: approved
+    summary: Add Epic 10 for per-building-level multi-note editing, persistence, export preview rendering, and Worker/MCP export-summary parity while keeping ordinary tile instance note out of scope.
 ---
 
 # 产品需求文档 - pokopia-scene-editor
@@ -86,6 +90,12 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 
 现有素材迁移策略是：所有 catalog asset 默认 footprint 为 `{ length: 1, width: 1, height: 1 }`，再用可审计 override 补充真实大素材。90/270 度旋转时 length/width 占用格必须交换；height 大于 1 时，上方建筑层对应 footprint cells 显示为不可放置。Web 编辑画布、俯视/正视预览、图片导出、Worker validate/recover/export-summary、MCP resources/tools 和 Codex skill 必须复用同一套 `scene-core` footprint/occupancy helpers。
 
+### Approved Course Correction - 2026-05-28
+
+本 PRD 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28.md` 增加 Epic 10，用于按建筑层维护多条备注，并在图片导出预览和导出摘要中按层列出这些备注。层备注属于 `BuildingLevel` 的用户自填场景事实，不是普通素材实例备注 `note`，也不是 UI preference。
+
+`SceneDocument v1` 继续作为当前 schema。本次变更允许 `buildingLevels[].notes` 作为向后兼容的新增字段：旧保存数据或旧 PSE1 短字符串缺少该字段时恢复为空数组；新的自动保存、序列化、短字符串和 export summary 必须保留备注。备注正文保持用户原文，不随 locale 自动翻译，并且必须作为安全文本渲染。
+
 ### What Makes This Special
 
 本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：中心 5×5 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、素材实例级技能标记，以及完整 7×7 预览。
@@ -119,7 +129,7 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 
 ### Technical Success
 
-系统必须稳定维护 5×5 主体尺寸、7×7 画布尺寸、外围扩展格数、场景名称、当前 Pokemon、建筑层、素材实例、坐标、区域类型、朝向、染色、技能标记、技能备注、当前编辑建筑层、当前素材和选中坐标等核心数据。素材 footprint、旋转后占用格和跨层阻塞必须从 asset catalog 与 SceneDocument v1 共同派生，不进入独立保存状态。自动保存、恢复、预览和图片导出数据派生必须使用同一个 SceneDocument v1 事实来源，并能完整还原 Open Design 工作台的必需持久上下文；图片导出不得维护第二套业务状态。
+系统必须稳定维护 5×5 主体尺寸、7×7 画布尺寸、外围扩展格数、场景名称、当前 Pokemon、建筑层、层备注、素材实例、坐标、区域类型、朝向、染色、技能标记、技能备注、当前编辑建筑层、当前素材和选中坐标等核心数据。素材 footprint、旋转后占用格和跨层阻塞必须从 asset catalog 与 SceneDocument v1 共同派生，不进入独立保存状态。自动保存、恢复、预览和图片导出数据派生必须使用同一个 SceneDocument v1 事实来源，并能完整还原 Open Design 工作台的必需持久上下文；图片导出不得维护第二套业务状态。
 
 编辑操作应即时响应；7×7 画布、建筑层切换、素材放置、删除、技能标记切换和预览切换不应出现明显卡顿。素材数量增长时，素材列表应支持分页或虚拟滚动，保证搜索和筛选仍可快速返回结果。
 
@@ -131,15 +141,16 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 - 系统能够准确识别任意坐标属于主体区还是外围装饰区。
 - 用户可以在主体区和外围装饰区放置、删除和替换素材；MVP 不支持移动已放置素材。
 - 用户可以创建、重命名、删除和复制建筑层，并在左侧建筑层面板中看到 L2/L1/L0 这种高层到低层的视觉顺序，同时数据仍按 0 层到 n 层组织；MVP 不支持建筑层隐藏或锁定状态。
+- 用户可以为每个建筑层维护多条备注，备注随建筑层保存、恢复并按层导出。
 - 预览按建筑层层号从 0 层到 n 层渲染所有可见建筑层。
 - 用户可以在素材放置前或放置后设置百变怪技能标记。
 - 技能标记在画布和保存数据中保持一致，技能类型使用 `树叶`、`耕地`、`储水` 词表，并以一字标签辅助识别；预览不显示技能标记。
 - 可染色素材在格子内显示染色入口和当前颜色；非默认朝向只在 90/180/270 度时显示旋转标记，默认 0 度不额外占用画布信息层。
 - 大于 1x1 或 height 大于 1 的素材能够在画布、俯视预览、正视预览和图片导出中按 footprint 跨格或跨层表达；由 height 派生的上方阻塞格不可被保存为独立 state。
 - 左下检查器在同一工作台内同时展示正视图和俯视图缩略预览，正视图可独立滚动。
-- 自动保存数据重新打开后，场景名称、Decor Dex Pokemon key、画布、建筑层、当前编辑建筑层、当前素材、选中坐标、素材实例、坐标、区域类型、朝向、染色、技能标记和技能备注能够完整还原；footprint 和阻塞状态按当前 asset catalog 重新派生。
+- 自动保存数据重新打开后，场景名称、Decor Dex Pokemon key、画布、建筑层、层备注、当前编辑建筑层、当前素材、选中坐标、素材实例、坐标、区域类型、朝向、染色、技能标记和技能备注能够完整还原；footprint 和阻塞状态按当前 asset catalog 重新派生。
 - 搜索词、分类/区域/技能筛选和 favorite-only 不会写入 SceneDocument payload，但会在同一浏览器的 localStorage 中恢复。预览网格、主体边界和技能标记不提供显示选项。
-- 用户可以打开图片导出预览，并下载一张包含整体使用素材、每层图形、跨格素材 footprint 和每层使用素材的布景说明图片。
+- 用户可以打开图片导出预览，并下载一张包含整体使用素材、每层图形、跨格素材 footprint、每层使用素材和每层备注的布景说明图片。
 
 MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 Decor Dex Pokemon key、场景名称、7×7 画布、默认 3 个建筑层、当前编辑建筑层、当前素材、选中坐标、主体区素材、外围装饰区素材、至少 1 个技能标记、可染色素材、非默认朝向素材、俯视图预览、正视图预览、自动保存和重新打开流程。验收通过标准是上述结果均可在同一 Open Design 工作台中复现，且重新打开的数据与自动保存前的 SceneDocument v1 payload 语义一致。
 
@@ -174,16 +185,17 @@ MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 
 - 放置、替换和预览前反馈必须使用 footprint 计算同层占用、跨层阻塞和画布边界越界。
 - 建筑层创建、删除、重命名、复制和当前编辑层设置；MVP 不提供建筑层隐藏、显示、锁定或解锁。
 - 按 0 层到 n 层维护建筑层；在工作台左侧按高层到低层视觉顺序展示，例如 L2、L1、L0。
+- 每个建筑层可以维护多条层备注；层备注属于建筑层级别的场景数据，不恢复普通素材实例备注 `note`。
 - 素材实例级百变怪技能标记、技能类型和技能备注。
 - 技能类型词表限定为 `树叶`、`耕地`、`储水`，画布技能标记显示对应的一字标签。
 - 可染色素材的格内染色入口、颜色选择和颜色状态显示。
 - 非默认朝向的格内旋转标记；0 度默认状态不显示额外旋转标记。
-- 选中格上下文区域或检查器字段，支持查看和编辑坐标、区域、素材、建筑层、朝向、技能标记和备注。
+- 选中格上下文区域或检查器字段，支持查看和编辑坐标、区域、素材、建筑层、朝向、技能标记、技能备注和当前建筑层备注。
 - 左下检查器同时展示俯视图和正视图缩略预览；预览固定不显示网格、主体边界和技能标记，正视图表达主体区、外围装饰区和建筑层高度关系。
 - 自动保存和本地重新打开恢复；MVP 不提供手动保存入口，也不要求展示 dirty/saved/saveError 状态。
 - SceneDocument v1 结构化序列化和恢复校验，用于保存、自动保存、恢复、roundtrip 校验和图片导出数据派生；图片导出必须从同一 SceneDocument v1 和 asset catalog 派生，不维护第二套导出业务状态或保存派生阻塞状态。
-- 用户可以在导出前预览一张布景说明图片，并将该图片下载到本机；图片必须包含整体使用的素材、每层的图形、跨格 footprint 表达和每层使用的素材。
-- 重新打开自动保存数据后完整还原场景名称、Decor Dex Pokemon key、画布、建筑层、当前编辑建筑层、当前素材、选中坐标、素材、坐标、区域、朝向、染色、技能标记和技能备注。
+- 用户可以在导出前预览一张布景说明图片，并将该图片下载到本机；图片必须包含整体使用的素材、每层的图形、跨格 footprint 表达、每层使用的素材和每层备注。
+- 重新打开自动保存数据后完整还原场景名称、Decor Dex Pokemon key、画布、建筑层、层备注、当前编辑建筑层、当前素材、选中坐标、素材、坐标、区域、朝向、染色、技能标记和技能备注。
 - 素材搜索词、分类/区域/技能筛选和 favorite-only 使用 localStorage 保存为浏览器本地 UI 偏好，不进入 SceneDocument v1 payload。
 - 基础恢复校验，字段缺失时给出明确错误提示。
 
@@ -362,6 +374,8 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR25: [Removed from MVP 2026-05-19] MVP 不提供建筑层隐藏或显示状态。
 - FR26: [Removed from MVP 2026-05-19] MVP 不提供建筑层锁定或解锁状态。
 - FR27: 系统可以按建筑层层号从 0 层到 n 层组织和展示布景内容。
+- FR87: 用户可以为每个建筑层维护多条备注，备注按建筑层归属保存和列出。
+- FR88: 每条层备注至少包含稳定 id 和正文 text；用户可以新增、编辑和删除备注，备注列表顺序必须稳定。
 
 ### Asset Catalog & Selection
 
@@ -420,6 +434,8 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR54: 用户可以重新打开保存数据并还原布景状态。
 - FR55: 系统可以在恢复数据字段缺失、类型错误或坐标超出 7×7 范围时给出错误提示，提示必须包含问题字段、失败原因和用户可执行的修复方向。
 - FR64: 系统可以将素材搜索词、分类/区域/技能筛选和 favorite-only 保存到 localStorage，并确保这些 UI 偏好不进入 SceneDocument v1 payload。预览显示选项不进入 MVP。
+- FR89: 选中当前建筑层的空格时，层备注输入和列表必须显示在选中空格提示框下方；备注操作作用于当前建筑层，而不是当前格子或素材实例。
+- FR90: 自动保存、恢复、结构化序列化和短字符串 roundtrip 必须保留 `buildingLevels[].notes`；旧 payload 或旧 PSE1 字符串缺少层备注时恢复为空数组。
 
 ### Image Export
 
@@ -427,6 +443,8 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR66: 导出图片必须包含整体使用的素材清单，至少包含素材名称、官方 No. 或 asset id、总使用数量。
 - FR67: 导出图片必须按建筑层展示每层图形，并表达该层 7×7 布局、主体区/外围区关系、素材位置和跨格 footprint。
 - FR68: 导出图片必须按建筑层展示每层使用的素材清单；导出预览和下载不得写入 SceneDocument、autosave storage、saved storage 或 UI preferences。
+- FR91: 图片导出预览和下载图片必须在每个建筑层的素材清单下方显示该层备注；没有备注的层不得产生误导性的空备注内容。
+- FR92: Worker export-summary、MCP `summarize_scene_export` 和 Web 图片导出必须使用同一层备注语义，按建筑层 id/name/levelNumber 关联备注。
 
 ### Scene Worker, MCP & Codex Skill
 
@@ -461,6 +479,7 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - NFR38: `SceneDocument v1` 仍是当前 schema；本次变更不得新增 `SceneDocument v2`、实例级 footprint 字段或 blocking cell 字段。若未来需要保存 catalog snapshot 或实例级 footprint override，必须先进行新的 PRD/Architecture/Epics 同步。
 - NFR39: `scene-core`、web UI、Worker API、MCP tools 和 Codex skill 示例必须有契约测试覆盖同一个 footprint fixture，至少验证 90/270 度 length/width 交换、同层重叠、height 跨层阻塞、短字符串 roundtrip 和 export-summary parity。
 - NFR40: Footprint 校验错误必须包含字段路径、冲突类型、触发实例、阻塞实例、建筑层和坐标集合；Worker/MCP/Codex skill 输出不得只给出 generic validation failed。
+- NFR41: 层备注必须随 `BuildingLevel` 一起通过 scene-core 类型、Zod schema、serializer/parser、short string codec、default scene、fixtures 和 roundtrip tests 校验；不得作为 React-only state、localStorage UI preference 或 export-only state 保存。
 
 ### Usability
 
@@ -469,6 +488,7 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - NFR13: 删除、旋转、染色和预览查看必须能从主编辑界面通过一次点击触发；桌面键盘快捷操作不作为 MVP 强制要求，显式导出入口若进入 MVP，也必须遵守同一可达性约束。
 - NFR14: 用户不应需要理解内部 JSON 结构才能完成创建、编辑、预览、保存和恢复流程。
 - NFR15: 错误提示必须说明问题字段或操作原因，并给出至少一个用户可执行的修复方向。
+- NFR42: 层备注编辑不得挤压 7x7 画布或改变格子固定尺寸；在桌面布局中输入框位于选中空格提示框下方，在 `<768px` Mobile View-only Mode 中只能查看不能编辑。
 
 ### Accessibility
 
@@ -493,6 +513,7 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - NFR28: Open Design 工作台不得使用 landing page、hero-scale 字号、卡片套卡片或装饰性背景来承载核心编辑体验；面板、按钮、格子、预览单元和计数区域必须有稳定尺寸。
 - NFR29: 图片导出预览和图片生成在 7×7 画布、10 个建筑层、每层 49 个素材实例以内的测试场景中，应在用户感知上可接受；若生成超过 1 秒，应显示非阻塞进度或生成状态。
 - NFR30: 导出图片中的标题、整体素材清单、每层图形和每层素材清单必须在默认导出尺寸下可读；下载按钮、关闭操作和失败提示必须有可访问名称。
+- NFR43: 层备注正文与场景名称、建筑层名称、技能备注一样必须作为纯文本渲染；包含 HTML-like 文本时，工作台、导出预览、下载图片和 Worker/MCP summary 不得执行或注入 HTML。
 
 ### Service, Tooling & Deployment
 
