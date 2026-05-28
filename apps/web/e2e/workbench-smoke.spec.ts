@@ -70,7 +70,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
 
   const snapshot = await readSceneSnapshot(page);
   expect(snapshot.sceneName).toBe('5x5 布景');
-  expect(snapshot.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '1层' }]);
+  expect(snapshot.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '1层', notes: [] }]);
   expect(snapshot.tileInstances).toEqual([]);
   expect(snapshot.workspaceState).toMatchObject({
     currentBuildingLevelId: 'level-0',

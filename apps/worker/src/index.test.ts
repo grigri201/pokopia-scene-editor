@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildImageExportSummary,
   buildSceneOccupancy,
+  createBuildingLevel,
   createDefaultSceneDocument,
   createFootprintContractHeightBlockedScene,
   createFootprintContractOverlapScene,
@@ -163,9 +164,12 @@ describe('worker HTTP API', () => {
 
     expect(summary.status).toBe(200);
     expect(summaryBody.data.summary).toEqual(directSummary);
-    expect(summaryBody.data.summary.layers[0].notes).toEqual([
-      { id: 'note-worker-1', text: '先确认高度' },
-      { id: 'note-worker-2', text: 'Keep <angle> text as plain data' },
+    expect(summaryBody.data.summary.layers.map((layer: any) => layer.notes)).toEqual([
+      [
+        { id: 'note-worker-1', text: '先确认高度' },
+        { id: 'note-worker-2', text: '<script>alert(1)</script>' },
+      ],
+      [{ id: 'note-worker-3', text: '<img src=x onerror=alert(1)>' }],
     ]);
   });
 
@@ -387,8 +391,12 @@ function createSceneWithLayerNotes() {
         ...scene.buildingLevels[0],
         notes: [
           { id: 'note-worker-1', text: '先确认高度' },
-          { id: 'note-worker-2', text: 'Keep <angle> text as plain data' },
+          { id: 'note-worker-2', text: '<script>alert(1)</script>' },
         ],
+      },
+      {
+        ...createBuildingLevel(1),
+        notes: [{ id: 'note-worker-3', text: '<img src=x onerror=alert(1)>' }],
       },
     ],
   };

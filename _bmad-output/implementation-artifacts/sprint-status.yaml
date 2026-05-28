@@ -104,11 +104,11 @@ development_status:
   epic-9: done
   9-1-building-layer-export-readability-polish: done
   epic-9-retrospective: optional
-  epic-10: in-progress
+  epic-10: done
   10-1-building-level-notes-data-contract: done
   10-2-edit-layer-notes-under-empty-selection: done
   10-3-export-summary-and-preview-layer-notes: done
-  10-4-layer-notes-parity-gates: backlog
+  10-4-layer-notes-parity-gates: done
   epic-10-retrospective: optional
   epic-11: backlog
   11-1-asset-catalog-stacking-surface-metadata: backlog

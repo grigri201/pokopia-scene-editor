@@ -41,8 +41,18 @@ for (const file of collectFiles(skillRoot)) {
 }
 
 const exampleText = examples.map((file) => read(join(examplesRoot, file))).join('\n');
+const summarizeExportExample = read(join(examplesRoot, 'summarize-export.md'));
+const workflowReference = read(join(skillRoot, 'references/workflows.md'));
 assert(exampleText.includes('validate_scene_document'), 'Examples must cover validate scene workflow.');
 assert(exampleText.includes('summarize_scene_export'), 'Examples must cover summarize export workflow.');
+assert(
+  summarizeExportExample.includes('structuredContent.data.summary.layers[].notes'),
+  'Summarize export example must require layer notes from summary.layers[].notes.',
+);
+assert(
+  workflowReference.includes('structuredContent.data.summary.layers[].notes'),
+  'Workflow reference must require layer notes from summary.layers[].notes.',
+);
 assert(exampleText.includes('effectiveFootprint'), 'Examples must require export summaries to preserve effectiveFootprint.');
 assert(exampleText.includes('occupiedCells'), 'Examples must require export summaries to preserve occupiedCells.');
 assert(exampleText.includes('blockingCells'), 'Examples must require export summaries to preserve blockingCells.');

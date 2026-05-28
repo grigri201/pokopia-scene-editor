@@ -15,6 +15,9 @@ import {
 import { stringifySceneDocument } from './scene-serializer';
 
 describe('SceneDocument short string codec', () => {
+  const unsafeScriptText = '<script>alert(1)</script>';
+  const unsafeImageText = '<img src=x onerror=alert(1)>';
+
   it('roundtrips scene settings with a shorter domain codec than JSON', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-short-code',
@@ -125,7 +128,7 @@ describe('SceneDocument short string codec', () => {
     ]);
   });
 
-  it('roundtrips building level notes without executing or dropping text', () => {
+  it('roundtrips multi-layer building level notes without executing or dropping text', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-short-code-notes',
       sceneName: '备注场景',
@@ -138,23 +141,124 @@ describe('SceneDocument short string codec', () => {
         {
           ...createBuildingLevel(0),
           notes: [
-            { id: 'note-a', text: '<b>先摆桌子</b>' },
+            { id: 'note-a', text: unsafeScriptText },
             { id: 'note-b', text: '保留, 逗号: 冒号; 分号. 点' },
           ],
         },
+        {
+          ...createBuildingLevel(1),
+          name: '说明层',
+          notes: [{ id: 'note-c', text: unsafeImageText }],
+        },
       ],
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-note-pse1',
+          assetId: 'leafy-plant',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-1',
+        }),
+      ],
+      skillMarkers: [
+        {
+          coordinate: { x: 4, y: 4 },
+          areaType: 'main' as const,
+          buildingLevelId: 'level-0',
+          skillType: '储水' as const,
+          skillNote: '技能说明',
+        },
+      ],
+      workspaceState: {
+        currentBuildingLevelId: 'level-1',
+        selectedAssetId: 'leafy-plant',
+        selectedCoordinate: { x: 2, y: 2 },
+      },
     };
 
-    const decoded = decodeSceneDocumentString(encodeSceneDocumentString(sourceScene), '2026-05-23T09:30:00.000Z');
+    const encoded = encodeSceneDocumentString(sourceScene);
+    const decoded = decodeSceneDocumentString(encoded, '2026-05-23T09:30:00.000Z');
 
     expect(decoded.ok).toBe(true);
     if (!decoded.ok) {
       throw new Error('Expected scene string decode to pass.');
     }
-    expect(decoded.scene.buildingLevels[0].notes).toEqual([
-      { id: 'note-a', text: '<b>先摆桌子</b>' },
-      { id: 'note-b', text: '保留, 逗号: 冒号; 分号. 点' },
+    expect(encoded).not.toContain(unsafeScriptText);
+    expect(encoded).not.toContain(unsafeImageText);
+    expect(decoded.scene.buildingLevels.map((level) => level.notes)).toEqual([
+      [
+        { id: 'note-a', text: unsafeScriptText },
+        { id: 'note-b', text: '保留, 逗号: 冒号; 分号. 点' },
+      ],
+      [{ id: 'note-c', text: unsafeImageText }],
     ]);
+    expect(decoded.scene.workspaceState).toMatchObject({
+      currentBuildingLevelId: 'level-1',
+      selectedAssetId: null,
+      selectedCoordinate: { x: 2, y: 2 },
+    });
+    expect(decoded.scene.tileInstances[0]).toMatchObject({
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: 'level-1',
+    });
+    expect(decoded.scene.skillMarkers[0]).toMatchObject({
+      coordinate: { x: 4, y: 4 },
+      buildingLevelId: 'level-0',
+      skillType: '储水',
+      skillNote: '技能说明',
+    });
+  });
+
+  it('decodes legacy PSE1 level records without notes as empty notes while preserving selection and footprint semantics', () => {
+    const sourceScene = {
+      ...createFootprintContractScene(),
+      workspaceState: {
+        currentBuildingLevelId: footprintContractFixtureIds.level1,
+        selectedAssetId: 'leafy-plant',
+        selectedCoordinate: { x: 1, y: 4 },
+      },
+    };
+    const encodedParts = encodeSceneDocumentString(sourceScene).split('~');
+    encodedParts[2] = (encodedParts[2] ?? '')
+      .split(';')
+      .map((record) => record.split('.').slice(0, 2).join('.'))
+      .join(';');
+    const legacyEncoded = encodedParts.join('~');
+    const levelRecords = encodedParts[2]?.split(';') ?? [];
+    const decoded = decodeSceneDocumentString(legacyEncoded, '2026-05-27T00:20:00.000Z');
+
+    expect(levelRecords.length).toBeGreaterThan(1);
+    expect(levelRecords.every((record) => record.split('.').length === 2)).toBe(true);
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      throw new Error('Expected legacy scene string decode to pass.');
+    }
+    expect(decoded.scene.buildingLevels.map((level) => level.notes)).toEqual([[], [], []]);
+    expect(decoded.scene.workspaceState).toMatchObject({
+      currentBuildingLevelId: 'level-1',
+      selectedAssetId: null,
+      selectedCoordinate: { x: 1, y: 4 },
+    });
+
+    const occupancy = buildSceneOccupancy(decoded.scene);
+    expect(occupancy.instances.find((instance) =>
+      instance.assetId === 'wooden-bench' &&
+      instance.instance.rotationDegrees === 90 &&
+      instance.instance.coordinate.x === 4 &&
+      instance.instance.coordinate.y === 4,
+    )).toMatchObject({
+      effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedBench],
+      occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedBench],
+    });
+    expect(occupancy.blockingCells).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          buildingLevelId: footprintContractFixtureIds.level1,
+          blockedByAssetId: 'strength-rock',
+          blockedByBuildingLevelId: footprintContractFixtureIds.level0,
+          coordinate: { x: 1, y: 4 },
+        }),
+      ]),
+    );
   });
 
   it('ignores selected assets from legacy scene strings during import', () => {

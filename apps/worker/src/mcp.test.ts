@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildImageExportSummary,
+  createBuildingLevel,
   createDefaultSceneDocument,
   createFootprintContractHeightBlockedScene,
   createFootprintContractScene,
@@ -337,9 +338,12 @@ describe('worker MCP endpoint', () => {
     }));
 
     expect(summary.result.structuredContent.data.summary).toEqual(buildImageExportSummary(scene));
-    expect(summary.result.structuredContent.data.summary.layers[0].notes).toEqual([
-      { id: 'note-mcp-1', text: '先确认高度' },
-      { id: 'note-mcp-2', text: 'Keep <angle> text as plain data' },
+    expect(summary.result.structuredContent.data.summary.layers.map((layer: any) => layer.notes)).toEqual([
+      [
+        { id: 'note-mcp-1', text: '先确认高度' },
+        { id: 'note-mcp-2', text: '<script>alert(1)</script>' },
+      ],
+      [{ id: 'note-mcp-3', text: '<img src=x onerror=alert(1)>' }],
     ]);
   });
 
@@ -455,8 +459,12 @@ function createSceneWithLayerNotes() {
         ...scene.buildingLevels[0],
         notes: [
           { id: 'note-mcp-1', text: '先确认高度' },
-          { id: 'note-mcp-2', text: 'Keep <angle> text as plain data' },
+          { id: 'note-mcp-2', text: '<script>alert(1)</script>' },
         ],
+      },
+      {
+        ...createBuildingLevel(1),
+        notes: [{ id: 'note-mcp-3', text: '<img src=x onerror=alert(1)>' }],
       },
     ],
   };

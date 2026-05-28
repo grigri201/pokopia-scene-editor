@@ -12,6 +12,8 @@ import { unsafeScriptText } from '../test/fixtures/unsafe-text';
 import { roundtripSceneDocument } from './scene-roundtrip';
 
 describe('SceneDocument v1 roundtrip', () => {
+  const unsafeImageText = '<img src=x onerror=alert(1)>';
+
   it('roundtrips an empty scene without relying on UI defaults', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-empty-roundtrip',
@@ -207,6 +209,50 @@ describe('SceneDocument v1 roundtrip', () => {
       { id: 'note-unsafe-level', text: unsafeScriptText },
     ]);
     expect(JSON.stringify(roundtrip.roundtrippedPayload)).toContain(unsafeScriptText);
+  });
+
+  it('roundtrips multi-layer building level notes in order with HTML-like text', () => {
+    const scene = {
+      ...createRichScene(),
+      buildingLevels: [
+        {
+          id: 'level-0',
+          levelNumber: 0,
+          name: 'Ground',
+          notes: [
+            { id: 'note-ground-1', text: unsafeScriptText },
+            { id: 'note-ground-2', text: '先摆地砖，再放围栏' },
+          ],
+        },
+        {
+          id: 'level-1',
+          levelNumber: 1,
+          name: 'Canopy',
+          notes: [{ id: 'note-canopy-1', text: unsafeImageText }],
+        },
+        {
+          id: 'level-2',
+          levelNumber: 2,
+          name: 'Roof',
+          notes: [],
+        },
+      ],
+    };
+
+    const roundtrip = expectRoundtrip(scene);
+
+    expect(roundtrip.sourcePayload.buildingLevels.map((level) => level.notes)).toEqual([
+      [
+        { id: 'note-ground-1', text: unsafeScriptText },
+        { id: 'note-ground-2', text: '先摆地砖，再放围栏' },
+      ],
+      [{ id: 'note-canopy-1', text: unsafeImageText }],
+      [],
+    ]);
+    expect(roundtrip.roundtrippedPayload.buildingLevels).toEqual(roundtrip.sourcePayload.buildingLevels);
+    expect(roundtrip.recoveredScene.workspaceState).toEqual(scene.workspaceState);
+    expect(JSON.stringify(roundtrip.roundtrippedPayload)).toContain(unsafeScriptText);
+    expect(JSON.stringify(roundtrip.roundtrippedPayload)).toContain(unsafeImageText);
   });
 
   it('roundtrips the shared footprint fixture through SceneDocument v1 and re-derives occupancy', () => {

@@ -13,7 +13,7 @@ Workflow:
 }
 ```
 
-3. Use `structuredContent.data.summary` as the authoritative summary, including each instance's `footprint`, `effectiveFootprint`, `occupiedCells`, `blockingCells`, and `footprintWarnings`.
+3. Use `structuredContent.data.summary` as the authoritative summary. Preserve `structuredContent.data.summary.layers[].notes` for layer notes, and each instance's `footprint`, `effectiveFootprint`, `occupiedCells`, `blockingCells`, and `footprintWarnings`.
 4. If the tool returns `isError`, follow `fieldPath` and `fixSuggestions`, then retry.
 5. Explain that browser PNG/image generation remains outside the Worker MCP workflow.
 
