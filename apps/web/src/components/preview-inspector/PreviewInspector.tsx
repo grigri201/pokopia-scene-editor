@@ -12,6 +12,7 @@ import {
   type OccupancyInstance,
   type PreviewCanvasCellContext,
   type SceneDocument,
+  type StackingRelation,
 } from '@pokopia-scene-editor/scene-core';
 import { defaultLocale, getAssetDisplay, getSkillDisplay, t, type Locale } from '../../i18n';
 
@@ -216,13 +217,16 @@ function FrontProjectionGrid({
       {cells.map((cell) => {
         const projectionInstance = cell.projectedInstance;
         const projectionAsset = getAssetById(projectionInstance?.assetId);
+        const stackingState = getFrontProjectedStackingState(cell, footprintView);
         const shouldRenderInlineAsset = Boolean(
-          projectionInstance && !footprintView.overlayInstanceIds.has(projectionInstance.instanceId),
+          projectionInstance && !footprintView.overlayInstanceIds.has(projectionInstance.instanceId) && !stackingState,
         );
         const skillType = toAssetSkillType(cell.skillInstance?.skillType);
         const skillMarkerLabel = skillType ? getSkillDisplay(skillType, locale).marker : '';
         const blockedState = footprintView.cellsByKey.get(getFrontCellKey(cell.buildingLevel.id, cell.x));
-        const cellLabel = projectionInstance
+        const cellLabel = stackingState
+          ? `${cell.buildingLevel.displayId} x${cell.x}, stacked ${getInstanceLabel(stackingState.topAssetId, locale)} on ${getInstanceLabel(stackingState.baseAssetId, locale)}`
+          : projectionInstance
           ? `${cell.buildingLevel.displayId} x${cell.x}, projected y${projectionInstance.coordinate.y} ${getInstanceLabel(projectionInstance.assetId, locale)}`
           : `${cell.buildingLevel.displayId} x${cell.x}`;
 
@@ -233,6 +237,7 @@ function FrontProjectionGrid({
               cell.areaType === 'outer' ? 'outer' : '',
               projectionInstance ? 'fill' : '',
               blockedState ? 'front-cell--footprint-blocked' : '',
+              stackingState ? 'front-cell--stacking' : '',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -253,9 +258,17 @@ function FrontProjectionGrid({
             data-front-blocked-by-instance-id={blockedState?.blockedByInstanceId ?? ''}
             data-front-blocked-by-asset-id={blockedState?.blockedByAssetId ?? ''}
             data-front-blocked-by-building-level-id={blockedState?.blockedByBuildingLevelId ?? ''}
+            data-preview-stacking-state={stackingState ? 'placed' : ''}
+            data-preview-stacking-base-instance-id={stackingState?.baseInstanceId ?? ''}
+            data-preview-stacking-top-instance-id={stackingState?.topInstanceId ?? ''}
+            data-preview-stacking-base-asset-id={stackingState?.baseAssetId ?? ''}
+            data-preview-stacking-top-asset-id={stackingState?.topAssetId ?? ''}
+            data-preview-stacking-surface-kind={stackingState?.surfaceKind ?? ''}
             key={cell.id}
           >
-            {shouldRenderInlineAsset && projectionAsset?.thumbnailUrl ? (
+            {stackingState ? (
+              <PreviewStackingSplit locale={locale} stackingState={stackingState} />
+            ) : shouldRenderInlineAsset && projectionAsset?.thumbnailUrl ? (
               <img src={projectionAsset.thumbnailUrl} alt="" />
             ) : shouldRenderInlineAsset && projectionInstance ? (
               getInstanceShortLabel(projectionInstance.assetId, locale)
@@ -318,11 +331,14 @@ function PreviewGrid({
         const topInstance = visibleCellInstances.at(-1) ?? null;
         const topAsset = getAssetById(topInstance?.assetId);
         const footprintState = footprintView.cellsByCoordinate.get(formatCoordinate(cell.coordinate)) ?? emptyTopFootprintCellState;
-        const shouldRenderInlineAsset = Boolean(topInstance && !footprintView.overlayInstanceIds.has(topInstance.instanceId));
+        const stackingState = footprintState.stackingState;
+        const shouldRenderInlineAsset = Boolean(topInstance && !footprintView.overlayInstanceIds.has(topInstance.instanceId) && !stackingState);
         const skillInstance = visibleCellInstances.find((instance) => instance.requiresSkill) ?? null;
         const skillType = toAssetSkillType(skillInstance?.skillType);
         const skillMarkerLabel = skillType ? getSkillDisplay(skillType, locale).marker : '';
-        const cellLabel = topInstance
+        const cellLabel = stackingState
+          ? `${cell.coordinate.x},${cell.coordinate.y} stacked ${getInstanceLabel(stackingState.topAssetId, locale)} on ${getInstanceLabel(stackingState.baseAssetId, locale)}`
+          : topInstance
           ? `${cell.coordinate.x},${cell.coordinate.y} ${getInstanceLabel(topInstance.assetId, locale)}`
           : `${cell.coordinate.x},${cell.coordinate.y}`;
 
@@ -333,6 +349,7 @@ function PreviewGrid({
               cell.areaType === 'outer' ? 'outer' : '',
               topInstance ? 'fill' : '',
               footprintState.role === 'occupied' ? `${cellClassName}--footprint-occupied` : '',
+              stackingState ? `${cellClassName}--stacking` : '',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -350,9 +367,17 @@ function PreviewGrid({
             data-preview-footprint-instance-id={footprintState.instanceId ?? ''}
             data-preview-footprint-anchor-coordinate={footprintState.anchorCoordinate ? formatCoordinate(footprintState.anchorCoordinate) : ''}
             data-preview-effective-footprint={footprintState.effectiveFootprint ? formatFootprint(footprintState.effectiveFootprint) : ''}
+            data-preview-stacking-state={stackingState ? 'placed' : ''}
+            data-preview-stacking-base-instance-id={stackingState?.baseInstanceId ?? ''}
+            data-preview-stacking-top-instance-id={stackingState?.topInstanceId ?? ''}
+            data-preview-stacking-base-asset-id={stackingState?.baseAssetId ?? ''}
+            data-preview-stacking-top-asset-id={stackingState?.topAssetId ?? ''}
+            data-preview-stacking-surface-kind={stackingState?.surfaceKind ?? ''}
             key={`${className}-${cell.id}`}
           >
-            {shouldRenderInlineAsset && topAsset?.thumbnailUrl ? (
+            {stackingState ? (
+              <PreviewStackingSplit locale={locale} stackingState={stackingState} />
+            ) : shouldRenderInlineAsset && topAsset?.thumbnailUrl ? (
               <img src={topAsset.thumbnailUrl} alt="" />
             ) : shouldRenderInlineAsset && topInstance ? (
               getInstanceShortLabel(topInstance.assetId, locale)
@@ -382,11 +407,68 @@ function PreviewGrid({
   );
 }
 
+function getFrontProjectedStackingState(
+  cell: FrontProjectionCellContext,
+  footprintView: FrontFootprintView,
+): PreviewStackingCellState | null {
+  const stackingStates = footprintView.stackingCellsByKey.get(getFrontCellKey(cell.buildingLevel.id, cell.x)) ?? [];
+
+  if (!cell.projectedInstance) {
+    return stackingStates[0] ?? null;
+  }
+
+  return stackingStates.find((state) =>
+    state.topInstanceId === cell.projectedInstance?.instanceId ||
+    state.baseInstanceId === cell.projectedInstance?.instanceId,
+  ) ?? null;
+}
+
+function PreviewStackingSplit({
+  locale,
+  stackingState,
+}: {
+  locale: Locale;
+  stackingState: PreviewStackingCellState;
+}) {
+  return (
+    <span className="preview-stacking-split" aria-hidden="true">
+      <PreviewStackingSlot locale={locale} role="top" instanceId={stackingState.topInstanceId} assetId={stackingState.topAssetId} />
+      <PreviewStackingSlot locale={locale} role="base" instanceId={stackingState.baseInstanceId} assetId={stackingState.baseAssetId} />
+    </span>
+  );
+}
+
+function PreviewStackingSlot({
+  locale,
+  role,
+  instanceId,
+  assetId,
+}: {
+  locale: Locale;
+  role: 'top' | 'base';
+  instanceId: string;
+  assetId: string;
+}) {
+  const asset = getAssetById(assetId);
+
+  return (
+    <span
+      className={`preview-stacking-split__slot preview-stacking-split__slot--${role}`}
+      data-stacking-role={role}
+      data-instance-id={instanceId}
+      data-asset-id={assetId}
+    >
+      {asset?.thumbnailUrl ? <img src={asset.thumbnailUrl} alt="" /> : getInstanceShortLabel(assetId, locale)}
+    </span>
+  );
+}
+
 interface TopFootprintCellState {
   role: 'none' | 'anchor' | 'occupied';
   instanceId: string | null;
   anchorCoordinate: GridCoordinate | null;
   effectiveFootprint: AssetDefinition['footprint'] | null;
+  stackingState: PreviewStackingCellState | null;
 }
 
 interface TopFootprintOverlay {
@@ -408,6 +490,14 @@ interface FrontFootprintCellState {
   blockedByBuildingLevelId: string;
 }
 
+interface PreviewStackingCellState {
+  baseInstanceId: string;
+  baseAssetId: string;
+  topInstanceId: string;
+  topAssetId: string;
+  surfaceKind: StackingRelation['surfaceKind'];
+}
+
 interface FrontFootprintOverlay {
   instanceId: string;
   asset: AssetDefinition;
@@ -424,6 +514,7 @@ interface FrontFootprintView {
   overlays: FrontFootprintOverlay[];
   overlayInstanceIds: Set<string>;
   cellsByKey: Map<string, FrontFootprintCellState>;
+  stackingCellsByKey: Map<string, PreviewStackingCellState[]>;
   levelCount: number;
 }
 
@@ -432,6 +523,7 @@ const emptyTopFootprintCellState: TopFootprintCellState = {
   instanceId: null,
   anchorCoordinate: null,
   effectiveFootprint: null,
+  stackingState: null,
 };
 
 function buildTopFootprintView(scene: SceneDocument, activeBuildingLevelId: string): TopFootprintView {
@@ -461,8 +553,13 @@ function buildTopFootprintView(scene: SceneDocument, activeBuildingLevelId: stri
         instanceId: occupancyInstance.instanceId,
         anchorCoordinate: { ...anchor },
         effectiveFootprint: cloneFootprint(occupancyInstance.effectiveFootprint),
+        stackingState: null,
       });
     }
+  }
+
+  for (const relation of occupancy.stackingRelations.filter((candidate) => candidate.buildingLevelId === activeBuildingLevelId)) {
+    applyTopStackingState(cellsByCoordinate, relation.coordinates, toPreviewStackingCellState(relation));
   }
 
   return {
@@ -477,6 +574,7 @@ function buildFrontFootprintView(scene: SceneDocument, cells: readonly FrontProj
   const visibleLevels = getUniqueFrontLevels(cells);
   const rowByLevelId = new Map(visibleLevels.map((level, index) => [level.id, index + 1]));
   const cellsByKey = buildFrontBlockedCells(occupancy.blockingCells);
+  const stackingCellsByKey = buildFrontStackingCells(occupancy.stackingRelations);
   const overlays: FrontFootprintOverlay[] = [];
   const overlayInstanceIds = new Set<string>();
 
@@ -499,7 +597,49 @@ function buildFrontFootprintView(scene: SceneDocument, cells: readonly FrontProj
     overlays,
     overlayInstanceIds,
     cellsByKey,
+    stackingCellsByKey,
     levelCount: visibleLevels.length,
+  };
+}
+
+function applyTopStackingState(
+  cellsByCoordinate: Map<string, TopFootprintCellState>,
+  coordinates: readonly GridCoordinate[],
+  stackingState: PreviewStackingCellState,
+): void {
+  for (const coordinate of coordinates) {
+    const state = cellsByCoordinate.get(formatCoordinate(coordinate));
+
+    if (state) {
+      state.stackingState = stackingState;
+    }
+  }
+}
+
+function buildFrontStackingCells(
+  stackingRelations: readonly StackingRelation[],
+): Map<string, PreviewStackingCellState[]> {
+  const cellsByKey = new Map<string, PreviewStackingCellState[]>();
+
+  for (const relation of stackingRelations) {
+    for (const coordinate of relation.coordinates) {
+      const key = getFrontCellKey(relation.buildingLevelId, coordinate.x);
+      const states = cellsByKey.get(key) ?? [];
+      states.push(toPreviewStackingCellState(relation));
+      cellsByKey.set(key, states);
+    }
+  }
+
+  return cellsByKey;
+}
+
+function toPreviewStackingCellState(relation: StackingRelation): PreviewStackingCellState {
+  return {
+    baseInstanceId: relation.baseInstanceId,
+    baseAssetId: relation.baseAssetId,
+    topInstanceId: relation.topInstanceId,
+    topAssetId: relation.topAssetId,
+    surfaceKind: relation.surfaceKind,
   };
 }
 

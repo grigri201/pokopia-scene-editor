@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildImageExportSummary,
+  buildSceneOccupancy,
   createBuildingLevel,
   createDefaultSceneDocument,
   createFootprintContractHeightBlockedScene,
   createFootprintContractScene,
+  createStackingPlateFoodScene,
+  createStackingPlateNonFoodScene,
   footprintContractExpected,
   footprintContractFixtureIds,
+  stackingContractFixtureIds,
   validateSceneDocument,
 } from '@pokopia-scene-editor/scene-core';
 import { handleRequest, type WorkerEnv } from './index';
@@ -173,6 +177,11 @@ describe('worker MCP endpoint', () => {
       width: expect.any(Number),
       height: expect.any(Number),
     });
+    expect(assets.result.structuredContent.data.assets[0].stacking).toMatchObject({
+      surfaceKind: expect.any(String),
+      allowsSameLevelOverlap: expect.any(Boolean),
+      allowedTopCategories: expect.any(Array),
+    });
 
     const assetCatalog = await readJson(await mcpRpc('resources/read', { uri: 'pokopia://assets/catalog' }));
     expect(JSON.parse(assetCatalog.result.contents[0].text).assets).toEqual(
@@ -180,6 +189,15 @@ describe('worker MCP endpoint', () => {
         expect.objectContaining({
           assetId: 'wooden-bench',
           footprint: { length: 1, width: 2, height: 1 },
+          stacking: { surfaceKind: 'none', allowsSameLevelOverlap: false, allowedTopCategories: [] },
+        }),
+        expect.objectContaining({
+          assetId: 'wooden-plate',
+          stacking: {
+            surfaceKind: 'food-surface',
+            allowsSameLevelOverlap: true,
+            allowedTopCategories: ['food'],
+          },
         }),
       ]),
     );
@@ -345,6 +363,68 @@ describe('worker MCP endpoint', () => {
       ],
       [{ id: 'note-mcp-3', text: '<img src=x onerror=alert(1)>' }],
     ]);
+  });
+
+  it('keeps MCP tools aligned with the shared stacking contract fixture', async () => {
+    const scene = createStackingPlateFoodScene();
+    const validation = await readJson(await mcpRpc('tools/call', {
+      name: 'validate_scene_document',
+      arguments: { scene },
+    }));
+    const summary = await readJson(await mcpRpc('tools/call', {
+      name: 'summarize_scene_export',
+      arguments: { scene },
+    }));
+    const recovery = await readJson(await mcpRpc('tools/call', {
+      name: 'recover_scene_document',
+      arguments: { scene },
+    }));
+    const unsupported = await readJson(await mcpRpc('tools/call', {
+      name: 'validate_scene_document',
+      arguments: { scene: createStackingPlateNonFoodScene() },
+    }));
+
+    expect(validation.result.structuredContent).toMatchObject({
+      ok: true,
+      data: { valid: true, errors: [] },
+    });
+    expect(summary.result.structuredContent.data.summary).toEqual(buildImageExportSummary(scene));
+    expect(summary.result.structuredContent.data.summary.stackingRelations).toEqual([
+      expect.objectContaining({
+        topInstanceId: stackingContractFixtureIds.food,
+        topAssetId: 'leppa-berry',
+        baseInstanceId: stackingContractFixtureIds.plate,
+        baseAssetId: 'plate',
+        surfaceKind: 'food-surface',
+      }),
+    ]);
+    expect(recovery.result.structuredContent).toMatchObject({
+      ok: true,
+      data: {
+        scene,
+        warnings: [],
+      },
+    });
+    expect(JSON.stringify(recovery.result.structuredContent.data.scene)).not.toContain('stackingRelations');
+    expect(JSON.stringify(recovery.result.structuredContent.data.scene)).not.toContain('surfaceKind');
+    expect(buildSceneOccupancy(recovery.result.structuredContent.data.scene).stackingRelations).toEqual([
+      expect.objectContaining({
+        topInstanceId: stackingContractFixtureIds.food,
+        baseInstanceId: stackingContractFixtureIds.plate,
+        surfaceKind: 'food-surface',
+      }),
+    ]);
+    expect(unsupported.result.isError).toBe(true);
+    expect(unsupported.result.structuredContent.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          conflictType: 'unsupported-stack-surface',
+          instanceId: stackingContractFixtureIds.nonFood,
+          blockingInstanceId: stackingContractFixtureIds.plate,
+          surfaceKind: 'food-surface',
+        }),
+      ]),
+    );
   });
 
   it('returns structured generate input errors with field-level fix suggestions', async () => {

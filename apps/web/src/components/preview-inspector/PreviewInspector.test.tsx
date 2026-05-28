@@ -4,8 +4,10 @@ import {
   createBuildingLevel,
   createDefaultSceneDocument,
   createFootprintContractScene,
+  createStackingPlateFoodScene,
   createTileInstance,
   footprintContractFixtureIds,
+  stackingContractFixtureIds,
 } from '@pokopia-scene-editor/scene-core';
 import { readUiPreferencesFromStorage } from '../../io';
 import { PreviewInspector } from './PreviewInspector';
@@ -239,6 +241,76 @@ describe('PreviewInspector', () => {
     expect(blockedCell).toHaveAttribute('data-front-footprint-blocked', 'true');
     expect(blockedCell).toHaveAttribute('data-front-blocked-by-instance-id', footprintContractFixtureIds.boulder);
     expect(screen.getByLabelText('Front preview item summary')).toHaveTextContent('6 visible items projected across 3 layers');
+  });
+
+  it('renders legal stacking relations as top/base split cells in top and front previews', () => {
+    const stackingScene = createStackingPlateFoodScene();
+    const { container } = render(
+      <PreviewInspector
+        scene={stackingScene}
+        activeBuildingLevelId={stackingContractFixtureIds.level0}
+        selectedCoordinate={{ x: 2, y: 2 }}
+        selectedInstanceId={stackingContractFixtureIds.food}
+        readOnly={false}
+      />,
+    );
+
+    const topCell = container.querySelector('.top-cell[data-preview-coordinate="2,2"]');
+    const frontCell = container.querySelector('.front-cell[data-front-level-id="level-0"][data-front-x="2"]');
+
+    expect(topCell).toHaveAttribute('data-preview-stacking-state', 'placed');
+    expect(topCell).toHaveAttribute('data-preview-stacking-base-instance-id', stackingContractFixtureIds.plate);
+    expect(topCell).toHaveAttribute('data-preview-stacking-top-instance-id', stackingContractFixtureIds.food);
+    expect(topCell).toHaveAttribute('data-preview-stacking-base-asset-id', 'plate');
+    expect(topCell).toHaveAttribute('data-preview-stacking-top-asset-id', 'leppa-berry');
+    expect(topCell).toHaveAttribute('data-preview-stacking-surface-kind', 'food-surface');
+    expect(topCell?.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-asset-id', 'leppa-berry');
+    expect(topCell?.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-asset-id', 'plate');
+    expect(topCell?.querySelectorAll('.preview-stacking-split__slot')).toHaveLength(2);
+
+    expect(frontCell).toHaveAttribute('data-preview-stacking-state', 'placed');
+    expect(frontCell).toHaveAttribute('data-preview-stacking-base-instance-id', stackingContractFixtureIds.plate);
+    expect(frontCell).toHaveAttribute('data-preview-stacking-top-instance-id', stackingContractFixtureIds.food);
+    expect(frontCell?.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-asset-id', 'leppa-berry');
+    expect(frontCell?.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-asset-id', 'plate');
+    expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('1 current-layer preview items');
+    expect(screen.getByLabelText('Front preview item summary')).toHaveTextContent('2 visible items projected across 1 layers');
+  });
+
+  it('does not show a front-view stacking split when another instance is the projected item for that column', () => {
+    const stackingScene = createStackingPlateFoodScene();
+    const sceneWithFrontItem = {
+      ...stackingScene,
+      tileInstances: [
+        ...stackingScene.tileInstances,
+        createTileInstance({
+          instanceId: 'front-column-leafy',
+          assetId: 'leafy-plant',
+          coordinate: { x: 2, y: 5 },
+          buildingLevelId: stackingContractFixtureIds.level0,
+        }),
+      ],
+    };
+    const { container } = render(
+      <PreviewInspector
+        scene={sceneWithFrontItem}
+        activeBuildingLevelId={stackingContractFixtureIds.level0}
+        selectedCoordinate={{ x: 2, y: 2 }}
+        selectedInstanceId={stackingContractFixtureIds.food}
+        readOnly={false}
+      />,
+    );
+
+    const frontCell = container.querySelector('.front-cell[data-front-level-id="level-0"][data-front-x="2"]');
+
+    expect(frontCell).toHaveAttribute('data-preview-asset-id', 'leafy-plant');
+    expect(frontCell).toHaveAttribute('data-preview-instance-id', 'front-column-leafy');
+    expect(frontCell).toHaveAttribute('data-preview-stacking-state', '');
+    expect(frontCell?.querySelector('.preview-stacking-split')).toBeNull();
+    expect(container.querySelector('.top-cell[data-preview-coordinate="2,2"]')).toHaveAttribute(
+      'data-preview-stacking-state',
+      'placed',
+    );
   });
 
   it('keeps the front view in a scrollable seven-layer viewport when scenes exceed seven layers', () => {

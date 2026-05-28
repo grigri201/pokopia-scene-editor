@@ -1,4 +1,4 @@
-import { getAssetById, type AssetDefinition } from '../assets';
+import { getAssetById, type AssetDefinition, type AssetStackingSurfaceKind } from '../assets';
 import type { GridCoordinate, SceneDimensions } from './area';
 import type { BuildingLevel, RotationDegrees, SceneDocument, TileInstance } from './types';
 import {
@@ -38,10 +38,21 @@ export interface BlockingCell {
   blockedByBuildingLevelId: string;
 }
 
+export interface StackingRelation {
+  topInstanceId: string;
+  topAssetId: string;
+  baseInstanceId: string;
+  baseAssetId: string;
+  buildingLevelId: string;
+  surfaceKind: AssetStackingSurfaceKind;
+  coordinates: GridCoordinate[];
+}
+
 export interface SceneOccupancy {
   instances: OccupancyInstance[];
   occupiedCells: OccupancyCell[];
   blockingCells: BlockingCell[];
+  stackingRelations: StackingRelation[];
   conflicts: FootprintConflict[];
 }
 
@@ -55,6 +66,7 @@ export interface PlacementFootprintEvaluation {
   occupiedCells: GridCoordinate[];
   blockingCells: BlockingCell[];
   existingInstances: TileInstance[];
+  stackingRelations: StackingRelation[];
   conflicts: FootprintConflict[];
 }
 
@@ -73,12 +85,25 @@ export function buildSceneOccupancy(scene: SceneDocument): SceneOccupancy {
   const instances: OccupancyInstance[] = [];
   const occupiedCells: OccupancyCell[] = [];
   const blockingCells: BlockingCell[] = [];
+  const stackingRelations: StackingRelation[] = [];
   const conflicts: FootprintConflict[] = [];
-  const occupiedCellsByKey = new Map<string, OccupancyCell>();
+  const occupiedCellsByKey = new Map<string, OccupancyCell[]>();
 
-  for (const instance of scene.tileInstances) {
-    const asset = getAssetById(instance.assetId);
-    const level = levelById.get(instance.buildingLevelId);
+  const orderedTileInstances = scene.tileInstances
+    .map((instance, index) => ({
+      instance,
+      index,
+      asset: getAssetById(instance.assetId),
+      level: levelById.get(instance.buildingLevelId),
+    }))
+    .sort((left, right) => {
+      const leftStackingPriority = left.asset?.stacking.allowsSameLevelOverlap ? 0 : 1;
+      const rightStackingPriority = right.asset?.stacking.allowsSameLevelOverlap ? 0 : 1;
+
+      return leftStackingPriority - rightStackingPriority || left.index - right.index;
+    });
+
+  for (const { instance, asset, level } of orderedTileInstances) {
 
     if (!asset || !level) {
       continue;
@@ -110,23 +135,32 @@ export function buildSceneOccupancy(scene: SceneDocument): SceneOccupancy {
     };
     instances.push(occupancyInstance);
 
-    for (const coordinate of footprintCells) {
-      const cell: OccupancyCell = {
-        buildingLevelId: instance.buildingLevelId,
-        coordinate: { x: coordinate.x, y: coordinate.y },
-        instanceId: instance.instanceId,
-        assetId: instance.assetId,
-        instance,
-      };
-      const cellKey = getLevelCoordinateKey(instance.buildingLevelId, coordinate);
-      const occupiedCell = occupiedCellsByKey.get(cellKey);
+    const cells = footprintCells.map((coordinate): OccupancyCell => ({
+      buildingLevelId: instance.buildingLevelId,
+      coordinate: { x: coordinate.x, y: coordinate.y },
+      instanceId: instance.instanceId,
+      assetId: instance.assetId,
+      instance,
+    }));
+    const existingCellGroups = cells.map((cell) => ({
+      coordinate: cell.coordinate,
+      existingCells: occupiedCellsByKey.get(getLevelCoordinateKey(cell.buildingLevelId, cell.coordinate)) ?? [],
+    }));
+    const stackingResult = evaluateStackingOverlap(occupancyInstance, existingCellGroups);
 
-      if (occupiedCell) {
-        conflicts.push(buildOverlapConflict(cell, occupiedCell));
-      } else {
-        occupiedCellsByKey.set(cellKey, cell);
-      }
+    if (stackingResult.relation) {
+      stackingRelations.push(stackingResult.relation);
+    }
 
+    if (stackingResult.conflict) {
+      conflicts.push(stackingResult.conflict);
+    }
+
+    for (const cell of cells) {
+      const cellKey = getLevelCoordinateKey(cell.buildingLevelId, cell.coordinate);
+      const cellStack = occupiedCellsByKey.get(cellKey) ?? [];
+      cellStack.push(cell);
+      occupiedCellsByKey.set(cellKey, cellStack);
       occupiedCells.push(cell);
     }
   }
@@ -153,9 +187,9 @@ export function buildSceneOccupancy(scene: SceneDocument): SceneOccupancy {
   }
 
   for (const blockingCell of blockingCells) {
-    const occupiedCell = occupiedCellsByKey.get(getLevelCoordinateKey(blockingCell.buildingLevelId, blockingCell.coordinate));
+    const occupiedCellsAtCoordinate = occupiedCellsByKey.get(getLevelCoordinateKey(blockingCell.buildingLevelId, blockingCell.coordinate)) ?? [];
 
-    if (occupiedCell) {
+    for (const occupiedCell of occupiedCellsAtCoordinate) {
       conflicts.push(buildHeightBlockingConflict(occupiedCell, blockingCell));
     }
   }
@@ -164,6 +198,7 @@ export function buildSceneOccupancy(scene: SceneDocument): SceneOccupancy {
     instances,
     occupiedCells,
     blockingCells,
+    stackingRelations,
     conflicts,
   };
 }
@@ -282,14 +317,41 @@ export function evaluateScenePlacementFootprint(
   }
 
   if (conflicts.length > 0) {
-    return buildPlacementEvaluation('blocked', input.asset, effectiveFootprint, occupiedCells, candidateBlockingCells, existingInstances, conflicts);
+    return buildPlacementEvaluation('blocked', input.asset, effectiveFootprint, occupiedCells, candidateBlockingCells, existingInstances, [], conflicts);
   }
 
-  if (existingInstances.length > 0 && !input.confirmReplace) {
-    return buildPlacementEvaluation('will-replace', input.asset, effectiveFootprint, occupiedCells, candidateBlockingCells, existingInstances, []);
+  if (existingInstances.length > 0) {
+    const stackingResult = evaluateStackingOverlap(
+      {
+        instanceId: 'placement-preview',
+        assetId: input.asset.assetId,
+        asset: input.asset,
+        buildingLevelId: input.buildingLevelId,
+        occupiedCells,
+      },
+      occupiedCells.map((coordinate) => ({
+        coordinate,
+        existingCells: occupancy.occupiedCells.filter((cell) =>
+          cell.buildingLevelId === input.buildingLevelId &&
+          cell.coordinate.x === coordinate.x &&
+          cell.coordinate.y === coordinate.y),
+      })),
+    );
+
+    if (stackingResult.conflict && stackingResult.conflict.conflictType !== 'same-level-footprint-overlap') {
+      return buildPlacementEvaluation('blocked', input.asset, effectiveFootprint, occupiedCells, candidateBlockingCells, existingInstances, [], [stackingResult.conflict]);
+    }
+
+    if (stackingResult.relation) {
+      return buildPlacementEvaluation('ready', input.asset, effectiveFootprint, occupiedCells, candidateBlockingCells, existingInstances, [stackingResult.relation], []);
+    }
+
+    if (!input.confirmReplace) {
+      return buildPlacementEvaluation('will-replace', input.asset, effectiveFootprint, occupiedCells, candidateBlockingCells, existingInstances, [], []);
+    }
   }
 
-  return buildPlacementEvaluation('ready', input.asset, effectiveFootprint, occupiedCells, candidateBlockingCells, existingInstances, []);
+  return buildPlacementEvaluation('ready', input.asset, effectiveFootprint, occupiedCells, candidateBlockingCells, existingInstances, [], []);
 }
 
 export function getLevelCoordinateKey(buildingLevelId: string, coordinate: GridCoordinate): string {
@@ -346,6 +408,158 @@ function buildHeightBlockingConflict(occupiedCell: OccupancyCell, blockingCell: 
   };
 }
 
+interface StackingSubject {
+  instanceId: string;
+  assetId: string;
+  asset: AssetDefinition;
+  buildingLevelId: string;
+  occupiedCells: readonly GridCoordinate[];
+}
+
+interface ExistingCellsAtCoordinate {
+  coordinate: GridCoordinate;
+  existingCells: readonly OccupancyCell[];
+}
+
+interface StackingOverlapResult {
+  relation: StackingRelation | null;
+  conflict: FootprintConflict | null;
+}
+
+function evaluateStackingOverlap(
+  subject: StackingSubject,
+  existingCellGroups: readonly ExistingCellsAtCoordinate[],
+): StackingOverlapResult {
+  const occupiedGroups = existingCellGroups.filter((group) => group.existingCells.length > 0);
+
+  if (occupiedGroups.length === 0) {
+    return { relation: null, conflict: null };
+  }
+
+  const existingCells = occupiedGroups.flatMap((group) => group.existingCells);
+  const surfaceCell = findStackingSurfaceCell(existingCells);
+  const firstExistingCell = existingCells[0];
+  const fullyCoveredByExistingCells = occupiedGroups.length === subject.occupiedCells.length;
+  const oneExistingCellPerCoordinate = occupiedGroups.every((group) => group.existingCells.length === 1);
+  const uniqueExistingInstanceIds = new Set(existingCells.map((cell) => cell.instanceId));
+
+  if (!fullyCoveredByExistingCells || !oneExistingCellPerCoordinate || uniqueExistingInstanceIds.size !== 1) {
+    return surfaceCell
+      ? { relation: null, conflict: buildSurfaceCapacityConflict(subject, surfaceCell) }
+      : { relation: null, conflict: buildOverlapConflict(buildSubjectCell(subject, occupiedGroups[0].coordinate), firstExistingCell) };
+  }
+
+  const baseCell = firstExistingCell;
+  const baseAsset = getAssetById(baseCell.assetId);
+
+  if (!baseAsset) {
+    return { relation: null, conflict: buildOverlapConflict(buildSubjectCell(subject, occupiedGroups[0].coordinate), baseCell) };
+  }
+
+  if (canStackOnBase(baseAsset, subject.asset)) {
+    return {
+      relation: {
+        topInstanceId: subject.instanceId,
+        topAssetId: subject.assetId,
+        baseInstanceId: baseCell.instanceId,
+        baseAssetId: baseCell.assetId,
+        buildingLevelId: subject.buildingLevelId,
+        surfaceKind: baseAsset.stacking.surfaceKind,
+        coordinates: cloneCoordinates(subject.occupiedCells),
+      },
+      conflict: null,
+    };
+  }
+
+  if (baseAsset.stacking.allowsSameLevelOverlap) {
+    return { relation: null, conflict: buildUnsupportedStackSurfaceConflict(subject, baseCell, baseAsset) };
+  }
+
+  return { relation: null, conflict: buildOverlapConflict(buildSubjectCell(subject, occupiedGroups[0].coordinate), baseCell) };
+}
+
+function canStackOnBase(baseAsset: AssetDefinition, topAsset: AssetDefinition): boolean {
+  return (
+    baseAsset.stacking.allowsSameLevelOverlap &&
+    baseAsset.stacking.allowedTopCategories.includes(topAsset.category)
+  );
+}
+
+function findStackingSurfaceCell(cells: readonly OccupancyCell[]): OccupancyCell | null {
+  return cells.find((cell) => getAssetById(cell.assetId)?.stacking.allowsSameLevelOverlap) ?? null;
+}
+
+function buildSubjectCell(subject: StackingSubject, coordinate: GridCoordinate): OccupancyCell {
+  return {
+    buildingLevelId: subject.buildingLevelId,
+    coordinate: { x: coordinate.x, y: coordinate.y },
+    instanceId: subject.instanceId,
+    assetId: subject.assetId,
+    instance: {
+      instanceId: subject.instanceId,
+      assetId: subject.assetId,
+      coordinate: { x: coordinate.x, y: coordinate.y },
+      areaType: 'main',
+      buildingLevelId: subject.buildingLevelId,
+      rotationDegrees: 0,
+      dyeColor: null,
+      requiresSkill: false,
+      skillType: null,
+      skillNote: '',
+    },
+  };
+}
+
+function buildUnsupportedStackSurfaceConflict(
+  subject: StackingSubject,
+  baseCell: OccupancyCell,
+  baseAsset: AssetDefinition,
+): FootprintConflict {
+  return {
+    conflictType: 'unsupported-stack-surface',
+    message: buildFootprintConflictMessage(
+      'unsupported-stack-surface',
+      subject.instanceId,
+      subject.assetId,
+      subject.buildingLevelId,
+      subject.occupiedCells,
+      baseCell.instanceId,
+    ),
+    instanceId: subject.instanceId,
+    assetId: subject.assetId,
+    buildingLevelId: subject.buildingLevelId,
+    coordinates: cloneCoordinates(subject.occupiedCells),
+    blockingInstanceId: baseCell.instanceId,
+    blockingAssetId: baseCell.assetId,
+    blockingBuildingLevelId: baseCell.buildingLevelId,
+    surfaceKind: baseAsset.stacking.surfaceKind,
+  };
+}
+
+function buildSurfaceCapacityConflict(subject: StackingSubject, surfaceCell: OccupancyCell): FootprintConflict {
+  const surfaceAsset = getAssetById(surfaceCell.assetId);
+
+  return {
+    conflictType: 'surface-capacity-conflict',
+    message: buildFootprintConflictMessage(
+      'surface-capacity-conflict',
+      subject.instanceId,
+      subject.assetId,
+      subject.buildingLevelId,
+      subject.occupiedCells,
+      surfaceCell.instanceId,
+    ),
+    instanceId: subject.instanceId,
+    assetId: subject.assetId,
+    buildingLevelId: subject.buildingLevelId,
+    coordinates: cloneCoordinates(subject.occupiedCells),
+    blockingInstanceId: surfaceCell.instanceId,
+    blockingAssetId: surfaceCell.assetId,
+    blockingBuildingLevelId: surfaceCell.buildingLevelId,
+    surfaceKind: surfaceAsset?.stacking.surfaceKind,
+  };
+}
+
 function getCandidateBlockingCells(
   levels: readonly BuildingLevel[],
   level: BuildingLevel,
@@ -384,6 +598,7 @@ function buildPlacementEvaluation(
   occupiedCells: readonly GridCoordinate[],
   blockingCells: readonly BlockingCell[],
   existingInstances: readonly TileInstance[],
+  stackingRelations: readonly StackingRelation[],
   conflicts: readonly FootprintConflict[],
 ): PlacementFootprintEvaluation {
   return {
@@ -397,11 +612,19 @@ function buildPlacementEvaluation(
       coordinate: { x: cell.coordinate.x, y: cell.coordinate.y },
     })),
     existingInstances: [...existingInstances],
+    stackingRelations: cloneStackingRelations(stackingRelations),
     conflicts: conflicts.map((conflict) => ({
       ...conflict,
       coordinates: cloneCoordinates(conflict.coordinates),
     })),
   };
+}
+
+function cloneStackingRelations(relations: readonly StackingRelation[]): StackingRelation[] {
+  return relations.map((relation) => ({
+    ...relation,
+    coordinates: cloneCoordinates(relation.coordinates),
+  }));
 }
 
 function getUniqueInstances(instances: readonly TileInstance[]): TileInstance[] {

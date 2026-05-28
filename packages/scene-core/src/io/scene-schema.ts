@@ -254,6 +254,7 @@ export interface SceneDocumentValidationError {
   blockingInstanceId?: string;
   blockingAssetId?: string;
   blockingBuildingLevelId?: string;
+  surfaceKind?: FootprintConflict['surfaceKind'];
 }
 
 export type SceneDocumentParseResult =
@@ -304,6 +305,7 @@ function formatFootprintIssueDetails(issue: z.ZodIssue): Partial<SceneDocumentVa
     blockingInstanceId: params.blockingInstanceId,
     blockingAssetId: params.blockingAssetId,
     blockingBuildingLevelId: params.blockingBuildingLevelId,
+    surfaceKind: params.surfaceKind,
   };
 }
 

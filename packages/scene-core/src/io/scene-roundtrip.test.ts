@@ -3,9 +3,11 @@ import {
   buildSceneOccupancy,
   createDefaultSceneDocument,
   createFootprintContractScene,
+  createStackingPlateFoodScene,
   createTileInstance,
   footprintContractExpected,
   footprintContractFixtureIds,
+  stackingContractFixtureIds,
   type SceneDocument,
 } from '../domain/scene';
 import { unsafeScriptText } from '../test/fixtures/unsafe-text';
@@ -276,6 +278,22 @@ describe('SceneDocument v1 roundtrip', () => {
         }),
       ]),
     );
+  });
+
+  it('roundtrips legal stacking scenes without storing derived relation fields', () => {
+    const roundtrip = expectRoundtrip(createStackingPlateFoodScene());
+    const payloadText = JSON.stringify(roundtrip.sourcePayload);
+
+    expect(payloadText).not.toContain('stackingRelations');
+    expect(payloadText).not.toContain('supportedBy');
+    expect(payloadText).not.toContain('surfaceKind');
+    expect(buildSceneOccupancy(roundtrip.recoveredScene).stackingRelations).toEqual([
+      expect.objectContaining({
+        topInstanceId: stackingContractFixtureIds.food,
+        baseInstanceId: stackingContractFixtureIds.plate,
+        surfaceKind: 'food-surface',
+      }),
+    ]);
   });
 });
 

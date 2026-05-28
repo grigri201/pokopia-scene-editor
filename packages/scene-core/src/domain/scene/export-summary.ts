@@ -7,7 +7,13 @@ import {
   type AssetSkillType,
   type ConcreteAssetSkillType,
 } from '../assets';
-import { buildSceneOccupancy, type BlockingCell, type OccupancyInstance, type SceneOccupancy } from './occupancy';
+import {
+  buildSceneOccupancy,
+  type BlockingCell,
+  type OccupancyInstance,
+  type SceneOccupancy,
+  type StackingRelation,
+} from './occupancy';
 import {
   getBuildingLevelContexts,
   getCanvasCellContexts,
@@ -35,6 +41,7 @@ export interface ImageExportSummary {
   outerPadding: number;
   overallMaterials: ExportMaterialSummary[];
   overallSkills: ExportSkillSummary[];
+  stackingRelations: ExportStackingRelationSummary[];
   layers: ImageExportLayerSummary[];
 }
 
@@ -43,6 +50,7 @@ export interface ImageExportLayerSummary extends BuildingLevelContext {
   materialCount: number;
   skillCount: number;
   notes: ExportLayerNoteSummary[];
+  stackingRelations: ExportStackingRelationSummary[];
   materials: ExportLayerMaterialSummary[];
   skills: ExportLayerSkillSummary[];
   cells: ImageExportCellSummary[];
@@ -89,6 +97,7 @@ export interface ImageExportCellSummary {
   empty: boolean;
   tileInstances: ExportTileInstanceSummary[];
   skillMarkers: ExportSkillMarkerSummary[];
+  stackingRelations: ExportStackingRelationSummary[];
 }
 
 export interface ExportSkillMarkerSummary {
@@ -134,14 +143,34 @@ export interface ExportFootprintBlockingSummary {
   blockedByBuildingLevelId: string;
 }
 
+export interface ExportStackingRelationSummary {
+  id: string;
+  topInstanceId: string;
+  topAssetId: string;
+  topAssetName: string;
+  topThumbnailUrl: string | null;
+  topThumbnailAlt: string;
+  baseInstanceId: string;
+  baseAssetId: string;
+  baseAssetName: string;
+  baseThumbnailUrl: string | null;
+  baseThumbnailAlt: string;
+  buildingLevelId: string;
+  surfaceKind: StackingRelation['surfaceKind'];
+  coordinates: GridCoordinate[];
+}
+
 interface ExportFootprintContext {
   occupancyInstancesById: Map<string, OccupancyInstance>;
   blockingCellsByInstanceId: Map<string, BlockingCell[]>;
   conflictsByInstanceId: Map<string, FootprintConflict[]>;
+  stackingRelations: ExportStackingRelationSummary[];
+  stackingRelationsByCellKey: Map<string, ExportStackingRelationSummary[]>;
 }
 
 export function buildImageExportSummary(scene: SceneDocument, locale: Locale = defaultLocale): ImageExportSummary {
-  const footprintContext = buildExportFootprintContext(buildSceneOccupancy(scene));
+  const occupancy = buildSceneOccupancy(scene);
+  const footprintContext = buildExportFootprintContext(occupancy, locale);
   const layers = sortBuildingLevelsForRender(getBuildingLevelContexts(scene)).map((level) =>
     buildLayerSummary(scene, level, locale, footprintContext),
   );
@@ -157,6 +186,7 @@ export function buildImageExportSummary(scene: SceneDocument, locale: Locale = d
     outerPadding: scene.outerPadding,
     overallMaterials: aggregateMaterials(scene.tileInstances, locale),
     overallSkills: aggregateSkills(scene.tileInstances, scene.skillMarkers, locale),
+    stackingRelations: footprintContext.stackingRelations.map(cloneExportStackingRelationSummary),
     layers,
   };
 }
@@ -172,6 +202,9 @@ function buildLayerSummary(
   const layerSkillMarkers = cells.flatMap((cell) => cell.skillMarkers);
   const skills = aggregateLayerSkills(layerInstances, layerSkillMarkers, locale);
   const notes = getLayerNotes(scene, level.id);
+  const stackingRelations = footprintContext.stackingRelations
+    .filter((relation) => relation.buildingLevelId === level.id)
+    .map(cloneExportStackingRelationSummary);
 
   return {
     ...level,
@@ -180,6 +213,7 @@ function buildLayerSummary(
     materialCount: layerInstances.length,
     skillCount: skills.reduce((total, skill) => total + skill.count, 0),
     notes,
+    stackingRelations,
     materials: aggregateLayerMaterials(layerInstances, locale),
     skills,
     cells,
@@ -198,6 +232,9 @@ function toExportCellSummary(
 ): ImageExportCellSummary {
   const tileInstances = cell.tileInstances.map((instance) => toExportTileInstanceSummary(instance, locale, footprintContext));
   const skillMarkers = cell.skillMarkers.map((marker) => toExportSkillMarkerSummary(marker, locale));
+  const stackingRelations = footprintContext.stackingRelationsByCellKey
+    .get(getLayerCoordinateKey(cell.buildingLevel.id, cell.coordinate))
+    ?.map(cloneExportStackingRelationSummary) ?? [];
 
   return {
     id: cell.id,
@@ -208,6 +245,7 @@ function toExportCellSummary(
     empty: tileInstances.length === 0 && skillMarkers.length === 0,
     tileInstances,
     skillMarkers,
+    stackingRelations,
   };
 }
 
@@ -393,10 +431,19 @@ function cloneExportTileInstanceSummary(instance: ExportTileInstanceSummary): Ex
   };
 }
 
-function buildExportFootprintContext(occupancy: SceneOccupancy): ExportFootprintContext {
+function cloneExportStackingRelationSummary(relation: ExportStackingRelationSummary): ExportStackingRelationSummary {
+  return {
+    ...relation,
+    coordinates: cloneCoordinates(relation.coordinates),
+  };
+}
+
+function buildExportFootprintContext(occupancy: SceneOccupancy, locale: Locale): ExportFootprintContext {
   const occupancyInstancesById = new Map<string, OccupancyInstance>();
   const blockingCellsByInstanceId = new Map<string, BlockingCell[]>();
   const conflictsByInstanceId = new Map<string, FootprintConflict[]>();
+  const stackingRelations = occupancy.stackingRelations.map((relation) => toExportStackingRelationSummary(relation, locale));
+  const stackingRelationsByCellKey = new Map<string, ExportStackingRelationSummary[]>();
 
   for (const occupancyInstance of occupancy.instances) {
     occupancyInstancesById.set(occupancyInstance.instanceId, occupancyInstance);
@@ -415,10 +462,48 @@ function buildExportFootprintContext(occupancy: SceneOccupancy): ExportFootprint
     }
   }
 
+  for (const relation of stackingRelations) {
+    for (const coordinate of relation.coordinates) {
+      const key = getLayerCoordinateKey(relation.buildingLevelId, coordinate);
+      const relations = stackingRelationsByCellKey.get(key) ?? [];
+      relations.push(relation);
+      stackingRelationsByCellKey.set(key, relations);
+    }
+  }
+
   return {
     occupancyInstancesById,
     blockingCellsByInstanceId,
     conflictsByInstanceId,
+    stackingRelations,
+    stackingRelationsByCellKey,
+  };
+}
+
+function toExportStackingRelationSummary(
+  relation: StackingRelation,
+  locale: Locale,
+): ExportStackingRelationSummary {
+  const topAsset = getAssetById(relation.topAssetId);
+  const topAssetDisplay = topAsset ? getAssetDisplay(topAsset, locale) : null;
+  const baseAsset = getAssetById(relation.baseAssetId);
+  const baseAssetDisplay = baseAsset ? getAssetDisplay(baseAsset, locale) : null;
+
+  return {
+    id: `stack:${relation.buildingLevelId}:${relation.baseInstanceId}:${relation.topInstanceId}`,
+    topInstanceId: relation.topInstanceId,
+    topAssetId: relation.topAssetId,
+    topAssetName: topAssetDisplay?.name ?? getAssetName(relation.topAssetId, topAsset),
+    topThumbnailUrl: topAsset?.thumbnailUrl ?? null,
+    topThumbnailAlt: topAssetDisplay?.thumbnailAlt ?? topAsset?.thumbnailAlt ?? relation.topAssetId,
+    baseInstanceId: relation.baseInstanceId,
+    baseAssetId: relation.baseAssetId,
+    baseAssetName: baseAssetDisplay?.name ?? getAssetName(relation.baseAssetId, baseAsset),
+    baseThumbnailUrl: baseAsset?.thumbnailUrl ?? null,
+    baseThumbnailAlt: baseAssetDisplay?.thumbnailAlt ?? baseAsset?.thumbnailAlt ?? relation.baseAssetId,
+    buildingLevelId: relation.buildingLevelId,
+    surfaceKind: relation.surfaceKind,
+    coordinates: cloneCoordinates(relation.coordinates),
   };
 }
 
@@ -453,6 +538,10 @@ function cloneBlockingCells(cells: readonly ExportFootprintBlockingSummary[]): E
     blockedByAssetId: cell.blockedByAssetId,
     blockedByBuildingLevelId: cell.blockedByBuildingLevelId,
   }));
+}
+
+function getLayerCoordinateKey(buildingLevelId: string, coordinate: GridCoordinate): string {
+  return `${buildingLevelId}:${coordinate.x},${coordinate.y}`;
 }
 
 function createSkillSummary(skillType: ConcreteAssetSkillType, locale: Locale): ExportSkillSummary {

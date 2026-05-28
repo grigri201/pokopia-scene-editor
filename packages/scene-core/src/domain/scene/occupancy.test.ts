@@ -13,6 +13,15 @@ import {
   footprintContractExpected,
   footprintContractFixtureIds,
 } from './footprint-contract-fixture';
+import {
+  createStackingFloorCoverScene,
+  createStackingHeightBlockedScene,
+  createStackingMultiSurfaceScene,
+  createStackingPartialSurfaceScene,
+  createStackingPlateFoodScene,
+  createStackingPlateNonFoodScene,
+  stackingContractFixtureIds,
+} from './stacking-contract-fixture';
 import { getAssetById } from '../assets';
 
 const now = '2026-05-27T00:00:00.000Z';
@@ -174,6 +183,108 @@ describe('scene occupancy rules', () => {
     );
   });
 
+  it('allows audited stacking surfaces and derives base/top relations', () => {
+    const plateFood = buildSceneOccupancy(createStackingPlateFoodScene());
+    const reversedPlateFoodScene = {
+      ...createStackingPlateFoodScene(),
+      tileInstances: [...createStackingPlateFoodScene().tileInstances].reverse(),
+    };
+    const reversedPlateFood = buildSceneOccupancy(reversedPlateFoodScene);
+    const floorCover = buildSceneOccupancy(createStackingFloorCoverScene());
+
+    expect(plateFood.conflicts).toEqual([]);
+    expect(plateFood.stackingRelations).toEqual([
+      {
+        topInstanceId: stackingContractFixtureIds.food,
+        topAssetId: 'leppa-berry',
+        baseInstanceId: stackingContractFixtureIds.plate,
+        baseAssetId: 'plate',
+        buildingLevelId: stackingContractFixtureIds.level0,
+        surfaceKind: 'food-surface',
+        coordinates: [{ x: 2, y: 2 }],
+      },
+    ]);
+    expect(reversedPlateFood.conflicts).toEqual([]);
+    expect(reversedPlateFood.stackingRelations).toEqual([
+      expect.objectContaining({
+        topInstanceId: stackingContractFixtureIds.food,
+        baseInstanceId: stackingContractFixtureIds.plate,
+        surfaceKind: 'food-surface',
+      }),
+    ]);
+    expect(floorCover.conflicts).toEqual([]);
+    expect(floorCover.stackingRelations).toEqual([
+      expect.objectContaining({
+        topInstanceId: stackingContractFixtureIds.rugTop,
+        baseInstanceId: stackingContractFixtureIds.rug,
+        surfaceKind: 'floor-cover',
+        coordinates: [{ x: 2, y: 2 }],
+      }),
+    ]);
+  });
+
+  it('reports unsupported and capacity stacking conflicts with structured details', () => {
+    expect(buildSceneOccupancy(createStackingPlateNonFoodScene()).conflicts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          conflictType: 'unsupported-stack-surface',
+          instanceId: stackingContractFixtureIds.nonFood,
+          assetId: 'leafy-plant',
+          blockingInstanceId: stackingContractFixtureIds.plate,
+          blockingAssetId: 'plate',
+          blockingBuildingLevelId: stackingContractFixtureIds.level0,
+          surfaceKind: 'food-surface',
+          coordinates: [{ x: 2, y: 2 }],
+        }),
+      ]),
+    );
+    expect(buildSceneOccupancy(createStackingPartialSurfaceScene()).conflicts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          conflictType: 'surface-capacity-conflict',
+          instanceId: stackingContractFixtureIds.partialTop,
+          blockingInstanceId: stackingContractFixtureIds.partialSurface,
+          surfaceKind: 'floor-cover',
+        }),
+      ]),
+    );
+    expect(buildSceneOccupancy(createStackingMultiSurfaceScene()).conflicts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          conflictType: 'surface-capacity-conflict',
+          instanceId: stackingContractFixtureIds.multiSurfaceTop,
+          blockingInstanceId: stackingContractFixtureIds.multiSurfaceA,
+          surfaceKind: 'floor-cover',
+        }),
+      ]),
+    );
+  });
+
+  it('keeps height blocking ahead of stacking placement compatibility', () => {
+    const scene = {
+      ...createStackingHeightBlockedScene(),
+      tileInstances: createStackingHeightBlockedScene().tileInstances.filter(
+        (instance) => instance.instanceId !== stackingContractFixtureIds.food,
+      ),
+    };
+    const leppaBerry = getAssetById('leppa-berry')!;
+
+    expect(evaluateScenePlacementFootprint(scene, {
+      asset: leppaBerry,
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: stackingContractFixtureIds.level1,
+    })).toMatchObject({
+      status: 'blocked',
+      stackingRelations: [],
+      conflicts: [
+        expect.objectContaining({
+          conflictType: 'height-blocked-by-lower-footprint',
+          blockingInstanceId: stackingContractFixtureIds.boulder,
+        }),
+      ],
+    });
+  });
+
   it('evaluates placement replacement, bounds and lower-level blocking from the same occupancy rules', () => {
     const scene = {
       ...createDefaultSceneDocument({ sceneId: 'scene-placement', now }),
@@ -222,6 +333,100 @@ describe('scene occupancy rules', () => {
     })).toMatchObject({
       status: 'blocked',
       conflicts: [expect.objectContaining({ conflictType: 'height-blocked-by-lower-footprint' })],
+    });
+  });
+
+  it('evaluates legal and illegal stacking placement without breaking replacement flow', () => {
+    const baseScene = {
+      ...createDefaultSceneDocument({ sceneId: 'scene-placement-stacking', now }),
+      tileInstances: [
+        createTileInstance({
+          instanceId: stackingContractFixtureIds.plate,
+          assetId: 'plate',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: stackingContractFixtureIds.level0,
+        }),
+      ],
+    };
+    const leppaBerry = getAssetById('leppa-berry')!;
+    const leafyPlant = getAssetById('leafy-plant')!;
+
+    expect(evaluateScenePlacementFootprint(baseScene, {
+      asset: leppaBerry,
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: stackingContractFixtureIds.level0,
+    })).toMatchObject({
+      status: 'ready',
+      canPlace: true,
+      stackingRelations: [
+        expect.objectContaining({
+          topInstanceId: 'placement-preview',
+          baseInstanceId: stackingContractFixtureIds.plate,
+          surfaceKind: 'food-surface',
+        }),
+      ],
+    });
+    expect(evaluateScenePlacementFootprint(baseScene, {
+      asset: leafyPlant,
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: stackingContractFixtureIds.level0,
+      confirmReplace: true,
+    })).toMatchObject({
+      status: 'blocked',
+      conflicts: [
+        expect.objectContaining({
+          conflictType: 'unsupported-stack-surface',
+          blockingInstanceId: stackingContractFixtureIds.plate,
+        }),
+      ],
+    });
+    expect(evaluateScenePlacementFootprint(baseScene, {
+      asset: leafyPlant,
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: stackingContractFixtureIds.level0,
+    })).toMatchObject({
+      status: 'blocked',
+      conflicts: [
+        expect.objectContaining({
+          conflictType: 'unsupported-stack-surface',
+          blockingInstanceId: stackingContractFixtureIds.plate,
+        }),
+      ],
+    });
+    expect(evaluateScenePlacementFootprint({
+      ...baseScene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-existing',
+          assetId: 'leafy-plant',
+          coordinate: { x: 3, y: 3 },
+          buildingLevelId: stackingContractFixtureIds.level0,
+        }),
+      ],
+    }, {
+      asset: leafyPlant,
+      coordinate: { x: 3, y: 3 },
+      buildingLevelId: stackingContractFixtureIds.level0,
+    })).toMatchObject({
+      status: 'will-replace',
+    });
+    expect(evaluateScenePlacementFootprint({
+      ...baseScene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-existing',
+          assetId: 'leafy-plant',
+          coordinate: { x: 3, y: 3 },
+          buildingLevelId: stackingContractFixtureIds.level0,
+        }),
+      ],
+    }, {
+      asset: leafyPlant,
+      coordinate: { x: 3, y: 3 },
+      buildingLevelId: stackingContractFixtureIds.level0,
+      confirmReplace: true,
+    })).toMatchObject({
+      status: 'ready',
     });
   });
 });

@@ -6,6 +6,7 @@ import { PokemonSceneControls } from '../pokemon-scene-controls/PokemonSceneCont
 import { SceneCanvas } from '../scene-canvas/SceneCanvas';
 import { SelectionInspector } from '../selection-inspector/SelectionInspector';
 import {
+  buildSceneOccupancy,
   buildImageExportSummary,
   createDefaultSceneDocument,
   getBuildingLevelContexts,
@@ -184,6 +185,7 @@ export function AppShell() {
   const currentBuildingLevel = displayedBuildingLevelContexts.find((level) => level.current);
   const currentBuildingLevelRecord = scene.buildingLevels.find((level) => level.id === activeBuildingLevelId) ?? null;
   const canvasCells = getCanvasCellContexts(scene, activeBuildingLevelId);
+  const stackingRelations = buildSceneOccupancy(scene).stackingRelations;
   const targetCoordinate = hoveredCoordinate ?? focusedCoordinate;
   const selectedCoordinate = isReadOnly
     ? readOnlySelectedCoordinate
@@ -1587,6 +1589,7 @@ export function AppShell() {
               selectedInstance={selectedInstance}
               selectedInstanceId={selectedInstanceId}
               selectedSkillMarker={selectedSkillMarker}
+              stackingRelations={stackingRelations}
               targetContext={targetContext}
               targetPlacement={targetPlacementPreview}
               canvasSize={scene.canvasSize}
@@ -1599,6 +1602,7 @@ export function AppShell() {
               currentBuildingLevel={currentBuildingLevelRecord}
               tileInstances={scene.tileInstances}
               readOnly={isReadOnly}
+              onSelectInstance={setSelectedInstanceId}
               onDeleteInstance={deleteInstance}
               onRotateInstance={rotateInstance}
               onSaveInstanceSkill={saveInstanceSkill}

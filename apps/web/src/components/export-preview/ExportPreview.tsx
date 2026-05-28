@@ -3,6 +3,7 @@ import { getPokemonThemeDefinition } from '@pokopia-scene-editor/scene-core';
 import { defaultLocale, getPokemonDisplay, t, type Locale } from '../../i18n';
 import type {
   ExportLayerMaterialSummary,
+  ExportStackingRelationSummary,
   ExportTileInstanceSummary,
   ExportLayerSkillSummary,
   ExportMaterialSummary,
@@ -302,9 +303,12 @@ function ExportCell({
 }) {
   const firstInstance = cell.tileInstances[0] ?? null;
   const firstSkillMarker = cell.skillMarkers[0] ?? null;
-  const shouldRenderInlineInstance = Boolean(firstInstance && !footprintOverlayInstanceIds.has(firstInstance.instanceId));
+  const stackingRelation = cell.stackingRelations[0] ?? null;
+  const shouldRenderInlineInstance = Boolean(firstInstance && !footprintOverlayInstanceIds.has(firstInstance.instanceId) && !stackingRelation);
   const materialColor = firstInstance ? materialColorByAssetId.get(firstInstance.assetId) ?? null : null;
-  const label = firstInstance
+  const label = stackingRelation
+    ? `${cell.coordinate.x},${cell.coordinate.y}: ${stackingRelation.topAssetName} stacked on ${stackingRelation.baseAssetName}`
+    : firstInstance
     ? `${cell.coordinate.x},${cell.coordinate.y}: ${cell.tileInstances.map((instance) => instance.assetName).join(', ')}`
     : firstSkillMarker
       ? locale === 'zh-CN'
@@ -321,10 +325,19 @@ function ExportCell({
       data-effective-footprint={firstInstance?.effectiveFootprint ? formatExportFootprint(firstInstance.effectiveFootprint) : ''}
       data-material-asset-id={firstInstance?.assetId ?? ''}
       data-material-color={materialColor ?? ''}
+      data-stacking-state={stackingRelation ? 'placed' : ''}
+      data-stacking-relation-id={stackingRelation?.id ?? ''}
+      data-stacking-base-instance-id={stackingRelation?.baseInstanceId ?? ''}
+      data-stacking-top-instance-id={stackingRelation?.topInstanceId ?? ''}
+      data-stacking-base-asset-id={stackingRelation?.baseAssetId ?? ''}
+      data-stacking-top-asset-id={stackingRelation?.topAssetId ?? ''}
+      data-stacking-surface-kind={stackingRelation?.surfaceKind ?? ''}
       style={getExportMaterialColorStyle(materialColor)}
       aria-label={label}
     >
-      {shouldRenderInlineInstance && firstInstance?.thumbnailUrl ? (
+      {stackingRelation ? (
+        <ExportStackingSplit stackingRelation={stackingRelation} />
+      ) : shouldRenderInlineInstance && firstInstance?.thumbnailUrl ? (
         <img src={firstInstance.thumbnailUrl} alt="" title={firstInstance.assetName} />
       ) : shouldRenderInlineInstance && firstInstance ? (
         <span>{firstInstance.assetName.slice(0, 1)}</span>
@@ -338,6 +351,52 @@ function ExportCell({
         <span>{firstSkillMarker.skillLabel}</span>
       ) : null}
     </div>
+  );
+}
+
+function ExportStackingSplit({ stackingRelation }: { stackingRelation: ExportStackingRelationSummary }) {
+  return (
+    <span className="export-stacking-split" aria-hidden="true">
+      <ExportStackingSlot
+        role="top"
+        instanceId={stackingRelation.topInstanceId}
+        assetId={stackingRelation.topAssetId}
+        assetName={stackingRelation.topAssetName}
+        thumbnailUrl={stackingRelation.topThumbnailUrl}
+      />
+      <ExportStackingSlot
+        role="base"
+        instanceId={stackingRelation.baseInstanceId}
+        assetId={stackingRelation.baseAssetId}
+        assetName={stackingRelation.baseAssetName}
+        thumbnailUrl={stackingRelation.baseThumbnailUrl}
+      />
+    </span>
+  );
+}
+
+function ExportStackingSlot({
+  role,
+  instanceId,
+  assetId,
+  assetName,
+  thumbnailUrl,
+}: {
+  role: 'top' | 'base';
+  instanceId: string;
+  assetId: string;
+  assetName: string;
+  thumbnailUrl: string | null;
+}) {
+  return (
+    <span
+      className={`export-stacking-split__slot export-stacking-split__slot--${role}`}
+      data-stacking-role={role}
+      data-instance-id={instanceId}
+      data-asset-id={assetId}
+    >
+      {thumbnailUrl ? <img src={thumbnailUrl} alt="" title={assetName} /> : <span>{assetName.slice(0, 1)}</span>}
+    </span>
   );
 }
 

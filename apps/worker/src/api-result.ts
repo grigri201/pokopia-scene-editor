@@ -15,6 +15,7 @@ export interface ApiError {
   blockingInstanceId?: string;
   blockingAssetId?: string;
   blockingBuildingLevelId?: string;
+  surfaceKind?: string;
 }
 
 export interface ApiMeta {

@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { toBlob } from 'html-to-image';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDefaultSceneDocument, createTileInstance } from '@pokopia-scene-editor/scene-core';
+import { createDefaultSceneDocument, createStackingPlateFoodScene, createTileInstance } from '@pokopia-scene-editor/scene-core';
 import {
   autosavedSceneStorageKey,
   encodeSceneDocumentString,
@@ -1228,6 +1228,36 @@ describe('AppShell scene storage integration', () => {
     expect(cell).not.toHaveAttribute('aria-selected', 'true');
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+  });
+
+  it('keeps mobile view-only stacking inspection from modifying the scene', async () => {
+    setViewportWidth(390);
+    const sourceStackingScene = createStackingPlateFoodScene();
+    const stackingScene = {
+      ...sourceStackingScene,
+      sceneName: 'Mobile Stacking View',
+      workspaceState: {
+        ...sourceStackingScene.workspaceState,
+        selectedCoordinate: { x: 2, y: 2 },
+      },
+    };
+    writeSceneDocumentToStorage(window.localStorage, stackingScene, 'autosave');
+
+    render(<AppShell />);
+
+    await waitFor(() => expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode'));
+    const beforeSnapshot = readSceneSnapshot();
+    const stackedCell = screen.getByLabelText(/Cell 2,2, main area, level-0, read-only, 苹野果, stacked 苹野果 on 盘子/);
+
+    expect(stackedCell).toBeVisible();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Stack base: 盘子' })).toBeVisible());
+    fireEvent.click(screen.getByRole('button', { name: 'Stack base: 盘子' }));
+
+    expect(screen.getByRole('button', { name: '清除选中格子中的素材' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Stack top: 苹野果' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Stack base: 盘子' })).toBeVisible();
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
   });
 
   it('does not migrate legacy UI preferences while starting in mobile read-only mode', () => {
