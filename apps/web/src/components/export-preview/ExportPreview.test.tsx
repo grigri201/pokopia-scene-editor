@@ -6,6 +6,7 @@ import {
   createDefaultSceneDocument,
   createFootprintContractScene,
   createSkillMarker,
+  createStackingPartialSurfaceScene,
   createStackingPlateFoodScene,
   createTileInstance,
   footprintContractFixtureIds,
@@ -201,14 +202,103 @@ describe('ExportPreview', () => {
     expect(stackingCell).toHaveAttribute('data-stacking-state', 'placed');
     expect(stackingCell).toHaveAttribute('data-stacking-base-instance-id', stackingContractFixtureIds.plate);
     expect(stackingCell).toHaveAttribute('data-stacking-top-instance-id', stackingContractFixtureIds.food);
+    expect(stackingCell).toHaveAttribute('data-stacking-base-footprint', '1x1x1');
+    expect(stackingCell).toHaveAttribute('data-stacking-top-footprint', '1x1x1');
     expect(stackingCell).toHaveAttribute('data-stacking-surface-kind', 'food-surface');
+    expect(stackingCell.querySelector('.export-stacking-split')).toHaveAttribute('data-stacking-base-visibility', 'visible');
+    expect(stackingCell.querySelector('.export-stacking-split')).toHaveAttribute('data-stacking-split-axis', 'block');
     expect(stackingCell.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-asset-id', 'leppa-berry');
     expect(stackingCell.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-asset-id', 'plate');
+    expect(stackingCell.querySelector('[data-stacking-role="base"] img')).toHaveAttribute('src', expect.stringContaining('plate'));
     expect(layerMaterials.querySelectorAll('li')).toHaveLength(2);
     expect(Array.from(layerMaterials.querySelectorAll('.export-material-list__row span')).map((node) => node.textContent)).toEqual([
       'x1',
       'x1',
     ]);
+  });
+
+  it('renders multi-cell base overlays behind stacked export cells', () => {
+    const summary = buildImageExportSummary(createLargeRugStackingScene());
+
+    render(<ExportPreview summary={summary} onClose={vi.fn()} />);
+
+    const layerGraphic = screen.getByLabelText('L1 7x7 图形');
+    const layerMaterials = screen.getByLabelText('L1 使用素材清单');
+    const rugOverlay = screen.getByTestId('export-footprint-overlay-export-base-large-rug');
+    const stackingCell = layerGraphic.querySelector<HTMLElement>('[data-stacking-top-instance-id="export-top-plant"]');
+    const stackingSplit = stackingCell?.querySelector('.export-stacking-split');
+
+    expect(summary.stackingRelations).toEqual([
+      expect.objectContaining({
+        topInstanceId: 'export-top-plant',
+        topAssetId: 'leafy-plant',
+        baseInstanceId: 'export-base-large-rug',
+        baseAssetId: 'large-round-rug',
+        surfaceKind: 'floor-cover',
+      }),
+    ]);
+    expect(rugOverlay).toHaveAttribute('data-effective-footprint', '2x2x1');
+    expect(rugOverlay).toHaveAttribute('data-occupied-cells', '2,2 3,2 2,3 3,3');
+    expect(rugOverlay).toHaveAttribute('data-stacking-state', '');
+    expect(rugOverlay).toHaveAttribute('data-stacking-role', '');
+    expect(rugOverlay.querySelector('.export-stacking-split')).toBeNull();
+    expect(rugOverlay.querySelector('img')).toHaveAttribute('src', expect.stringContaining('large-round-rug'));
+    expect(stackingCell).toHaveAttribute('data-stacking-base-footprint', '2x2x1');
+    expect(stackingCell).toHaveAttribute('data-stacking-top-footprint', '1x1x1');
+    expect(stackingCell).toHaveAttribute('data-stacking-base-visibility', 'hidden');
+    expect(stackingCell).toHaveAttribute('data-stacking-base-render', 'overlay');
+    expect(stackingCell).toHaveAttribute('data-stacking-top-render', 'cell');
+    expect(stackingSplit).toHaveClass('export-stacking-split--base-hidden');
+    expect(stackingSplit).toHaveAttribute('data-stacking-base-render', 'overlay');
+    expect(stackingSplit).toHaveAttribute('data-stacking-top-render', 'cell');
+    expect(stackingSplit?.querySelector('[data-stacking-role="top"] img')).toHaveAttribute('src', expect.stringContaining('leafy-plant'));
+    expect(stackingSplit?.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-base-image-visible', 'false');
+    expect(stackingSplit?.querySelector('[data-stacking-role="base"] img')).toBeNull();
+    expect(layerMaterials.querySelectorAll('li')).toHaveLength(2);
+    expect(Array.from(layerMaterials.querySelectorAll('.export-material-list__row span')).map((node) => node.textContent)).toEqual([
+      'x1',
+      'x1',
+    ]);
+  });
+
+  it('renders partial stacking on the overlapped export cell while keeping the multi-cell top overlay', () => {
+    const summary = buildImageExportSummary(createStackingPartialSurfaceScene());
+
+    render(<ExportPreview summary={summary} onClose={vi.fn()} />);
+
+    const stackedCell = screen.getByLabelText('1,1: 木长椅 stacked on 小型窄地毯');
+    const topOverlay = screen.getByTestId(`export-footprint-overlay-${stackingContractFixtureIds.partialTop}`);
+
+    expect(summary.stackingRelations).toEqual([
+      expect.objectContaining({
+        topInstanceId: stackingContractFixtureIds.partialTop,
+        baseInstanceId: stackingContractFixtureIds.partialSurface,
+        surfaceKind: 'floor-cover',
+        coordinates: [{ x: 1, y: 1 }],
+      }),
+    ]);
+    expect(stackedCell).toHaveAttribute('data-stacking-state', 'placed');
+    expect(stackedCell).toHaveAttribute('data-stacking-base-instance-id', stackingContractFixtureIds.partialSurface);
+    expect(stackedCell).toHaveAttribute('data-stacking-top-instance-id', stackingContractFixtureIds.partialTop);
+    expect(stackedCell).toHaveAttribute('data-stacking-base-footprint', '1x1x1');
+    expect(stackedCell).toHaveAttribute('data-stacking-top-footprint', '2x1x1');
+    expect(stackedCell.querySelector('.export-stacking-split')).toHaveAttribute('data-stacking-base-visibility', 'visible');
+    expect(stackedCell).toHaveAttribute('data-stacking-base-render', 'cell');
+    expect(stackedCell).toHaveAttribute('data-stacking-top-render', 'overlay');
+    expect(stackedCell.querySelector('.export-stacking-split')).toHaveAttribute('data-stacking-top-render', 'overlay');
+    expect(stackedCell.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-top-image-visible', 'false');
+    expect(stackedCell.querySelector('[data-stacking-role="top"] img')).toBeNull();
+    expect(stackedCell.querySelector('[data-stacking-role="base"] img')).toHaveAttribute('src', expect.stringContaining('small-narrow-rug'));
+    expect(topOverlay).toHaveAttribute('data-footprint-instance-id', stackingContractFixtureIds.partialTop);
+    expect(topOverlay).toHaveAttribute('data-effective-footprint', '2x1x1');
+    expect(topOverlay).toHaveAttribute('data-stacking-state', 'placed');
+    expect(topOverlay).toHaveAttribute('data-stacking-role', 'top');
+    expect(topOverlay).toHaveAttribute('data-stacking-base-instance-id', stackingContractFixtureIds.partialSurface);
+    expect(topOverlay).toHaveAttribute('data-stacking-top-instance-id', stackingContractFixtureIds.partialTop);
+    expect(topOverlay).toHaveAttribute('data-stacking-base-footprint', '1x1x1');
+    expect(topOverlay).toHaveAttribute('data-stacking-top-footprint', '2x1x1');
+    expect(topOverlay).toHaveAttribute('data-stacking-top-crop-axis', 'block');
+    expect(topOverlay.querySelectorAll('img')).toHaveLength(1);
   });
 
   it('focuses the dialog controls, traps tab focus, restores focus and disables download without a handler', () => {
@@ -340,5 +430,31 @@ function createManyMaterialScene() {
       },
       buildingLevelId: 'level-0',
     })),
+  };
+}
+
+function createLargeRugStackingScene() {
+  const scene = createDefaultSceneDocument({
+    sceneId: 'scene-export-large-rug-stack',
+    sceneName: 'Large Rug Stack',
+    now: '2026-05-28T00:00:00.000Z',
+  });
+
+  return {
+    ...scene,
+    tileInstances: [
+      createTileInstance({
+        instanceId: 'export-base-large-rug',
+        assetId: 'large-round-rug',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+      }),
+      createTileInstance({
+        instanceId: 'export-top-plant',
+        assetId: 'leafy-plant',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+      }),
+    ],
   };
 }

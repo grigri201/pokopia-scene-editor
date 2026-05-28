@@ -457,7 +457,7 @@ describe('SelectionInspector', () => {
     expect(onSaveInstanceSkill).toHaveBeenCalledTimes(1);
   });
 
-  it('exposes stacked base and top instances as selectable compact chips', () => {
+  it('exposes the other stacked instance as a selectable compact chip', () => {
     const stackingScene = createStackingPlateFoodScene();
     const stackingContext = getCellContext(stackingScene, { x: 2, y: 2 });
     const onSelectInstance = vi.fn();
@@ -476,18 +476,103 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    const topChip = screen.getByRole('button', { name: 'Stack top: 苹野果' });
     const baseChip = screen.getByRole('button', { name: 'Stack base: 盘子' });
 
     expect(screen.getByLabelText('Stacking relation')).toBeVisible();
-    expect(topChip).toHaveAttribute('aria-pressed', 'true');
-    expect(topChip).toHaveAttribute('data-instance-id', 'stacking-top-food');
+    expect(screen.queryByRole('button', { name: 'Stack top: 苹野果' })).not.toBeInTheDocument();
+    expect(baseChip).toHaveAttribute('aria-pressed', 'false');
     expect(baseChip).toHaveAttribute('data-instance-id', 'stacking-base-plate');
 
     fireEvent.click(baseChip);
 
     expect(onSelectInstance).toHaveBeenCalledWith('stacking-base-plate');
     expect(screen.getByRole('button', { name: '清除选中格子中的素材' })).toBeEnabled();
+  });
+
+  it('does not duplicate the selected base instance in the stack chips', () => {
+    const rugStackingScene = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-small-round-rug',
+          assetId: 'small-round-rug',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-leppa-berry',
+          assetId: 'leppa-berry',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const stackingContext = getCellContext(rugStackingScene, { x: 2, y: 2 });
+    const onSelectInstance = vi.fn();
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={stackingContext}
+        selectedInstance={rugStackingScene.tileInstances[0]}
+        selectedInstanceId="tile-small-round-rug"
+        stackingRelations={buildSceneOccupancy(rugStackingScene).stackingRelations}
+        buildingLevels={rugStackingScene.buildingLevels}
+        tileInstances={rugStackingScene.tileInstances}
+        readOnly={false}
+        onSelectInstance={onSelectInstance}
+      />,
+    );
+
+    const topChip = screen.getByRole('button', { name: 'Stack top: 苹野果' });
+
+    expect(screen.getByLabelText('Stacking relation')).toBeVisible();
+    expect(topChip).toHaveAttribute('data-instance-id', 'tile-leppa-berry');
+    expect(topChip).toHaveAttribute('data-asset-id', 'leppa-berry');
+    expect(screen.queryByRole('button', { name: 'Stack base: 小圆地毯' })).not.toBeInTheDocument();
+
+    fireEvent.click(topChip);
+
+    expect(onSelectInstance).toHaveBeenCalledWith('tile-leppa-berry');
+  });
+
+  it('hides the stacked base chip when the base structure is hidden for a smaller top item', () => {
+    const rugStackingScene = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-large-round-rug',
+          assetId: 'large-round-rug',
+          coordinate: { x: 2, y: 4 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-big-storage-box',
+          assetId: 'big-storage-box',
+          coordinate: { x: 2, y: 5 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const stackingContext = getCellContext(rugStackingScene, { x: 2, y: 5 });
+    const selectedTopInstance = rugStackingScene.tileInstances[1];
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={stackingContext}
+        selectedInstance={selectedTopInstance}
+        selectedInstanceId="tile-big-storage-box"
+        stackingRelations={buildSceneOccupancy(rugStackingScene).stackingRelations}
+        buildingLevels={rugStackingScene.buildingLevels}
+        tileInstances={rugStackingScene.tileInstances}
+        readOnly={false}
+      />,
+    );
+
+    expect(screen.queryByLabelText('Stacking relation')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stack top: 大型收纳箱' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stack base: 大圆地毯' })).not.toBeInTheDocument();
   });
 
   it('shows retained selected-instance fields without move editors while keeping current layer notes', () => {

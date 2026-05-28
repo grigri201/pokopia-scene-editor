@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import {
   getAssetById,
   getAssetSkillMarkerIconUrl,
+  getEffectiveAssetFootprint,
   getBuildingLevelDisplayId,
   type ConcreteAssetSkillType,
   type AssetSkillType,
@@ -19,6 +20,7 @@ import {
 } from '@pokopia-scene-editor/scene-core';
 import type { AssetPlacementPreview } from '../../state';
 import { defaultLocale, getAssetDisplay, getSkillDisplay, t, type Locale } from '../../i18n';
+import { getStackingSplitDisplay } from '../stacking-display';
 
 interface SelectionInspectorProps {
   locale?: Locale;
@@ -65,6 +67,7 @@ export function SelectionInspector({
   stackingRelations,
   buildingLevels,
   currentBuildingLevel,
+  tileInstances,
   readOnly,
   onSelectInstance,
   onDeleteInstance,
@@ -88,7 +91,9 @@ export function SelectionInspector({
   const activeSkillNote = selectedSkillMarker?.skillNote ?? selectedInstance?.skillNote ?? '';
   const nextRotation = getNextRotation(selectedInstance?.rotationDegrees ?? 0);
   const selectedStackingRelation = getSelectedStackingRelation(stackingRelations, context);
-  const stackItems = selectedStackingRelation ? getStackItems(selectedStackingRelation) : [];
+  const stackItems = selectedStackingRelation
+    ? getStackItems(selectedStackingRelation, tileInstances).filter((item) => item.instanceId !== selectedInstanceId)
+    : [];
   const selectionSummary = [
     assetDisplay ? assetDisplay.name : (coordinate ? `${coordinate.x},${coordinate.y}` : t(locale, 'noSelection')),
     coordinate ? `x${coordinate.x} y${coordinate.y}` : null,
@@ -305,23 +310,50 @@ function getSelectedStackingRelation(
   ) ?? null;
 }
 
-function getStackItems(relation: StackingRelation): Array<{
+function getStackItems(
+  relation: StackingRelation,
+  tileInstances: readonly TileInstance[],
+): Array<{
   role: 'top' | 'base';
   instanceId: string;
   assetId: string;
 }> {
-  return [
+  const topInstance = tileInstances.find((instance) => instance.instanceId === relation.topInstanceId) ?? null;
+  const baseInstance = tileInstances.find((instance) => instance.instanceId === relation.baseInstanceId) ?? null;
+  const topFootprint = getStackItemFootprint(relation.topAssetId, topInstance);
+  const baseFootprint = getStackItemFootprint(relation.baseAssetId, baseInstance);
+  const stackingDisplay = getStackingSplitDisplay({ topFootprint, baseFootprint });
+  const items: Array<{
+    role: 'top' | 'base';
+    instanceId: string;
+    assetId: string;
+  }> = [
     {
       role: 'top',
       instanceId: relation.topInstanceId,
       assetId: relation.topAssetId,
     },
-    {
+  ];
+
+  if (stackingDisplay.showBaseImage) {
+    items.push({
       role: 'base',
       instanceId: relation.baseInstanceId,
       assetId: relation.baseAssetId,
-    },
-  ];
+    });
+  }
+
+  return items;
+}
+
+function getStackItemFootprint(assetId: string, instance: TileInstance | null) {
+  const asset = getAssetById(assetId);
+
+  if (!asset) {
+    return null;
+  }
+
+  return getEffectiveAssetFootprint(asset.footprint, instance?.rotationDegrees ?? 0);
 }
 
 function RotateIcon() {

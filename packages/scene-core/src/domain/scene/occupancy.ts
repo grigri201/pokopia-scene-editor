@@ -439,11 +439,10 @@ function evaluateStackingOverlap(
   const existingCells = occupiedGroups.flatMap((group) => group.existingCells);
   const surfaceCell = findStackingSurfaceCell(existingCells);
   const firstExistingCell = existingCells[0];
-  const fullyCoveredByExistingCells = occupiedGroups.length === subject.occupiedCells.length;
   const oneExistingCellPerCoordinate = occupiedGroups.every((group) => group.existingCells.length === 1);
   const uniqueExistingInstanceIds = new Set(existingCells.map((cell) => cell.instanceId));
 
-  if (!fullyCoveredByExistingCells || !oneExistingCellPerCoordinate || uniqueExistingInstanceIds.size !== 1) {
+  if (!oneExistingCellPerCoordinate || uniqueExistingInstanceIds.size !== 1) {
     return surfaceCell
       ? { relation: null, conflict: buildSurfaceCapacityConflict(subject, surfaceCell) }
       : { relation: null, conflict: buildOverlapConflict(buildSubjectCell(subject, occupiedGroups[0].coordinate), firstExistingCell) };
@@ -465,7 +464,7 @@ function evaluateStackingOverlap(
         baseAssetId: baseCell.assetId,
         buildingLevelId: subject.buildingLevelId,
         surfaceKind: baseAsset.stacking.surfaceKind,
-        coordinates: cloneCoordinates(subject.occupiedCells),
+        coordinates: cloneCoordinates(occupiedGroups.map((group) => group.coordinate)),
       },
       conflict: null,
     };

@@ -1,5 +1,5 @@
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent } from 'react';
-import { getPokemonThemeDefinition } from '@pokopia-scene-editor/scene-core';
+import { getAssetById, getPokemonThemeDefinition } from '@pokopia-scene-editor/scene-core';
 import { defaultLocale, getPokemonDisplay, t, type Locale } from '../../i18n';
 import type {
   ExportLayerMaterialSummary,
@@ -12,6 +12,12 @@ import type {
   ImageExportLayerSummary,
   ImageExportSummary,
 } from '@pokopia-scene-editor/scene-core';
+import {
+  formatStackingFootprint,
+  getStackingShortSideSplitAxis,
+  getStackingSplitDisplay,
+  type StackingFootprint,
+} from '../stacking-display';
 
 interface ExportPreviewProps {
   locale?: Locale;
@@ -192,6 +198,7 @@ function LayerPreview({
   materialColorByAssetId: ReadonlyMap<string, string>;
 }) {
   const usageItems = createUsageItems(layer.materials, layer.skills, materialColorByAssetId);
+  const instanceById = getLayerInstanceMap(layer);
   const footprintOverlays = getLayerFootprintOverlays(layer, materialColorByAssetId);
   const footprintOverlayInstanceIds = new Set(footprintOverlays.map((overlay) => overlay.instance.instanceId));
   const coordinateBounds = getLayerCoordinateBounds(layer);
@@ -217,29 +224,56 @@ function LayerPreview({
                 cell={cell}
                 footprintOverlayInstanceIds={footprintOverlayInstanceIds}
                 materialColorByAssetId={materialColorByAssetId}
+                instanceById={instanceById}
               />
             ))}
             {footprintOverlays.length > 0 ? (
               <div className="export-footprint-layer" aria-hidden="true">
-                {footprintOverlays.map((overlay) => (
-                  <span
-                    className="export-footprint-overlay"
-                    data-testid={`export-footprint-overlay-${overlay.instance.instanceId}`}
-                    data-footprint-instance-id={overlay.instance.instanceId}
-                    data-footprint-asset-id={overlay.instance.assetId}
-                    data-effective-footprint={formatExportFootprint(overlay.instance.effectiveFootprint)}
-                    data-occupied-cells={overlay.instance.occupiedCells.map(formatExportCoordinate).join(' ')}
-                    data-material-color={overlay.materialColor}
-                    key={overlay.instance.instanceId}
-                    style={getExportFootprintOverlayStyle(overlay)}
-                  >
-                    {overlay.instance.thumbnailUrl ? (
-                      <img src={overlay.instance.thumbnailUrl} alt="" title={overlay.instance.assetName} />
-                    ) : (
-                      <span>{overlay.instance.assetName.slice(0, 1)}</span>
-                    )}
-                  </span>
-                ))}
+                {footprintOverlays.map((overlay) => {
+                  const baseFootprint = overlay.stackingRelation
+                    ? getExportStackingFootprint(
+                      overlay.stackingRelation.baseAssetId,
+                      instanceById.get(overlay.stackingRelation.baseInstanceId),
+                    )
+                    : null;
+                  const topFootprint = overlay.stackingRelation
+                    ? getExportStackingFootprint(overlay.stackingRelation.topAssetId, overlay.instance)
+                    : null;
+
+                  return (
+                    <span
+                      className={[
+                        'export-footprint-overlay',
+                        overlay.stackingRole === 'top' ? 'export-footprint-overlay--stacking-top' : '',
+                      ].filter(Boolean).join(' ')}
+                      data-testid={`export-footprint-overlay-${overlay.instance.instanceId}`}
+                      data-footprint-instance-id={overlay.instance.instanceId}
+                      data-footprint-asset-id={overlay.instance.assetId}
+                      data-effective-footprint={formatExportFootprint(overlay.instance.effectiveFootprint)}
+                      data-occupied-cells={overlay.instance.occupiedCells.map(formatExportCoordinate).join(' ')}
+                      data-material-color={overlay.materialColor}
+                      data-stacking-state={overlay.stackingRelation ? 'placed' : ''}
+                      data-stacking-role={overlay.stackingRole ?? ''}
+                      data-stacking-relation-id={overlay.stackingRelation?.id ?? ''}
+                      data-stacking-base-instance-id={overlay.stackingRelation?.baseInstanceId ?? ''}
+                      data-stacking-top-instance-id={overlay.stackingRelation?.topInstanceId ?? ''}
+                      data-stacking-base-asset-id={overlay.stackingRelation?.baseAssetId ?? ''}
+                      data-stacking-top-asset-id={overlay.stackingRelation?.topAssetId ?? ''}
+                      data-stacking-base-footprint={overlay.stackingRelation ? formatStackingFootprint(baseFootprint) : ''}
+                      data-stacking-top-footprint={overlay.stackingRelation ? formatStackingFootprint(topFootprint) : ''}
+                      data-stacking-top-crop-axis={overlay.stackingRole === 'top' ? getStackingShortSideSplitAxis(overlay.instance.effectiveFootprint) : ''}
+                      data-stacking-surface-kind={overlay.stackingRelation?.surfaceKind ?? ''}
+                      key={overlay.instance.instanceId}
+                      style={getExportFootprintOverlayStyle(overlay)}
+                    >
+                      {overlay.instance.thumbnailUrl ? (
+                        <img src={overlay.instance.thumbnailUrl} alt="" title={overlay.instance.assetName} />
+                      ) : (
+                        <span>{overlay.instance.assetName.slice(0, 1)}</span>
+                      )}
+                    </span>
+                  );
+                })}
               </div>
             ) : null}
           </div>
@@ -295,15 +329,29 @@ function ExportCell({
   cell,
   footprintOverlayInstanceIds,
   materialColorByAssetId,
+  instanceById,
 }: {
   locale: Locale;
   cell: ImageExportCellSummary;
   footprintOverlayInstanceIds: ReadonlySet<string>;
   materialColorByAssetId: ReadonlyMap<string, string>;
+  instanceById: ReadonlyMap<string, ExportTileInstanceSummary>;
 }) {
   const firstInstance = cell.tileInstances[0] ?? null;
   const firstSkillMarker = cell.skillMarkers[0] ?? null;
   const stackingRelation = cell.stackingRelations[0] ?? null;
+  const stackingBaseFootprint = stackingRelation
+    ? getExportStackingFootprint(stackingRelation.baseAssetId, instanceById.get(stackingRelation.baseInstanceId))
+    : null;
+  const stackingTopFootprint = stackingRelation
+    ? getExportStackingFootprint(stackingRelation.topAssetId, instanceById.get(stackingRelation.topInstanceId))
+    : null;
+  const stackingDisplay = getStackingSplitDisplay({
+    topFootprint: stackingTopFootprint,
+    baseFootprint: stackingBaseFootprint,
+  });
+  const stackingBaseUsesOverlay = Boolean(stackingRelation && footprintOverlayInstanceIds.has(stackingRelation.baseInstanceId));
+  const stackingTopUsesOverlay = Boolean(stackingRelation && footprintOverlayInstanceIds.has(stackingRelation.topInstanceId));
   const shouldRenderInlineInstance = Boolean(firstInstance && !footprintOverlayInstanceIds.has(firstInstance.instanceId) && !stackingRelation);
   const materialColor = firstInstance ? materialColorByAssetId.get(firstInstance.assetId) ?? null : null;
   const label = stackingRelation
@@ -331,12 +379,26 @@ function ExportCell({
       data-stacking-top-instance-id={stackingRelation?.topInstanceId ?? ''}
       data-stacking-base-asset-id={stackingRelation?.baseAssetId ?? ''}
       data-stacking-top-asset-id={stackingRelation?.topAssetId ?? ''}
+      data-stacking-base-footprint={stackingRelation ? formatStackingFootprint(stackingBaseFootprint) : ''}
+      data-stacking-top-footprint={stackingRelation ? formatStackingFootprint(stackingTopFootprint) : ''}
+      data-stacking-base-visibility={stackingRelation ? stackingDisplay.baseVisibility : ''}
+      data-stacking-base-render={stackingBaseUsesOverlay ? 'overlay' : stackingRelation ? 'cell' : ''}
+      data-stacking-top-render={stackingTopUsesOverlay ? 'overlay' : stackingRelation ? 'cell' : ''}
+      data-stacking-split-axis={stackingRelation ? stackingDisplay.splitAxis : ''}
       data-stacking-surface-kind={stackingRelation?.surfaceKind ?? ''}
       style={getExportMaterialColorStyle(materialColor)}
       aria-label={label}
     >
       {stackingRelation ? (
-        <ExportStackingSplit stackingRelation={stackingRelation} />
+        <ExportStackingSplit
+          stackingRelation={stackingRelation}
+          baseFootprint={stackingBaseFootprint}
+          topFootprint={stackingTopFootprint}
+          baseUsesOverlay={stackingBaseUsesOverlay}
+          topUsesOverlay={stackingTopUsesOverlay}
+          baseMaterialColor={materialColorByAssetId.get(stackingRelation.baseAssetId) ?? defaultMaterialColor}
+          topMaterialColor={materialColorByAssetId.get(stackingRelation.topAssetId) ?? defaultMaterialColor}
+        />
       ) : shouldRenderInlineInstance && firstInstance?.thumbnailUrl ? (
         <img src={firstInstance.thumbnailUrl} alt="" title={firstInstance.assetName} />
       ) : shouldRenderInlineInstance && firstInstance ? (
@@ -354,15 +416,51 @@ function ExportCell({
   );
 }
 
-function ExportStackingSplit({ stackingRelation }: { stackingRelation: ExportStackingRelationSummary }) {
+function ExportStackingSplit({
+  stackingRelation,
+  baseFootprint = getExportStackingFootprint(stackingRelation.baseAssetId),
+  topFootprint = getExportStackingFootprint(stackingRelation.topAssetId),
+  baseUsesOverlay = false,
+  topUsesOverlay = false,
+  baseMaterialColor = defaultMaterialColor,
+  topMaterialColor = defaultMaterialColor,
+}: {
+  stackingRelation: ExportStackingRelationSummary;
+  baseFootprint?: StackingFootprint | null;
+  topFootprint?: StackingFootprint | null;
+  baseUsesOverlay?: boolean;
+  topUsesOverlay?: boolean;
+  baseMaterialColor?: string;
+  topMaterialColor?: string;
+}) {
+  const display = getStackingSplitDisplay({ topFootprint, baseFootprint });
+  const hideBaseImage = !display.showBaseImage || baseUsesOverlay;
+  const baseFootprintLabel = formatStackingFootprint(baseFootprint);
+  const topFootprintLabel = formatStackingFootprint(topFootprint);
+
   return (
-    <span className="export-stacking-split" aria-hidden="true">
+    <span
+      className={[
+        'export-stacking-split',
+        `export-stacking-split--${display.splitAxis}`,
+        hideBaseImage ? 'export-stacking-split--base-hidden' : 'export-stacking-split--base-visible',
+      ].filter(Boolean).join(' ')}
+      data-stacking-base-footprint={baseFootprintLabel}
+      data-stacking-top-footprint={topFootprintLabel}
+      data-stacking-base-visibility={display.baseVisibility}
+      data-stacking-base-render={baseUsesOverlay ? 'overlay' : 'cell'}
+      data-stacking-top-render={topUsesOverlay ? 'overlay' : 'cell'}
+      data-stacking-split-axis={display.splitAxis}
+      aria-hidden="true"
+    >
       <ExportStackingSlot
         role="top"
         instanceId={stackingRelation.topInstanceId}
         assetId={stackingRelation.topAssetId}
         assetName={stackingRelation.topAssetName}
         thumbnailUrl={stackingRelation.topThumbnailUrl}
+        hideImage={topUsesOverlay}
+        materialColor={topMaterialColor}
       />
       <ExportStackingSlot
         role="base"
@@ -370,6 +468,8 @@ function ExportStackingSplit({ stackingRelation }: { stackingRelation: ExportSta
         assetId={stackingRelation.baseAssetId}
         assetName={stackingRelation.baseAssetName}
         thumbnailUrl={stackingRelation.baseThumbnailUrl}
+        hideImage={hideBaseImage}
+        materialColor={baseMaterialColor}
       />
     </span>
   );
@@ -381,12 +481,16 @@ function ExportStackingSlot({
   assetId,
   assetName,
   thumbnailUrl,
+  hideImage = false,
+  materialColor,
 }: {
   role: 'top' | 'base';
   instanceId: string;
   assetId: string;
   assetName: string;
   thumbnailUrl: string | null;
+  hideImage?: boolean;
+  materialColor: string;
 }) {
   return (
     <span
@@ -394,8 +498,12 @@ function ExportStackingSlot({
       data-stacking-role={role}
       data-instance-id={instanceId}
       data-asset-id={assetId}
+      data-top-image-visible={role === 'top' ? (hideImage ? 'false' : 'true') : undefined}
+      data-base-image-visible={role === 'base' ? (hideImage ? 'false' : 'true') : undefined}
+      data-material-color={materialColor}
+      style={getExportMaterialColorStyle(materialColor)}
     >
-      {thumbnailUrl ? <img src={thumbnailUrl} alt="" title={assetName} /> : <span>{assetName.slice(0, 1)}</span>}
+      {hideImage ? null : thumbnailUrl ? <img src={thumbnailUrl} alt="" title={assetName} /> : <span>{assetName.slice(0, 1)}</span>}
     </span>
   );
 }
@@ -405,26 +513,51 @@ interface ExportFootprintOverlay {
   anchorColumn: number;
   anchorRow: number;
   materialColor: string;
+  stackingRole: 'top' | null;
+  stackingRelation: ExportStackingRelationSummary | null;
 }
 
 function getLayerFootprintOverlays(
   layer: ImageExportLayerSummary,
   materialColorByAssetId: ReadonlyMap<string, string>,
 ): ExportFootprintOverlay[] {
+  const stackingRelationByTopInstanceId = new Map(
+    layer.stackingRelations.map((relation) => [relation.topInstanceId, relation]),
+  );
+
   return layer.materials.flatMap((material) =>
     material.instances
       .filter((instance) => isMultiCellExportInstance(instance))
-      .map((instance) => ({
-        instance,
-        anchorColumn: instance.coordinate.x + 1,
-        anchorRow: instance.coordinate.y + 1,
-        materialColor: materialColorByAssetId.get(instance.assetId) ?? defaultMaterialColor,
-      })),
+      .map((instance) => {
+        const stackingRelation = stackingRelationByTopInstanceId.get(instance.instanceId) ?? null;
+
+        return {
+          instance,
+          anchorColumn: instance.coordinate.x + 1,
+          anchorRow: instance.coordinate.y + 1,
+          materialColor: materialColorByAssetId.get(instance.assetId) ?? defaultMaterialColor,
+          stackingRole: stackingRelation ? 'top' as const : null,
+          stackingRelation,
+        };
+      }),
   );
 }
 
 function isMultiCellExportInstance(instance: ExportTileInstanceSummary): boolean {
   return Boolean(instance.effectiveFootprint && (instance.effectiveFootprint.length > 1 || instance.effectiveFootprint.width > 1));
+}
+
+function getLayerInstanceMap(layer: ImageExportLayerSummary): Map<string, ExportTileInstanceSummary> {
+  return new Map(layer.materials.flatMap((material) =>
+    material.instances.map((instance) => [instance.instanceId, instance] as const),
+  ));
+}
+
+function getExportStackingFootprint(
+  assetId: string,
+  instance?: ExportTileInstanceSummary | null,
+): StackingFootprint | null {
+  return instance?.effectiveFootprint ?? getAssetById(assetId)?.footprint ?? null;
 }
 
 function getExportFootprintOverlayStyle(overlay: ExportFootprintOverlay): CSSProperties {

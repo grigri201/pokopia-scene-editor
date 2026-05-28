@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createBuildingLevel,
   createDefaultSceneDocument,
+  createStackingPartialSurfaceScene,
   createStackingPlateFoodScene,
+  stackingContractFixtureIds,
   createSkillMarker,
   createTileInstance,
   getCanvasCellContexts,
@@ -492,9 +494,218 @@ describe('SceneCanvas', () => {
     expect(cell).toHaveAttribute('data-stacking-top-instance-id', 'stacking-top-food');
     expect(cell).toHaveAttribute('data-stacking-base-asset-id', 'plate');
     expect(cell).toHaveAttribute('data-stacking-top-asset-id', 'leppa-berry');
+    expect(cell).toHaveAttribute('data-stacking-base-footprint', '1x1x1');
+    expect(cell).toHaveAttribute('data-stacking-top-footprint', '1x1x1');
+    expect(cell).toHaveAttribute('data-stacking-base-visibility', 'visible');
+    expect(cell).toHaveAttribute('data-stacking-split-axis', 'block');
     expect(cell).toHaveAttribute('data-stacking-surface-kind', 'food-surface');
+    expect(split).toHaveClass('cell-stacking-split--base-visible');
     expect(split?.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-asset-id', 'leppa-berry');
     expect(split?.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-asset-id', 'plate');
+    expect(split?.querySelector('[data-stacking-role="base"] img')).toHaveAttribute('src', expect.stringContaining('plate'));
+  });
+
+  it('hides the base half image when stacking on a multi-cell rug', () => {
+    const rugStackingScene = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-large-square-rug',
+          assetId: 'large-square-rug',
+          coordinate: { x: 1, y: 3 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-tomato',
+          assetId: 'tomato',
+          coordinate: { x: 1, y: 3 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={rugStackingScene}
+        cells={getCanvasCellContexts(rugStackingScene)}
+        readOnly={false}
+      />,
+    );
+
+    const cell = getRenderedCell('1,3');
+    const split = cell.querySelector('.cell-stacking-split');
+    const topSlot = split?.querySelector('[data-stacking-role="top"]');
+    const baseSlot = split?.querySelector('[data-stacking-role="base"]');
+
+    expect(cell).toHaveAccessibleName(expect.stringContaining('stacked 番茄 on 大方地毯'));
+    expect(cell).toHaveAttribute('data-stacking-state', 'placed');
+    expect(cell).toHaveAttribute('data-stacking-base-asset-id', 'large-square-rug');
+    expect(cell).toHaveAttribute('data-stacking-top-asset-id', 'tomato');
+    expect(cell).toHaveAttribute('data-stacking-base-footprint', '2x2x1');
+    expect(cell).toHaveAttribute('data-stacking-top-footprint', '1x1x1');
+    expect(cell).toHaveAttribute('data-stacking-base-visibility', 'hidden');
+    expect(cell).toHaveAttribute('data-stacking-split-axis', 'block');
+    expect(split).toHaveClass('cell-stacking-split--base-hidden');
+    expect(topSlot).toHaveAttribute('data-asset-id', 'tomato');
+    expect(topSlot?.querySelector('img')).toHaveAttribute('src', expect.stringContaining('tomato'));
+    expect(baseSlot).toHaveAttribute('data-asset-id', 'large-square-rug');
+    expect(baseSlot).toHaveAttribute('data-base-image-visible', 'false');
+    expect(baseSlot?.querySelector('img')).toBeNull();
+  });
+
+  it('keeps a visible multi-cell base on its footprint overlay instead of duplicating it in the split cell', () => {
+    const rugOnRugScene = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-large-narrow-rug',
+          assetId: 'large-narrow-rug',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-oblong-rug',
+          assetId: 'oblong-rug',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={rugOnRugScene}
+        cells={getCanvasCellContexts(rugOnRugScene)}
+        readOnly={false}
+      />,
+    );
+
+    const cell = getRenderedCell('2,2');
+    const split = cell.querySelector('.cell-stacking-split');
+    const topSlot = split?.querySelector('[data-stacking-role="top"]');
+    const baseSlot = split?.querySelector('[data-stacking-role="base"]');
+    const baseOverlay = screen.getByTestId('scene-footprint-overlay-tile-large-narrow-rug');
+    const topOverlay = screen.getByTestId('scene-footprint-overlay-tile-oblong-rug');
+
+    expect(cell).toHaveAttribute('data-stacking-base-footprint', '1x2x1');
+    expect(cell).toHaveAttribute('data-stacking-top-footprint', '1x2x1');
+    expect(cell).toHaveAttribute('data-stacking-base-visibility', 'visible');
+    expect(cell).toHaveAttribute('data-stacking-base-render', 'overlay');
+    expect(cell).toHaveAttribute('data-stacking-top-render', 'overlay');
+    expect(cell).toHaveAttribute('data-stacking-split-axis', 'inline');
+    expect(split).toHaveClass('cell-stacking-split--inline');
+    expect(split).toHaveClass('cell-stacking-split--base-hidden');
+    expect(split).toHaveAttribute('data-stacking-base-visibility', 'visible');
+    expect(split).toHaveAttribute('data-stacking-base-render', 'overlay');
+    expect(topSlot).toHaveAttribute('data-top-image-visible', 'false');
+    expect(topSlot?.querySelector('img')).toBeNull();
+    expect(baseSlot).toHaveAttribute('data-asset-id', 'large-narrow-rug');
+    expect(baseSlot).toHaveAttribute('data-base-image-visible', 'false');
+    expect(baseSlot?.querySelector('img')).toBeNull();
+    expect(baseOverlay.querySelector('img')).toHaveAttribute('src', expect.stringContaining('large-narrow-rug'));
+    expect(topOverlay.querySelector('img')).toHaveAttribute('src', expect.stringContaining('oblong-rug'));
+  });
+
+  it('renders partial stacking only on the overlapped cell for multi-cell top items', () => {
+    const partialStackingScene = createStackingPartialSurfaceScene();
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={partialStackingScene}
+        cells={getCanvasCellContexts(partialStackingScene)}
+        readOnly={false}
+      />,
+    );
+
+    const stackedCell = getRenderedCell('1,1');
+    const emptyFootprintCell = getRenderedCell('2,1');
+    const stackedSplit = stackedCell.querySelector('.cell-stacking-split');
+    const topSlot = stackedSplit?.querySelector('[data-stacking-role="top"]');
+    const topOverlay = screen.getByTestId(`scene-footprint-overlay-${stackingContractFixtureIds.partialTop}`);
+
+    expect(stackedCell).toHaveAttribute('data-stacking-state', 'placed');
+    expect(stackedCell).toHaveAttribute('data-stacking-base-instance-id', stackingContractFixtureIds.partialSurface);
+    expect(stackedCell).toHaveAttribute('data-stacking-top-instance-id', stackingContractFixtureIds.partialTop);
+    expect(stackedCell).toHaveAttribute('data-stacking-base-footprint', '1x1x1');
+    expect(stackedCell).toHaveAttribute('data-stacking-top-footprint', '2x1x1');
+    expect(stackedCell).toHaveAttribute('data-stacking-base-visibility', 'visible');
+    expect(stackedCell).toHaveAttribute('data-stacking-base-render', 'cell');
+    expect(stackedCell).toHaveAttribute('data-stacking-top-render', 'overlay');
+    expect(stackedSplit).toHaveClass('cell-stacking-split--base-visible');
+    expect(topSlot).toHaveAttribute('data-asset-id', 'wooden-bench');
+    expect(topSlot).toHaveAttribute('data-top-image-visible', 'false');
+    expect(topSlot?.querySelector('img')).toBeNull();
+    expect(stackedSplit?.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-asset-id', 'small-narrow-rug');
+    expect(stackedSplit?.querySelector('[data-stacking-role="base"] img')).toHaveAttribute('src', expect.stringContaining('small-narrow-rug'));
+    expect(topOverlay).toHaveAttribute('data-stacking-role', 'top');
+    expect(topOverlay).toHaveAttribute('data-stacking-top-instance-id', stackingContractFixtureIds.partialTop);
+    expect(topOverlay).toHaveAttribute('data-effective-footprint', '2x1x1');
+    expect(topOverlay).toHaveAttribute('data-stacking-top-crop-axis', 'block');
+    expect(topOverlay.querySelectorAll('img')).toHaveLength(1);
+    expect(emptyFootprintCell).toHaveAttribute('data-stacking-state', 'none');
+    expect(emptyFootprintCell).toHaveAttribute('data-footprint-instance-id', stackingContractFixtureIds.partialTop);
+    expect(emptyFootprintCell.querySelector('.cell-stacking-split')).toBeNull();
+  });
+
+  it('renders a 1x2 top stacked item once as a left-half footprint overlay', () => {
+    const partialRugStackingScene = {
+      ...scene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-large-round-rug',
+          assetId: 'large-round-rug',
+          coordinate: { x: 2, y: 4 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-big-storage-box',
+          assetId: 'big-storage-box',
+          coordinate: { x: 2, y: 5 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={partialRugStackingScene}
+        cells={getCanvasCellContexts(partialRugStackingScene)}
+        readOnly={false}
+      />,
+    );
+
+    const stackedCell = getRenderedCell('2,5');
+    const nonOverlappedTopCell = getRenderedCell('2,6');
+    const stackedSplit = stackedCell.querySelector('.cell-stacking-split');
+    const topSlot = stackedSplit?.querySelector('[data-stacking-role="top"]');
+    const baseSlot = stackedSplit?.querySelector('[data-stacking-role="base"]');
+    const topOverlay = screen.getByTestId('scene-footprint-overlay-tile-big-storage-box');
+
+    expect(stackedCell).toHaveAccessibleName(expect.stringContaining('stacked 大型收纳箱 on 大圆地毯'));
+    expect(stackedCell).toHaveAttribute('data-stacking-state', 'placed');
+    expect(stackedCell).toHaveAttribute('data-stacking-base-asset-id', 'large-round-rug');
+    expect(stackedCell).toHaveAttribute('data-stacking-top-asset-id', 'big-storage-box');
+    expect(stackedCell).toHaveAttribute('data-stacking-base-footprint', '2x2x1');
+    expect(stackedCell).toHaveAttribute('data-stacking-top-footprint', '1x2x1');
+    expect(stackedCell).toHaveAttribute('data-stacking-base-visibility', 'hidden');
+    expect(stackedCell).toHaveAttribute('data-stacking-top-render', 'overlay');
+    expect(topSlot).toHaveAttribute('data-asset-id', 'big-storage-box');
+    expect(topSlot).toHaveAttribute('data-top-image-visible', 'false');
+    expect(topSlot?.querySelector('img')).toBeNull();
+    expect(baseSlot).toHaveAttribute('data-asset-id', 'large-round-rug');
+    expect(baseSlot).toHaveAttribute('data-base-image-visible', 'false');
+    expect(topOverlay).toHaveClass('scene-footprint-overlay--stacking-top');
+    expect(topOverlay).toHaveAttribute('data-effective-footprint', '1x2x1');
+    expect(topOverlay).toHaveAttribute('data-stacking-role', 'top');
+    expect(topOverlay).toHaveAttribute('data-stacking-top-crop-axis', 'inline');
+    expect(topOverlay.querySelectorAll('img')).toHaveLength(1);
+    expect(document.querySelectorAll('img[src*="big-storage-box"]')).toHaveLength(1);
+    expect(nonOverlappedTopCell).toHaveAttribute('data-stacking-state', 'none');
+    expect(nonOverlappedTopCell.querySelector('.cell-stacking-split')).toBeNull();
   });
 
   it('renders legal stacking placement preview with top and base halves', () => {

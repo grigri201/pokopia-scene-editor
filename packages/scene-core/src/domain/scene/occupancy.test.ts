@@ -221,6 +221,16 @@ describe('scene occupancy rules', () => {
         coordinates: [{ x: 2, y: 2 }],
       }),
     ]);
+    const partialSurface = buildSceneOccupancy(createStackingPartialSurfaceScene());
+    expect(partialSurface.conflicts).toEqual([]);
+    expect(partialSurface.stackingRelations).toEqual([
+      expect.objectContaining({
+        topInstanceId: stackingContractFixtureIds.partialTop,
+        baseInstanceId: stackingContractFixtureIds.partialSurface,
+        surfaceKind: 'floor-cover',
+        coordinates: [{ x: 1, y: 1 }],
+      }),
+    ]);
   });
 
   it('reports unsupported and capacity stacking conflicts with structured details', () => {
@@ -235,16 +245,6 @@ describe('scene occupancy rules', () => {
           blockingBuildingLevelId: stackingContractFixtureIds.level0,
           surfaceKind: 'food-surface',
           coordinates: [{ x: 2, y: 2 }],
-        }),
-      ]),
-    );
-    expect(buildSceneOccupancy(createStackingPartialSurfaceScene()).conflicts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          conflictType: 'surface-capacity-conflict',
-          instanceId: stackingContractFixtureIds.partialTop,
-          blockingInstanceId: stackingContractFixtureIds.partialSurface,
-          surfaceKind: 'floor-cover',
         }),
       ]),
     );
@@ -390,6 +390,36 @@ describe('scene occupancy rules', () => {
         expect.objectContaining({
           conflictType: 'unsupported-stack-surface',
           blockingInstanceId: stackingContractFixtureIds.plate,
+        }),
+      ],
+    });
+    const floorCoverScene = {
+      ...createDefaultSceneDocument({ sceneId: 'scene-placement-partial-stacking', now }),
+      tileInstances: [
+        createTileInstance({
+          instanceId: stackingContractFixtureIds.partialSurface,
+          assetId: 'small-narrow-rug',
+          coordinate: { x: 1, y: 1 },
+          buildingLevelId: stackingContractFixtureIds.level0,
+        }),
+      ],
+    };
+    const woodenBench = getAssetById('wooden-bench')!;
+
+    expect(evaluateScenePlacementFootprint(floorCoverScene, {
+      asset: woodenBench,
+      coordinate: { x: 1, y: 1 },
+      buildingLevelId: stackingContractFixtureIds.level0,
+      rotationDegrees: 90,
+    })).toMatchObject({
+      status: 'ready',
+      canPlace: true,
+      stackingRelations: [
+        expect.objectContaining({
+          topInstanceId: 'placement-preview',
+          baseInstanceId: stackingContractFixtureIds.partialSurface,
+          surfaceKind: 'floor-cover',
+          coordinates: [{ x: 1, y: 1 }],
         }),
       ],
     });

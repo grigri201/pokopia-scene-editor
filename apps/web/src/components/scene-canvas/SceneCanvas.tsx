@@ -17,6 +17,7 @@ import type {
 import { moveCoordinate } from '../../state';
 import type { AssetPlacementPreview } from '../../state';
 import { defaultLocale, getAssetDisplay, getSkillDisplay, t, type Locale } from '../../i18n';
+import { formatStackingFootprint, getStackingShortSideSplitAxis, getStackingSplitDisplay } from '../stacking-display';
 
 interface SceneCanvasProps {
   locale?: Locale;
@@ -118,6 +119,17 @@ export function SceneCanvas({
             const stackingTopAsset = getAssetById(stackingState?.topAssetId);
             const stackingLabel = getStackingLabel(stackingState, locale);
             const shouldRenderStackingSplit = Boolean(stackingState && stackingBaseAsset && stackingTopAsset);
+            const stackingBaseFootprint = stackingState?.baseFootprint ?? stackingBaseAsset?.footprint ?? null;
+            const stackingTopFootprint = stackingState?.topFootprint ?? stackingTopAsset?.footprint ?? null;
+            const stackingDisplay = getStackingSplitDisplay({
+              topFootprint: stackingTopFootprint,
+              baseFootprint: stackingBaseFootprint,
+            });
+            const stackingTopUsesOverlay = Boolean(stackingState && footprintView.overlayInstanceIds.has(stackingState.topInstanceId));
+            const stackingBaseUsesOverlay = Boolean(stackingState && footprintView.overlayInstanceIds.has(stackingState.baseInstanceId));
+            const hideStackingBaseImage = !stackingDisplay.showBaseImage || stackingBaseUsesOverlay;
+            const stackingBaseFootprintLabel = formatStackingFootprint(stackingBaseFootprint);
+            const stackingTopFootprintLabel = formatStackingFootprint(stackingTopFootprint);
             const shouldRenderInlineAsset = Boolean(topAsset && topInstance && !footprintView.overlayInstanceIds.has(topInstance.instanceId) && !shouldRenderStackingSplit);
             const visibleInstanceCount = stackingState?.kind === 'placed'
               ? 2
@@ -223,6 +235,12 @@ export function SceneCanvas({
                 data-stacking-top-instance-id={stackingState?.topInstanceId ?? ''}
                 data-stacking-base-asset-id={stackingState?.baseAssetId ?? ''}
                 data-stacking-top-asset-id={stackingState?.topAssetId ?? ''}
+                data-stacking-base-footprint={stackingBaseFootprintLabel}
+                data-stacking-top-footprint={stackingTopFootprintLabel}
+                data-stacking-base-visibility={stackingState ? stackingDisplay.baseVisibility : ''}
+                data-stacking-base-render={stackingBaseUsesOverlay ? 'overlay' : stackingState ? 'cell' : ''}
+                data-stacking-top-render={stackingTopUsesOverlay ? 'overlay' : stackingState ? 'cell' : ''}
+                data-stacking-split-axis={stackingState ? stackingDisplay.splitAxis : ''}
                 data-stacking-surface-kind={stackingState?.surfaceKind ?? ''}
                 data-other-layer-instance-count={otherLayerInstanceCount}
                 data-requires-skill={hasSkillMarker}
@@ -242,7 +260,15 @@ export function SceneCanvas({
                     className={[
                       'cell-stacking-split',
                       `cell-stacking-split--${stackingState.kind}`,
-                    ].join(' ')}
+                      `cell-stacking-split--${stackingDisplay.splitAxis}`,
+                      hideStackingBaseImage ? 'cell-stacking-split--base-hidden' : 'cell-stacking-split--base-visible',
+                    ].filter(Boolean).join(' ')}
+                    data-stacking-base-footprint={stackingBaseFootprintLabel}
+                    data-stacking-top-footprint={stackingTopFootprintLabel}
+                    data-stacking-base-visibility={stackingDisplay.baseVisibility}
+                    data-stacking-base-render={stackingBaseUsesOverlay ? 'overlay' : 'cell'}
+                    data-stacking-top-render={stackingTopUsesOverlay ? 'overlay' : 'cell'}
+                    data-stacking-split-axis={stackingDisplay.splitAxis}
                     aria-hidden="true"
                   >
                     <span
@@ -250,16 +276,18 @@ export function SceneCanvas({
                       data-stacking-role="top"
                       data-instance-id={stackingState.topInstanceId}
                       data-asset-id={stackingState.topAssetId}
+                      data-top-image-visible={stackingTopUsesOverlay ? 'false' : 'true'}
                     >
-                      <img src={stackingTopAsset.thumbnailUrl} alt="" />
+                      {stackingTopUsesOverlay ? null : <img src={stackingTopAsset.thumbnailUrl} alt="" />}
                     </span>
                     <span
                       className="cell-stacking-split__slot cell-stacking-split__slot--base"
                       data-stacking-role="base"
                       data-instance-id={stackingState.baseInstanceId}
                       data-asset-id={stackingState.baseAssetId}
+                      data-base-image-visible={hideStackingBaseImage ? 'false' : 'true'}
                     >
-                      <img src={stackingBaseAsset.thumbnailUrl} alt="" />
+                      {hideStackingBaseImage ? null : <img src={stackingBaseAsset.thumbnailUrl} alt="" />}
                     </span>
                   </span>
                 ) : null}
@@ -339,6 +367,7 @@ export function SceneCanvas({
                 'scene-footprint-overlay',
                 `scene-footprint-overlay--${overlay.kind}`,
                 overlay.conflictTypes.length > 0 ? 'scene-footprint-overlay--conflict' : '',
+                overlay.stackingRole === 'top' ? 'scene-footprint-overlay--stacking-top' : '',
               ].filter(Boolean).join(' ')}
               data-testid={overlay.kind === 'placement' ? 'placement-footprint-overlay' : `scene-footprint-overlay-${overlay.id}`}
               data-instance-id={overlay.instanceId ?? ''}
@@ -347,6 +376,11 @@ export function SceneCanvas({
               data-effective-footprint={formatFootprint(overlay.effectiveFootprint)}
               data-placement-status={overlay.placementStatus ?? ''}
               data-conflicts={overlay.conflictTypes.join(',')}
+              data-stacking-role={overlay.stackingRole ?? ''}
+              data-stacking-relation-id={overlay.stackingState ? `${overlay.stackingState.baseInstanceId}:${overlay.stackingState.topInstanceId}` : ''}
+              data-stacking-base-instance-id={overlay.stackingState?.baseInstanceId ?? ''}
+              data-stacking-top-instance-id={overlay.stackingState?.topInstanceId ?? ''}
+              data-stacking-top-crop-axis={overlay.stackingRole === 'top' ? getStackingShortSideSplitAxis(overlay.effectiveFootprint) : ''}
               style={getOverlayGridStyle(overlay)}
               key={overlay.id}
             >
@@ -388,6 +422,8 @@ interface FootprintOverlay {
   asset: AssetDefinition;
   anchor: GridCoordinate;
   effectiveFootprint: AssetDefinition['footprint'];
+  stackingRole: 'top' | null;
+  stackingState: StackingCellState | null;
   gridColumnStart: number;
   gridRowStart: number;
   gridColumnSpan: number;
@@ -401,8 +437,10 @@ interface StackingCellState {
   kind: 'placed' | 'placement' | 'conflict';
   baseInstanceId: string;
   baseAssetId: string;
+  baseFootprint: AssetDefinition['footprint'] | null;
   topInstanceId: string;
   topAssetId: string;
+  topFootprint: AssetDefinition['footprint'] | null;
   surfaceKind?: StackingRelation['surfaceKind'];
   conflictTypes: string[];
 }
@@ -440,6 +478,12 @@ function buildFootprintCanvasView(input: BuildFootprintCanvasViewInput): {
   }
 
   const occupancy = buildSceneOccupancy(input.scene);
+  const occupancyInstanceById = new Map(occupancy.instances.map((instance) => [instance.instanceId, instance]));
+  const stackingStateByTopInstanceId = new Map(
+    occupancy.stackingRelations
+      .filter((candidate) => candidate.buildingLevelId === activeLevel.id)
+      .map((relation) => [relation.topInstanceId, toPlacedStackingCellState(relation, occupancyInstanceById)]),
+  );
   const activeInstances = occupancy.instances.filter((instance) => instance.buildingLevelId === activeLevel.id);
 
   for (const occupancyInstance of activeInstances) {
@@ -453,6 +497,7 @@ function buildFootprintCanvasView(input: BuildFootprintCanvasViewInput): {
           effectiveFootprint: occupancyInstance.effectiveFootprint,
           canvasSize: input.canvasSize,
           instanceId: occupancyInstance.instanceId,
+          stackingState: stackingStateByTopInstanceId.get(occupancyInstance.instanceId) ?? null,
         })
       : null;
 
@@ -480,15 +525,7 @@ function buildFootprintCanvasView(input: BuildFootprintCanvasViewInput): {
   }
 
   for (const relation of occupancy.stackingRelations.filter((candidate) => candidate.buildingLevelId === activeLevel.id)) {
-    applyStackingState(cellsByCoordinate, relation.coordinates, {
-      kind: 'placed',
-      baseInstanceId: relation.baseInstanceId,
-      baseAssetId: relation.baseAssetId,
-      topInstanceId: relation.topInstanceId,
-      topAssetId: relation.topAssetId,
-      surfaceKind: relation.surfaceKind,
-      conflictTypes: [],
-    });
+    applyStackingState(cellsByCoordinate, relation.coordinates, toPlacedStackingCellState(relation, occupancyInstanceById));
   }
 
   for (const blockingCell of occupancy.blockingCells) {
@@ -529,24 +566,34 @@ function buildFootprintCanvasView(input: BuildFootprintCanvasViewInput): {
     }
 
     if (placementStackingRelation) {
+      const baseInstance = occupancyInstanceById.get(placementStackingRelation.baseInstanceId);
+
       applyStackingState(cellsByCoordinate, placementStackingRelation.coordinates, {
         kind: 'placement',
         baseInstanceId: placementStackingRelation.baseInstanceId,
         baseAssetId: placementStackingRelation.baseAssetId,
+        baseFootprint: baseInstance?.effectiveFootprint ?? null,
         topInstanceId: placementStackingRelation.topInstanceId,
         topAssetId: placementStackingRelation.topAssetId,
+        topFootprint: input.targetPlacement.effectiveFootprint,
         surfaceKind: placementStackingRelation.surfaceKind,
         conflictTypes: [],
       });
     }
 
     if (placementStackingConflict && input.targetPlacement.asset) {
+      const baseInstance = placementStackingConflict.blockingInstanceId
+        ? occupancyInstanceById.get(placementStackingConflict.blockingInstanceId)
+        : null;
+
       applyStackingState(cellsByCoordinate, placementStackingConflict.coordinates, {
         kind: 'conflict',
         baseInstanceId: placementStackingConflict.blockingInstanceId ?? '',
         baseAssetId: placementStackingConflict.blockingAssetId ?? '',
+        baseFootprint: baseInstance?.effectiveFootprint ?? null,
         topInstanceId: placementStackingConflict.instanceId,
         topAssetId: input.targetPlacement.asset.assetId,
+        topFootprint: input.targetPlacement.effectiveFootprint,
         surfaceKind: placementStackingConflict.surfaceKind,
         conflictTypes: placementConflictTypes,
       });
@@ -605,6 +652,26 @@ function applyStackingState(
   }
 }
 
+function toPlacedStackingCellState(
+  relation: StackingRelation,
+  occupancyInstanceById: ReadonlyMap<string, { effectiveFootprint: AssetDefinition['footprint'] }>,
+): StackingCellState {
+  const baseInstance = occupancyInstanceById.get(relation.baseInstanceId);
+  const topInstance = occupancyInstanceById.get(relation.topInstanceId);
+
+  return {
+    kind: 'placed',
+    baseInstanceId: relation.baseInstanceId,
+    baseAssetId: relation.baseAssetId,
+    baseFootprint: baseInstance?.effectiveFootprint ?? null,
+    topInstanceId: relation.topInstanceId,
+    topAssetId: relation.topAssetId,
+    topFootprint: topInstance?.effectiveFootprint ?? null,
+    surfaceKind: relation.surfaceKind,
+    conflictTypes: [],
+  };
+}
+
 function isMultiCellFootprint(footprint: AssetDefinition['footprint']): boolean {
   return footprint.length > 1 || footprint.width > 1;
 }
@@ -617,6 +684,7 @@ function createFootprintOverlay(input: {
   effectiveFootprint: AssetDefinition['footprint'];
   canvasSize: GridSize;
   instanceId?: string;
+  stackingState?: StackingCellState | null;
   placementStatus?: string;
   conflictTypes?: string[];
 }): FootprintOverlay | null {
@@ -635,6 +703,8 @@ function createFootprintOverlay(input: {
     asset: input.asset,
     anchor: { x: input.anchor.x, y: input.anchor.y },
     effectiveFootprint: input.effectiveFootprint,
+    stackingRole: input.stackingState ? 'top' : null,
+    stackingState: input.stackingState ?? null,
     gridColumnStart: visibleStartX + 1,
     gridRowStart: visibleStartY + 1,
     gridColumnSpan: visibleEndX - visibleStartX,

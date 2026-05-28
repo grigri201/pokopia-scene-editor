@@ -266,6 +266,7 @@ describe('PreviewInspector', () => {
     expect(topCell).toHaveAttribute('data-preview-stacking-surface-kind', 'food-surface');
     expect(topCell?.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-asset-id', 'leppa-berry');
     expect(topCell?.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-asset-id', 'plate');
+    expect(topCell?.querySelector('[data-stacking-role="base"] img')).toHaveAttribute('src', expect.stringContaining('plate'));
     expect(topCell?.querySelectorAll('.preview-stacking-split__slot')).toHaveLength(2);
 
     expect(frontCell).toHaveAttribute('data-preview-stacking-state', 'placed');
@@ -273,8 +274,61 @@ describe('PreviewInspector', () => {
     expect(frontCell).toHaveAttribute('data-preview-stacking-top-instance-id', stackingContractFixtureIds.food);
     expect(frontCell?.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-asset-id', 'leppa-berry');
     expect(frontCell?.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-asset-id', 'plate');
+    expect(frontCell?.querySelector('[data-stacking-role="base"] img')).toHaveAttribute('src', expect.stringContaining('plate'));
     expect(screen.getByLabelText('Top preview item summary')).toHaveTextContent('1 current-layer preview items');
     expect(screen.getByLabelText('Front preview item summary')).toHaveTextContent('2 visible items projected across 1 layers');
+  });
+
+  it('hides the base image when top and front previews show stacking on a multi-cell rug', () => {
+    const rugStackingScene = {
+      ...createDefaultSceneDocument({
+        sceneId: 'scene-preview-rug-stacking',
+        now: '2026-05-16T10:00:00.000Z',
+      }),
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'preview-large-square-rug',
+          assetId: 'large-square-rug',
+          coordinate: { x: 1, y: 3 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'preview-tomato',
+          assetId: 'tomato',
+          coordinate: { x: 1, y: 3 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const { container } = render(
+      <PreviewInspector
+        scene={rugStackingScene}
+        activeBuildingLevelId="level-0"
+        selectedCoordinate={{ x: 1, y: 3 }}
+        selectedInstanceId="preview-tomato"
+        readOnly={false}
+      />,
+    );
+
+    const topCell = container.querySelector('.top-cell[data-preview-coordinate="1,3"]');
+    const frontCell = container.querySelector('.front-cell[data-front-level-id="level-0"][data-front-x="1"]');
+
+    for (const cell of [topCell, frontCell]) {
+      const split = cell?.querySelector('.preview-stacking-split');
+      const topSlot = split?.querySelector('[data-stacking-role="top"]');
+      const baseSlot = split?.querySelector('[data-stacking-role="base"]');
+
+      expect(split).toHaveClass('preview-stacking-split--base-hidden');
+      expect(split).toHaveAttribute('data-stacking-base-footprint', '2x2x1');
+      expect(split).toHaveAttribute('data-stacking-top-footprint', '1x1x1');
+      expect(split).toHaveAttribute('data-stacking-base-visibility', 'hidden');
+      expect(split).toHaveAttribute('data-stacking-split-axis', 'block');
+      expect(topSlot).toHaveAttribute('data-asset-id', 'tomato');
+      expect(topSlot?.querySelector('img')).toHaveAttribute('src', expect.stringContaining('tomato'));
+      expect(baseSlot).toHaveAttribute('data-asset-id', 'large-square-rug');
+      expect(baseSlot).toHaveAttribute('data-base-image-visible', 'false');
+      expect(baseSlot?.querySelector('img')).toBeNull();
+    }
   });
 
   it('does not show a front-view stacking split when another instance is the projected item for that column', () => {

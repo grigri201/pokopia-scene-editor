@@ -15,6 +15,7 @@ import {
   type StackingRelation,
 } from '@pokopia-scene-editor/scene-core';
 import { defaultLocale, getAssetDisplay, getSkillDisplay, t, type Locale } from '../../i18n';
+import { formatStackingFootprint, getStackingSplitDisplay } from '../stacking-display';
 
 interface PreviewInspectorProps {
   locale?: Locale;
@@ -430,10 +431,35 @@ function PreviewStackingSplit({
   locale: Locale;
   stackingState: PreviewStackingCellState;
 }) {
+  const display = getStackingSplitDisplay({
+    topFootprint: stackingState.topFootprint,
+    baseFootprint: stackingState.baseFootprint,
+  });
+  const hideBaseImage = !display.showBaseImage;
+  const baseFootprintLabel = formatStackingFootprint(stackingState.baseFootprint);
+  const topFootprintLabel = formatStackingFootprint(stackingState.topFootprint);
+
   return (
-    <span className="preview-stacking-split" aria-hidden="true">
+    <span
+      className={[
+        'preview-stacking-split',
+        `preview-stacking-split--${display.splitAxis}`,
+        hideBaseImage ? 'preview-stacking-split--base-hidden' : 'preview-stacking-split--base-visible',
+      ].filter(Boolean).join(' ')}
+      data-stacking-base-footprint={baseFootprintLabel}
+      data-stacking-top-footprint={topFootprintLabel}
+      data-stacking-base-visibility={display.baseVisibility}
+      data-stacking-split-axis={display.splitAxis}
+      aria-hidden="true"
+    >
       <PreviewStackingSlot locale={locale} role="top" instanceId={stackingState.topInstanceId} assetId={stackingState.topAssetId} />
-      <PreviewStackingSlot locale={locale} role="base" instanceId={stackingState.baseInstanceId} assetId={stackingState.baseAssetId} />
+      <PreviewStackingSlot
+        locale={locale}
+        role="base"
+        instanceId={stackingState.baseInstanceId}
+        assetId={stackingState.baseAssetId}
+        hideImage={hideBaseImage}
+      />
     </span>
   );
 }
@@ -443,11 +469,13 @@ function PreviewStackingSlot({
   role,
   instanceId,
   assetId,
+  hideImage = false,
 }: {
   locale: Locale;
   role: 'top' | 'base';
   instanceId: string;
   assetId: string;
+  hideImage?: boolean;
 }) {
   const asset = getAssetById(assetId);
 
@@ -457,8 +485,9 @@ function PreviewStackingSlot({
       data-stacking-role={role}
       data-instance-id={instanceId}
       data-asset-id={assetId}
+      data-base-image-visible={role === 'base' ? (hideImage ? 'false' : 'true') : undefined}
     >
-      {asset?.thumbnailUrl ? <img src={asset.thumbnailUrl} alt="" /> : getInstanceShortLabel(assetId, locale)}
+      {hideImage ? null : asset?.thumbnailUrl ? <img src={asset.thumbnailUrl} alt="" /> : getInstanceShortLabel(assetId, locale)}
     </span>
   );
 }
@@ -493,8 +522,10 @@ interface FrontFootprintCellState {
 interface PreviewStackingCellState {
   baseInstanceId: string;
   baseAssetId: string;
+  baseFootprint: AssetDefinition['footprint'] | null;
   topInstanceId: string;
   topAssetId: string;
+  topFootprint: AssetDefinition['footprint'] | null;
   surfaceKind: StackingRelation['surfaceKind'];
 }
 
@@ -528,6 +559,7 @@ const emptyTopFootprintCellState: TopFootprintCellState = {
 
 function buildTopFootprintView(scene: SceneDocument, activeBuildingLevelId: string): TopFootprintView {
   const occupancy = buildSceneOccupancy(scene);
+  const occupancyInstanceById = new Map(occupancy.instances.map((instance) => [instance.instanceId, instance]));
   const overlays: TopFootprintOverlay[] = [];
   const overlayInstanceIds = new Set<string>();
   const cellsByCoordinate = new Map<string, TopFootprintCellState>();
@@ -559,7 +591,7 @@ function buildTopFootprintView(scene: SceneDocument, activeBuildingLevelId: stri
   }
 
   for (const relation of occupancy.stackingRelations.filter((candidate) => candidate.buildingLevelId === activeBuildingLevelId)) {
-    applyTopStackingState(cellsByCoordinate, relation.coordinates, toPreviewStackingCellState(relation));
+    applyTopStackingState(cellsByCoordinate, relation.coordinates, toPreviewStackingCellState(relation, occupancyInstanceById));
   }
 
   return {
@@ -571,10 +603,11 @@ function buildTopFootprintView(scene: SceneDocument, activeBuildingLevelId: stri
 
 function buildFrontFootprintView(scene: SceneDocument, cells: readonly FrontProjectionCellContext[]): FrontFootprintView {
   const occupancy = buildSceneOccupancy(scene);
+  const occupancyInstanceById = new Map(occupancy.instances.map((instance) => [instance.instanceId, instance]));
   const visibleLevels = getUniqueFrontLevels(cells);
   const rowByLevelId = new Map(visibleLevels.map((level, index) => [level.id, index + 1]));
   const cellsByKey = buildFrontBlockedCells(occupancy.blockingCells);
-  const stackingCellsByKey = buildFrontStackingCells(occupancy.stackingRelations);
+  const stackingCellsByKey = buildFrontStackingCells(occupancy.stackingRelations, occupancyInstanceById);
   const overlays: FrontFootprintOverlay[] = [];
   const overlayInstanceIds = new Set<string>();
 
@@ -618,6 +651,7 @@ function applyTopStackingState(
 
 function buildFrontStackingCells(
   stackingRelations: readonly StackingRelation[],
+  occupancyInstanceById: ReadonlyMap<string, OccupancyInstance>,
 ): Map<string, PreviewStackingCellState[]> {
   const cellsByKey = new Map<string, PreviewStackingCellState[]>();
 
@@ -625,7 +659,7 @@ function buildFrontStackingCells(
     for (const coordinate of relation.coordinates) {
       const key = getFrontCellKey(relation.buildingLevelId, coordinate.x);
       const states = cellsByKey.get(key) ?? [];
-      states.push(toPreviewStackingCellState(relation));
+      states.push(toPreviewStackingCellState(relation, occupancyInstanceById));
       cellsByKey.set(key, states);
     }
   }
@@ -633,12 +667,20 @@ function buildFrontStackingCells(
   return cellsByKey;
 }
 
-function toPreviewStackingCellState(relation: StackingRelation): PreviewStackingCellState {
+function toPreviewStackingCellState(
+  relation: StackingRelation,
+  occupancyInstanceById: ReadonlyMap<string, OccupancyInstance>,
+): PreviewStackingCellState {
+  const baseInstance = occupancyInstanceById.get(relation.baseInstanceId);
+  const topInstance = occupancyInstanceById.get(relation.topInstanceId);
+
   return {
     baseInstanceId: relation.baseInstanceId,
     baseAssetId: relation.baseAssetId,
+    baseFootprint: baseInstance?.effectiveFootprint ? cloneFootprint(baseInstance.effectiveFootprint) : null,
     topInstanceId: relation.topInstanceId,
     topAssetId: relation.topAssetId,
+    topFootprint: topInstance?.effectiveFootprint ? cloneFootprint(topInstance.effectiveFootprint) : null,
     surfaceKind: relation.surfaceKind,
   };
 }
