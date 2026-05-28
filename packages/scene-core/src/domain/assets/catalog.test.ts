@@ -93,9 +93,16 @@ describe('asset catalog', () => {
     expect(getAssetById('leafy-plant')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('garden-ornament')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('wooden-bench')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
-    expect(getAssetById('large-narrow-rug')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('large-boulder')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
     expect(assetFootprintOverrideAssetIds.every((assetId) => getAssetById(assetId))).toBe(true);
+  });
+
+  it('applies audited large rug footprint overrides', () => {
+    expect(getAssetById('oblong-rug')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
+    expect(getAssetById('large-narrow-rug')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
+    expect(getAssetById('large-round-rug')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
+    expect(getAssetById('large-square-rug')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
+    expect(getAssetById('lace-rug')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
   });
 
   it('defaults assets to non-stackable metadata unless an audited override exists', () => {
