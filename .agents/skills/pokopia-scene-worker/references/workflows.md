@@ -23,4 +23,4 @@ This reference describes how to call the MCP tools without duplicating business 
 
 ## Failure Handling
 
-Use `https://scene-editor.pokokit.com/api/v1/mcp` as the default MCP endpoint. If that endpoint is unavailable, verify the user did not provide an override URL. For local Worker development only, start the Worker with `pnpm run worker:dev` and use the local `/mcp` endpoint. If the selected endpoint still fails, report the MCP failure and stop. Do not rebuild the schema, catalog, stacking rules, recovery, or export-summary behavior from source files.
+Production deployment publishes only the static web app, so do not use `scene-editor.pokokit.com` as an MCP endpoint. Use the local Worker MCP endpoint when MCP is required. If it is unavailable and the task allows local development services, start the Worker with `pnpm run worker:dev` and use the local `/mcp` endpoint. If the selected local endpoint still fails, report the MCP failure and stop. Do not rebuild the schema, catalog, stacking rules, recovery, or export-summary behavior from source files.

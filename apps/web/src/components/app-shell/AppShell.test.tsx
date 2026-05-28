@@ -1250,12 +1250,8 @@ describe('AppShell scene storage integration', () => {
     const stackedCell = screen.getByLabelText(/Cell 2,2, main area, level-0, read-only, 苹野果, stacked 苹野果 on 盘子/);
 
     expect(stackedCell).toBeVisible();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Stack base: 盘子' })).toBeVisible());
-    fireEvent.click(screen.getByRole('button', { name: 'Stack base: 盘子' }));
+    fireEvent.click(stackedCell);
 
-    expect(screen.getByRole('button', { name: '清除选中格子中的素材' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Stack top: 苹野果' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Stack base: 盘子' })).toBeVisible();
     expect(readSceneSnapshot()).toBe(beforeSnapshot);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
   });

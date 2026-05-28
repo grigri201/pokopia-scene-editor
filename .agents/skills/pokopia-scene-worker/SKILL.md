@@ -28,13 +28,15 @@ Footprint, effective footprint, occupied cells, stacking metadata, derived stack
 
 ## Setup Check
 
-Before calling tools, confirm the production Worker MCP endpoint is available:
+Production deployment now publishes only the static web app. Do not assume that `scene-editor.pokokit.com` exposes API or MCP routes.
+
+Before calling tools, confirm the local Worker MCP endpoint is available:
 
 ```text
-https://scene-editor.pokokit.com/api/v1/mcp
+http://localhost:8788/api/v1/mcp
 ```
 
-Use this production endpoint by default for agent-facing workflows. For local Worker development only, the fallback command is:
+If it is unavailable and the task allows local development services, start the repo Worker dev server:
 
 ```bash
 pnpm run worker:dev

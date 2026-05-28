@@ -7,13 +7,13 @@
     "dev": "pnpm --filter @pokopia-scene-editor/web build && wrangler dev --config wrangler.toml",
     "types": "wrangler types --config wrangler.toml",
     "types:check": "wrangler types --config wrangler.toml --check",
-    "deploy:dry-run": "pnpm --filter @pokopia-scene-editor/web build && wrangler deploy --config wrangler.toml --dry-run",
-    "deploy": "pnpm --filter @pokopia-scene-editor/web build && wrangler deploy --config wrangler.toml",
+    "deploy:dry-run": "node -e \"console.error('Worker API/MCP deployment is disabled. Use pnpm run deploy for Cloudflare Pages static deployment.'); process.exit(1)\"",
+    "deploy": "node -e \"console.error('Worker API/MCP deployment is disabled. Use pnpm run deploy for Cloudflare Pages static deployment.'); process.exit(1)\"",
     "mcp:smoke": "vitest run --environment node src/mcp.test.ts",
     "bundle:check": "pnpm --filter @pokopia-scene-editor/web build && wrangler deploy --config wrangler.toml --dry-run --outdir dist/worker-bundle --metafile dist/worker-bundle/metafile.json && node ../../scripts/verify-worker-bundle.mjs dist/worker-bundle",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --environment node",
-    "build": "pnpm run deploy:dry-run"
+    "build": "pnpm run typecheck"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

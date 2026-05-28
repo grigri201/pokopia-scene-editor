@@ -9,7 +9,7 @@
     "typecheck": "pnpm --filter @pokopia-scene-editor/scene-core typecheck && pnpm --filter @pokopia-scene-editor/web typecheck && pnpm --filter @pokopia-scene-editor/worker typecheck",
     "test": "pnpm --filter @pokopia-scene-editor/scene-core test && pnpm --filter @pokopia-scene-editor/web test && pnpm --filter @pokopia-scene-editor/worker test",
     "test:watch": "pnpm --filter @pokopia-scene-editor/web test:watch",
-    "build": "pnpm --filter @pokopia-scene-editor/scene-core build && pnpm --filter @pokopia-scene-editor/web build && pnpm --filter @pokopia-scene-editor/worker build",
+    "build": "pnpm --filter @pokopia-scene-editor/scene-core build && pnpm --filter @pokopia-scene-editor/web build",
     "smoke": "pnpm --filter @pokopia-scene-editor/web smoke",
     "skill:verify": "node scripts/verify-pokopia-scene-worker-skill.mjs",
     "worker:mcp:smoke": "pnpm --filter @pokopia-scene-editor/worker mcp:smoke",
@@ -19,7 +19,8 @@
     "worker:types:check": "pnpm --filter @pokopia-scene-editor/worker types:check",
     "worker:deploy:dry-run": "pnpm --filter @pokopia-scene-editor/worker deploy:dry-run",
     "worker:deploy": "pnpm --filter @pokopia-scene-editor/worker run deploy",
-    "deploy": "pnpm run worker:deploy",
-    "release:verify": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm run smoke && pnpm run worker:types:check && pnpm run worker:deploy:dry-run && pnpm run worker:mcp:smoke && pnpm run worker:bundle:check && pnpm run skill:verify"
+    "web:deploy": "pnpm --filter @pokopia-scene-editor/web build && pnpm --dir apps/worker exec wrangler pages deploy ../web/dist --project-name pokopia-scene-editor --branch main",
+    "deploy": "pnpm run web:deploy",
+    "release:verify": "pnpm --filter @pokopia-scene-editor/scene-core typecheck && pnpm --filter @pokopia-scene-editor/web typecheck && pnpm --filter @pokopia-scene-editor/scene-core test && pnpm --filter @pokopia-scene-editor/web test && pnpm run build && pnpm run smoke"
   }
 }

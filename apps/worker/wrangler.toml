@@ -4,14 +4,8 @@ workers_dev = false
 compatibility_date = "2026-05-26"
 compatibility_flags = ["nodejs_compat"]
 
-[[routes]]
-pattern = "scene-editor.pokokit.com/api/v1"
-zone_name = "pokokit.com"
-
-[[routes]]
-pattern = "scene-editor.pokokit.com/api/v1/*"
-zone_name = "pokokit.com"
-
+# Production deployment is static-only through Cloudflare Pages.
+# Keep this Worker config for local API/MCP development; do not use it to publish API/MCP routes.
 [assets]
 directory = "../web/dist"
 binding = "ASSETS"

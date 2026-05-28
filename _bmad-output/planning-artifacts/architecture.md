@@ -122,7 +122,7 @@ Open Design UI 确认了新的工作台形态。架构上应支持一个桌面�
 关键架构结论：
 
 - MVP 应采用客户端优先架构，先完成本地场景编辑、保存/自动保存、序列化、恢复和图片导出闭环；显式 JSON 导出/导入 UI、账号、云同步、协作、公开方案库、在线发布和分享链接不进入当前 backlog。
-- Epic 7 采用 pnpm workspace monorepo + Cloudflare Workers static assets：`apps/web` 仍承载浏览器编辑器，`apps/worker` 承载 `/api/*` 与 `/mcp`，`packages/scene-core` 承载共享领域规则。
+- 当前生产部署采用 pnpm workspace monorepo + Cloudflare Pages static assets：`apps/web` 承载浏览器编辑器，`packages/scene-core` 承载共享领域规则。`apps/worker` 保留为本地 API/MCP 开发与测试适配层，但不再进入生产发布路径。
 - Scene document 必须是编辑数据的单一事实来源。画布、上下文/检查器字段、建筑层列表、预览和保存/恢复校验不得维护互相分叉的业务状态。
 - 所有会修改 scene document 的行为都应经过统一 command 层，便于只读模式、校验、自动保存和自动化测试；MVP 不提供撤销/重做。
 - `<768px` 的只读边界不能只靠隐藏按钮实现；command 层、canvas pointer handler 和 keyboard handler 都必须检查 `interactionMode`。
@@ -130,7 +130,7 @@ Open Design UI 确认了新的工作台形态。架构上应支持一个桌面�
 - 正视图在 MVP 中应是结构化高度关系预览，不做真实游戏视角和复杂遮挡模拟。
 - 素材库在 MVP 中可以使用静态/本地数据源，但数据结构必须支持官方素材 ID、Pokemon 喜好、可染色性、footprint、后续批量导入、模板、更多技能类型和更大画布扩展。
 
-项目复杂度判断：中等。已完成 MVP 没有账号、实时协作、监管合规或复杂持久化基础设施，但 Epic 7 新增 monorepo、Worker API、MCP、Codex skill、Wrangler 部署、bundle 边界和日志/安全约束，需要更严格的模块边界和 release gate。
+项目复杂度判断：中等。已完成 MVP 没有账号、实时协作、监管合规或复杂持久化基础设施。Worker API、MCP 和 Codex skill 仍需要清晰模块边界，但生产发布边界已收敛为静态 Pages 部署，默认 release gate 不再验证或发布 API/MCP。
 
 ## Starter Template Evaluation
 
@@ -236,7 +236,7 @@ Vite 提供快速 dev server、HMR、TypeScript/JSX 支持和静态构建。第�
 - MVP 状态管理使用 React `useReducer` + command dispatcher，不默认引入 Redux、Zustand 或 undo/redo history。
 - MVP 保存/自动保存使用浏览器本地存储适配层和 SceneDocument 序列化；图片导出预览和图片下载进入当前 backlog，但必须从 SceneDocument v1、asset catalog 和 preview/export selectors 派生；显式 JSON 文件导出/导入 UI 延后到 Post-MVP。
 - 测试栈采用 Vitest、React Testing Library 和 Playwright。
-- 部署目标从单一静态站点托管演进为 Cloudflare Workers static assets：Worker 处理 `/api/*` 和 `/mcp`，`apps/web/dist` 作为静态 assets；CI 至少包含 typecheck、unit tests、build、Playwright smoke、Worker runtime tests、MCP smoke、`wrangler types` 和 `wrangler types --check`。
+- 部署目标保持为 Cloudflare Pages static assets：`apps/web/dist` 发布到 `pokopia-scene-editor` Pages project；CI/release gate 至少包含 scene-core/web typecheck、unit tests、build 和 Playwright smoke。Worker runtime tests、MCP smoke、`wrangler types` 和 deploy dry-run 可作为本地适配层验证，但不属于默认生产发布门禁。
 
 **Deferred Decisions (Post-MVP)**
 
@@ -467,11 +467,11 @@ type InteractionMode = "edit" | "readOnly";
 
 ### Infrastructure & Deployment
 
-**Decision: MVP web deploys as static assets; Epic 7 deploys through Cloudflare Workers static assets.**
+**Decision: Production deploys the web app as static Cloudflare Pages assets.**
 
-`apps/web` 的 Vite production build 仍输出静态文件。Epic 7 后，`apps/worker/wrangler.toml` 使用 Workers static assets，把 `apps/web/dist` 作为 assets directory；Worker code 服务 `/api/*` 和 `/mcp`，其余 SPA 请求由静态 assets/fallback 处理。
+`apps/web` 的 Vite production build 输出静态文件并通过 Cloudflare Pages 发布到 `pokopia-scene-editor` project。生产部署不再发布 `/api/*`、`/api/v1/*` 或 `/mcp`，也不再把 Worker/MCP 作为 release gate 的默认目标。
 
-根 `package.json` 作为 pnpm workspace orchestration 层，必须提供 `worker:dev`、`worker:types`、`worker:types:check`、`worker:deploy:dry-run`、`worker:deploy` 和 `deploy` scripts。`apps/worker/package.json` 直接封装 `wrangler dev`、`wrangler types`、`wrangler types --check`、`wrangler deploy --dry-run` 和 `wrangler deploy`。
+根 `package.json` 作为 pnpm workspace orchestration 层，`deploy` 必须委托到静态 Pages 部署。`apps/worker` 可以保留 local dev、types、tests 和 MCP smoke 入口，但 Worker deploy/dry-run 必须显式拒绝执行，避免误发布 API/MCP。
 
 **Decision: Environment configuration remains minimal.**
 
@@ -481,11 +481,12 @@ MVP 不需要运行时后端 URL、API key 或 secret。Epic 7 第一阶段 Work
 
 最小 CI / release gate：
 
-- `pnpm run typecheck`
-- `pnpm run test`
+- `pnpm --filter @pokopia-scene-editor/scene-core typecheck`
+- `pnpm --filter @pokopia-scene-editor/web typecheck`
+- `pnpm --filter @pokopia-scene-editor/scene-core test`
+- `pnpm --filter @pokopia-scene-editor/web test`
 - `pnpm run build`
 - Playwright smoke for desktop edit flow and mobile read-only flow
-- Worker runtime tests, MCP smoke, `pnpm run worker:types:check`, and `pnpm run worker:deploy:dry-run`
 
 Playwright 必须覆盖：
 
@@ -513,10 +514,10 @@ Completed MVP baseline sequence:
 Approved Epic 7 implementation sequence:
 
 1. Extract `packages/scene-core` and migrate the existing React app into `apps/web` without regressing browser behavior.
-2. Add `apps/worker` with Cloudflare Workers static assets, HTTP API, unified result envelope, request limits and deploy scripts.
-3. Add Streamable HTTP MCP tools/resources/prompts over the same `scene-core` APIs.
+2. Add `apps/worker` with local HTTP API/MCP adapters, unified result envelope, request limits and local dev scripts.
+3. Add Streamable HTTP MCP tools/resources/prompts over the same `scene-core` APIs for local agent-facing workflows.
 4. Add `.agents/skills/pokopia-scene-worker/` as a workflow wrapper that calls MCP instead of copying business logic.
-5. Harden release gates with Worker runtime tests, MCP smoke, bundle pollution checks, redacted logging checks, `wrangler types --check` and deploy dry-run.
+5. Harden local adapter validation with Worker runtime tests, MCP smoke, bundle pollution checks, redacted logging checks and `wrangler types --check`; production release remains static Pages-only.
 
 **Cross-Component Dependencies**
 
@@ -1024,11 +1025,11 @@ MVP web app has no required external service integrations. Browser APIs used:
 - Canvas/SVG/Blob URL/download for current image export, browser-only and outside any backend integration.
 - `matchMedia` or resize observation for interaction mode, routed through a shared `interaction-mode` helper.
 
-Epic 7 external integrations:
+Worker/MCP local integrations:
 
-- Cloudflare Workers static assets for serving `apps/web/dist` plus `/api/*` and `/mcp`.
-- Wrangler CLI for local Worker dev, generated types, deploy dry-run and deploy.
-- MCP clients/Codex connect to the Streamable HTTP MCP endpoint; Codex skill uses MCP and does not implement business logic itself.
+- Wrangler CLI for local Worker dev and generated types.
+- Local Worker serves API/MCP routes for development workflows only.
+- MCP clients/Codex may connect to the local Streamable HTTP MCP endpoint; Codex skill uses MCP and does not implement business logic itself.
 
 **Data Flow**
 
@@ -1129,11 +1130,11 @@ MVP sample/static images should live in `apps/web/public/assets/` when they are 
 
 **Build Process Structure**
 
-Root `pnpm run build` builds `packages/scene-core`, `apps/web`, and `apps/worker` in order. `apps/web` produces static assets under `apps/web/dist/`. `apps/worker` validates Worker bundling via Wrangler dry-run. Build must not depend on `_bmad-output/` planning files. Planning artifacts are documentation inputs, not runtime dependencies.
+Root `pnpm run build` builds `packages/scene-core` and `apps/web` in order. `apps/web` produces static assets under `apps/web/dist/`. Build must not depend on `_bmad-output/` planning files. Planning artifacts are documentation inputs, not runtime dependencies.
 
 **Deployment Structure**
 
-Deployment uses `apps/worker/wrangler.toml`. `pnpm run worker:deploy` and `pnpm run deploy` build `apps/web` and run `wrangler deploy` from `apps/worker`; `pnpm run worker:deploy:dry-run` runs `wrangler deploy --dry-run`. Worker runtime behavior must not require Node server APIs. If future environments need separate staging/production config, extend `apps/worker/wrangler.toml` and regenerate/check types with `wrangler types` and `wrangler types --check`.
+Production deployment uses Cloudflare Pages. `pnpm run deploy` builds `apps/web` and runs `wrangler pages deploy ../web/dist --project-name pokopia-scene-editor --branch main` via the local Wrangler dependency. Worker API/MCP deployment is disabled from default release flow; `worker:deploy` and `worker:deploy:dry-run` intentionally fail to prevent accidental publication.
 
 ## Architecture Validation Results
 
@@ -1141,7 +1142,7 @@ Deployment uses `apps/worker/wrangler.toml`. `pnpm run worker:deploy` and `pnpm 
 
 **Decision Compatibility**
 
-All major decisions work together without conflict. Vite + React + TypeScript supports the chosen single-page editor shape. Zod provides runtime validation for recovered SceneDocument data while TypeScript covers compile-time domain contracts. Vitest, React Testing Library and Playwright align with the selected Vite/React stack. Epic 7 extends the deployment model to Cloudflare Workers static assets while preserving the no-account, no-database, no-cloud-save first-stage service boundary. Epic 8 keeps footprint as catalog metadata and derived scene-core rules, so it improves placement fidelity without changing the SceneDocument v1 payload shape. Epic 11 keeps stacking surface metadata in the asset catalog and derives base/top relations in `scene-core`, so it adds controlled overlap without changing the SceneDocument v1 payload shape.
+All major decisions work together without conflict. Vite + React + TypeScript supports the chosen single-page editor shape. Zod provides runtime validation for recovered SceneDocument data while TypeScript covers compile-time domain contracts. Vitest, React Testing Library and Playwright align with the selected Vite/React stack. Production deployment is static Pages-only, preserving the no-account, no-database, no-cloud-save first-stage service boundary while keeping Worker API/MCP as local adapters. Epic 8 keeps footprint as catalog metadata and derived scene-core rules, so it improves placement fidelity without changing the SceneDocument v1 payload shape. Epic 11 keeps stacking surface metadata in the asset catalog and derives base/top relations in `scene-core`, so it adds controlled overlap without changing the SceneDocument v1 payload shape.
 
 The deferred decisions are also coherent: explicit JSON import/export UI, database, auth, routing, external state libraries, sharing, collaboration, online publishing, SceneDocument v2, saved catalog snapshots, instance-level footprint overrides, saved stacking relations, manual z-index and complex front-view rendering are all outside MVP and do not block the current architecture.
 

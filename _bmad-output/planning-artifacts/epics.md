@@ -376,13 +376,13 @@ NFR47: Stacking 校验错误必须包含字段路径、冲突类型、top instan
 
 - 文件和目录使用 `kebab-case`；React 组件、TypeScript 类型和 interfaces 使用 `PascalCase`；函数、变量、selectors 和 hooks 使用 `camelCase`；command type 使用全大写 snake case。
 
-- CI / release gate 至少包含 `pnpm run typecheck`、unit tests、`pnpm run build`、Playwright smoke、Worker runtime tests、MCP smoke、`pnpm run worker:types:check` 和 `pnpm run worker:deploy:dry-run`。
+- CI / release gate 至少包含 scene-core/web typecheck、unit tests、`pnpm run build` 和 Playwright smoke。Worker runtime tests、MCP smoke、`pnpm run worker:types:check` 可作为本地适配层验证，但不属于默认生产发布门禁；`worker:deploy:dry-run` 必须拒绝执行，避免误发布 API/MCP。
 
 - Playwright 必须覆盖 1280×720 或以上桌面编辑闭环、390×844 mobile read-only guard、save/recovery roundtrip、dangerous text rendered as text，以及关键响应式视口无控件重叠。
 
 - Vitest 必须覆盖领域模型、command reducer、schema validation、area calculation、level ordering 和 read-only command guard；React Testing Library 必须覆盖组件可访问名称和核心交互状态。
 
-- `apps/web` Vite production build 输出静态文件到 `apps/web/dist/`；`apps/worker` 通过 `apps/worker/wrangler.toml` 部署 Worker static assets 与 API/MCP routes；运行时不得依赖 `_bmad-output/` planning files、Node server APIs、数据库或用户 scene 存储。
+- `apps/web` Vite production build 输出静态文件到 `apps/web/dist/`，并通过 Cloudflare Pages project `pokopia-scene-editor` 发布。生产部署不发布 API/MCP routes；`apps/worker` 仅保留本地开发和适配层测试入口。运行时不得依赖 `_bmad-output/` planning files、Node server APIs、数据库或用户 scene 存储。
 
 - 配置和 secret 范围必须保持最小；若需要 public base path、asset base path 或 feature flag，使用 Vite public env convention，不得包含 secret。
 
