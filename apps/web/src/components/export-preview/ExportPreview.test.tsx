@@ -9,7 +9,7 @@ import {
   createTileInstance,
   footprintContractFixtureIds,
 } from '@pokopia-scene-editor/scene-core';
-import { unsafeAngleText, unsafeScriptText } from '../../test/fixtures/unsafe-text';
+import { unsafeAngleText, unsafeImageText, unsafeScriptText } from '../../test/fixtures/unsafe-text';
 import { ExportPreview } from './ExportPreview';
 
 describe('ExportPreview', () => {
@@ -66,6 +66,10 @@ describe('ExportPreview', () => {
     expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('储水');
     expect(within(screen.getByLabelText('L2 使用素材清单')).getByAltText('储水技能图标')).toBeVisible();
     expect(screen.queryByLabelText('L2 技能数量')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('L2 层备注')).toHaveTextContent(unsafeAngleText);
+    expect(screen.getByLabelText('L2 层备注')).toHaveTextContent(unsafeImageText);
+    expect(within(screen.getByLabelText('L2 层备注')).getByRole('heading', { name: '层备注' })).toBeVisible();
+    expect(screen.queryByLabelText('L3 层备注')).not.toBeInTheDocument();
     expect(screen.getByLabelText('L3 使用素材清单')).toHaveTextContent('该层没有素材');
     expect(screen.getAllByText('空层')).toHaveLength(2);
     const logo = screen.getByLabelText('pokokit 彩色 logo');
@@ -100,6 +104,9 @@ describe('ExportPreview', () => {
     expect(screen.getByLabelText('Overall material list')).toHaveTextContent('Leaf');
     expect(screen.getByLabelText('Overall material list')).toHaveTextContent('Water Storage');
     expect(screen.getByLabelText('L2 material list')).toHaveTextContent(/Leafy/i);
+    expect(screen.getByLabelText('L2 layer notes')).toHaveTextContent(unsafeAngleText);
+    expect(within(screen.getByLabelText('L2 layer notes')).getByRole('heading', { name: 'Layer notes' })).toBeVisible();
+    expect(screen.queryByLabelText('L3 layer notes')).not.toBeInTheDocument();
     expect(screen.getByLabelText('L3 material list')).toHaveTextContent('No materials on this layer');
     expect(screen.getAllByText('Empty layer')).toHaveLength(2);
     expect(screen.getByLabelText('4,4: Water skill')).toBeVisible();
@@ -193,7 +200,17 @@ function createPreviewScene() {
 
   return {
     ...baseScene,
-    buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
+    buildingLevels: [
+      createBuildingLevel(0),
+      {
+        ...createBuildingLevel(1),
+        notes: [
+          { id: 'note-export-preview-1', text: unsafeAngleText },
+          { id: 'note-export-preview-2', text: unsafeImageText },
+        ],
+      },
+      createBuildingLevel(2),
+    ],
     tileInstances: [
       createTileInstance({
         instanceId: 'tile-preview',

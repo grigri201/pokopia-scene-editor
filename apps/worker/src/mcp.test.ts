@@ -329,6 +329,20 @@ describe('worker MCP endpoint', () => {
     expect(blocked.result.structuredContent.fixSuggestions).toEqual(expect.arrayContaining([expect.any(String)]));
   });
 
+  it('returns shared export-summary layer notes through the MCP summary tool', async () => {
+    const scene = createSceneWithLayerNotes();
+    const summary = await readJson(await mcpRpc('tools/call', {
+      name: 'summarize_scene_export',
+      arguments: { scene },
+    }));
+
+    expect(summary.result.structuredContent.data.summary).toEqual(buildImageExportSummary(scene));
+    expect(summary.result.structuredContent.data.summary.layers[0].notes).toEqual([
+      { id: 'note-mcp-1', text: '先确认高度' },
+      { id: 'note-mcp-2', text: 'Keep <angle> text as plain data' },
+    ]);
+  });
+
   it('returns structured generate input errors with field-level fix suggestions', async () => {
     const response = await mcpRpc('tools/call', {
       name: 'generate_scene_document',
@@ -429,6 +443,23 @@ function findSummaryInstance(summary: any, instanceId: string) {
   }
 
   return instance;
+}
+
+function createSceneWithLayerNotes() {
+  const scene = createDefaultSceneDocument({ now: '2026-05-28T00:00:00.000Z' });
+
+  return {
+    ...scene,
+    buildingLevels: [
+      {
+        ...scene.buildingLevels[0],
+        notes: [
+          { id: 'note-mcp-1', text: '先确认高度' },
+          { id: 'note-mcp-2', text: 'Keep <angle> text as plain data' },
+        ],
+      },
+    ],
+  };
 }
 
 function jsonRpcOk(id: string | number | null, result: unknown, status = 200): Response {

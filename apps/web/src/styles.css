@@ -861,6 +861,12 @@ button:disabled {
   margin-top: 12px;
 }
 
+.export-layer__details {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
 .export-layer-grid-frame {
   position: relative;
   display: grid;
@@ -992,6 +998,36 @@ button:disabled {
 
 .export-layer__materials .export-material-list--with-thumbs {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.export-layer-notes {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(37, 111, 104, 0.18);
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.export-layer-notes h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.export-layer-notes ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 1.35rem;
+}
+
+.export-layer-notes li {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .export-material-list__thumb {

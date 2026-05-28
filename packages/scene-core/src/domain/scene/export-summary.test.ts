@@ -121,6 +121,47 @@ describe('image export summary', () => {
     );
   });
 
+  it('includes ordered layer notes in layer summaries without mutating scene', () => {
+    const scene = {
+      ...createExportScene(),
+      buildingLevels: [
+        createBuildingLevel(0),
+        {
+          ...createBuildingLevel(1),
+          notes: [
+            { id: 'note-first', text: '先铺路径，再摆植物' },
+            { id: 'note-second', text: 'Keep <angle> text as plain data' },
+          ],
+        },
+        {
+          ...createBuildingLevel(2),
+          notes: [{ id: 'note-notes-only', text: '空素材层仍有搭建说明' }],
+        },
+      ],
+    };
+    const sceneBefore = cloneForTest(scene);
+    const summary = buildImageExportSummary(scene);
+    const layerZero = summary.layers.find((layer) => layer.id === 'level-0');
+    const layerOne = summary.layers.find((layer) => layer.id === 'level-1');
+    const notesOnlyLayer = summary.layers.find((layer) => layer.id === 'level-2');
+
+    expect(layerZero?.notes).toEqual([]);
+    expect(layerOne?.notes).toEqual([
+      { id: 'note-first', text: '先铺路径，再摆植物' },
+      { id: 'note-second', text: 'Keep <angle> text as plain data' },
+    ]);
+    expect(notesOnlyLayer).toMatchObject({
+      empty: false,
+      materialCount: 0,
+      notes: [{ id: 'note-notes-only', text: '空素材层仍有搭建说明' }],
+    });
+
+    if (layerOne?.notes[0]) {
+      layerOne.notes[0].text = 'changed by summary consumer';
+    }
+    expect(scene).toEqual(sceneBefore);
+  });
+
   it('regenerates from the latest SceneDocument without mutating scene', () => {
     const scene = createExportScene();
     const sceneBefore = cloneForTest(scene);

@@ -42,9 +42,15 @@ export interface ImageExportLayerSummary extends BuildingLevelContext {
   empty: boolean;
   materialCount: number;
   skillCount: number;
+  notes: ExportLayerNoteSummary[];
   materials: ExportLayerMaterialSummary[];
   skills: ExportLayerSkillSummary[];
   cells: ImageExportCellSummary[];
+}
+
+export interface ExportLayerNoteSummary {
+  id: string;
+  text: string;
 }
 
 export interface ExportMaterialSummary {
@@ -165,17 +171,24 @@ function buildLayerSummary(
   const layerInstances = cells.flatMap((cell) => cell.tileInstances);
   const layerSkillMarkers = cells.flatMap((cell) => cell.skillMarkers);
   const skills = aggregateLayerSkills(layerInstances, layerSkillMarkers, locale);
+  const notes = getLayerNotes(scene, level.id);
 
   return {
     ...level,
     name: getBuildingLevelDisplayName(level.name, level.levelNumber, locale),
-    empty: layerInstances.length === 0 && layerSkillMarkers.length === 0,
+    empty: layerInstances.length === 0 && layerSkillMarkers.length === 0 && notes.length === 0,
     materialCount: layerInstances.length,
     skillCount: skills.reduce((total, skill) => total + skill.count, 0),
+    notes,
     materials: aggregateLayerMaterials(layerInstances, locale),
     skills,
     cells,
   };
+}
+
+function getLayerNotes(scene: SceneDocument, buildingLevelId: string): ExportLayerNoteSummary[] {
+  const level = scene.buildingLevels.find((candidate) => candidate.id === buildingLevelId);
+  return level?.notes.map((note) => ({ id: note.id, text: note.text })) ?? [];
 }
 
 function toExportCellSummary(

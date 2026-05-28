@@ -230,15 +230,31 @@ function LayerPreview({ locale, layer }: { locale: Locale; layer: ImageExportLay
             {coordinateBounds.max}
           </span>
         </div>
-        <section className="export-layer__materials" aria-label={t(locale, 'layerMaterialsList', { displayId: layer.displayId })}>
-          {usageItems.length > 0 ? (
-            <UsageList items={usageItems} />
-          ) : (
-            <p className="export-preview__empty">{t(locale, 'layerNoMaterials')}</p>
-          )}
-        </section>
+        <div className="export-layer__details">
+          <section className="export-layer__materials" aria-label={t(locale, 'layerMaterialsList', { displayId: layer.displayId })}>
+            {usageItems.length > 0 ? (
+              <UsageList items={usageItems} />
+            ) : (
+              <p className="export-preview__empty">{t(locale, 'layerNoMaterials')}</p>
+            )}
+          </section>
+          {layer.notes.length > 0 ? <LayerNotes locale={locale} layer={layer} /> : null}
+        </div>
       </div>
     </article>
+  );
+}
+
+function LayerNotes({ locale, layer }: { locale: Locale; layer: ImageExportLayerSummary }) {
+  return (
+    <section className="export-layer-notes" aria-label={t(locale, 'layerNotesListExport', { displayId: layer.displayId })}>
+      <h4>{t(locale, 'layerNotesExport')}</h4>
+      <ol>
+        {layer.notes.map((note) => (
+          <li key={note.id}>{note.text}</li>
+        ))}
+      </ol>
+    </section>
   );
 }
 

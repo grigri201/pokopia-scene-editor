@@ -154,6 +154,21 @@ describe('worker HTTP API', () => {
     });
   });
 
+  it('returns shared export-summary layer notes through the HTTP endpoint', async () => {
+    const scene = createSceneWithLayerNotes();
+    const directSummary = buildImageExportSummary(scene);
+
+    const summary = await post('/api/scene/export-summary', { scene });
+    const summaryBody = await readJson(summary);
+
+    expect(summary.status).toBe(200);
+    expect(summaryBody.data.summary).toEqual(directSummary);
+    expect(summaryBody.data.summary.layers[0].notes).toEqual([
+      { id: 'note-worker-1', text: '先确认高度' },
+      { id: 'note-worker-2', text: 'Keep <angle> text as plain data' },
+    ]);
+  });
+
   it('returns structured footprint validation errors from HTTP routes', async () => {
     const overlap = await post('/api/scene/validate', { scene: createFootprintContractOverlapScene() });
     const overlapBody = await readJson(overlap);
@@ -360,4 +375,21 @@ function findSummaryInstance(summary: any, instanceId: string) {
   }
 
   return instance;
+}
+
+function createSceneWithLayerNotes() {
+  const scene = createDefaultSceneDocument({ now: '2026-05-28T00:00:00.000Z' });
+
+  return {
+    ...scene,
+    buildingLevels: [
+      {
+        ...scene.buildingLevels[0],
+        notes: [
+          { id: 'note-worker-1', text: '先确认高度' },
+          { id: 'note-worker-2', text: 'Keep <angle> text as plain data' },
+        ],
+      },
+    ],
+  };
 }
