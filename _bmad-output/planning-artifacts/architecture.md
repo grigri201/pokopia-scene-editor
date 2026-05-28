@@ -41,11 +41,11 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 我已审阅 `pokopia-scene-editor` 的 PRD、PRD 验证报告、UX 设计规格、UX 方向稿和原始需求文档。
 
-当前架构基线覆盖 86 条 Functional Requirements，主要分为：
+当前架构基线覆盖 94 条 Functional Requirements，主要分为：
 
 - Scene & Canvas Model：固定 7x7 实际编辑画布、中心 5x5 主体区、外围 1 圈装饰区、0-based 坐标和区域识别。
 - Open Design Workbench Context：顶部 Pokemon/场景名/保存状态、右侧浮动素材栏、中央 7x7 画布、左侧建筑层面板和左下双预览检查器。
-- Asset Placement & Editing：素材选择、放置、删除、替换、移动、跨建筑层移动、朝向、染色、备注、同层叠放规则、footprint 占用和跨层阻塞规则。
+- Asset Placement & Editing：素材选择、放置、删除、替换、移动、跨建筑层移动、朝向、染色、备注、footprint 占用、跨层阻塞规则和受控承载/叠放规则。
 - Building Level Management：默认 0/1/2 建筑层，层号递增，数据按 0 层到 n 层组织，UI 按 L2/L1/L0 这类高层到低层顺序展示，支持创建、删除、重命名、复制、隐藏、显示、锁定、解锁和当前编辑层。
 - Asset Catalog & Selection：素材列表、缩略图、名称、分类、标签、适用区域、官方 `No.` 素材 ID、Pokemon 喜好、footprint、搜索、筛选、技能条件和素材详情。
 - Ditto Skill / Instance Visual State：放置前默认技能状态、放置后实例级技能标记、`树叶`/`耕地`/`储水` 技能词表、一字技能标签、可染色状态、非默认旋转标记，以及画布/预览标识。
@@ -54,6 +54,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - Image Export：从 SceneDocument、asset catalog 和 preview/export selectors 派生图片导出摘要、导出预览和图片下载；不修改 scene，不写入 storage。
 - Scene Worker, MCP & Codex Skill：pnpm workspace monorepo、共享 `scene-core`、无状态 Cloudflare Worker HTTP API、Streamable HTTP MCP server、repo-scoped Codex skill 和 Worker/MCP/skill release gates。
 - Asset Footprint & Occupancy：asset catalog 默认 1x1x1，真实大素材 override，90/270 度 length/width 交换，height 派生上层 blocking cells，所有端复用 `scene-core` rules。
+- Asset Carrying & Stacking Surface：盘子/木盘子/派对拼盘承载食物，已审计底垫/地毯/嫩芽/低高度素材允许兼容物品同层叠放或放到其上方，所有端复用 `scene-core` stacking rules。
 
 ### Approved Course Correction - 2026-05-19
 
@@ -91,13 +92,20 @@ Worker 第一阶段无状态，不引入数据库、账号、云保存、分享�
 
 Footprint 是 asset catalog metadata：每个 asset 拥有 `footprint.length`、`footprint.width`、`footprint.height`，默认 1x1x1，真实大素材通过集中 override 覆盖。`packages/scene-core` 必须提供 DOM-free helpers 计算 effective footprint、occupied cells、same-layer overlap、canvas bounds 和 height-derived blocking cells。`apps/web`、`apps/worker`、MCP tools/resources 和 Codex skill 只能调用这些 helpers，不能复制规则。
 
-另有 40 条 Non-Functional Requirements，核心架构约束包括：
+### Approved Course Correction - 2026-05-28 承载面/叠放规则
+
+本 Architecture 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28-stacking-surface-rules.md` 增加 Epic 11 承载面与受控叠放边界。当前 `SceneDocument v1` 继续作为保存、恢复、短字符串、Worker API 和 MCP tools 的输入/输出契约；本次不创建 `SceneDocument v2`，不保存 stacking relation、surface id、z-index、parent instance id 或 catalog snapshot。
+
+Stacking surface 是 asset catalog metadata：默认不可承载、不可被同层 overlap；明确 override 才能把 `wooden-plate`、`plate`、`party-platter` 标记为 food surface，或把已审计底垫、地毯、嫩芽和低高度素材标记为 floor-cover/low-height surface。`packages/scene-core` 必须提供 DOM-free helpers 计算 stacking compatibility、derived base/top relation、unsupported surface conflicts 和 surface capacity conflicts。`apps/web`、`apps/worker`、MCP tools/resources 和 Codex skill 只能调用这些 helpers，不能复制盘子、地毯、嫩芽或低高度素材规则列表。Web 渲染可以把合法同格 stacking relation 表达为上下半格显示，但该上下分区只是 UI projection，不是保存顺序、z-index 或 schema 字段。
+
+另有 44 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
 - 预览切换需要在 300ms 内完成首个可见更新；素材搜索筛选 1000 个素材以内需要在 200ms 内返回可见结果。
 - 画布、上下文/检查器字段、建筑层列表、预览和序列化结果必须从同一场景数据源派生。
 - 保存/序列化/恢复/重新打开必须通过往返恢复测试，恢复后建筑层数量、素材实例数量、染色数量和技能标记数量必须一致。
 - Footprint、effective footprint、occupied cells 和 height blocking cells 必须由 `scene-core` 确定性派生；不得保存为独立 state。
+- Stacking surface compatibility 和 derived stacking relation 必须由 `scene-core` 确定性派生；不得保存为独立 state。
 - 恢复数据或未来导入 JSON 必须作为数据处理，用户自定义名称、备注和技能说明必须按安全文本渲染，不得作为 HTML 或脚本执行。
 - 基础可访问性目标是 WCAG 2.2 AA，关键状态不能只依赖颜色表达。
 - 1280px 及以上使用完整 Open Design 浮动工作台，768px 以下进入 Mobile View-only Mode，不允许任何场景写操作。
@@ -311,6 +319,20 @@ MVP schema 固定为 `1`。恢复流程应先读取 `schemaVersion`：
 - `height > 1` 时，上方 `height - 1` 个 `levelNumber` 范围内的相同 occupied cells 派生为 blocked cells。
 
 派生的 `effectiveFootprint`、`occupiedCells`、`blockingCells` 和 `blockedBy` 不进入 `SceneDocument v1`、autosave payload 或短字符串。短字符串仍编码 asset official id、anchor coordinate、building level、rotation、dye 和 skill fields；decode 后通过当前 catalog 重新派生 occupancy。若未来必须保存 catalog snapshot、历史 footprint 解释或实例级 footprint override，才需要新的 course correction 和 `SceneDocument v2`。
+
+**Decision: Stacking surface rules live in the asset catalog, while stacking relations are derived.**
+
+本次 Epic 11 不需要 `SceneDocument v2`。`SceneDocument v1` 已经保存足够的实例事实：`assetId`、anchor `coordinate`、`buildingLevelId` 和 `rotationDegrees`。承载/叠放关系应从当前 asset catalog 的 stacking metadata 和 occupancy map 派生：
+
+- `AssetDefinition.stacking` 默认表示不可承载、不可被同层 overlap。
+- `wooden-plate`、`plate`、`party-platter` 通过 catalog override 标记为 food surface，只允许 `food` category 或等价已审计食物素材作为 top item。
+- 已审计底垫、地毯、嫩芽和低高度素材通过 catalog override 标记为 floor-cover 或 low-height surface；不得靠名称匹配自动开放叠放。
+- 同一 building level 的 occupied cells 默认不得重叠；只有 base instance 的 stacking metadata 允许 incoming asset category，且 incoming footprint 覆盖范围满足 surface 规则时，overlap 才合法。
+- Height blocking 优先级高于 stacking compatibility；stacking rule 不得绕过 Epic 8 的跨层阻塞。
+- Web canvas、preview 和 image export 对合法同格 stacking relation 使用同一显示契约：原始格子或对应 footprint cell 拆分为上/下两个显示区，下半部分显示 base surface，上半部分显示 top item。
+- 不兼容 stacking relation 必须复用 Epic 8 冲突反馈模式：浅红提示层、红色边框或状态标签、文本原因和结构化 conflict，不允许静默替换 base/top 实例。
+
+派生的 `stackingRelations`、`stackedOn`、`supportedBy`、`surfaceConflicts` 或 equivalent API/export-summary fields 不进入 `SceneDocument v1`、autosave payload 或短字符串。若未来必须保存用户指定的叠放顺序、手动绑定 surface、稳定 z-index、parent instance id 或 catalog snapshot，才需要新的 course correction 和 `SceneDocument v2`。
 
 ### Authentication & Security
 
@@ -564,6 +586,9 @@ type Result<T, E> =
 - `rotationDegrees` 只允许 `0 | 90 | 180 | 270`；默认 0 度必须显式保存为 `0`，但 UI 不显示额外旋转标记。
 - `footprint.length`、`footprint.width`、`footprint.height` 只存在于 asset catalog，使用正整数；SceneDocument tile instance 不保存 footprint。
 - `effectiveFootprint`、`occupiedCells`、`blockingCells` 只允许作为 selector/export-summary/API/MCP 派生输出，不允许写入保存 payload。
+- `stacking.surfaceKind`、`stacking.allowedTopCategories`、`stacking.allowsSameLevelOverlap` 只存在于 asset catalog；SceneDocument tile instance 不保存 surface 或 stacking 字段。
+- `stackingRelations`、`stackedOn`、`supportedBy`、`surfaceConflicts` 只允许作为 selector/export-summary/API/MCP 派生输出，不允许写入保存 payload。
+- UI 的上下半格 stacking display 只允许从 derived stacking relation 派生；任何上下半格状态不得写回 SceneDocument、autosave payload、短字符串或 Worker/MCP 输入。
 - `dyeColor` 未设置时必须显式使用 `null`；支持染色且已选择颜色的实例必须保留可恢复颜色值。
 - `skillType` 在未设置时使用 `null`，已设置时只允许 `树叶`、`耕地`、`储水`；`skillNote` 使用空字符串。
 - `selectedAssetId`、`selectedCoordinate`、`dyeColor`、`skillType` 这类可空字段必须以显式 `null` 表达空状态，不允许缺失字段。
@@ -935,6 +960,7 @@ MVP web app 不使用 service/repository/database layer。跨组件业务操作�
 - FR56-FR58 Open Design Workbench Context：`apps/web/src/components/app-shell/`、`apps/web/src/components/pokemon-scene-controls/`、`apps/web/src/theme/`、`apps/web/src/state/`。
 - FR69-FR77 Scene Worker, MCP & Codex Skill：`packages/scene-core/`、`apps/worker/src/routes/`、`apps/worker/src/mcp.ts`、`.agents/skills/pokopia-scene-worker/`、root `package.json` pnpm scripts、`pnpm-workspace.yaml` 和 `apps/worker/wrangler.toml`。
 - FR78-FR86 Asset Footprint & Occupancy Rules：`packages/scene-core/src/domain/assets/catalog.ts`、`packages/scene-core/src/domain/scene/footprint.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/io/scene-schema.ts`、`apps/web/src/state/asset-placement.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
+- FR87-FR94 Asset Carrying & Stacking Surface Rules：`packages/scene-core/src/domain/assets/catalog.ts`、`packages/scene-core/src/domain/assets/stacking-overrides.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/domain/scene/stacking.ts`、`packages/scene-core/src/io/scene-schema.ts`、`apps/web/src/state/asset-placement.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
 
 **Cross-Cutting Concerns**
 
@@ -1084,9 +1110,9 @@ Deployment uses `apps/worker/wrangler.toml`. `pnpm run worker:deploy` and `pnpm 
 
 **Decision Compatibility**
 
-All major decisions work together without conflict. Vite + React + TypeScript supports the chosen single-page editor shape. Zod provides runtime validation for recovered SceneDocument data while TypeScript covers compile-time domain contracts. Vitest, React Testing Library and Playwright align with the selected Vite/React stack. Epic 7 extends the deployment model to Cloudflare Workers static assets while preserving the no-account, no-database, no-cloud-save first-stage service boundary. Epic 8 keeps footprint as catalog metadata and derived scene-core rules, so it improves placement fidelity without changing the SceneDocument v1 payload shape.
+All major decisions work together without conflict. Vite + React + TypeScript supports the chosen single-page editor shape. Zod provides runtime validation for recovered SceneDocument data while TypeScript covers compile-time domain contracts. Vitest, React Testing Library and Playwright align with the selected Vite/React stack. Epic 7 extends the deployment model to Cloudflare Workers static assets while preserving the no-account, no-database, no-cloud-save first-stage service boundary. Epic 8 keeps footprint as catalog metadata and derived scene-core rules, so it improves placement fidelity without changing the SceneDocument v1 payload shape. Epic 11 keeps stacking surface metadata in the asset catalog and derives base/top relations in `scene-core`, so it adds controlled overlap without changing the SceneDocument v1 payload shape.
 
-The deferred decisions are also coherent: explicit JSON import/export UI, database, auth, routing, external state libraries, sharing, collaboration, online publishing, SceneDocument v2, saved catalog snapshots, instance-level footprint overrides and complex front-view rendering are all outside MVP and do not block the current architecture.
+The deferred decisions are also coherent: explicit JSON import/export UI, database, auth, routing, external state libraries, sharing, collaboration, online publishing, SceneDocument v2, saved catalog snapshots, instance-level footprint overrides, saved stacking relations, manual z-index and complex front-view rendering are all outside MVP and do not block the current architecture.
 
 **Pattern Consistency**
 
@@ -1122,7 +1148,7 @@ All PRD feature groups have architectural support:
 
 **Functional Requirements Coverage**
 
-FR1-FR86 are architecturally supported. The architecture gives each functional area an owning module and prevents duplicated business rules through domain helpers/selectors and command-layer write boundaries. FR65-FR68 are covered by browser-only image export preview, export summary derivation and download helpers that do not mutate SceneDocument or storage. FR69-FR77 are covered by the pnpm workspace structure, shared `scene-core`, stateless Worker HTTP API, Streamable HTTP MCP server, and repo-scoped Codex skill wrapper. FR78-FR86 are covered by catalog-level footprint metadata, shared occupancy helpers, schema validation, web rendering updates, export-summary parity and MCP/Codex no-copy boundaries.
+FR1-FR94 are architecturally supported. The architecture gives each functional area an owning module and prevents duplicated business rules through domain helpers/selectors and command-layer write boundaries. FR65-FR68 are covered by browser-only image export preview, export summary derivation and download helpers that do not mutate SceneDocument or storage. FR69-FR77 are covered by the pnpm workspace structure, shared `scene-core`, stateless Worker HTTP API, Streamable HTTP MCP server, and repo-scoped Codex skill wrapper. FR78-FR86 are covered by catalog-level footprint metadata, shared occupancy helpers, schema validation, web rendering updates, export-summary parity and MCP/Codex no-copy boundaries. FR87-FR94 are covered by catalog-level stacking metadata, shared stacking compatibility helpers, derived relation outputs, web placement feedback, export-summary parity and MCP/Codex no-copy boundaries.
 
 **Non-Functional Requirements Coverage**
 
@@ -1132,7 +1158,7 @@ NFR coverage is sufficient for implementation:
 - Reliability and data integrity: single source of truth, Zod schema validation, strict schemaVersion, command layer, catalog-derived footprint rules, SceneDocument-derived image export data and roundtrip Playwright tests support save/recovery consistency.
 - Usability and accessibility: component boundaries, semantic state tokens, accessible-name tests and Playwright responsive checks support the UX/NFR requirements.
 - Compatibility and responsive behavior: Vite static build plus Playwright desktop/mobile coverage supports the browser and viewport matrix.
-- Security and data safety: no account/cloud persistence in Epic 7, no saved blocking cells or SceneDocument v2 in Epic 8, redacted Worker logs, body limits, safe text rendering and JSON-as-data validation address the security NFRs.
+- Security and data safety: no account/cloud persistence in Epic 7, no saved blocking cells or SceneDocument v2 in Epic 8, no saved stacking relations or SceneDocument v2 in Epic 11, redacted Worker logs, body limits, safe text rendering and JSON-as-data validation address the security NFRs.
 
 ### Implementation Readiness Validation ✅
 
@@ -1156,7 +1182,7 @@ None.
 
 **Important Gaps**
 
-None blocking. The architecture now admits a tightly scoped stateless Worker/API/MCP backend for Epic 7 and derived footprint/occupancy rules for Epic 8, while still deferring auth, persistence, cloud save, routing, external state libraries, sharing, collaboration, online publishing, server-side image generation, complex front-view rendering, SceneDocument v2 and configurable canvas sizes.
+None blocking. The architecture now admits a tightly scoped stateless Worker/API/MCP backend for Epic 7, derived footprint/occupancy rules for Epic 8, and derived stacking surface rules for Epic 11, while still deferring auth, persistence, cloud save, routing, external state libraries, sharing, collaboration, online publishing, server-side image generation, complex front-view rendering, SceneDocument v2 and configurable canvas sizes.
 
 **Nice-to-Have Gaps**
 
@@ -1210,7 +1236,7 @@ No blocking validation issues were found. Minor future refinements were classifi
 - Clear command layer that supports validation, command rejection, autosave/recovery boundaries and mobile read-only guard without reintroducing undo/redo or dirty/saved UI state.
 - Explicit save/recovery schema and safe text rendering strategy.
 - Component boundaries match the selected UX direction.
-- Requirements-to-structure mapping is complete for FR1-FR86.
+- Requirements-to-structure mapping is complete for FR1-FR94.
 - Testing responsibilities are defined at shared unit, web component/E2E, Worker runtime and MCP smoke levels.
 
 **Areas for Future Enhancement**
@@ -1228,23 +1254,23 @@ No blocking validation issues were found. Minor future refinements were classifi
 - Use implementation patterns consistently across all components.
 - Respect project structure and module dependency direction.
 - Do not introduce auth, database, cloud persistence, public sharing, online publishing, server-side image generation, routing, or external state libraries unless architecture is updated first. Epic 7's approved backend scope is limited to stateless Worker API/MCP adapters over `packages/scene-core`.
-- Do not introduce `SceneDocument v2`, saved blocking cells, instance-level footprint overrides, or duplicated Worker/MCP/skill footprint rules for Epic 8.
+- Do not introduce `SceneDocument v2`, saved blocking cells, saved stacking relations, surface ids, z-index, instance-level footprint overrides, or duplicated Worker/MCP/skill footprint/stacking rules for Epic 8 or Epic 11.
 - Route all scene writes through the command layer.
 - Use Zod validation for recovered or future imported JSON and preserve safe text rendering.
 - Maintain tests with every new domain rule, command, schema field, UI boundary, Worker route, MCP tool and Codex skill workflow.
 
 **First Implementation Priority**
 
-Continue with BMAD implementation routing from the newly added Epic 8 backlog. The next implementation story is:
+Continue with BMAD implementation routing from the newly added Epic 11 backlog. The next implementation story is:
 
-- `8-1-asset-catalog-footprint-metadata`
+- `11-1-asset-catalog-stacking-surface-metadata`
 
-Story 8.1 must add catalog-level footprint metadata with default 1x1x1 behavior and audited overrides, while preserving current asset IDs, display names, filtering and Worker/MCP catalog resources.
+Story 11.1 must add catalog-level stacking surface metadata with default non-stackable behavior and audited overrides for `wooden-plate`, `plate`, `party-platter`, selected mats/rugs/shoots/low-height surfaces, while preserving current asset IDs, display names, filtering, footprint metadata and Worker/MCP catalog resources.
 
 Recommended next command:
 
 ```text
-bmad-help
+bmad-create-story 11-1-asset-catalog-stacking-surface-metadata
 ```
 
-Use `bmad-help` to confirm the live tracker state, then run `bmad-create-story` for Story 7.1 before implementation. If the current dirty planning branch should be isolated, create a new git worktree before starting development.
+Use `bmad-create-story` for Story 11.1 before implementation. If the current dirty planning branch should be isolated, create a new git worktree before starting development.
