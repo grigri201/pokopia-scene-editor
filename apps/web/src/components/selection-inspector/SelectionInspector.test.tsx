@@ -63,8 +63,30 @@ describe('SelectionInspector', () => {
     expect(screen.getByLabelText('No selected grid cell')).toHaveStyle({
       '--selection-empty-image': 'url("/assets/pokopia_image_sources/pokemon_portraits/063-ditto.png")',
     });
+    expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
+    expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
+    expect(screen.getByRole('button', { name: '添加备注' })).toBeDisabled();
     expectSelectionCopyRemoved('No selection', 'Choose an item or grid cell');
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('adds current layer notes without requiring a selected grid cell', () => {
+    const onAddLayerNote = vi.fn(() => true);
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={null}
+        selectedInstance={null}
+        selectedInstanceId={null}
+        readOnly={false}
+        onAddLayerNote={onAddLayerNote}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('新增当前层备注'), { target: { value: '无需选中格' } });
+    fireEvent.click(screen.getByRole('button', { name: '添加备注' }));
+
+    expect(onAddLayerNote).toHaveBeenCalledWith('level-0', '无需选中格');
   });
 
   it('allows skill marker buttons for an empty selected position', () => {
@@ -117,6 +139,7 @@ describe('SelectionInspector', () => {
         selectedInstanceId={null}
         selectedSkillMarker={null}
         buildingLevels={noteScene.buildingLevels}
+        currentBuildingLevel={noteScene.buildingLevels[0]}
         readOnly={false}
         onAddLayerNote={onAddLayerNote}
       />,
@@ -158,6 +181,7 @@ describe('SelectionInspector', () => {
         selectedInstanceId={null}
         selectedSkillMarker={null}
         buildingLevels={noteScene.buildingLevels}
+        currentBuildingLevel={noteScene.buildingLevels[0]}
         readOnly={false}
         onUpdateLayerNote={onUpdateLayerNote}
         onDeleteLayerNote={onDeleteLayerNote}
@@ -167,7 +191,10 @@ describe('SelectionInspector', () => {
     fireEvent.click(screen.getByRole('button', { name: '编辑第 1 条备注' }));
     fireEvent.change(screen.getByLabelText('编辑第 1 条当前层备注'), { target: { value: '第一条更新' } });
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
-    fireEvent.click(screen.getByRole('button', { name: '删除第 2 条备注' }));
+    const deleteButton = screen.getByRole('button', { name: '删除第 2 条备注' });
+    expect(deleteButton.querySelector('svg')).not.toBeNull();
+    expect(deleteButton).not.toHaveTextContent('删除');
+    fireEvent.click(deleteButton);
 
     expect(onUpdateLayerNote).toHaveBeenCalledWith('level-0', 'note-1', '第一条更新');
     expect(onDeleteLayerNote).toHaveBeenCalledWith('level-0', 'note-2');
@@ -193,6 +220,7 @@ describe('SelectionInspector', () => {
         selectedInstanceId={null}
         selectedSkillMarker={null}
         buildingLevels={noteScene.buildingLevels}
+        currentBuildingLevel={noteScene.buildingLevels[0]}
         readOnly
       />,
     );
@@ -273,7 +301,7 @@ describe('SelectionInspector', () => {
     expect(screen.getByLabelText('No selected grid cell')).toHaveTextContent('点击一个编辑格查看或放置素材');
     expect(screen.getByLabelText('No selected grid cell')).not.toHaveTextContent('没有选中格子');
     expect(screen.getByLabelText('Current selection actions')).not.toHaveTextContent('2,2');
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
   });
 
   it('shows selected asset context and emits compact rotate and skill marker actions', () => {
@@ -305,8 +333,8 @@ describe('SelectionInspector', () => {
       '90 deg',
     );
     expect(screen.getByText('砖瓦屋顶装饰')).toBeVisible();
-    expect(screen.queryByRole('heading', { name: '当前层备注' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: /note/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
+    expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
     expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: /building layer/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
@@ -420,7 +448,7 @@ describe('SelectionInspector', () => {
     expect(onSaveInstanceSkill).toHaveBeenCalledTimes(1);
   });
 
-  it('shows retained selected-instance fields without note or move editors', () => {
+  it('shows retained selected-instance fields without move editors while keeping current layer notes', () => {
     const richScene = {
       ...scene,
       buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
@@ -447,6 +475,7 @@ describe('SelectionInspector', () => {
         selectedInstance={richContext.tileInstances[0]}
         selectedInstanceId="tile-rich"
         buildingLevels={richScene.buildingLevels}
+        currentBuildingLevel={richScene.buildingLevels[2]}
         tileInstances={richScene.tileInstances}
         readOnly={false}
       />,
@@ -454,7 +483,8 @@ describe('SelectionInspector', () => {
 
     expectSelectionCopyRemoved('0,2', 'outer', 'L3 3层', '270 deg', '#56ccf2', '耕地', 'soil roof note');
     expect(screen.getByText('砖瓦屋顶装饰')).toBeVisible();
-    expect(screen.queryByRole('textbox', { name: /note/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
+    expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
     expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: /building layer/i })).not.toBeInTheDocument();
   });

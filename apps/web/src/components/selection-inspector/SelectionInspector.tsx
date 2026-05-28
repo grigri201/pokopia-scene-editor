@@ -76,9 +76,7 @@ export function SelectionInspector({
   const selectedLevel = selectedInstance
     ? buildingLevels.find((level) => level.id === selectedInstance.buildingLevelId)
     : context?.buildingLevel;
-  const layerNotesLevel = !selectedInstance
-    ? selectedLevel ?? (readOnly ? currentBuildingLevel : null)
-    : null;
+  const layerNotesLevel = currentBuildingLevel ?? selectedLevel ?? null;
   const coordinate = selectedInstance?.coordinate ?? context?.coordinate ?? null;
   const activeSkillType = selectedSkillMarker?.skillType ?? (selectedInstance?.requiresSkill ? selectedInstance.skillType : null);
   const activeSkillNote = selectedSkillMarker?.skillNote ?? selectedInstance?.skillNote ?? '';
@@ -215,7 +213,7 @@ export function SelectionInspector({
           </div>
         ) : null}
       </div>
-      {layerNotesLevel && (coordinate || readOnly) ? (
+      {layerNotesLevel ? (
         <LayerNotesPanel
           locale={locale}
           level={layerNotesLevel}
@@ -265,6 +263,18 @@ function RotateIcon() {
 }
 
 function ClearMaterialIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 7h16" />
+      <path d="M9 7V4h6v3" />
+      <path d="M7 7l1 13h8l1-13" />
+      <path d="M10 11v5" />
+      <path d="M14 11v5" />
+    </svg>
+  );
+}
+
+function DeleteNoteIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path d="M4 7h16" />
@@ -398,10 +408,13 @@ function LayerNotesPanel({
                         </button>
                         <button
                           type="button"
+                          className="layer-note-icon-button layer-note-icon-button--danger has-icon-tooltip"
                           aria-label={t(locale, 'deleteLayerNoteAction', { index: noteIndex })}
+                          data-tooltip={t(locale, 'deleteLayerNote')}
+                          title={t(locale, 'deleteLayerNote')}
                           onClick={() => onDeleteLayerNote(level.id, note.id)}
                         >
-                          {t(locale, 'deleteLayerNote')}
+                          <DeleteNoteIcon />
                         </button>
                       </div>
                     ) : null}

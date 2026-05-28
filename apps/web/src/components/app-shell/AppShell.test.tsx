@@ -572,11 +572,10 @@ describe('AppShell scene storage integration', () => {
     expect(screen.queryByLabelText(/L2,/)).not.toBeInTheDocument();
   });
 
-  it('adds a current-layer note from the selected empty cell without changing selection or selected asset', async () => {
+  it('adds a current-layer note without requiring a selected grid cell', async () => {
     setViewportWidth(1024);
     render(<AppShell />);
 
-    fireEvent.click(screen.getByLabelText('Cell 3,3, main area, level-0, placeable'));
     fireEvent.change(screen.getByLabelText('新增当前层备注'), { target: { value: '  先放桌子 <b>不要执行</b>  ' } });
     fireEvent.click(screen.getByRole('button', { name: '添加备注' }));
 
@@ -585,7 +584,7 @@ describe('AppShell scene storage integration', () => {
       expect(snapshot.workspaceState).toMatchObject({
         currentBuildingLevelId: 'level-0',
         selectedAssetId: null,
-        selectedCoordinate: { x: 3, y: 3 },
+        selectedCoordinate: null,
       });
       expect(snapshot.buildingLevels[0].notes).toEqual([
         {
