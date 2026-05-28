@@ -2175,3 +2175,115 @@ So that 我可以减少 L0/0 层误读，并把导出图直接分享给他人理
 **When** 画布/导出图形渲染完成
 **Then** 0,0 和最大坐标提示必须稳定显示且对辅助技术隐藏
 **And** 导出预览必须包含本地化的逐层图形和素材清单标签、单/复数建筑层摘要以及会进入导出图片的 `pokokit` 彩色 logo。
+
+## Epic 10: 建筑层备注与导出说明增强
+
+用户可以为每个建筑层维护多条备注，并在图片导出预览中按层显示这些备注。层备注用于记录搭建顺序、摆放注意事项或复现说明；它们属于建筑层级别的场景数据，不恢复普通素材实例备注，不进入 UI preferences。
+
+### Story 10.1: 在 scene-core 增加 BuildingLevel notes 数据契约
+
+**Requirements covered:** FR87, FR88, FR90, NFR41, NFR43.
+
+As a 布景创作者,
+I want 每个建筑层可以保存多条备注,
+So that 我的搭建说明可以和层级结构一起恢复和导出。
+
+**Acceptance Criteria:**
+
+**Given** 默认 scene 被创建
+**When** scene-core 生成 `buildingLevels`
+**Then** 每个 `BuildingLevel` 都包含 `notes: []`。
+
+**Given** 用户新增、编辑或删除层备注
+**When** command layer 更新 scene
+**Then** 只修改目标 `buildingLevels[].notes`
+**And** 不创建或恢复 `TileInstance.note`。
+
+**Given** 旧 SceneDocument v1 payload 缺少 `buildingLevels[].notes`
+**When** parse/recover 执行
+**Then** 恢复为 `notes: []`
+**And** 新 serializer 输出显式 `notes` 字段。
+
+**Given** 层备注包含 HTML-like 文本
+**When** schema、serializer、export summary 或 UI 展示该备注
+**Then** 备注只能作为普通文本处理。
+
+### Story 10.2: 在选中空格提示框下方编辑当前层备注
+
+**Requirements covered:** FR87, FR88, FR89, NFR42, NFR43.
+
+As a 布景创作者,
+I want 在选中空格提示框下方填写当前层备注,
+So that 我不需要离开画布上下文就能记录这一层的搭建说明。
+
+**Acceptance Criteria:**
+
+**Given** 桌面或平板编辑模式下用户选中当前层空格
+**When** Selection Inspector 渲染
+**Then** 选中空格提示框下方显示当前层备注输入框、添加动作和备注列表。
+
+**Given** 用户输入非空备注并提交
+**When** command layer 接收新增备注
+**Then** 当前建筑层新增一条备注
+**And** 画布格子尺寸、选中状态和当前素材状态不发生布局跳动。
+
+**Given** 当前层已有多条备注
+**When** 用户查看备注列表
+**Then** 备注按保存顺序列出，并支持编辑和删除。
+
+**Given** `<768px` Mobile View-only Mode
+**When** 用户查看选中格或当前层信息
+**Then** 可以查看层备注
+**And** 新增、编辑、删除备注操作被禁用或隐藏，不触发 scene mutation。
+
+### Story 10.3: 在导出摘要和图片导出预览中按层显示备注
+
+**Requirements covered:** FR91, FR92, NFR30, NFR35, NFR43.
+
+As a 布景创作者,
+I want 导出预览在每层素材下方显示该层备注,
+So that 其他人能按层阅读搭建说明。
+
+**Acceptance Criteria:**
+
+**Given** scene 中某个建筑层包含一条或多条备注
+**When** build image export summary
+**Then** 对应 layer summary 包含该层备注列表
+**And** 备注按保存顺序输出。
+
+**Given** 导出预览渲染某个有备注的建筑层
+**When** 该层素材清单渲染完成
+**Then** 素材清单下方显示该层备注区域。
+
+**Given** 某层没有备注
+**When** 导出预览和下载图片渲染该层
+**Then** 不显示误导性的空备注内容。
+
+**Given** Worker/MCP 调用 export summary
+**When** scene 包含层备注
+**Then** Web、Worker 和 MCP 的 layer notes 语义一致。
+
+### Story 10.4: 层备注短字符串、测试和发布门禁
+
+**Requirements covered:** FR90, FR92, NFR35, NFR41, NFR43.
+
+As a 维护者,
+I want 层备注在保存、短字符串、Worker/MCP 和导出中有一致测试,
+So that 后续不会丢失用户填写的层级说明。
+
+**Acceptance Criteria:**
+
+**Given** scene 包含多层、多条层备注和 HTML-like 文本
+**When** scene-core roundtrip、PSE1 encode/decode、web tests、Worker tests 和 MCP smoke 运行
+**Then** 层备注数量、顺序和正文保持一致
+**And** 不执行 HTML。
+
+**Given** 旧 PSE1 短字符串不包含层备注字段
+**When** decode/recover 执行
+**Then** 每层恢复 `notes: []`
+**And** 不破坏现有素材、技能、footprint 和 selected coordinate 语义。
+
+**Given** release gate 运行
+**When** dev agent 完成 Epic 10
+**Then** `pnpm run release:verify` 必须通过
+**And** 覆盖 scene-core schema、commands、short string codec、SelectionInspector、ExportPreview、Worker export summary、MCP summarize 和 i18n 文案。
