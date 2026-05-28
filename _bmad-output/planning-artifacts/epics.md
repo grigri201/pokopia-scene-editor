@@ -14,6 +14,7 @@ inputDocuments:
   - _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-22.md
   - _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-25.md
   - _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-27.md
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28-stacking-surface-rules.md
   - docs/需求文档.md
 ---
 
@@ -40,6 +41,10 @@ Epic 5 已完成并保留为已完成历史。后续新功能不得通过重写 
 ## Approved Course Correction - 2026-05-27
 
 `_bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-27.md` 已批准。Epic 1-7 保留为已完成历史；当前新增 Epic 8，用于真实素材 footprint metadata、旋转后占用格、height 跨层阻塞、跨格渲染、保存/恢复/短字符串兼容，以及 Worker/MCP/Codex skill 与 `scene-core` 的规则一致性。本次不创建 `SceneDocument v2`，不保存 blocking cells，也不把 footprint 作为实例级 payload 字段。
+
+## Approved Course Correction - 2026-05-28 承载面/叠放规则
+
+`_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28-stacking-surface-rules.md` 已批准。Epic 1-10 保留为现有历史与计划；当前新增 Epic 11，用于 catalog-driven 承载面与受控叠放规则。盘子、木盘子、派对拼盘可以承载食物；已审计的底垫、地毯、嫩芽和低高度素材可以允许兼容物品与其同层叠放或放到其上方。本次继续保持 `SceneDocument v1`，不保存 stacking relation、surface id、z-index、parent instance id 或 catalog snapshot。
 
 ## Requirements Inventory
 
@@ -75,7 +80,7 @@ FR11: 用户可以用新素材替换同一建筑层同一格子的已有素材�
 
 FR12: 用户可以在不同建筑层的同一坐标放置不同素材。
 
-FR13: 系统可以根据素材属性判断同一建筑层同一格子是否允许叠放。
+FR13: [Removed from MVP 2026-05-19] 系统不提供旧式通用同层叠放；Epic 11 通过 FR93-FR100 重新引入 catalog-driven 承载面与受控叠放例外。
 
 FR14: 用户可以移动已放置素材到其他格子。
 
@@ -117,9 +122,9 @@ FR32: 用户可以按适用区域筛选素材。
 
 FR33: 用户可以按技能相关条件筛选素材，包括是否默认需要百变怪技能、技能类型和是否可作为本次放置的技能标记候选。
 
-FR34: 用户可以查看素材详情，详情至少包含素材 ID、名称、分类、标签、适用区域、喜好状态、默认技能需求、footprint、是否可旋转、是否可叠放、是否可染色和缩略图。
+FR34: 用户可以查看素材详情，详情至少包含素材 ID、名称、分类、标签、适用区域、喜好状态、默认技能需求、footprint、承载/叠放能力、是否可染色和缩略图；所有素材均视为可旋转，不展示旧式通用可叠放开关。
 
-FR35: 素材维护者可以为素材维护分类、标签、适用区域、喜好状态、默认技能需求、可旋转性、可叠放性、可染色性、footprint 和缩略图地址。
+FR35: 素材维护者可以为素材维护分类、标签、适用区域、喜好状态、默认技能需求、可染色性、footprint、承载/叠放 surface metadata 和缩略图地址；不维护可旋转性差异或自由叠放开关。
 
 FR59: 用户可以只显示当前 Pokemon 喜好的素材，筛选结果计数应保持稳定宽度并通过可访问方式更新。
 
@@ -217,6 +222,22 @@ FR85: Worker validate/recover/export-summary、MCP tools/resources/prompts 和 C
 
 FR86: 旧 SceneDocument v1 payload 和旧短字符串迁移时不改写 shape；若当前 catalog footprint 使旧场景产生越界、同层重叠或跨层阻塞冲突，恢复/校验必须返回结构化错误或修复建议，而不是静默调整坐标或保存派生状态。
 
+FR93: Asset catalog 必须为每个可放置素材提供默认 stacking metadata，默认不可承载、不可被同层 overlap；明确 override 才能开启承载面或底垫/低高度叠放能力。
+
+FR94: `wooden-plate`、`plate`、`party-platter` 必须被标记为 food surface，只允许 `food` category 或等价已审计食物素材作为 top item 放置在其 footprint cells 上。
+
+FR95: 已审计的底垫、地毯、嫩芽和低高度素材可以被标记为 floor-cover 或 low-height surface；系统不得仅凭名称包含“垫”“地毯”“嫩芽”自动开放叠放。
+
+FR96: `scene-core` placement、save validation 和 recover validation 必须允许同层 occupied cell overlap 仅在 existing base instance 的 stacking metadata 允许 incoming asset category，且 incoming footprint 覆盖范围被 base surface 覆盖或规则明确允许时成立。
+
+FR97: 不兼容叠放必须返回结构化 conflict，至少区分 unsupported stack surface、surface capacity/conflict、same-level footprint overlap 和 height-blocked-by-lower-footprint。
+
+FR98: 承载/叠放关系必须从当前 SceneDocument v1 与 asset catalog 派生，不保存 parent/child stack id、surface id、z-index、stacking relation 或 catalog snapshot。
+
+FR99: Web 编辑画布、素材详情、选中实例检查器、俯视/正视预览和图片导出必须表达承载/被承载/可叠放/不兼容叠放状态；合法同格叠放应把原始格子或对应 footprint cell 拆成上下两部分，下半部分显示可叠放 base 素材，上半部分显示 top 素材；不兼容叠放应显示浅红/红色冲突提示并说明原因；选择同坐标多个实例时必须保持可理解。
+
+FR100: Worker validate/recover/export-summary、MCP tools/resources/prompts 和 Codex skill 必须复用同一套 `scene-core` stacking helpers；导出摘要可以包含 derived stacking relation，但不得把它写回 SceneDocument 或短字符串。
+
 ### NonFunctional Requirements
 
 NFR1: 在桌面浏览器 1280×720 视口、1,000 个素材以内、10 个建筑层以内的测试场景中，7×7 画布上的选中格子、放置素材、删除素材、切换技能标记和切换当前建筑层操作应在 100ms 内完成可见状态更新，使用浏览器性能标记或等效自动化计时测量。
@@ -299,11 +320,21 @@ NFR39: `scene-core`、web UI、Worker API、MCP tools 和 Codex skill 示例必�
 
 NFR40: Footprint 校验错误必须包含字段路径、冲突类型、触发实例、阻塞实例、建筑层和坐标集合；Worker/MCP/Codex skill 输出不得只给出 generic validation failed。
 
+NFR44: Stacking surface compatibility、derived stacked relation 和 overlap exceptions 必须由 `scene-core` 纯函数确定性派生；任何端不得保存或缓存会与 SceneDocument/catalog 漂移的独立叠放状态。
+
+NFR45: `SceneDocument v1` 仍是当前 schema；本次变更不得新增 stacking relation、surface id、z-index、parent instance id、catalog snapshot 或 `SceneDocument v2`。
+
+NFR46: `scene-core`、web UI、Worker API、MCP tools 和 Codex skill 示例必须有契约测试覆盖 plate+food 成功、plate+non-food 阻断、rug/mat/shoot/low-height surface overlap、多格 surface bounds、短字符串 roundtrip 和 export-summary parity。
+
+NFR47: Stacking 校验错误必须包含字段路径、冲突类型、top instance/asset、base instance/asset、building level、坐标集合和用户可执行修复方向；Worker/MCP/Codex skill 输出不得只给出 generic validation failed。
+
 ### Additional Requirements
 
 - 已完成 MVP 保持客户端优先静态 Web App；Epic 7 批准新增无状态 Worker/API/MCP 服务层，但不得引入数据库、认证、云同步、分享链接、在线发布或后端管理控制台。
 
 - Epic 8 批准新增真实素材 footprint 与 occupancy rules；当前 `SceneDocument v1` 继续作为保存、恢复、短字符串和 Worker/MCP 输入契约。Footprint 属于 asset catalog 元数据，阻塞格和占用格由 `scene-core` 派生，不得作为独立 scene payload 字段保存。
+
+- Epic 11 批准新增承载面与受控叠放规则；当前 `SceneDocument v1` 继续作为保存、恢复、短字符串和 Worker/MCP 输入契约。Stacking surface metadata 属于 asset catalog，承载/被承载关系由 `scene-core` 派生，不得作为独立 scene payload 字段保存。
 
 - Starter template 使用 Vite + React + TypeScript (`react-ts`)。第一条实施 story 应初始化该 starter，并建立 `typecheck`、build、Vitest 和 Playwright scaffold。
 
@@ -465,7 +496,7 @@ FR11: Epic 2 - 替换同一建筑层同一格子的已有素材。
 
 FR12: Epic 2 - 在不同建筑层的同一坐标放置不同素材。
 
-FR13: Epic 2 - 根据素材属性判断同层同格是否允许叠放。
+FR13: Epic 5 - 旧式通用同层叠放从 MVP 删除；Epic 11 用 FR93-FR100 提供受控承载/叠放例外。
 
 FR14: Epic 2 - 移动已放置素材到其他格子。
 
@@ -509,7 +540,7 @@ FR33: Epic 2 - 按技能相关条件筛选素材。
 
 FR34: Epic 2 - 查看素材详情及最小详情字段。
 
-FR35: Epic 2 - 维护素材分类、标签、适用区域、喜好状态、默认技能需求、可旋转性、可叠放性、可染色性和缩略图地址。
+FR35: Epic 2/Epic 11 - 维护素材分类、标签、适用区域、喜好状态、默认技能需求、可染色性、footprint、承载/叠放 surface metadata 和缩略图地址。
 
 FR59: Epic 2 - 只显示当前 Pokemon 喜好素材和稳定结果计数。
 
@@ -589,6 +620,40 @@ FR76: Epic 7 - Codex skill 通过 MCP 调用权威服务，不复制业务逻辑
 
 FR77: Epic 7 - 现有 React UI 继续复用 `scene-core`，且浏览器编辑/导出体验不回退。
 
+FR78: Epic 8 - Asset catalog 提供 footprint length/width/height。
+
+FR79: Epic 8 - `scene-core` 根据 footprint 和 rotation 派生 effective footprint。
+
+FR80: Epic 8 - footprint placement/save/recover 校验 bounds 与同层 overlap。
+
+FR81: Epic 8 - height 大于 1 的素材派生上方 blocking cells。
+
+FR82: Epic 8 - 放置预览显示 footprint、覆盖/阻塞/越界原因和跨层阻塞来源。
+
+FR83: Epic 8 - 编辑画布、预览、图片导出和导出摘要按 effective footprint 表达大素材。
+
+FR84: Epic 8 - 保存/恢复和短字符串继续使用 SceneDocument v1 并重新派生 occupancy。
+
+FR85: Epic 8 - Worker/MCP/Codex skill 复用 `scene-core` footprint/occupancy helpers。
+
+FR86: Epic 8 - 旧 SceneDocument v1 payload 和短字符串迁移不改写 shape，冲突返回结构化错误或修复建议。
+
+FR93: Epic 11 - Asset catalog 提供默认 stacking metadata 与明确 override。
+
+FR94: Epic 11 - `wooden-plate`、`plate`、`party-platter` 作为 food surface 承载食物。
+
+FR95: Epic 11 - 已审计底垫、地毯、嫩芽和低高度素材可作为 floor-cover 或 low-height surface。
+
+FR96: Epic 11 - `scene-core` 允许且仅允许兼容 surface 的同层 overlap。
+
+FR97: Epic 11 - 不兼容叠放返回结构化 conflict。
+
+FR98: Epic 11 - 承载/叠放关系由 SceneDocument v1 与 asset catalog 派生，不保存关系字段。
+
+FR99: Epic 11 - Web UI、预览和图片导出表达承载/被承载/可叠放/不兼容状态；合法叠放用上下半格显示，非法叠放用浅红冲突提示。
+
+FR100: Epic 11 - Worker/MCP/Codex skill 复用 `scene-core` stacking helpers，导出摘要只返回 derived relation。
+
 ## Epic List
 
 ### Epic 1: 规则可见的 7×7 布景工作台
@@ -646,6 +711,22 @@ FR77: Epic 7 - 现有 React UI 继续复用 `scene-core`，且浏览器编辑/�
 **FRs covered:** FR69, FR70, FR71, FR72, FR73, FR74, FR75, FR76, FR77, NFR31, NFR32, NFR33, NFR34, NFR35, NFR36.
 
 **Implementation notes:** 该 epic 承接 Epic 4 的 `SceneDocument v1` 契约、Epic 6 的 export summary 和技术研究。仓库必须按 pnpm workspace monorepo 组织：`apps/web` 承载现有 React 浏览器 UI，`apps/worker` 承载 Cloudflare Worker HTTP API 和 Streamable HTTP MCP，`packages/scene-core` 承载共享领域核心。第一阶段不引入账号、数据库、云保存、分享链接、服务端图片渲染或 AI 自动生成布景。所有 adapter 必须复用 `scene-core`。
+
+### Epic 8: 真实素材 Footprint 与跨层占用规则
+
+用户可以在同一个 7x7 多建筑层工作台中正确放置、预览、保存和导出真实 Pokopia 素材 footprint；大素材会按 length/width 跨格显示，90/270 度旋转会交换占用方向，height 大于 1 的素材会在上方建筑层派生不可放置格。Web、Worker、MCP 和 Codex skill 必须共用 `scene-core` 的权威规则，不出现 schema 或规则漂移。
+
+**FRs covered:** FR78, FR79, FR80, FR81, FR82, FR83, FR84, FR85, FR86, NFR37, NFR38, NFR39, NFR40.
+
+**Implementation notes:** 该 epic 承接 Epic 7 的 `scene-core` 分层和 Epic 4 的 `SceneDocument v1` 契约。Footprint 属于 asset catalog metadata，occupied cells、effective footprint 和 height blocking cells 都由 shared helpers 派生，不写入保存 payload、autosave、短字符串或 Codex skill 文档。
+
+### Epic 11: 承载面与受控叠放规则
+
+用户可以把食物放到盘子、木盘子和派对拼盘上，也可以在已审计的底垫、地毯、嫩芽和低高度素材上方放置兼容物品，而不会被 Epic 8 的默认 same-level overlap 规则错误阻断。系统仍应阻止任意叠放、非食物放盘子、未审计素材开放叠放和与 height blocking 冲突的摆放。
+
+**FRs covered:** FR93, FR94, FR95, FR96, FR97, FR98, FR99, FR100, NFR44, NFR45, NFR46, NFR47.
+
+**Implementation notes:** 该 epic 承接 Epic 8 的 footprint/occupancy helpers。承载/叠放能力只存在于 asset catalog stacking metadata 和 `scene-core` derived relation 中；`SceneDocument v1`、autosave、短字符串和 Worker/MCP 输入输出不得保存 stacking relation、surface id、z-index、parent instance id 或 catalog snapshot。
 
 ## Epic 1: 规则可见的 7×7 布景工作台
 
@@ -2287,3 +2368,133 @@ So that 后续不会丢失用户填写的层级说明。
 **When** dev agent 完成 Epic 10
 **Then** `pnpm run release:verify` 必须通过
 **And** 覆盖 scene-core schema、commands、short string codec、SelectionInspector、ExportPreview、Worker export summary、MCP summarize 和 i18n 文案。
+
+## Epic 11: 承载面与受控叠放规则
+
+用户可以把食物放到盘子、木盘子和派对拼盘上，也可以在已审计的底垫、地毯、嫩芽和低高度素材上方放置兼容物品，而不会被 Epic 8 的默认 same-level overlap 规则错误阻断。系统仍应阻止任意叠放、非食物放盘子、未审计素材开放叠放和与 height blocking 冲突的摆放。Web、Worker、MCP 和 Codex skill 必须共用 `scene-core` stacking helpers，且继续保持 `SceneDocument v1`。
+
+### Story 11.1: 为 asset catalog 增加 stacking surface 元数据
+
+**Requirements covered:** FR93, FR94, FR95, FR98, NFR44, NFR45, NFR46.
+
+As a 素材维护者,
+I want 在 asset catalog 中维护承载面和受控叠放 metadata,
+So that 盘子、地毯、底垫、嫩芽和低高度素材的例外规则可以被审计和测试，而不是靠 UI 或名称猜测。
+
+**Acceptance Criteria:**
+
+**Given** 当前 asset catalog 构建 asset definitions
+**When** 素材没有显式 stacking override
+**Then** 默认 stacking metadata 必须表示不可承载、不可被同层 overlap
+**And** 现有 asset id、official id、名称、分类、标签、喜好、footprint 和缩略图不应变化。
+
+**Given** `wooden-plate`、`plate`、`party-platter`
+**When** catalog 构建 stacking metadata
+**Then** 三者必须被标记为 food surface
+**And** allowed top category 只能覆盖 `food` 或等价已审计食物素材集合。
+
+**Given** 已审计的底垫、地毯、嫩芽和低高度素材清单
+**When** dev agent 增加 stacking overrides
+**Then** overrides 必须集中在 `packages/scene-core/src/domain/assets/` 的可审计结构中
+**And** 不得仅靠中文名、英文名或 slug 包含 `mat`、`rug`、`shoot` 自动开放叠放。
+
+**Given** HTTP `/api/assets`、MCP resource `pokopia://assets/catalog` 或 Codex skill 查询素材
+**When** 返回 asset catalog
+**Then** 结果必须包含 stacking metadata 或可解释的 derived display fields
+**And** Codex skill 示例不得复制 override 列表。
+
+### Story 11.2: 在 scene-core 实现 stacking compatibility 与派生关系
+
+**Requirements covered:** FR96, FR97, FR98, FR100, NFR44, NFR45, NFR46, NFR47.
+
+As a 开发者,
+I want `scene-core` 统一判断同层 overlap 是否被承载面规则允许,
+So that Web、Worker、MCP 和 skill 都使用同一套承载/叠放规则。
+
+**Acceptance Criteria:**
+
+**Given** 同一建筑层已有 `wooden-plate`、`plate` 或 `party-platter`
+**When** 用户把 `food` category 素材放到其 footprint cells 上
+**Then** placement、save validation 和 recover validation 必须允许该 overlap
+**And** derived relation 标记 top item 被对应 food surface 承载。
+
+**Given** 同一建筑层已有 food surface
+**When** 用户把非食物素材放到其 footprint cells 上
+**Then** validation 必须返回 unsupported stack surface conflict
+**And** 错误包含 top asset、base asset、building level 和坐标。
+
+**Given** 同一建筑层已有已审计 floor-cover、rug、shoot 或 low-height surface
+**When** incoming asset category 被该 surface metadata 允许
+**Then** placement 可以通过
+**And** derived relation 不写入 `SceneDocument v1`、short string 或 autosave payload。
+
+**Given** incoming footprint 覆盖多个 cells
+**When** 只有部分 cells 有兼容 base surface 或出现多个不兼容 base surfaces
+**Then** validation 必须返回 surface capacity/conflict 或 same-level overlap conflict
+**And** 不得静默选择一个 base instance 作为承载面。
+
+**Given** lower level height blocking cells 与 stacking surface 同时存在
+**When** incoming asset 触发上层阻塞
+**Then** height-blocked-by-lower-footprint 仍优先阻止放置
+**And** stacking rule 不得绕过 Epic 8 的跨层阻塞。
+
+### Story 11.3: 更新 Web 放置预览、画布和实例检查器反馈
+
+**Requirements covered:** FR96, FR97, FR99, NFR44, NFR46, NFR47.
+
+As a 布景创作者,
+I want 在放置前看懂当前素材能否放到盘子、地毯、底垫、嫩芽或低高度素材上,
+So that 我能区分合法承载、合法叠放和真实冲突。
+
+**Acceptance Criteria:**
+
+**Given** 用户选择食物并悬停到盘子、木盘子或派对拼盘上
+**When** surface rules 允许放置
+**Then** 画布必须显示可承载/将被承载的预览状态
+**And** 预览格必须拆成上下两个显示区，下半部分显示盘类 base surface，上半部分显示食物 top item
+**And** 点击后 top item 与 base item 都可以被理解为独立实例。
+
+**Given** 用户选择非食物素材并悬停到 food surface 上
+**When** surface rules 不允许放置
+**Then** 画布必须显示浅红不兼容叠放状态，视觉强度和位置应接近 Epic 8 的跨层 height 阻塞提示
+**And** 错误说明包含 base asset、top asset、建筑层和坐标。
+
+**Given** 同一坐标存在 base surface 和 top item
+**When** 用户点击该坐标或查看实例检查器
+**Then** UI 必须通过上下半格布局让用户选择或至少识别 base/top 两个实例
+**And** 不得把两个实例误显示成一个重复素材或丢失删除/选择入口。
+
+**Given** 用户在移动端 View-only Mode 查看叠放场景
+**When** 点选叠放坐标
+**Then** 只能查看承载/被承载关系
+**And** 不允许通过触摸、键盘或快捷入口修改 scene。
+
+### Story 11.4: 更新预览、图片导出、Worker/MCP/Codex skill parity
+
+**Requirements covered:** FR99, FR100, NFR35, NFR44, NFR45, NFR46, NFR47.
+
+As a 维护者,
+I want 预览、导出摘要、Worker、MCP 和 Codex skill 都复用同一套 stacking contract,
+So that 承载/叠放关系不会在浏览器和 agent 工具之间漂移。
+
+**Acceptance Criteria:**
+
+**Given** scene 包含 plate+food 或 rug/mat/shoot/low-height surface overlap
+**When** 用户打开俯视图、正视图或图片导出预览
+**Then** 预览必须用上下半格或同等明确的上下分区表达 base/top 关系
+**And** 每层素材清单仍按真实实例计数，不按 occupied cell 或 relation 计数。
+
+**Given** Worker/MCP 调用 validate、recover 或 export summary
+**When** scene 中存在合法 stacking relation
+**Then** 响应必须包含与 web direct-call tests 一致的 derived stacking relation 或 summary field
+**And** 不把 relation 写回 SceneDocument payload。
+
+**Given** scene 被保存、自动保存或编码为 PSE1 短字符串
+**When** 用户 roundtrip 或 decode/recover
+**Then** payload/string 不包含 stacking relation、surface id、z-index 或 parent instance id
+**And** recover 后通过当前 catalog 与 `scene-core` stacking helpers 重新派生相同结果。
+
+**Given** release gate 运行
+**When** dev agent 完成 Epic 11
+**Then** `pnpm run release:verify` 必须通过
+**And** 覆盖 catalog stacking metadata、scene-core compatibility helpers、web placement/canvas/inspector、preview/export、Worker routes、MCP smoke、short string codec 和 skill examples。

@@ -51,6 +51,10 @@ courseCorrections:
     source: _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28.md
     status: approved
     summary: Add Epic 10 for per-building-level multi-note editing, persistence, export preview rendering, and Worker/MCP export-summary parity while keeping ordinary tile instance note out of scope.
+  - date: '2026-05-28'
+source: _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28-stacking-surface-rules.md
+    status: approved
+    summary: Add Epic 11 for catalog-driven carrying surfaces and controlled stacking rules; plates can carry food, selected mats/rugs/shoots/low-height assets can permit compatible overlap, and SceneDocument v1 remains unchanged.
 ---
 
 # 产品需求文档 - pokopia-scene-editor
@@ -90,15 +94,21 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 
 现有素材迁移策略是：所有 catalog asset 默认 footprint 为 `{ length: 1, width: 1, height: 1 }`，再用可审计 override 补充真实大素材。90/270 度旋转时 length/width 占用格必须交换；height 大于 1 时，上方建筑层对应 footprint cells 显示为不可放置。Web 编辑画布、俯视/正视预览、图片导出、Worker validate/recover/export-summary、MCP resources/tools 和 Codex skill 必须复用同一套 `scene-core` footprint/occupancy helpers。
 
-### Approved Course Correction - 2026-05-28
+### Approved Course Correction - 2026-05-28 建筑层备注
 
 本 PRD 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28.md` 增加 Epic 10，用于按建筑层维护多条备注，并在图片导出预览和导出摘要中按层列出这些备注。层备注属于 `BuildingLevel` 的用户自填场景事实，不是普通素材实例备注 `note`，也不是 UI preference。
 
 `SceneDocument v1` 继续作为当前 schema。本次变更允许 `buildingLevels[].notes` 作为向后兼容的新增字段：旧保存数据或旧 PSE1 短字符串缺少该字段时恢复为空数组；新的自动保存、序列化、短字符串和 export summary 必须保留备注。备注正文保持用户原文，不随 locale 自动翻译，并且必须作为安全文本渲染。
 
+### Approved Course Correction - 2026-05-28 承载面/叠放规则
+
+本 PRD 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28-stacking-surface-rules.md` 增加 Epic 11，用于承载面与受控叠放规则。Epic 8 的默认规则仍然成立：同一建筑层的 occupied cells 默认不得重叠，height 大于 1 的素材会阻塞上方建筑层。Epic 11 只为已标记的 catalog 素材增加明确例外：`wooden-plate`、`plate`、`party-platter` 可以承载食物；部分底垫、地毯、嫩芽和低高度素材可以允许兼容物品与其同层叠放或放到其上方。
+
+当前继续保持 `SceneDocument v1`。本次不新增 `SceneDocument v2`，因为承载/叠放关系可由 `assetId`、anchor `coordinate`、`buildingLevelId`、`rotationDegrees`、当前 asset catalog stacking metadata 和 `scene-core` occupancy helpers 确定性派生；不需要保存 parent/child stack id、z-index、surface id、blocking cells 或 catalog snapshot。若未来需要用户手动指定叠放顺序、绑定某个物品到某个承载面、保存历史 catalog 解释或支持同坐标多个 top item 的持久排序，才需要新的 schema course correction。
+
 ### What Makes This Special
 
-本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：中心 5×5 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、素材实例级技能标记，以及完整 7×7 预览。
+本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：中心 5×5 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、受控承载/叠放、素材实例级技能标记，以及完整 7×7 预览。
 
 产品的核心洞察是：布景方案的复现难点不在于记录素材名称，而在于记录素材所在区域、坐标、建筑层、朝向、技能需求和预览关系。通过将这些信息结构化，编辑器可以帮助用户把灵感图、搭建步骤和最终布景数据统一到一个可继续编辑和分享的方案中。
 
@@ -129,7 +139,7 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 
 ### Technical Success
 
-系统必须稳定维护 5×5 主体尺寸、7×7 画布尺寸、外围扩展格数、场景名称、当前 Pokemon、建筑层、层备注、素材实例、坐标、区域类型、朝向、染色、技能标记、技能备注、当前编辑建筑层、当前素材和选中坐标等核心数据。素材 footprint、旋转后占用格和跨层阻塞必须从 asset catalog 与 SceneDocument v1 共同派生，不进入独立保存状态。自动保存、恢复、预览和图片导出数据派生必须使用同一个 SceneDocument v1 事实来源，并能完整还原 Open Design 工作台的必需持久上下文；图片导出不得维护第二套业务状态。
+系统必须稳定维护 5×5 主体尺寸、7×7 画布尺寸、外围扩展格数、场景名称、当前 Pokemon、建筑层、层备注、素材实例、坐标、区域类型、朝向、染色、技能标记、技能备注、当前编辑建筑层、当前素材和选中坐标等核心数据。素材 footprint、旋转后占用格、跨层阻塞和承载/叠放关系必须从 asset catalog 与 SceneDocument v1 共同派生，不进入独立保存状态。自动保存、恢复、预览和图片导出数据派生必须使用同一个 SceneDocument v1 事实来源，并能完整还原 Open Design 工作台的必需持久上下文；图片导出不得维护第二套业务状态。
 
 编辑操作应即时响应；7×7 画布、建筑层切换、素材放置、删除、技能标记切换和预览切换不应出现明显卡顿。素材数量增长时，素材列表应支持分页或虚拟滚动，保证搜索和筛选仍可快速返回结果。
 
@@ -147,8 +157,9 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 - 技能标记在画布和保存数据中保持一致，技能类型使用 `树叶`、`耕地`、`储水` 词表，并以一字标签辅助识别；预览不显示技能标记。
 - 可染色素材在格子内显示染色入口和当前颜色；非默认朝向只在 90/180/270 度时显示旋转标记，默认 0 度不额外占用画布信息层。
 - 大于 1x1 或 height 大于 1 的素材能够在画布、俯视预览、正视预览和图片导出中按 footprint 跨格或跨层表达；由 height 派生的上方阻塞格不可被保存为独立 state。
+- 盘子、木盘子和派对拼盘能够承载食物；已审计底垫、地毯、嫩芽和低高度素材能够按 catalog rules 允许兼容叠放；承载/叠放关系不可被保存为独立 state。
 - 左下检查器在同一工作台内同时展示正视图和俯视图缩略预览，正视图可独立滚动。
-- 自动保存数据重新打开后，场景名称、Decor Dex Pokemon key、画布、建筑层、层备注、当前编辑建筑层、当前素材、选中坐标、素材实例、坐标、区域类型、朝向、染色、技能标记和技能备注能够完整还原；footprint 和阻塞状态按当前 asset catalog 重新派生。
+- 自动保存数据重新打开后，场景名称、Decor Dex Pokemon key、画布、建筑层、层备注、当前编辑建筑层、当前素材、选中坐标、素材实例、坐标、区域类型、朝向、染色、技能标记和技能备注能够完整还原；footprint、阻塞状态和承载/叠放关系按当前 asset catalog 重新派生。
 - 搜索词、分类/区域/技能筛选和 favorite-only 不会写入 SceneDocument payload，但会在同一浏览器的 localStorage 中恢复。预览网格、主体边界和技能标记不提供显示选项。
 - 用户可以打开图片导出预览，并下载一张包含整体使用素材、每层图形、跨格素材 footprint、每层使用素材和每层备注的布景说明图片。
 
@@ -183,6 +194,7 @@ MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 
 - 当前素材选择、素材放置、删除、替换和旋转；所有素材均可旋转，且 90/270 度旋转会交换 footprint length/width 占用格。
 - Asset catalog 提供素材 footprint 元数据；未覆盖素材默认 1x1x1，真实大素材通过 override 增补。
 - 放置、替换和预览前反馈必须使用 footprint 计算同层占用、跨层阻塞和画布边界越界。
+- Asset catalog 提供素材承载/叠放元数据；盘子、木盘子、派对拼盘可以承载食物，已审计的底垫、地毯、嫩芽和低高度素材可以允许兼容物品同层叠放或放到其上方。
 - 建筑层创建、删除、重命名、复制和当前编辑层设置；MVP 不提供建筑层隐藏、显示、锁定或解锁。
 - 按 0 层到 n 层维护建筑层；在工作台左侧按高层到低层视觉顺序展示，例如 L2、L1、L0。
 - 每个建筑层可以维护多条层备注；层备注属于建筑层级别的场景数据，不恢复普通素材实例备注 `note`。
@@ -229,9 +241,9 @@ MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 
 
 MVP 不包含账号系统、云端同步、协作编辑、公开方案库、分享链接、AI 自动生成完整布景、素材批量导入、显式 JSON 导出/导入 UI、从导出图片或 JSON 导入恢复布景、复杂遮挡关系计算、真实游戏视角模拟、更大布景尺寸、可配置外围扩展格数、移动端完整编辑体验、原生设备能力、推送通知、支付、隐私档案或后端管理控制台。
 
-MVP 同样不包含：建筑层隐藏/显示/锁定/解锁、手动保存、dirty/saved/saveError 状态区分、Undo/Redo、素材空状态恢复动作、放置时素材适用区域阻断校验、同层素材堆叠、素材实例移动、普通实例备注 `note`、按素材区分是否可旋转，以及预览网格/主体边界/技能标记显示开关。
+MVP 同样不包含：建筑层隐藏/显示/锁定/解锁、手动保存、dirty/saved/saveError 状态区分、Undo/Redo、素材空状态恢复动作、放置时素材适用区域阻断校验、任意/通用同层素材堆叠、素材实例移动、普通实例备注 `note`、按素材区分是否可旋转，以及预览网格/主体边界/技能标记显示开关。
 
-MVP 的保存、自动保存、结构化序列化和恢复能力只覆盖单个布景方案的数据闭环，不承诺跨用户权限、在线发布、多人合并或版本历史。当前新增的导出入口只覆盖图片导出预览和图片下载；SceneDocument v1 作为内部事实来源参与导出数据派生，但 JSON 文件导出/导入 UI 仍是 Post-MVP，不作为 Epic 6 的用户可见交付。Epic 7 的 Worker/MCP/Codex skill 服务化也不得被解释为云保存、账号、分享链接、在线发布或服务端图片生成。Epic 8 的 footprint 占用和 height 阻塞属于规则化矩形占用，不等同于复杂真实视角遮挡模拟，也不得引入 `SceneDocument v2`、保存 blocking cells、实例级 footprint override 或可配置画布尺寸，除非另行完成新的 course correction。
+MVP 的保存、自动保存、结构化序列化和恢复能力只覆盖单个布景方案的数据闭环，不承诺跨用户权限、在线发布、多人合并或版本历史。当前新增的导出入口只覆盖图片导出预览和图片下载；SceneDocument v1 作为内部事实来源参与导出数据派生，但 JSON 文件导出/导入 UI 仍是 Post-MVP，不作为 Epic 6 的用户可见交付。Epic 7 的 Worker/MCP/Codex skill 服务化也不得被解释为云保存、账号、分享链接、在线发布或服务端图片生成。Epic 8 的 footprint 占用和 height 阻塞属于规则化矩形占用，不等同于复杂真实视角遮挡模拟。Epic 11 的承载/叠放只覆盖 catalog 明确标记的兼容关系，不提供自由 z-index、手动排序、多对象组合绑定或复杂物理支撑模拟，也不得引入 `SceneDocument v2`、保存 stacking relation、保存 blocking cells、实例级 footprint override 或可配置画布尺寸，除非另行完成新的 course correction。
 
 ### Risk Mitigation Strategy
 
@@ -261,7 +273,7 @@ MVP 的保存、自动保存、结构化序列化和恢复能力只覆盖单个�
 
 ### Journey 3: 素材库维护者补充和整理素材
 
-维护者需要让右侧素材栏足够好用。他为素材维护官方素材 ID、名称、分类、标签、适用区域、喜好标记、默认技能需求、是否可旋转、是否可叠放、是否可染色和缩略图地址。为了让用户能快速找到外立面、植物、路径和特殊素材，他检查分类筛选、喜好筛选、适用区域筛选和技能相关筛选是否能正确命中素材，并确认素材行用 `No.` 展示官方素材 ID。
+维护者需要让右侧素材栏足够好用。他为素材维护官方素材 ID、名称、分类、标签、适用区域、喜好标记、默认技能需求、footprint、承载/叠放规则、是否可染色和缩略图地址。为了让用户能快速找到外立面、植物、路径和特殊素材，他检查分类筛选、喜好筛选、适用区域筛选、技能相关筛选和承载/叠放状态是否能正确命中素材，并确认素材行用 `No.` 展示官方素材 ID。
 
 当素材数量增长时，他需要确认列表仍能快速搜索和筛选，必要时启用分页或虚拟滚动。若某个素材既可用于主体区又可用于外围区，他将适用区域标为通用，避免用户误以为只能放在一个区域。
 
@@ -269,7 +281,7 @@ MVP 的保存、自动保存、结构化序列化和恢复能力只覆盖单个�
 
 ### Journey 4: 用户排查保存或恢复数据无法复现的问题
 
-用户重新打开之前保存的布景后，发现层级或技能标记不一致。用户回到编辑器检查恢复状态，系统应能让她确认 sceneId、sceneName、selectedPokemonKey、sceneSize、canvasSize、outerPadding、buildingLevels、tileInstances、workspaceState.currentBuildingLevelId、workspaceState.selectedAssetId、workspaceState.selectedCoordinate、坐标、areaType、levelId、rotationDegrees、requiresSkill、skillType、dyeColor、note 和 saveStatus 是否完整存在。
+用户重新打开之前保存的布景后，发现层级或技能标记不一致。用户回到编辑器检查恢复状态，系统应能让她确认 sceneId、sceneName、selectedPokemonKey、sceneSize、canvasSize、outerPadding、buildingLevels、tileInstances、workspaceState.currentBuildingLevelId、workspaceState.selectedAssetId、workspaceState.selectedCoordinate、坐标、areaType、levelId、rotationDegrees、requiresSkill、skillType、skillNote 和 dyeColor 是否完整存在，并能解释 footprint、height blocking 与承载/叠放关系是由当前 catalog 重新派生的结果。
 
 如果重新打开数据时发现字段缺失，系统需要给出明确错误提示，而不是静默丢失素材或错误渲染。用户修复数据或重新保存后，再次打开方案，确认场景名称、Pokemon、画布、建筑层、当前编辑上下文、素材、坐标、区域、朝向、染色、技能标记和备注全部还原。
 
@@ -385,8 +397,8 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR31: 用户可以按素材分类筛选素材。
 - FR32: 用户可以按适用区域筛选素材。
 - FR33: 用户可以按技能相关条件筛选素材，包括是否默认需要百变怪技能、技能类型和是否可作为本次放置的技能标记候选。
-- FR34: 用户可以查看素材详情，详情至少包含素材 ID、名称、分类、标签、适用区域、喜好状态、默认技能需求、footprint、是否可染色和缩略图；所有素材均视为可旋转，MVP 不展示可叠放能力。
-- FR35: 素材维护者可以为素材维护分类、标签、适用区域、喜好状态、默认技能需求、可染色性、footprint 和缩略图地址；MVP 不维护可旋转性差异或可叠放性。
+- FR34: 用户可以查看素材详情，详情至少包含素材 ID、名称、分类、标签、适用区域、喜好状态、默认技能需求、footprint、承载/叠放能力、是否可染色和缩略图；所有素材均视为可旋转，MVP 不展示旧式通用可叠放开关。
+- FR35: 素材维护者可以为素材维护分类、标签、适用区域、喜好状态、默认技能需求、可染色性、footprint、承载/叠放 surface metadata 和缩略图地址；MVP 不维护可旋转性差异或自由叠放开关。
 - FR59: 用户可以只显示当前 Pokemon 喜好的素材，筛选结果计数应保持稳定宽度并通过可访问方式更新。
 
 ### Asset Footprint & Occupancy Rules
@@ -400,6 +412,17 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR84: 保存/恢复和短字符串继续使用 `SceneDocument v1`；短字符串不得编码 footprint 或 blocking cells，decode 后必须通过当前 asset catalog 与 `scene-core` occupancy rules 重新派生。
 - FR85: Worker validate/recover/export-summary、MCP tools/resources/prompts 和 Codex skill 必须调用同一套 `scene-core` footprint/occupancy helpers，不得复制 schema、catalog override、占用计算或跨层阻塞规则。
 - FR86: 旧 SceneDocument v1 payload 和旧短字符串迁移时不改写 shape；若当前 catalog footprint 使旧场景产生越界、同层重叠或跨层阻塞冲突，恢复/校验必须返回结构化错误或修复建议，而不是静默调整坐标或保存派生状态。
+
+### Asset Carrying & Stacking Surface Rules
+
+- FR93: Asset catalog 必须为每个可放置素材提供默认 stacking metadata，默认值表示不可承载、不可被同层 overlap；明确 override 才能开启承载面或底垫/低高度叠放能力。
+- FR94: `wooden-plate`、`plate`、`party-platter` 必须被标记为 food surface，只允许 `food` category 或等价已审计食物素材作为 top item 放置在其 footprint cells 上。
+- FR95: 已审计的底垫、地毯、嫩芽和低高度素材可以被标记为 floor-cover 或 low-height surface；系统不得仅凭名称包含“垫”“地毯”“嫩芽”自动开放叠放，必须来自 catalog override。
+- FR96: `scene-core` placement、save validation 和 recover validation 必须允许同层 occupied cell overlap 仅在 existing base instance 的 stacking metadata 允许 incoming asset category，且 incoming footprint 覆盖范围被 base surface 覆盖或规则明确允许时成立。
+- FR97: 不兼容叠放必须返回结构化 conflict，至少区分 unsupported stack surface、surface capacity/conflict、same-level footprint overlap 和 height-blocked-by-lower-footprint。
+- FR98: 承载/叠放关系必须从当前 SceneDocument v1 与 asset catalog 派生，不保存 parent/child stack id、surface id、z-index、stacking relation 或 catalog snapshot。
+- FR99: Web 编辑画布、素材详情、选中实例检查器、俯视/正视预览和图片导出必须表达承载/被承载/可叠放/不兼容叠放状态；合法同格叠放应把原始格子或对应 footprint cell 拆成上下两部分，下半部分显示可叠放 base 素材，上半部分显示 top 素材；不兼容叠放应显示浅红/红色冲突提示并说明原因；选择同坐标多个实例时必须保持可理解。
+- FR100: Worker validate/recover/export-summary、MCP tools/resources/prompts 和 Codex skill 必须复用同一套 `scene-core` stacking helpers；导出摘要可以包含 derived stacking relation，但不得把它写回 SceneDocument 或短字符串。
 
 ### Ditto Skill Marking
 
@@ -480,6 +503,10 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - NFR39: `scene-core`、web UI、Worker API、MCP tools 和 Codex skill 示例必须有契约测试覆盖同一个 footprint fixture，至少验证 90/270 度 length/width 交换、同层重叠、height 跨层阻塞、短字符串 roundtrip 和 export-summary parity。
 - NFR40: Footprint 校验错误必须包含字段路径、冲突类型、触发实例、阻塞实例、建筑层和坐标集合；Worker/MCP/Codex skill 输出不得只给出 generic validation failed。
 - NFR41: 层备注必须随 `BuildingLevel` 一起通过 scene-core 类型、Zod schema、serializer/parser、short string codec、default scene、fixtures 和 roundtrip tests 校验；不得作为 React-only state、localStorage UI preference 或 export-only state 保存。
+- NFR44: Stacking surface compatibility、derived stacked relation 和 overlap exceptions 必须由 `scene-core` 纯函数确定性派生；任何端不得保存或缓存会与 SceneDocument/catalog 漂移的独立叠放状态。
+- NFR45: `SceneDocument v1` 仍是当前 schema；本次变更不得新增 stacking relation、surface id、z-index、parent instance id、catalog snapshot 或 `SceneDocument v2`。若未来需要持久排序或绑定关系，必须先进行新的 PRD/Architecture/Epics 同步。
+- NFR46: `scene-core`、web UI、Worker API、MCP tools 和 Codex skill 示例必须有契约测试覆盖 plate+food 成功、plate+non-food 阻断、rug/mat/shoot/low-height surface overlap、多格 surface bounds、短字符串 roundtrip 和 export-summary parity。
+- NFR47: Stacking 校验错误必须包含字段路径、冲突类型、top instance/asset、base instance/asset、building level、坐标集合和用户可执行修复方向；Worker/MCP/Codex skill 输出不得只给出 generic validation failed。
 
 ### Usability
 
