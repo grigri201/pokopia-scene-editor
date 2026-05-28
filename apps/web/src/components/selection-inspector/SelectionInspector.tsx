@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import {
   getAssetById,
   getAssetSkillMarkerIconUrl,
@@ -30,6 +30,7 @@ interface SelectionInspectorProps {
   canvasSize: GridSize;
   sceneDimensions: SceneDimensions;
   buildingLevels: readonly BuildingLevel[];
+  currentBuildingLevel: BuildingLevel | null;
   tileInstances: readonly TileInstance[];
   readOnly: boolean;
   onDeleteInstance: (instanceId: string) => void;
@@ -47,6 +48,9 @@ interface SelectionInspectorProps {
     skillType: AssetSkillType,
     skillNote: string,
   ) => void;
+  onAddLayerNote: (levelId: string, text: string) => boolean;
+  onUpdateLayerNote: (levelId: string, noteId: string, text: string) => boolean;
+  onDeleteLayerNote: (levelId: string, noteId: string) => boolean;
 }
 
 export function SelectionInspector({
@@ -55,11 +59,15 @@ export function SelectionInspector({
   selectedInstance,
   selectedSkillMarker,
   buildingLevels,
+  currentBuildingLevel,
   readOnly,
   onDeleteInstance,
   onRotateInstance,
   onSaveInstanceSkill,
   onSaveCellSkill,
+  onAddLayerNote,
+  onUpdateLayerNote,
+  onDeleteLayerNote,
 }: SelectionInspectorProps) {
   const context = selectedContext;
   const asset = getAssetById(selectedInstance?.assetId);
@@ -68,6 +76,9 @@ export function SelectionInspector({
   const selectedLevel = selectedInstance
     ? buildingLevels.find((level) => level.id === selectedInstance.buildingLevelId)
     : context?.buildingLevel;
+  const layerNotesLevel = !selectedInstance
+    ? selectedLevel ?? (readOnly ? currentBuildingLevel : null)
+    : null;
   const coordinate = selectedInstance?.coordinate ?? context?.coordinate ?? null;
   const activeSkillType = selectedSkillMarker?.skillType ?? (selectedInstance?.requiresSkill ? selectedInstance.skillType : null);
   const activeSkillNote = selectedSkillMarker?.skillNote ?? selectedInstance?.skillNote ?? '';
@@ -204,6 +215,16 @@ export function SelectionInspector({
           </div>
         ) : null}
       </div>
+      {layerNotesLevel && (coordinate || readOnly) ? (
+        <LayerNotesPanel
+          locale={locale}
+          level={layerNotesLevel}
+          readOnly={readOnly}
+          onAddLayerNote={onAddLayerNote}
+          onUpdateLayerNote={onUpdateLayerNote}
+          onDeleteLayerNote={onDeleteLayerNote}
+        />
+      ) : null}
     </section>
   );
 }
@@ -252,6 +273,148 @@ function ClearMaterialIcon() {
       <path d="M10 11v5" />
       <path d="M14 11v5" />
     </svg>
+  );
+}
+
+function LayerNotesPanel({
+  locale,
+  level,
+  readOnly,
+  onAddLayerNote,
+  onUpdateLayerNote,
+  onDeleteLayerNote,
+}: {
+  locale: Locale;
+  level: BuildingLevel;
+  readOnly: boolean;
+  onAddLayerNote: (levelId: string, text: string) => boolean;
+  onUpdateLayerNote: (levelId: string, noteId: string, text: string) => boolean;
+  onDeleteLayerNote: (levelId: string, noteId: string) => boolean;
+}) {
+  const [draftText, setDraftText] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+
+  useEffect(() => {
+    setDraftText('');
+    setEditingNoteId(null);
+    setEditingText('');
+  }, [level.id]);
+
+  const submitNewNote = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (readOnly || !draftText.trim()) {
+      return;
+    }
+
+    if (onAddLayerNote(level.id, draftText)) {
+      setDraftText('');
+    }
+  };
+
+  const submitEditedNote = (event: FormEvent<HTMLFormElement>, noteId: string) => {
+    event.preventDefault();
+    if (readOnly || !editingText.trim()) {
+      return;
+    }
+
+    if (onUpdateLayerNote(level.id, noteId, editingText)) {
+      setEditingNoteId(null);
+      setEditingText('');
+    }
+  };
+
+  return (
+    <section className="layer-notes-panel" aria-label={t(locale, 'layerNotes')}>
+      <div className="layer-notes-panel__header">
+        <h2>{t(locale, 'layerNotes')}</h2>
+        {readOnly ? <span>{t(locale, 'layerNotesReadonly')}</span> : null}
+      </div>
+      {!readOnly ? (
+        <form className="layer-note-form" onSubmit={submitNewNote}>
+          <label className="sr-only" htmlFor={`layer-note-input-${level.id}`}>
+            {t(locale, 'addLayerNoteInput')}
+          </label>
+          <textarea
+            id={`layer-note-input-${level.id}`}
+            aria-label={t(locale, 'addLayerNoteInput')}
+            value={draftText}
+            rows={2}
+            onChange={(event) => setDraftText(event.target.value)}
+          />
+          <button type="submit" disabled={!draftText.trim()}>
+            {t(locale, 'addLayerNote')}
+          </button>
+        </form>
+      ) : null}
+      {level.notes.length > 0 ? (
+        <ol className="layer-note-list" aria-label={t(locale, 'layerNoteList')}>
+          {level.notes.map((note, index) => {
+            const noteIndex = index + 1;
+
+            return (
+              <li className="layer-note-item" key={note.id}>
+                {editingNoteId === note.id ? (
+                  <form className="layer-note-edit-form" onSubmit={(event) => submitEditedNote(event, note.id)}>
+                    <label className="sr-only" htmlFor={`layer-note-edit-${note.id}`}>
+                      {t(locale, 'editLayerNoteInput', { index: noteIndex })}
+                    </label>
+                    <textarea
+                      id={`layer-note-edit-${note.id}`}
+                      aria-label={t(locale, 'editLayerNoteInput', { index: noteIndex })}
+                      value={editingText}
+                      rows={2}
+                      onChange={(event) => setEditingText(event.target.value)}
+                    />
+                    <div className="layer-note-item__actions">
+                      <button type="submit" disabled={!editingText.trim()}>
+                        {t(locale, 'saveLayerNote')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingNoteId(null);
+                          setEditingText('');
+                        }}
+                      >
+                        {t(locale, 'cancelLayerNote')}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <p>{note.text}</p>
+                    {!readOnly ? (
+                      <div className="layer-note-item__actions">
+                        <button
+                          type="button"
+                          aria-label={t(locale, 'editLayerNoteAction', { index: noteIndex })}
+                          onClick={() => {
+                            setEditingNoteId(note.id);
+                            setEditingText(note.text);
+                          }}
+                        >
+                          {t(locale, 'editLayerNote')}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={t(locale, 'deleteLayerNoteAction', { index: noteIndex })}
+                          onClick={() => onDeleteLayerNote(level.id, note.id)}
+                        >
+                          {t(locale, 'deleteLayerNote')}
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="layer-notes-empty">{t(locale, 'noLayerNotes')}</p>
+      )}
+    </section>
   );
 }
 

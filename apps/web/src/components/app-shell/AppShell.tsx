@@ -182,6 +182,7 @@ export function AppShell() {
     current: level.id === activeBuildingLevelId,
   }));
   const currentBuildingLevel = displayedBuildingLevelContexts.find((level) => level.current);
+  const currentBuildingLevelRecord = scene.buildingLevels.find((level) => level.id === activeBuildingLevelId) ?? null;
   const canvasCells = getCanvasCellContexts(scene, activeBuildingLevelId);
   const targetCoordinate = hoveredCoordinate ?? focusedCoordinate;
   const selectedCoordinate = isReadOnly
@@ -889,6 +890,56 @@ export function AppShell() {
     );
   };
 
+  const addLayerNote = (levelId: string, text: string) => {
+    if (isReadOnly) {
+      return false;
+    }
+
+    const result = editBuildingLayer(scene, {
+      type: 'add-note',
+      levelId,
+      noteId: createLayerNoteId(levelId),
+      text,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+    handleBuildingLayerResult(result, { showSuccessToast: false });
+    return result.ok;
+  };
+
+  const updateLayerNote = (levelId: string, noteId: string, text: string) => {
+    if (isReadOnly) {
+      return false;
+    }
+
+    const result = editBuildingLayer(scene, {
+      type: 'update-note',
+      levelId,
+      noteId,
+      text,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+    handleBuildingLayerResult(result, { showSuccessToast: false });
+    return result.ok;
+  };
+
+  const deleteLayerNote = (levelId: string, noteId: string) => {
+    if (isReadOnly) {
+      return false;
+    }
+
+    const result = editBuildingLayer(scene, {
+      type: 'delete-note',
+      levelId,
+      noteId,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+    handleBuildingLayerResult(result, { showSuccessToast: false });
+    return result.ok;
+  };
+
   const deleteBuildingLayer = (levelId: string) => {
     const result = editBuildingLayer(scene, {
       type: 'delete',
@@ -909,10 +960,15 @@ export function AppShell() {
 
     const targetLayer = scene.buildingLevels.find((level) => level.id === levelId);
     const affectedCount = scene.tileInstances.filter((instance) => instance.buildingLevelId === levelId).length;
+    const affectedNoteCount = targetLayer?.notes.length ?? 0;
     const confirmed = window.confirm(
-      `Delete building layer "${targetLayer?.name ?? levelId}" with ${affectedCount} item${
-        affectedCount === 1 ? '' : 's'
-      }? This removes the layer and all item instances. Press OK to confirm or Cancel to keep the scene unchanged.`,
+      t(locale, 'deleteLayerConfirm', {
+        name: targetLayer?.name ?? levelId,
+        itemCount: affectedCount,
+        itemLabel: affectedCount === 1 ? t(locale, 'itemSingular') : t(locale, 'itemPlural'),
+        noteCount: affectedNoteCount,
+        noteLabel: affectedNoteCount === 1 ? t(locale, 'noteSingular') : t(locale, 'notePlural'),
+      }),
     );
 
     if (!confirmed) {
@@ -920,7 +976,7 @@ export function AppShell() {
         id: 'building-layer',
         tone: 'info',
         title: t(locale, 'buildingLayerToastTitle'),
-        message: `${result.message}. Canceled; scene unchanged.`,
+        message: t(locale, 'deleteLayerCanceled', { message: result.message }),
       });
       return;
     }
@@ -1540,12 +1596,16 @@ export function AppShell() {
                 outerPadding: scene.outerPadding,
               }}
               buildingLevels={scene.buildingLevels}
+              currentBuildingLevel={currentBuildingLevelRecord}
               tileInstances={scene.tileInstances}
               readOnly={isReadOnly}
               onDeleteInstance={deleteInstance}
               onRotateInstance={rotateInstance}
               onSaveInstanceSkill={saveInstanceSkill}
               onSaveCellSkill={saveSelectedCellSkill}
+              onAddLayerNote={addLayerNote}
+              onUpdateLayerNote={updateLayerNote}
+              onDeleteLayerNote={deleteLayerNote}
             />
           </div>
         </section>
@@ -1940,4 +2000,8 @@ function createTileInstanceId(): string {
 
 function createCopiedLayerInstancePrefix(): string {
   return `layer-copy-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createLayerNoteId(levelId: string): string {
+  return `${levelId}-note-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }

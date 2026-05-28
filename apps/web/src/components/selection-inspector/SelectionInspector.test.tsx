@@ -33,11 +33,15 @@ const defaultInspectorProps = {
   canvasSize: scene.canvasSize,
   sceneDimensions,
   buildingLevels: scene.buildingLevels,
+  currentBuildingLevel: scene.buildingLevels[0],
   tileInstances: scene.tileInstances,
   onDeleteInstance: () => undefined,
   onRotateInstance: () => undefined,
   onSaveInstanceSkill: () => undefined,
   onSaveCellSkill: () => undefined,
+  onAddLayerNote: () => true,
+  onUpdateLayerNote: () => true,
+  onDeleteLayerNote: () => true,
 };
 
 describe('SelectionInspector', () => {
@@ -90,6 +94,170 @@ describe('SelectionInspector', () => {
     expect(onSaveCellSkill).toHaveBeenCalledWith({ x: 3, y: 3 }, 'level-0', true, '耕地', '');
   });
 
+  it('shows layer note input and ordered safe-text notes for an empty selected position', () => {
+    const noteScene = {
+      ...scene,
+      buildingLevels: [
+        {
+          ...scene.buildingLevels[0],
+          notes: [
+            { id: 'note-1', text: '<b>先放桌子</b>' },
+            { id: 'note-2', text: '再放椅子' },
+          ],
+        },
+      ],
+    };
+    const emptyContext = getCellContext(noteScene, { x: 3, y: 3 });
+    const onAddLayerNote = vi.fn();
+    const { container } = render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={emptyContext}
+        selectedInstance={null}
+        selectedInstanceId={null}
+        selectedSkillMarker={null}
+        buildingLevels={noteScene.buildingLevels}
+        readOnly={false}
+        onAddLayerNote={onAddLayerNote}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
+    expect(screen.getByLabelText('当前层备注列表')).toHaveTextContent('<b>先放桌子</b>');
+    expect(screen.getByLabelText('当前层备注列表')).toHaveTextContent('再放椅子');
+    expect(container.querySelector('b')).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('新增当前层备注'), { target: { value: '  保留空格  ' } });
+    fireEvent.click(screen.getByRole('button', { name: '添加备注' }));
+
+    expect(onAddLayerNote).toHaveBeenCalledWith('level-0', '  保留空格  ');
+  });
+
+  it('edits and deletes existing layer notes in edit mode', () => {
+    const noteScene = {
+      ...scene,
+      buildingLevels: [
+        {
+          ...scene.buildingLevels[0],
+          notes: [
+            { id: 'note-1', text: '第一条' },
+            { id: 'note-2', text: '第二条' },
+          ],
+        },
+      ],
+    };
+    const emptyContext = getCellContext(noteScene, { x: 3, y: 3 });
+    const onUpdateLayerNote = vi.fn();
+    const onDeleteLayerNote = vi.fn();
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={emptyContext}
+        selectedInstance={null}
+        selectedInstanceId={null}
+        selectedSkillMarker={null}
+        buildingLevels={noteScene.buildingLevels}
+        readOnly={false}
+        onUpdateLayerNote={onUpdateLayerNote}
+        onDeleteLayerNote={onDeleteLayerNote}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑第 1 条备注' }));
+    fireEvent.change(screen.getByLabelText('编辑第 1 条当前层备注'), { target: { value: '第一条更新' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    fireEvent.click(screen.getByRole('button', { name: '删除第 2 条备注' }));
+
+    expect(onUpdateLayerNote).toHaveBeenCalledWith('level-0', 'note-1', '第一条更新');
+    expect(onDeleteLayerNote).toHaveBeenCalledWith('level-0', 'note-2');
+  });
+
+  it('shows layer notes without mutation controls in read-only mode', () => {
+    const noteScene = {
+      ...scene,
+      buildingLevels: [
+        {
+          ...scene.buildingLevels[0],
+          notes: [{ id: 'note-readonly', text: '只能查看' }],
+        },
+      ],
+    };
+    const emptyContext = getCellContext(noteScene, { x: 3, y: 3 });
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={emptyContext}
+        selectedInstance={null}
+        selectedInstanceId={null}
+        selectedSkillMarker={null}
+        buildingLevels={noteScene.buildingLevels}
+        readOnly
+      />,
+    );
+
+    expect(screen.getByText('只能查看')).toBeVisible();
+    expect(screen.getByText('只读')).toBeVisible();
+    expect(screen.queryByLabelText('新增当前层备注')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '添加备注' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /编辑第/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /删除第/ })).not.toBeInTheDocument();
+  });
+
+  it('shows current layer notes in read-only mode even when no coordinate is selected', () => {
+    const noteScene = {
+      ...scene,
+      buildingLevels: [
+        {
+          ...scene.buildingLevels[0],
+          notes: [{ id: 'note-current-layer', text: '当前层只读备注' }],
+        },
+      ],
+    };
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={null}
+        selectedInstance={null}
+        selectedInstanceId={null}
+        selectedSkillMarker={null}
+        buildingLevels={noteScene.buildingLevels}
+        currentBuildingLevel={noteScene.buildingLevels[0]}
+        readOnly
+      />,
+    );
+
+    expect(screen.getByLabelText('No selected grid cell')).toBeVisible();
+    expect(screen.getByText('当前层只读备注')).toBeVisible();
+    expect(screen.queryByLabelText('新增当前层备注')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /编辑第|删除第|添加备注/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps note drafts when parent mutation callbacks fail', () => {
+    const emptyContext = getCellContext(scene, { x: 3, y: 3 });
+    const onAddLayerNote = vi.fn(() => false);
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={emptyContext}
+        selectedInstance={null}
+        selectedInstanceId={null}
+        selectedSkillMarker={null}
+        readOnly={false}
+        onAddLayerNote={onAddLayerNote}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('新增当前层备注'), { target: { value: '失败时保留' } });
+    fireEvent.click(screen.getByRole('button', { name: '添加备注' }));
+
+    expect(onAddLayerNote).toHaveBeenCalledWith('level-0', '失败时保留');
+    expect(screen.getByLabelText('新增当前层备注')).toHaveValue('失败时保留');
+  });
+
   it('ignores hover target context until a grid cell is selected', () => {
     render(
       <SelectionInspector
@@ -137,6 +305,7 @@ describe('SelectionInspector', () => {
       '90 deg',
     );
     expect(screen.getByText('砖瓦屋顶装饰')).toBeVisible();
+    expect(screen.queryByRole('heading', { name: '当前层备注' })).not.toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /note/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: /building layer/i })).not.toBeInTheDocument();

@@ -26,35 +26,23 @@ describe('PokemonSceneControls', () => {
 
     fireEvent.focus(screen.getByLabelText('Current Pokemon'));
 
-    expect(screen.getAllByRole('option')).toHaveLength(311);
-    expect(screen.getByRole('option', { name: /#213.*凯西.*Abra/ })).toHaveAttribute(
-      'data-pokemon-key',
-      'abra',
-    );
-    expect(screen.getByRole('option', { name: /#047.*百变怪.*Ditto/ })).toHaveAttribute(
-      'data-pokemon-key',
-      'ditto',
-    );
-    expect(screen.getByRole('option', { name: /#280.*伊布.*Eevee/ })).toHaveAttribute(
-      'data-pokemon-key',
-      'eevee',
-    );
-    expect(screen.getByRole('option', { name: /#079.*皮卡丘.*Pikachu/ })).toHaveAttribute(
-      'data-pokemon-key',
-      'pikachu',
-    );
-    expect(screen.getByRole('option', { name: /#079.*皮卡丘.*Pikachu/ })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-    expect(screen.getByRole('option', { name: /#079.*皮卡丘.*Pikachu/ })).toHaveClass('is-active');
-    expect(screen.getByRole('option', { name: /#081.*超音蝠.*Zubat/ })).toHaveAttribute(
-      'data-pokemon-key',
-      'zubat',
-    );
-    const pokemonOptionValues = screen
-      .getAllByRole<HTMLElement>('option')
-      .map((option) => option.dataset.pokemonKey);
+    const options = Array.from(container.querySelectorAll<HTMLElement>('[role="option"]'));
+    const optionByText = (pattern: RegExp) => {
+      const match = options.find((option) => pattern.test(option.textContent ?? ''));
+      expect(match).toBeDefined();
+      return match as HTMLElement;
+    };
+    const pikachuOption = optionByText(/#079.*皮卡丘.*Pikachu/);
+
+    expect(options).toHaveLength(311);
+    expect(optionByText(/#213.*凯西.*Abra/)).toHaveAttribute('data-pokemon-key', 'abra');
+    expect(optionByText(/#047.*百变怪.*Ditto/)).toHaveAttribute('data-pokemon-key', 'ditto');
+    expect(optionByText(/#280.*伊布.*Eevee/)).toHaveAttribute('data-pokemon-key', 'eevee');
+    expect(pikachuOption).toHaveAttribute('data-pokemon-key', 'pikachu');
+    expect(pikachuOption).toHaveAttribute('aria-selected', 'true');
+    expect(pikachuOption).toHaveClass('is-active');
+    expect(optionByText(/#081.*超音蝠.*Zubat/)).toHaveAttribute('data-pokemon-key', 'zubat');
+    const pokemonOptionValues = options.map((option) => option.dataset.pokemonKey);
     expect(pokemonOptionValues.slice(0, 9)).toEqual([
       'bulbasaur',
       'ivysaur',

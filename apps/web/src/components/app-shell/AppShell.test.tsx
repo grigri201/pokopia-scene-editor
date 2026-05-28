@@ -572,6 +572,69 @@ describe('AppShell scene storage integration', () => {
     expect(screen.queryByLabelText(/L2,/)).not.toBeInTheDocument();
   });
 
+  it('adds a current-layer note from the selected empty cell without changing selection or selected asset', async () => {
+    setViewportWidth(1024);
+    render(<AppShell />);
+
+    fireEvent.click(screen.getByLabelText('Cell 3,3, main area, level-0, placeable'));
+    fireEvent.change(screen.getByLabelText('新增当前层备注'), { target: { value: '  先放桌子 <b>不要执行</b>  ' } });
+    fireEvent.click(screen.getByRole('button', { name: '添加备注' }));
+
+    await waitFor(() => {
+      const snapshot = JSON.parse(readSceneSnapshot());
+      expect(snapshot.workspaceState).toMatchObject({
+        currentBuildingLevelId: 'level-0',
+        selectedAssetId: null,
+        selectedCoordinate: { x: 3, y: 3 },
+      });
+      expect(snapshot.buildingLevels[0].notes).toEqual([
+        {
+          id: expect.stringMatching(/^level-0-note-/),
+          text: '  先放桌子 <b>不要执行</b>  ',
+        },
+      ]);
+      expect(window.localStorage.getItem(autosavedSceneStorageKey)).not.toBeNull();
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText('当前层备注列表')).toHaveTextContent('先放桌子 <b>不要执行</b>');
+    });
+    expect(document.querySelector('b')).toBeNull();
+  });
+
+  it('shows current-layer notes on mobile read-only without dirtying scene storage', () => {
+    setViewportWidth(390);
+    const storedScene = createDefaultSceneDocument({
+      sceneId: 'scene-readonly-notes',
+      sceneName: 'Mobile Notes',
+      now: '2026-05-16T08:30:00.000Z',
+    });
+    writeSceneDocumentToStorage(
+      window.localStorage,
+      {
+        ...storedScene,
+        buildingLevels: [
+          {
+            ...storedScene.buildingLevels[0],
+            notes: [{ id: 'note-mobile-readonly', text: '<b>只读备注</b>' }],
+          },
+        ],
+      },
+      'autosave',
+    );
+    const beforeSnapshot = window.localStorage.getItem(autosavedSceneStorageKey);
+
+    render(<AppShell />);
+
+    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
+    expect(screen.getByLabelText('No selected grid cell')).toBeVisible();
+    expect(screen.getByLabelText('当前层备注列表')).toHaveTextContent('<b>只读备注</b>');
+    expect(screen.queryByLabelText('新增当前层备注')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /添加备注|编辑第|删除第/ })).not.toBeInTheDocument();
+    expect(document.querySelector('b')).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(beforeSnapshot);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+  });
+
   it('switches the active editing layer when a building level row is clicked', () => {
     writeSceneDocumentToStorage(
       window.localStorage,
