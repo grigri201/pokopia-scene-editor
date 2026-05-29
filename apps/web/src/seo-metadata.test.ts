@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import indexHtml from '../index.html?raw';
+import staticHeaders from '../public/_headers?raw';
 import faviconSvg from '../public/favicon.svg?raw';
 import robotsTxt from '../public/robots.txt?raw';
 import sitemapXml from '../public/sitemap.xml?raw';
@@ -30,5 +31,13 @@ describe('static SEO metadata', () => {
     expect(sitemapXml).toContain(`<loc>${siteOrigin}/</loc>`);
     expect(faviconSvg).toContain('<svg');
     expect(faviconSvg).toContain('aria-label="Pokopia Scene Editor"');
+  });
+
+  it('publishes static cache rules for runtime art and UI artwork', () => {
+    expect(staticHeaders).toContain('/assets/pokopia_image_sources/*');
+    expect(staticHeaders).toContain('Cache-Control: public, max-age=31536000, immutable');
+    expect(staticHeaders).toContain('/assets/asset-thumbnails/*');
+    expect(staticHeaders).toContain('/favicon.svg');
+    expect(staticHeaders).toContain('Cache-Control: public, max-age=604800, must-revalidate');
   });
 });
