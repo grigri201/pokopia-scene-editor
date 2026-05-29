@@ -52,6 +52,11 @@ export function SceneCanvas({
   onHoverCoordinate,
   onFocusCoordinate,
 }: SceneCanvasProps) {
+  const canvasGridStyle = {
+    '--scene-canvas-columns': canvasSize.width,
+    '--scene-canvas-rows': canvasSize.height,
+  } as CSSProperties;
+  const canvasDensity = canvasSize.width > 7 || canvasSize.height > 7 ? 'compact' : 'standard';
   const rows = Array.from({ length: canvasSize.height }, (_, rowIndex) =>
     cells.slice(rowIndex * canvasSize.width, rowIndex * canvasSize.width + canvasSize.width),
   );
@@ -70,13 +75,15 @@ export function SceneCanvas({
       role="grid"
       aria-label={
         readOnly
-          ? t(locale, 'sceneCanvasReadOnly')
-          : t(locale, 'sceneCanvas')
+          ? t(locale, 'sceneCanvasReadOnly', { width: canvasSize.width, height: canvasSize.height })
+          : t(locale, 'sceneCanvas', { width: canvasSize.width, height: canvasSize.height })
       }
       aria-rowcount={canvasSize.height}
       aria-colcount={canvasSize.width}
       data-testid="scene-canvas"
       data-read-only={readOnly}
+      data-canvas-density={canvasDensity}
+      style={canvasGridStyle}
     >
       {rows.map((row, rowIndex) => (
         <div className="scene-row" role="row" aria-rowindex={rowIndex + 1} key={rowIndex}>
@@ -208,6 +215,7 @@ export function SceneCanvas({
                     onSelectCoordinate,
                     onViewCoordinate,
                     onFocusCoordinate,
+                    canvasSize,
                   )
                 }
                 data-testid="scene-cell"
@@ -742,6 +750,7 @@ function handleCellKeyDown(
   onSelectCoordinate: (coordinate: GridCoordinate) => void,
   onViewCoordinate: (coordinate: GridCoordinate) => void,
   onFocusCoordinate: (coordinate: GridCoordinate | null) => void,
+  canvasSize: GridSize,
 ): void {
   if (readOnly) {
     if (isReadOnlyApplicationKey(event)) {
@@ -775,7 +784,7 @@ function handleCellKeyDown(
 
   event.preventDefault();
   const baseCoordinate = getGridKeyboardTarget(event.currentTarget) ?? coordinate;
-  const nextCoordinate = moveCoordinate(baseCoordinate, direction);
+  const nextCoordinate = moveCoordinate(baseCoordinate, direction, canvasSize);
   const grid = event.currentTarget.closest('[role="grid"]');
   setGridKeyboardTarget(event.currentTarget, nextCoordinate);
   if (!placementMode) {

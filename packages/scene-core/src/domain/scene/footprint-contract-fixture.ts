@@ -1,3 +1,4 @@
+import { legacySceneDimensions } from './area';
 import { createDefaultSceneDocument } from './default-scene';
 import { createBuildingLevel } from './levels';
 import { createTileInstance } from './tile-instance';
@@ -70,6 +71,7 @@ export function createFootprintContractScene(): SceneDocument {
 
   return {
     ...scene,
+    ...cloneLegacyDimensions(),
     buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
     tileInstances: [
       createTileInstance({
@@ -79,18 +81,21 @@ export function createFootprintContractScene(): SceneDocument {
         buildingLevelId: footprintContractFixtureIds.level0,
         requiresSkill: true,
         skillType: '树叶',
+        dimensions: legacySceneDimensions,
       }),
       createTileInstance({
         instanceId: footprintContractFixtureIds.bench,
         assetId: 'wooden-bench',
         coordinate: { x: 2, y: 1 },
         buildingLevelId: footprintContractFixtureIds.level0,
+        dimensions: legacySceneDimensions,
       }),
       createTileInstance({
         instanceId: footprintContractFixtureIds.rug,
         assetId: 'deck-chair',
         coordinate: { x: 4, y: 2 },
         buildingLevelId: footprintContractFixtureIds.level0,
+        dimensions: legacySceneDimensions,
       }),
       createTileInstance({
         instanceId: footprintContractFixtureIds.rotatedBench,
@@ -98,6 +103,7 @@ export function createFootprintContractScene(): SceneDocument {
         coordinate: { x: 4, y: 4 },
         buildingLevelId: footprintContractFixtureIds.level0,
         rotationDegrees: 90,
+        dimensions: legacySceneDimensions,
       }),
       createTileInstance({
         instanceId: footprintContractFixtureIds.rotatedRug,
@@ -105,12 +111,14 @@ export function createFootprintContractScene(): SceneDocument {
         coordinate: { x: 6, y: 4 },
         buildingLevelId: footprintContractFixtureIds.level0,
         rotationDegrees: 90,
+        dimensions: legacySceneDimensions,
       }),
       createTileInstance({
         instanceId: footprintContractFixtureIds.boulder,
         assetId: 'strength-rock',
         coordinate: { x: 1, y: 4 },
         buildingLevelId: footprintContractFixtureIds.level0,
+        dimensions: legacySceneDimensions,
       }),
     ],
     skillMarkers: [],
@@ -119,6 +127,14 @@ export function createFootprintContractScene(): SceneDocument {
       selectedAssetId: null,
       selectedCoordinate: { x: 1, y: 1 },
     },
+  };
+}
+
+function cloneLegacyDimensions() {
+  return {
+    sceneSize: { ...legacySceneDimensions.sceneSize },
+    canvasSize: { ...legacySceneDimensions.canvasSize },
+    outerPadding: legacySceneDimensions.outerPadding,
   };
 }
 
@@ -134,6 +150,7 @@ export function createFootprintContractOverlapScene(): SceneDocument {
         assetId: 'leafy-plant',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: footprintContractFixtureIds.level0,
+        dimensions: legacySceneDimensions,
       }),
     ],
   };
@@ -151,6 +168,7 @@ export function createFootprintContractHeightBlockedScene(): SceneDocument {
         assetId: 'leafy-plant',
         coordinate: { x: 1, y: 4 },
         buildingLevelId: footprintContractFixtureIds.level1,
+        dimensions: legacySceneDimensions,
       }),
     ],
   };

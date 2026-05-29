@@ -12,6 +12,7 @@ import {
 import {
   decodeSceneDocumentString,
   encodeSceneDocumentString,
+  summarizeSceneDocumentStringDimensions,
 } from './scene-string-codec';
 import { stringifySceneDocument } from './scene-serializer';
 
@@ -77,7 +78,7 @@ describe('SceneDocument short string codec', () => {
     });
     const decoded = decodeSceneDocumentString(encoded, '2026-05-23T09:30:00.000Z');
 
-    expect(encoded).toMatch(/^PSE1~/);
+    expect(encoded).toMatch(/^PSE2~/);
     expect(encoded).not.toContain('{');
     expect(encoded).not.toContain('schemaVersion');
     expect(encoded).toBe(encodedWithoutSelectedAsset);
@@ -127,6 +128,75 @@ describe('SceneDocument short string codec', () => {
         skillType: '储水',
       }),
     ]);
+    expect(decoded.scene.sceneSize).toEqual({ width: 15, height: 15 });
+    expect(decoded.scene.canvasSize).toEqual({ width: 17, height: 17 });
+  });
+
+  it('continues to decode legacy PSE1 strings as 5x5 scenes on a 7x7 canvas', () => {
+    const decoded = decodeSceneDocumentString('PSE1~Legacy.0.0._._~0.1%E5%B1%82~0.m.Gy.0._._._~_', '2026-05-29T00:00:00.000Z');
+
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      throw new Error('Expected legacy PSE1 scene string decode to pass.');
+    }
+    expect(decoded.scene.sceneSize).toEqual({ width: 5, height: 5 });
+    expect(decoded.scene.canvasSize).toEqual({ width: 7, height: 7 });
+    expect(decoded.scene.outerPadding).toBe(1);
+    expect(decoded.scene.tileInstances[0]).toMatchObject({
+      assetId: 'leafy-plant',
+      coordinate: { x: 6, y: 6 },
+      areaType: 'outer',
+    });
+  });
+
+  it('rejects PSE2 strings that declare unsupported dimensions', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-unsupported-dimensions',
+      sceneName: 'Unsupported dimensions',
+      now: '2026-05-23T09:00:00.000Z',
+    });
+    const encodedParts = encodeSceneDocumentString(scene).split('~');
+    encodedParts[1] = 'E.E.1';
+
+    const decoded = decodeSceneDocumentString(encodedParts.join('~'), '2026-05-23T09:30:00.000Z');
+
+    expect(decoded.ok).toBe(false);
+    if (decoded.ok) {
+      throw new Error('Expected unsupported PSE2 dimensions to fail.');
+    }
+    expect(decoded.errors[0]).toMatchObject({
+      fieldPath: '$',
+      actual: expect.stringContaining('Scene dimensions must be legacy 5x5/7x7 or default 15x15/17x17.'),
+    });
+  });
+
+  it('summarizes dimensions from PSE1, PSE2, and unsupported dimensioned strings', () => {
+    const defaultString = encodeSceneDocumentString(createDefaultSceneDocument({
+      sceneId: 'scene-default-dimensions-summary',
+      now: '2026-05-23T09:00:00.000Z',
+    }));
+    const legacyString = encodeSceneDocumentString(createFootprintContractScene());
+    const unsupportedParts = defaultString.split('~');
+    unsupportedParts[1] = 'E.E.1';
+
+    expect(summarizeSceneDocumentStringDimensions(defaultString)).toEqual({
+      sceneSize: { width: 15, height: 15 },
+      canvasSize: { width: 17, height: 17 },
+      outerPadding: 1,
+      classification: 'default-17x17',
+    });
+    expect(summarizeSceneDocumentStringDimensions(legacyString)).toEqual({
+      sceneSize: { width: 5, height: 5 },
+      canvasSize: { width: 7, height: 7 },
+      outerPadding: 1,
+      classification: 'legacy-7x7',
+    });
+    expect(summarizeSceneDocumentStringDimensions(unsupportedParts.join('~'))).toEqual({
+      sceneSize: { width: 14, height: 14 },
+      canvasSize: { width: 16, height: 16 },
+      outerPadding: 1,
+      classification: 'unsupported',
+    });
   });
 
   it('roundtrips multi-layer building level notes without executing or dropping text', () => {
@@ -262,7 +332,7 @@ describe('SceneDocument short string codec', () => {
     );
   });
 
-  it('ignores selected assets from legacy scene strings during import', () => {
+  it('ignores selected assets from scene strings during import', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-legacy-selected-asset',
       sceneName: '旧字符串',
@@ -272,15 +342,16 @@ describe('SceneDocument short string codec', () => {
     });
     const encoded = encodeSceneDocumentString(scene);
     const parts = encoded.split('~');
-    const headerParts = parts[1].split('.');
+    const headerIndex = encoded.startsWith('PSE2~') ? 2 : 1;
+    const headerParts = parts[headerIndex].split('.');
     headerParts[3] = 'Gy';
-    parts[1] = headerParts.join('.');
+    parts[headerIndex] = headerParts.join('.');
 
     const decoded = decodeSceneDocumentString(parts.join('~'), '2026-05-23T09:30:00.000Z');
 
     expect(decoded.ok).toBe(true);
     if (!decoded.ok) {
-      throw new Error('Expected legacy scene string decode to pass.');
+      throw new Error('Expected scene string decode to pass.');
     }
     expect(decoded.scene.workspaceState).toMatchObject({
       selectedAssetId: null,
@@ -302,7 +373,7 @@ describe('SceneDocument short string codec', () => {
     });
   });
 
-  it('keeps footprint data out of PSE1 strings and validates decoded scenes with current occupancy rules', () => {
+  it('keeps footprint data out of PSE2 strings and validates decoded default scenes with current occupancy rules', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-short-code-footprint',
       sceneName: '短字符串大型素材',
@@ -322,13 +393,13 @@ describe('SceneDocument short string codec', () => {
 
     const validEncoded = encodeSceneDocumentString(sourceScene);
     const parts = validEncoded.split('~');
-    const tileFields = parts[3].split('.');
-    tileFields[1] = 'K';
-    parts[3] = tileFields.join('.');
+    const tileFields = parts[4].split('.');
+    tileFields[1] = 'o';
+    parts[4] = tileFields.join('.');
     const encoded = parts.join('~');
     const decoded = decodeSceneDocumentString(encoded, '2026-05-23T09:30:00.000Z');
 
-    expect(encoded).toMatch(/^PSE1~/);
+    expect(encoded).toMatch(/^PSE2~/);
     expect(encoded).not.toContain('footprint');
     expect(encoded).not.toContain('occupiedCells');
     expect(encoded).not.toContain('blocking');

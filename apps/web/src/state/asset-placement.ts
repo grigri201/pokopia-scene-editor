@@ -112,6 +112,11 @@ export function placeSelectedAsset(
     rotationDegrees: input.rotationDegrees ?? 0,
     requiresSkill: input.requiresSkill,
     skillType: null,
+    dimensions: {
+      sceneSize: scene.sceneSize,
+      canvasSize: scene.canvasSize,
+      outerPadding: scene.outerPadding,
+    },
   });
   const replacementInstanceIds = new Set(evaluation.preview.existingInstances.map((instance) => instance.instanceId));
   const shouldReplaceExistingInstances = input.confirmReplace && evaluation.preview.stackingRelations.length === 0;

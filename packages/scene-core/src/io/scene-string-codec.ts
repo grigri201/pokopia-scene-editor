@@ -6,7 +6,14 @@ import {
 } from '../domain/assets';
 import {
   calculateAreaType,
+  assertCanvasCoordinate,
+  assertSceneDimensions,
+  assertSupportedSceneDimensions,
+  legacySceneDimensions,
+  summarizeSceneDimensions,
   type GridCoordinate,
+  type SceneDimensions,
+  type SceneDimensionsSummary,
   type SceneDocument,
   type RotationDegrees,
 } from '../domain/scene';
@@ -14,14 +21,10 @@ import { recoverSceneDocument } from './scene-recovery';
 import { serializeSceneDocument } from './scene-serializer';
 import type { SceneDocumentV1, SceneDocumentValidationError } from './scene-schema';
 
-const codecPrefix = 'PSE1';
+const legacyCodecPrefix = 'PSE1';
+const dimensionedCodecPrefix = 'PSE2';
 const empty = '_';
 const radixAlphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-const sceneDimensions = {
-  sceneSize: { width: 5, height: 5 },
-  canvasSize: { width: 7, height: 7 },
-  outerPadding: 1 as const,
-};
 const rotationValues: readonly RotationDegrees[] = [0, 90, 180, 270];
 
 export type SceneStringDecodeResult =
@@ -39,12 +42,31 @@ export function encodeSceneDocumentString(scene: SceneDocument): string {
   const levelIndexById = new Map(payload.buildingLevels.map((level, index) => [level.id, index]));
   const currentLevelIndex = levelIndexById.get(payload.workspaceState.currentBuildingLevelId) ?? 0;
 
+  const dimensions = getPayloadDimensions(payload);
+  const encodedHeader = encodeHeader(payload, currentLevelIndex, dimensions);
+  const encodedLevels = payload.buildingLevels.map(encodeLevel).join(';') || empty;
+  const encodedInstances =
+    payload.tileInstances.map((instance) => encodeTileInstance(instance, levelIndexById, dimensions)).join(';') || empty;
+  const encodedMarkers =
+    payload.skillMarkers.map((marker) => encodeSkillMarker(marker, levelIndexById, dimensions)).join(';') || empty;
+
+  if (isLegacySceneDimensions(dimensions)) {
+    return [
+      legacyCodecPrefix,
+      encodedHeader,
+      encodedLevels,
+      encodedInstances,
+      encodedMarkers,
+    ].join('~');
+  }
+
   return [
-    codecPrefix,
-    encodeHeader(payload, currentLevelIndex),
-    payload.buildingLevels.map(encodeLevel).join(';') || empty,
-    payload.tileInstances.map((instance) => encodeTileInstance(instance, levelIndexById)).join(';') || empty,
-    payload.skillMarkers.map((marker) => encodeSkillMarker(marker, levelIndexById)).join(';') || empty,
+    dimensionedCodecPrefix,
+    encodeDimensions(dimensions),
+    encodedHeader,
+    encodedLevels,
+    encodedInstances,
+    encodedMarkers,
   ].join('~');
 }
 
@@ -60,7 +82,7 @@ export function decodeSceneDocumentString(value: string, now = new Date().toISOS
           fieldPath: '$',
           expected: 'Pokopia Scene Editor short scene string',
           actual: error instanceof Error ? error.message : String(error),
-          reason: 'Unable to decode scene string.',
+          reason: error instanceof RangeError ? error.message : 'Unable to decode scene string.',
           recoveryAction: 'Paste an unmodified string created by the export string button.',
         },
       ],
@@ -68,14 +90,32 @@ export function decodeSceneDocumentString(value: string, now = new Date().toISOS
   }
 }
 
-function encodeHeader(payload: SceneDocumentV1, currentLevelIndex: number): string {
+export function summarizeSceneDocumentStringDimensions(value: string): SceneDimensionsSummary | null {
+  const [prefix, ...parts] = value.trim().split('~');
+
+  if (prefix === legacyCodecPrefix) {
+    return summarizeSceneDimensions(legacySceneDimensions);
+  }
+
+  if (prefix !== dimensionedCodecPrefix) {
+    return null;
+  }
+
+  try {
+    return summarizeSceneDimensions(decodeDimensions(parts.shift(), { requireSupported: false }));
+  } catch {
+    return null;
+  }
+}
+
+function encodeHeader(payload: SceneDocumentV1, currentLevelIndex: number, dimensions: SceneDimensions): string {
   return [
     encodeText(payload.sceneName),
     encodeNumber(knownPokemonKeys.indexOf(payload.selectedPokemonKey)),
     encodeNumber(currentLevelIndex),
     empty,
     payload.workspaceState.selectedCoordinate
-      ? encodeCoordinate(payload.workspaceState.selectedCoordinate)
+      ? encodeCoordinate(payload.workspaceState.selectedCoordinate, dimensions)
       : empty,
   ].join('.');
 }
@@ -93,10 +133,11 @@ function encodeLevel(level: SceneDocumentV1['buildingLevels'][number]): string {
 function encodeTileInstance(
   instance: SceneDocumentV1['tileInstances'][number],
   levelIndexById: ReadonlyMap<string, number>,
+  dimensions: SceneDimensions,
 ): string {
   return [
     encodeNumber(requireLevelIndex(levelIndexById, instance.buildingLevelId)),
-    encodeCoordinate(instance.coordinate),
+    encodeCoordinate(instance.coordinate, dimensions),
     encodeOfficialAssetId(instance.assetId),
     encodeNumber(rotationValues.indexOf(instance.rotationDegrees)),
     instance.dyeColor ? instance.dyeColor.slice(1).toLowerCase() : empty,
@@ -108,22 +149,32 @@ function encodeTileInstance(
 function encodeSkillMarker(
   marker: SceneDocumentV1['skillMarkers'][number],
   levelIndexById: ReadonlyMap<string, number>,
+  dimensions: SceneDimensions,
 ): string {
   return [
     encodeNumber(requireLevelIndex(levelIndexById, marker.buildingLevelId)),
-    encodeCoordinate(marker.coordinate),
+    encodeCoordinate(marker.coordinate, dimensions),
     encodeSkillType(marker.skillType),
     marker.skillNote ? encodeText(marker.skillNote) : empty,
   ].join('.');
 }
 
 function decodeSceneDocumentPayload(value: string, now: string): SceneDocumentV1 {
-  const [prefix, encodedHeader, encodedLevels, encodedInstances, encodedMarkers, ...extra] = value.split('~');
-  if (prefix !== codecPrefix || !encodedHeader || !encodedLevels || extra.length > 0) {
+  const [prefix, ...parts] = value.split('~');
+  const isLegacy = prefix === legacyCodecPrefix;
+  const isDimensioned = prefix === dimensionedCodecPrefix;
+
+  if (!isLegacy && !isDimensioned) {
     throw new Error('Invalid scene string format.');
   }
 
-  const header = decodeHeader(encodedHeader);
+  const dimensions = isLegacy ? legacySceneDimensions : decodeDimensions(parts.shift());
+  const [encodedHeader, encodedLevels, encodedInstances, encodedMarkers, ...extra] = parts;
+  if (!encodedHeader || !encodedLevels || extra.length > 0) {
+    throw new Error('Invalid scene string format.');
+  }
+
+  const header = decodeHeader(encodedHeader, dimensions);
   const buildingLevels = decodeRecordList(encodedLevels).map((record, index) => decodeLevel(record, index));
   if (buildingLevels.length === 0) {
     throw new Error('Scene string must include at least one building level.');
@@ -131,16 +182,18 @@ function decodeSceneDocumentPayload(value: string, now: string): SceneDocumentV1
 
   const levelIdByIndex = buildingLevels.map((level) => level.id);
   const tileInstances = decodeRecordList(encodedInstances).map((record, index) =>
-    decodeTileInstance(record, index, levelIdByIndex),
+    decodeTileInstance(record, index, levelIdByIndex, dimensions),
   );
-  const skillMarkers = decodeRecordList(encodedMarkers).map((record) => decodeSkillMarker(record, levelIdByIndex));
+  const skillMarkers = decodeRecordList(encodedMarkers).map((record) => decodeSkillMarker(record, levelIdByIndex, dimensions));
 
   return {
     schemaVersion: 1,
     sceneId: `scene-import-${now.replace(/[^0-9]/g, '').slice(0, 17)}`,
     sceneName: header.sceneName,
     selectedPokemonKey: header.selectedPokemonKey,
-    ...sceneDimensions,
+    sceneSize: { ...dimensions.sceneSize },
+    canvasSize: { ...dimensions.canvasSize },
+    outerPadding: dimensions.outerPadding,
     buildingLevels,
     tileInstances,
     skillMarkers,
@@ -158,7 +211,7 @@ function decodeSceneDocumentPayload(value: string, now: string): SceneDocumentV1
   };
 }
 
-function decodeHeader(value: string) {
+function decodeHeader(value: string, dimensions: SceneDimensions) {
   const [sceneName, pokemonIndex, currentLevelIndex, selectedAssetOfficialId, selectedCoordinate, ...extra] =
     value.split('.');
   if (
@@ -181,7 +234,7 @@ function decodeHeader(value: string) {
     sceneName: decodeText(sceneName),
     selectedPokemonKey: pokemonKey,
     currentLevelIndex: decodeNumber(currentLevelIndex),
-    selectedCoordinate: selectedCoordinate === empty ? null : decodeCoordinate(selectedCoordinate),
+    selectedCoordinate: selectedCoordinate === empty ? null : decodeCoordinate(selectedCoordinate, dimensions),
   };
 }
 
@@ -221,7 +274,7 @@ function decodeNotes(value: string | undefined) {
   });
 }
 
-function decodeTileInstance(value: string, index: number, levelIdByIndex: readonly string[]) {
+function decodeTileInstance(value: string, index: number, levelIdByIndex: readonly string[], dimensions: SceneDimensions) {
   const [levelIndex, coordinate, officialAssetId, rotationIndex, dyeColor, skillType, skillNote, ...extra] =
     value.split('.');
   if (
@@ -237,14 +290,14 @@ function decodeTileInstance(value: string, index: number, levelIdByIndex: readon
     throw new Error('Invalid tile instance record.');
   }
 
-  const decodedCoordinate = decodeCoordinate(coordinate);
+  const decodedCoordinate = decodeCoordinate(coordinate, dimensions);
   const decodedSkillType = skillType === empty ? null : decodeSkillType(skillType);
 
   return {
     instanceId: `imported-tile-${index}`,
     assetId: getAssetIdByOfficialId(decodeOfficialAssetId(officialAssetId)),
     coordinate: decodedCoordinate,
-    areaType: calculateAreaType(decodedCoordinate, sceneDimensions),
+    areaType: calculateAreaType(decodedCoordinate, dimensions),
     buildingLevelId: decodeLevelId(levelIndex, levelIdByIndex),
     rotationDegrees: decodeRotation(rotationIndex),
     dyeColor: dyeColor === empty ? null : `#${dyeColor}`,
@@ -254,17 +307,17 @@ function decodeTileInstance(value: string, index: number, levelIdByIndex: readon
   };
 }
 
-function decodeSkillMarker(value: string, levelIdByIndex: readonly string[]) {
+function decodeSkillMarker(value: string, levelIdByIndex: readonly string[], dimensions: SceneDimensions) {
   const [levelIndex, coordinate, skillType, skillNote, ...extra] = value.split('.');
   if (!levelIndex || !coordinate || !skillType || skillNote === undefined || extra.length > 0) {
     throw new Error('Invalid skill marker record.');
   }
 
-  const decodedCoordinate = decodeCoordinate(coordinate);
+  const decodedCoordinate = decodeCoordinate(coordinate, dimensions);
 
   return {
     coordinate: decodedCoordinate,
-    areaType: calculateAreaType(decodedCoordinate, sceneDimensions),
+    areaType: calculateAreaType(decodedCoordinate, dimensions),
     buildingLevelId: decodeLevelId(levelIndex, levelIdByIndex),
     skillType: decodeSkillType(skillType),
     skillNote: skillNote === empty ? '' : decodeText(skillNote),
@@ -332,16 +385,19 @@ function decodeRotation(value: string): RotationDegrees {
   return rotation;
 }
 
-function encodeCoordinate(coordinate: GridCoordinate): string {
-  return encodeNumber(coordinate.y * 7 + coordinate.x);
+function encodeCoordinate(coordinate: GridCoordinate, dimensions: SceneDimensions): string {
+  assertCanvasCoordinate(coordinate, dimensions);
+  return encodeNumber(coordinate.y * dimensions.canvasSize.width + coordinate.x);
 }
 
-function decodeCoordinate(value: string): GridCoordinate {
+function decodeCoordinate(value: string, dimensions: SceneDimensions): GridCoordinate {
   const packed = decodeNumber(value);
-  return {
-    x: packed % 7,
-    y: Math.floor(packed / 7),
+  const coordinate = {
+    x: packed % dimensions.canvasSize.width,
+    y: Math.floor(packed / dimensions.canvasSize.width),
   };
+  assertCanvasCoordinate(coordinate, dimensions);
+  return coordinate;
 }
 
 function encodeText(value: string): string {
@@ -385,4 +441,62 @@ function requireLevelIndex(levelIndexById: ReadonlyMap<string, number>, levelId:
   }
 
   return levelIndex;
+}
+
+function getPayloadDimensions(payload: SceneDocumentV1): SceneDimensions {
+  return {
+    sceneSize: { ...payload.sceneSize },
+    canvasSize: { ...payload.canvasSize },
+    outerPadding: payload.outerPadding,
+  };
+}
+
+function isLegacySceneDimensions(dimensions: SceneDimensions): boolean {
+  return (
+    dimensions.sceneSize.width === legacySceneDimensions.sceneSize.width &&
+    dimensions.sceneSize.height === legacySceneDimensions.sceneSize.height &&
+    dimensions.canvasSize.width === legacySceneDimensions.canvasSize.width &&
+    dimensions.canvasSize.height === legacySceneDimensions.canvasSize.height &&
+    dimensions.outerPadding === legacySceneDimensions.outerPadding
+  );
+}
+
+function encodeDimensions(dimensions: SceneDimensions): string {
+  assertSupportedSceneDimensions(dimensions);
+  return [
+    encodeNumber(dimensions.sceneSize.width),
+    encodeNumber(dimensions.sceneSize.height),
+    encodeNumber(dimensions.outerPadding),
+  ].join('.');
+}
+
+function decodeDimensions(
+  value: string | undefined,
+  options: { requireSupported?: boolean } = { requireSupported: true },
+): SceneDimensions {
+  if (!value) {
+    throw new Error('Invalid scene string dimensions.');
+  }
+
+  const [sceneWidth, sceneHeight, outerPadding, ...extra] = value.split('.');
+  if (!sceneWidth || !sceneHeight || !outerPadding || extra.length > 0) {
+    throw new Error('Invalid scene string dimensions.');
+  }
+
+  const dimensions = {
+    sceneSize: {
+      width: decodeNumber(sceneWidth),
+      height: decodeNumber(sceneHeight),
+    },
+    outerPadding: decodeNumber(outerPadding),
+    canvasSize: {
+      width: decodeNumber(sceneWidth) + decodeNumber(outerPadding) * 2,
+      height: decodeNumber(sceneHeight) + decodeNumber(outerPadding) * 2,
+    },
+  };
+  assertSceneDimensions(dimensions);
+  if (options.requireSupported ?? true) {
+    assertSupportedSceneDimensions(dimensions);
+  }
+  return dimensions;
 }

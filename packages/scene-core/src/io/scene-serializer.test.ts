@@ -29,8 +29,8 @@ describe('SceneDocument v1 serializer', () => {
       sceneId: 'scene-serialize',
       sceneName: 'Ditto 5x5 serialization',
       selectedPokemonKey: 'ditto',
-      sceneSize: { width: 5, height: 5 },
-      canvasSize: { width: 7, height: 7 },
+      sceneSize: { width: 15, height: 15 },
+      canvasSize: { width: 17, height: 17 },
       outerPadding: 1,
       workspaceState: {
         currentBuildingLevelId: 'level-1',

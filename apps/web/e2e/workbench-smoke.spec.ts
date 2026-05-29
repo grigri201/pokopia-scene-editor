@@ -1,11 +1,21 @@
 import { readFile } from 'node:fs/promises';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const autosavedSceneStorageKey = 'pokopia.sceneDocument.autosave.v1';
 const savedSceneStorageKey = 'pokopia.sceneDocument.v1';
 const uiPreferencesStorageKey = 'pokopia.uiPreferences.v1';
 const densePreviewAssetIds = ['wooden-fencing', 'leafy-plant', 'stepping-stones', 'ditto-doll', 'stone-brick-wall', 'brick-roof-decoration'];
 const densePreviewSkillTypes = ['树叶', '耕地', '储水'];
+const defaultSceneSize = { width: 15, height: 15 };
+const defaultCanvasSize = { width: 17, height: 17 };
+const defaultOuterPadding = 1;
+const responsiveReleaseViewports = [
+  { width: 1440, height: 900 },
+  { width: 1280, height: 720 },
+  { width: 1024, height: 768 },
+  { width: 768, height: 1024 },
+  { width: 390, height: 844 },
+] as const;
 
 test('renders the Open Design workbench as the first screen', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -31,7 +41,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   expect(await getShellTransitionDuration(page)).toBe('0s');
   await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
   await expect(page.getByLabel('Current Pokemon')).toHaveValue('百变怪');
-  await expect(page.getByLabel('布景名称')).toHaveValue('5x5 布景');
+  await expect(page.getByLabel('布景名称')).toHaveValue('15x15 布景');
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
   await expect(page.locator('.asset-row')).toHaveCount(10);
   await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('苹野果');
@@ -39,8 +49,10 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Asset page status')).toHaveText('1 / 116');
   await expect(page.getByText('Showing first')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show more' })).toHaveCount(0);
-  await expect(page.getByRole('complementary', { name: '检查器预览' })).toHaveCount(0);
-  await expect(page.getByTestId('scene-cell')).toHaveCount(49);
+  await expect(page.getByRole('complementary', { name: '检查器预览' })).toBeVisible();
+  await expect(page.getByLabel('俯视图预览').locator('.top-cell')).toHaveCount(289);
+  await expect(page.getByLabel('正视图预览').locator('.front-cell')).toHaveCount(17);
+  await expect(page.getByTestId('scene-cell')).toHaveCount(289);
   await expect(page.getByLabel('Cell 3,2, main area, level-0, placeable')).toBeVisible();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Save scene' })).toHaveCount(0);
@@ -69,7 +81,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
     ]);
 
   const snapshot = await readSceneSnapshot(page);
-  expect(snapshot.sceneName).toBe('5x5 布景');
+  expect(snapshot.sceneName).toBe('15x15 布景');
   expect(snapshot.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '1层', notes: [] }]);
   expect(snapshot.tileInstances).toEqual([]);
   expect(snapshot.workspaceState).toMatchObject({
@@ -113,7 +125,7 @@ test('switches the workbench to English without writing locale into SceneDocumen
 
   await expect(page.getByRole('button', { name: 'Download Preview' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible();
-  await expect(page.getByLabel('Scene name')).toHaveValue('5x5 布景');
+  await expect(page.getByLabel('Scene name')).toHaveValue('15x15 布景');
   await expect(page.getByLabel('Current Pokemon')).toHaveValue('Ditto');
   await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('Leppa Berry');
   await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('Food');
@@ -136,7 +148,7 @@ test('switches the workbench to English without writing locale into SceneDocumen
   await expect(page.getByRole('dialog', { name: 'Download preview' })).toBeVisible();
   await expect(page.getByLabel('Overall material list')).toContainText('No materials placed');
   await expect(page.getByLabel('L1 material list')).toContainText('No materials on this layer');
-  await expect(page.getByLabel('4,4: Empty layer')).toBeVisible();
+  await expect(page.getByLabel('4,4: Empty layer', { exact: true })).toBeVisible();
   const exportText = await page.locator('.export-preview').innerText();
   expect(exportText).not.toMatch(/[\u4e00-\u9fff]/);
 });
@@ -249,8 +261,8 @@ test('previews and downloads an image export without mutating scene storage', as
       }),
     )
     .toBeGreaterThan(0);
-  await expect(page.getByLabel('L2 7x7 图形')).toBeVisible();
-  const layerGrid = page.getByLabel('L2 7x7 图形');
+  await expect(page.getByLabel('L2 17x17 图形')).toBeVisible();
+  const layerGrid = page.getByLabel('L2 17x17 图形');
   await layerGrid.scrollIntoViewIfNeeded();
   await expect
     .poll(async () =>
@@ -351,22 +363,16 @@ test('previews and downloads an image export without mutating scene storage', as
     .toEqual({ firstRowAligned: 0, fourthStartsNextRow: true });
   await expect(page.locator('.export-instance-list')).toHaveCount(0);
 
-  const expectedPngSize = await preview.evaluate((element) => {
-    const box = element.getBoundingClientRect();
-    const previewBody = element.querySelector<HTMLElement>('.export-preview__body');
-    const bodyOverflowHeight = previewBody
-      ? Math.max(0, previewBody.scrollHeight - previewBody.getBoundingClientRect().height)
-      : 0;
-
-    return {
-      height: Math.ceil(box.height + bodyOverflowHeight),
-      visibleHeight: Math.ceil(box.height),
-      width: Math.ceil(Math.max(box.width, element.scrollWidth)),
-    };
+  await page.evaluate(() => {
+    (window as unknown as { __pokopiaImageExportDelayMs?: number }).__pokopiaImageExportDelayMs = 500;
   });
-  expect(expectedPngSize.height).toBeGreaterThan(expectedPngSize.visibleHeight);
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: '下载图片' }).click();
+  await expect(page.getByRole('button', { name: '下载图片' })).toBeDisabled();
+  await expect(page.getByRole('status', { name: '图片下载状态' })).toContainText('正在生成图片');
+  await expect(page.getByRole('status', { name: '图片导出提示' })).toContainText('正在生成图片');
+  const expectedPngSize = await getExpectedExportPngSize(preview);
+  expect(expectedPngSize.height).toBeGreaterThan(expectedPngSize.visibleHeight);
   const download = await downloadPromise;
   const downloadPath = await download.path();
 
@@ -508,7 +514,24 @@ test('keeps tall placed asset thumbnails contained inside canvas cells', async (
   expect(bounds.imageRight).toBeLessThanOrEqual(bounds.tokenRight);
 });
 
-test('keeps dense scene selection responsive after hiding the preview panel', async ({ page }) => {
+test('keeps 1000-instance 17x17 selection within the NFR1 budget', async ({ page }) => {
+  await page.addInitScript((scene) => {
+    (window as unknown as { __pokopiaInitialSceneSnapshot?: unknown }).__pokopiaInitialSceneSnapshot = scene;
+  }, createPerformanceBudgetScene());
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
+
+  expect((await readSceneSnapshot(page)).buildingLevels).toHaveLength(10);
+  expect((await readSceneSnapshot(page)).tileInstances).toHaveLength(1000);
+  await expect(page.locator('.front-preview[data-preview-rows="10"]')).toBeVisible();
+
+  await measureSelectionDuration(page, '[data-coordinate="2,2"]');
+  const selectionDuration = await measureSelectionDuration(page, '[data-coordinate="3,3"]');
+  expect(selectionDuration).toBeLessThan(150);
+});
+
+test('keeps dense 17x17 scene selection usable with the preview panel', async ({ page }) => {
   await page.addInitScript((scene) => {
     (window as unknown as { __pokopiaInitialSceneSnapshot?: unknown }).__pokopiaInitialSceneSnapshot = scene;
   }, createDenseScene());
@@ -516,9 +539,17 @@ test('keeps dense scene selection responsive after hiding the preview panel', as
   await page.goto('/');
   await dismissHelpOverlayIfVisible(page);
 
-  await expect(page.getByRole('complementary', { name: '检查器预览' })).toHaveCount(0);
-  await expect(page.getByTestId('scene-cell')).toHaveCount(49);
-  await expect(page.locator('.cell-asset-thumb')).toHaveCount(49);
+  await expect(page.getByRole('complementary', { name: '检查器预览' })).toBeVisible();
+  await expect(page.getByTestId('scene-cell')).toHaveCount(289);
+  await expect(page.locator('.cell-asset-thumb')).toHaveCount(289);
+  expect(await readSceneSnapshot(page)).toMatchObject({
+    buildingLevels: expect.arrayContaining([
+      expect.objectContaining({ id: 'level-9' }),
+    ]),
+  });
+  expect((await readSceneSnapshot(page)).buildingLevels).toHaveLength(10);
+  expect((await readSceneSnapshot(page)).tileInstances).toHaveLength(2890);
+  await expect(page.locator('.front-preview[data-preview-rows="10"]')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show preview main boundary' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show preview skill markers' })).toHaveCount(0);
@@ -527,10 +558,42 @@ test('keeps dense scene selection responsive after hiding the preview panel', as
   });
 
   const selectionDuration = await measureSelectionDuration(page, '[data-coordinate="3,3"]');
-  expect(selectionDuration).toBeLessThan(250);
+  expect(selectionDuration).toBeLessThan(300);
   await expect(page.locator('.current-selection-bar__asset-name')).toBeVisible();
   await expect(page.locator('.current-selection-bar__actions')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('keeps default 17x17 scenes responsive across the release viewport matrix', async ({ page }) => {
+  for (const viewport of responsiveReleaseViewports) {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await dismissHelpOverlayIfVisible(page);
+
+    await expectResponsiveWorkbench(page, {
+      expectedCells: 289,
+      edgeCellLabel: `Cell 16,16, outer area, level-0, ${viewport.width < 768 ? 'read-only' : 'placeable'}`,
+      isMobile: viewport.width < 768,
+    });
+  }
+});
+
+test('keeps legacy 7x7 scenes responsive across the release viewport matrix', async ({ page }) => {
+  await page.addInitScript((scene) => {
+    (window as unknown as { __pokopiaInitialSceneSnapshot?: unknown }).__pokopiaInitialSceneSnapshot = scene;
+  }, createLegacyResponsiveScene());
+
+  for (const viewport of responsiveReleaseViewports) {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await dismissHelpOverlayIfVisible(page);
+
+    await expectResponsiveWorkbench(page, {
+      expectedCells: 49,
+      edgeCellLabel: `Cell 6,6, outer area, level-0, ${viewport.width < 768 ? 'read-only' : 'placeable'}`,
+      isMobile: viewport.width < 768,
+    });
+  }
 });
 
 test('migrates legacy UI preferences without hidden preview or advanced asset controls', async ({ page }) => {
@@ -597,6 +660,12 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByRole('button', { name: '打开说明' })).toHaveCount(0);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
   await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile read-only mode');
+  await expect(page.getByTestId('scene-cell')).toHaveCount(289);
+  await expect(page.getByLabel('Cell 16,16, outer area, level-0, read-only')).toBeVisible();
+  expect(await readSceneSnapshot(page)).toMatchObject({
+    sceneSize: { width: 15, height: 15 },
+    canvasSize: { width: 17, height: 17 },
+  });
   await expect(page.getByLabel('Current Pokemon')).toBeDisabled();
   await expect(page.getByLabel('布景名称')).toHaveAttribute('readonly', '');
   await expect(page.getByRole('button', { name: '新建层' })).toBeDisabled();
@@ -727,6 +796,68 @@ async function getSelectionEmptyTextHeightRatio(page: Page): Promise<number> {
   });
 }
 
+async function getExpectedExportPngSize(preview: Locator): Promise<{ height: number; visibleHeight: number; width: number }> {
+  return preview.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const previewBody = element.querySelector<HTMLElement>('.export-preview__body');
+    const bodyOverflowHeight = previewBody
+      ? Math.max(0, previewBody.scrollHeight - previewBody.getBoundingClientRect().height)
+      : 0;
+
+    return {
+      height: Math.ceil(box.height + bodyOverflowHeight),
+      visibleHeight: Math.ceil(box.height),
+      width: Math.ceil(Math.max(box.width, element.scrollWidth)),
+    };
+  });
+}
+
+async function expectResponsiveWorkbench(
+  page: Page,
+  options: { edgeCellLabel: string; expectedCells: number; isMobile: boolean },
+): Promise<void> {
+  await expect(page.getByLabel('Pokopia scene editor workbench')).toBeVisible();
+  await expect(page.getByTestId('scene-cell')).toHaveCount(options.expectedCells);
+  await expect(page.getByLabel(options.edgeCellLabel)).toBeVisible();
+  await expect(page.getByLabel('Interaction mode')).toHaveText(options.isMobile ? 'Mobile read-only mode' : 'Desktop edit mode');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await expectElementCenterUncovered(page, page.getByLabel(options.edgeCellLabel));
+
+  if (options.isMobile) {
+    await expect(page.getByLabel('Current Pokemon')).toBeDisabled();
+    await expect(page.getByLabel('布景名称')).toHaveAttribute('readonly', '');
+    await expect(page.getByRole('button', { name: '下载预览' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '导出字符串' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '导入字符串' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '重置' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '新建层' })).toBeDisabled();
+    return;
+  }
+
+  await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: '检查器预览' })).toBeVisible();
+  await expectElementCenterUncovered(page, page.getByRole('complementary', { name: 'Asset picker' }));
+  await expectElementCenterUncovered(page, page.getByRole('complementary', { name: '检查器预览' }));
+  await expect(page.getByRole('button', { name: '下载预览' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '新建层' })).toBeEnabled();
+}
+
+async function expectElementCenterUncovered(page: Page, locator: Locator): Promise<void> {
+  await locator.scrollIntoViewIfNeeded();
+  await expect
+    .poll(async () =>
+      locator.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const x = box.left + box.width / 2;
+        const y = box.top + box.height / 2;
+        const hit = document.elementFromPoint(x, y);
+        return Boolean(hit && (hit === element || element.contains(hit) || hit.contains(element)));
+      }),
+    )
+    .toBe(true);
+}
+
 async function measureSelectionDuration(page: Page, cellSelector: string): Promise<number> {
   await page.evaluate(() => performance.clearMeasures('scene-selection-duration'));
   await page.locator(cellSelector).click();
@@ -793,9 +924,9 @@ function createEditableScene() {
     sceneId: 'scene-edit-flow',
     sceneName: 'Edit Flow Smoke',
     selectedPokemonKey: 'pikachu',
-    sceneSize: { width: 5, height: 5 },
-    canvasSize: { width: 7, height: 7 },
-    outerPadding: 1,
+    sceneSize: { ...defaultSceneSize },
+    canvasSize: { ...defaultCanvasSize },
+    outerPadding: defaultOuterPadding,
     buildingLevels: [
       { id: 'level-0', levelNumber: 0, name: '1层' },
       { id: 'level-1', levelNumber: 1, name: '2层' },
@@ -914,7 +1045,57 @@ function createTallThumbnailScene() {
   };
 }
 
+function createLegacyResponsiveScene() {
+  const now = '2026-05-16T10:32:30.000Z';
+
+  return {
+    schemaVersion: 1,
+    sceneId: 'scene-legacy-responsive',
+    sceneName: 'Legacy Responsive Smoke',
+    selectedPokemonKey: 'pikachu',
+    sceneSize: { width: 5, height: 5 },
+    canvasSize: { width: 7, height: 7 },
+    outerPadding: 1,
+    buildingLevels: [
+      { id: 'level-0', levelNumber: 0, name: '1层' },
+    ],
+    tileInstances: [
+      {
+        instanceId: 'tile-legacy-responsive',
+        assetId: 'leafy-plant',
+        coordinate: { x: 6, y: 6 },
+        areaType: 'outer',
+        buildingLevelId: 'level-0',
+        rotationDegrees: 0,
+        dyeColor: null,
+        requiresSkill: false,
+        skillType: null,
+        skillNote: '',
+      },
+    ],
+    workspaceState: {
+      currentBuildingLevelId: 'level-0',
+      selectedAssetId: null,
+      selectedCoordinate: { x: 6, y: 6 },
+    },
+    metadata: {
+      createdAt: now,
+      updatedAt: now,
+      lastSavedAt: now,
+      lastAutosavedAt: null,
+    },
+  };
+}
+
 function createDenseScene() {
+  return createLayeredScene('scene-dense-preview', 'Dense Preview Smoke', defaultCanvasSize.width * defaultCanvasSize.height);
+}
+
+function createPerformanceBudgetScene() {
+  return createLayeredScene('scene-performance-budget', 'Performance Budget Smoke', 100);
+}
+
+function createLayeredScene(sceneId: string, sceneName: string, instancesPerLevel: number) {
   const now = '2026-05-16T10:32:30.000Z';
   const buildingLevels = Array.from({ length: 10 }, (_, levelNumber) => ({
     id: `level-${levelNumber}`,
@@ -922,15 +1103,17 @@ function createDenseScene() {
     name: `${levelNumber}层`,
   }));
   const tileInstances = buildingLevels.flatMap((level) =>
-    Array.from({ length: 49 }, (_, index) => {
+    Array.from({ length: instancesPerLevel }, (_, index) => {
+      const x = index % defaultCanvasSize.width;
+      const y = Math.floor(index / defaultCanvasSize.width);
       const assetId = densePreviewAssetIds[index % densePreviewAssetIds.length];
       const requiresSkill = index % 3 === 0;
 
       return {
         instanceId: `tile-${level.levelNumber}-${index}`,
         assetId,
-        coordinate: { x: index % 7, y: Math.floor(index / 7) },
-        areaType: isMainCoordinate(index % 7, Math.floor(index / 7)) ? 'main' : 'outer',
+        coordinate: { x, y },
+        areaType: isMainCoordinate(x, y) ? 'main' : 'outer',
         buildingLevelId: level.id,
         rotationDegrees: 0,
         dyeColor: null,
@@ -943,12 +1126,12 @@ function createDenseScene() {
 
   return {
     schemaVersion: 1,
-    sceneId: 'scene-dense-preview',
-    sceneName: 'Dense Preview Smoke',
+    sceneId,
+    sceneName,
     selectedPokemonKey: 'pikachu',
-    sceneSize: { width: 5, height: 5 },
-    canvasSize: { width: 7, height: 7 },
-    outerPadding: 1,
+    sceneSize: { ...defaultSceneSize },
+    canvasSize: { ...defaultCanvasSize },
+    outerPadding: defaultOuterPadding,
     buildingLevels,
     tileInstances,
     workspaceState: {
@@ -966,5 +1149,10 @@ function createDenseScene() {
 }
 
 function isMainCoordinate(x: number, y: number): boolean {
-  return x >= 1 && x <= 5 && y >= 1 && y <= 5;
+  return (
+    x >= defaultOuterPadding &&
+    x < defaultOuterPadding + defaultSceneSize.width &&
+    y >= defaultOuterPadding &&
+    y < defaultOuterPadding + defaultSceneSize.height
+  );
 }

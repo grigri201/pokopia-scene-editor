@@ -118,8 +118,8 @@ describe('scene selectors', () => {
       placeable: true,
       mainBoundary: false,
     });
-    expect(cells.filter((cell) => cell.areaType === 'main')).toHaveLength(25);
-    expect(cells.filter((cell) => cell.mainBoundary)).toHaveLength(16);
+    expect(cells.filter((cell) => cell.areaType === 'main')).toHaveLength(225);
+    expect(cells.filter((cell) => cell.mainBoundary)).toHaveLength(56);
     expect(levels.map((level) => level.displayId)).toEqual(['L3', 'L2', 'L1']);
     expect(levels.map((level) => level.instanceCount)).toEqual([1, 0, 1]);
     expect(levels.every((level) => !('visible' in level))).toBe(true);
@@ -203,8 +203,8 @@ describe('scene selectors', () => {
     ]);
     expect(allFront.map((level) => level.displayId)).toEqual(['L1', 'L2', 'L3']);
     expect(allFront.map((level) => level.totalInstanceCount)).toEqual([1, 1, 1]);
-    expect(projectionCells).toHaveLength(21);
-    expect(projectionCells.slice(0, 7).every((cell) => cell.buildingLevel.id === 'level-2')).toBe(true);
+    expect(projectionCells).toHaveLength(51);
+    expect(projectionCells.slice(0, 17).every((cell) => cell.buildingLevel.id === 'level-2')).toBe(true);
     expect(levelTwoColumn?.projectedInstance?.instanceId).toBe('tile-high');
     expect(levelTwoColumn?.skillInstance?.instanceId).toBe('tile-high');
   });
@@ -214,9 +214,9 @@ describe('scene selectors', () => {
     const topCells = getAllVisiblePreviewCellContexts(scene);
     const frontLevels = getAllVisibleFrontPreviewContexts(scene);
 
-    expect(topCells).toHaveLength(49);
+    expect(topCells).toHaveLength(289);
     expect(topCells.flatMap((cell) => cell.tileInstances)).toHaveLength(490);
-    expect(topCells.every((cell) => cell.instanceLayerContexts.length === 10)).toBe(true);
+    expect(topCells.filter((cell) => cell.tileInstances.length > 0).every((cell) => cell.instanceLayerContexts.length === 10)).toBe(true);
     expect(frontLevels).toHaveLength(10);
     expect(frontLevels.reduce((total, level) => total + level.totalInstanceCount, 0)).toBe(490);
     expect(frontLevels.every((level) => level.heightPercent >= 28 && level.heightPercent <= 100)).toBe(true);

@@ -31,7 +31,7 @@ describe('ExportPreview', () => {
       'src',
       expect.stringContaining('/assets/pokopia_image_sources/pokemon_portraits/063-ditto.png'),
     );
-    expect(screen.getByText('7x7 画布 · 3 个建筑层')).toBeVisible();
+    expect(screen.getByText('17x17 画布 · 3 个建筑层')).toBeVisible();
     expect(document.querySelector('.export-preview__pokemon-rail')).toBeNull();
     expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('绿叶植物');
     expect(screen.getByLabelText('整体使用素材清单')).not.toHaveTextContent('No. 1052');
@@ -52,12 +52,12 @@ describe('ExportPreview', () => {
       'L3 · 3层',
     ]);
     expect(screen.getByLabelText('逐层图形和素材清单')).not.toHaveTextContent('placed items');
-    expect(screen.getByLabelText('L2 7x7 图形').querySelectorAll('.export-layer-cell')).toHaveLength(49);
-    const layerGraphicFrame = screen.getByLabelText('L2 7x7 图形').closest('.export-layer-grid-frame');
+    expect(screen.getByLabelText('L2 17x17 图形').querySelectorAll('.export-layer-cell')).toHaveLength(289);
+    const layerGraphicFrame = screen.getByLabelText('L2 17x17 图形').closest('.export-layer-grid-frame');
     expect(layerGraphicFrame).not.toBeNull();
     expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--origin')).toHaveTextContent('0,0');
     expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--origin')).toHaveAttribute('aria-hidden', 'true');
-    expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--max')).toHaveTextContent('6,6');
+    expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--max')).toHaveTextContent('16,16');
     expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--max')).toHaveAttribute('aria-hidden', 'true');
     const previewCell = screen.getByLabelText('3,3: 绿叶植物');
     expect(previewCell).toHaveTextContent('');
@@ -94,7 +94,7 @@ describe('ExportPreview', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '关闭' }));
     expect(onClose).toHaveBeenCalledTimes(1);
-  });
+  }, 15_000);
 
   it('does not render instance detail text from layer material summaries', () => {
     const { container } = render(<ExportPreview summary={buildImageExportSummary(createPreviewScene())} onClose={vi.fn()} />);
@@ -129,7 +129,7 @@ describe('ExportPreview', () => {
 
     expect(screen.getByRole('dialog', { name: 'Download preview' })).toBeVisible();
     expect(screen.getByLabelText('Ditto export preview Pokemon image')).toBeVisible();
-    expect(screen.getByText('7x7 canvas · 3 building layers')).toBeVisible();
+    expect(screen.getByText('17x17 canvas · 3 building layers')).toBeVisible();
     expect(screen.getByLabelText('Overall material list')).toHaveTextContent(/Leafy/i);
     expect(screen.getByLabelText('Overall material list')).toHaveTextContent('Leaf');
     expect(screen.getByLabelText('Overall material list')).toHaveTextContent('Water Storage');
@@ -150,7 +150,7 @@ describe('ExportPreview', () => {
 
     render(<ExportPreview locale="en-US" summary={summary} onClose={vi.fn()} />);
 
-    expect(screen.getByText('7x7 canvas · 1 building layer')).toBeVisible();
+    expect(screen.getByText('17x17 canvas · 1 building layer')).toBeVisible();
   });
 
   it('renders footprint overlays in layer graphics while keeping material lists instance-count based', () => {
@@ -224,7 +224,7 @@ describe('ExportPreview', () => {
 
     render(<ExportPreview summary={summary} onClose={vi.fn()} />);
 
-    const layerGraphic = screen.getByLabelText('L1 7x7 图形');
+    const layerGraphic = screen.getByLabelText('L1 17x17 图形');
     const layerMaterials = screen.getByLabelText('L1 使用素材清单');
     const rugOverlay = screen.getByTestId('export-footprint-overlay-export-base-large-rug');
     const stackingCell = layerGraphic.querySelector<HTMLElement>('[data-stacking-top-instance-id="export-top-plant"]');
@@ -344,6 +344,21 @@ describe('ExportPreview', () => {
 
     expect(onDownloadImage).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('status', { name: 'Image export download status' })).not.toBeInTheDocument();
+  });
+
+  it('shows download status while the shell is generating an image', () => {
+    render(
+      <ExportPreview
+        summary={buildImageExportSummary(createPreviewScene())}
+        downloadDisabled
+        downloadStatus="正在生成图片…"
+        onClose={vi.fn()}
+        onDownloadImage={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: '下载图片' })).toBeDisabled();
+    expect(screen.getByRole('status', { name: '图片下载状态' })).toHaveTextContent('正在生成图片');
   });
 });
 

@@ -2,24 +2,28 @@
 
 This reference describes how to call the MCP tools without duplicating business logic.
 
+## Dimensions
+
+Supported scene dimensions are the current default `15x15` scene / `17x17` canvas and legacy recovered `5x5` scene / `7x7` canvas, both with `outerPadding: 1`. All scene workflows must preserve and report returned `sceneSize`, `canvasSize`, `outerPadding`, and `classification` from `structuredContent.dimensions` or the Worker route `dimensions` field.
+
 ## Validate Or Recover
 
 1. Read the scene payload from the repo-local file or user-provided content.
 2. Call `validate_scene_document` with `{ "scene": <payload> }`.
-3. If `structuredContent.ok` is false, preserve the full `errors[]` objects and use their `fieldPath`, footprint conflict fields, `warnings`, and `fixSuggestions` to make the smallest repair.
+3. If `structuredContent.ok` is false, preserve the full `errors[]` objects and use their `fieldPath`, footprint conflict fields, `dimensions`, `warnings`, and `fixSuggestions` to make the smallest repair.
 4. Call `recover_scene_document` after edits to confirm the payload can be recovered into a current `SceneDocument`.
 
 ## Summarize Export
 
 1. Call `summarize_scene_export` with `{ "scene": <payload> }`.
-2. Use `structuredContent.data.summary` as the export-summary JSON, including `structuredContent.data.summary.layers[].notes` for layer notes plus `footprint`, `effectiveFootprint`, `occupiedCells`, `blockingCells`, `footprintWarnings`, and derived `stackingRelations`.
+2. Use `structuredContent.data.summary` as the export-summary JSON, including `structuredContent.data.summary.sceneSize`, `structuredContent.data.summary.canvasSize`, `structuredContent.data.summary.outerPadding`, `structuredContent.data.summary.layers[].notes` for layer notes plus `footprint`, `effectiveFootprint`, `occupiedCells`, `blockingCells`, `footprintWarnings`, and derived `stackingRelations`.
 3. Preserve warnings in the answer. Do not generate PNG files or call browser image-export code.
 
 ## Search Assets And Generate Defaults
 
 1. Call `search_pokopia_assets` with semantic filters such as `query`, `category`, `pokemonKey`, `favoriteOnly`, `page`, and `pageSize`.
 2. Return asset ids, names, categories, `footprint`, `stacking`, and why the results fit the request.
-3. For a starter scene, call `generate_scene_document` with optional `sceneName`, `selectedPokemonKey`, `now`, and `includeOpenDesignDemo`.
+3. For a starter scene, call `generate_scene_document` with optional `sceneName`, `selectedPokemonKey`, `now`, and `includeOpenDesignDemo`, then preserve the returned dimensions.
 
 ## Failure Handling
 

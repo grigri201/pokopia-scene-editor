@@ -3,6 +3,7 @@ import { type AssetSkillType, type PokemonKey } from '@pokopia-scene-editor/scen
 import { AssetPicker, type AssetSelectionMode } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
 import { PokemonSceneControls } from '../pokemon-scene-controls/PokemonSceneControls';
+import { PreviewInspector } from '../preview-inspector/PreviewInspector';
 import { SceneCanvas } from '../scene-canvas/SceneCanvas';
 import { SelectionInspector } from '../selection-inspector/SelectionInspector';
 import {
@@ -156,6 +157,7 @@ export function AppShell() {
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [readOnlyViewingLevelId, setReadOnlyViewingLevelId] = useState<string | null>(null);
   const [exportPreviewSummary, setExportPreviewSummary] = useState<ImageExportSummary | null>(null);
+  const [imageDownloadPending, setImageDownloadPending] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(initialViewportWidth);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(initialInteractionMode);
   const [helpOverlayOpen, setHelpOverlayOpen] = useState(
@@ -1113,6 +1115,7 @@ export function AppShell() {
   const openExportPreview = () => {
     try {
       setExportPreviewSummary(buildImageExportSummary(scene, locale));
+      setImageDownloadPending(false);
       dismissNotificationToast('image-export');
       dismissNotificationToast('image-download');
     } catch {
@@ -1128,10 +1131,11 @@ export function AppShell() {
 
   const closeExportPreview = () => {
     setExportPreviewSummary(null);
+    setImageDownloadPending(false);
   };
 
   const downloadExportImage = async (previewElement: HTMLElement) => {
-    if (!exportPreviewSummary) {
+    if (!exportPreviewSummary || imageDownloadPending) {
       return;
     }
 
@@ -1139,6 +1143,14 @@ export function AppShell() {
     let downloadLink: HTMLAnchorElement | null = null;
 
     try {
+      setImageDownloadPending(true);
+      showNotificationToast({
+        id: 'image-download',
+        tone: 'info',
+        title: t(locale, 'imageExportToastTitle'),
+        message: t(locale, 'imagePreparing'),
+      });
+      await waitForPlaywrightImageExportDelay();
       const exportFile = await createImageExportFile({
         previewElement,
         sceneName: exportPreviewSummary.sceneName,
@@ -1165,6 +1177,7 @@ export function AppShell() {
         message: t(locale, 'imageDownloadFailed'),
       });
     } finally {
+      setImageDownloadPending(false);
       downloadLink?.remove();
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
@@ -1531,6 +1544,8 @@ export function AppShell() {
         <ExportPreview
           locale={locale}
           summary={exportPreviewSummary}
+          downloadDisabled={imageDownloadPending}
+          downloadStatus={imageDownloadPending ? t(locale, 'imagePreparing') : null}
           onClose={closeExportPreview}
           onDownloadImage={downloadExportImage}
         />
@@ -1561,8 +1576,22 @@ export function AppShell() {
             onCopyLayer={copyBuildingLayer}
             onDeleteLayer={deleteBuildingLayer}
           />
+          <PreviewInspector
+            locale={locale}
+            scene={scene}
+            activeBuildingLevelId={activeBuildingLevelId}
+            selectedCoordinate={selectedCoordinate}
+            selectedInstanceId={selectedInstanceId}
+            readOnly={isReadOnly}
+          />
         </div>
-        <section className="canvas-stage" aria-label="7x7 scene canvas workspace">
+        <section
+          className="canvas-stage"
+          aria-label={t(locale, 'sceneCanvasWorkspace', {
+            width: scene.canvasSize.width,
+            height: scene.canvasSize.height,
+          })}
+        >
           <span className="sr-only status-pill" aria-label="Interaction mode">
             {isReadOnly ? 'Mobile read-only mode' : 'Desktop edit mode'}
           </span>
@@ -1860,6 +1889,19 @@ function markSelectionVisible(measureId: string): void {
   performance.measure('scene-selection-duration', startMark, visibleMark);
   performance.clearMarks(startMark);
   performance.clearMarks(visibleMark);
+}
+
+function waitForPlaywrightImageExportDelay(): Promise<void> {
+  const testWindow = window as unknown as { __pokopiaImageExportDelayMs?: number };
+  const delayMs = navigator.webdriver && isLocalPreviewHost(window.location.hostname)
+    ? testWindow.__pokopiaImageExportDelayMs
+    : undefined;
+
+  if (!delayMs || delayMs <= 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => window.setTimeout(resolve, delayMs));
 }
 
 function isLocalPreviewHost(hostname: string): boolean {

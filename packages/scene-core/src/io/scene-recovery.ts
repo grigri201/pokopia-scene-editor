@@ -1,4 +1,4 @@
-import { defaultSceneName, type SceneDocument } from '../domain/scene';
+import { defaultSceneName, legacySceneDimensions, type SceneDocument, type SceneDimensions } from '../domain/scene';
 import { getPokemonThemeDefinition } from '../domain/assets';
 import {
   parseSceneDocument,
@@ -83,7 +83,7 @@ export function sceneFromPayload(payload: SceneDocumentV1): SceneDocument {
 
   return {
     ...payload,
-    sceneName: defaultSceneName,
+    sceneName: isLegacySceneDimensions(payload) ? '5x5 布景' : defaultSceneName,
   };
 }
 
@@ -95,6 +95,16 @@ function isLegacyDefaultSceneName(payload: SceneDocumentV1): boolean {
   }
 
   return payload.sceneName === `${getPokemonThemeDefinition(payload.selectedPokemonKey).name}的布景`;
+}
+
+function isLegacySceneDimensions(dimensions: SceneDimensions): boolean {
+  return (
+    dimensions.sceneSize.width === legacySceneDimensions.sceneSize.width &&
+    dimensions.sceneSize.height === legacySceneDimensions.sceneSize.height &&
+    dimensions.canvasSize.width === legacySceneDimensions.canvasSize.width &&
+    dimensions.canvasSize.height === legacySceneDimensions.canvasSize.height &&
+    dimensions.outerPadding === legacySceneDimensions.outerPadding
+  );
 }
 
 export function parseSceneDocumentForRecovery(input: unknown): SceneDocumentParseResult {

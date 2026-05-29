@@ -34,7 +34,7 @@ describe('asset footprint geometry', () => {
       instanceId: 'tile-wide',
       assetId: 'wooden-bench',
       buildingLevelId: 'level-0',
-      occupiedCells: getFootprintCells({ x: 2, y: 6 }, { length: 1, width: 2 }),
+      occupiedCells: getFootprintCells({ x: 2, y: 16 }, { length: 1, width: 2 }),
       dimensions: defaultSceneDimensions,
     });
 
@@ -43,7 +43,7 @@ describe('asset footprint geometry', () => {
       instanceId: 'tile-wide',
       assetId: 'wooden-bench',
       buildingLevelId: 'level-0',
-      coordinates: [{ x: 2, y: 7 }],
+      coordinates: [{ x: 2, y: 17 }],
     });
   });
 });

@@ -11,12 +11,12 @@ const socialImageUrl = `${siteOrigin}/assets/pokopia_image_sources/pokemon_portr
 describe('static SEO metadata', () => {
   it('publishes English root metadata for search and social previews', () => {
     expect(indexHtml).toContain('<html lang="en">');
-    expect(indexHtml).toContain('<title>Pokopia Scene Editor | 5x5 Layout Planner</title>');
+    expect(indexHtml).toContain('<title>Pokopia Scene Editor | 15x15 Layout Planner</title>');
     expect(indexHtml).toContain(`<link rel="canonical" href="${siteOrigin}/" />`);
     expect(indexHtml).toContain('<link rel="icon" type="image/svg+xml" href="/favicon.svg" />');
     expect(indexHtml).toContain('name="description"');
-    expect(indexHtml).toContain('7x7 rule-aware workbench');
-    expect(indexHtml).toContain('property="og:title" content="Pokopia Scene Editor | 5x5 Layout Planner"');
+    expect(indexHtml).toContain('17x17 rule-aware workbench');
+    expect(indexHtml).toContain('property="og:title" content="Pokopia Scene Editor | 15x15 Layout Planner"');
     expect(indexHtml).toContain(`property="og:url" content="${siteOrigin}/"`);
     expect(indexHtml).toContain(`property="og:image" content="${socialImageUrl}"`);
     expect(indexHtml).toContain('name="twitter:card" content="summary"');

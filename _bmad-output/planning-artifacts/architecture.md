@@ -41,10 +41,10 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 我已审阅 `pokopia-scene-editor` 的 PRD、PRD 验证报告、UX 设计规格、UX 方向稿和原始需求文档。
 
-当前架构基线覆盖 100 条 Functional Requirements，主要分为：
+当前架构基线覆盖 108 条 Functional Requirements，主要分为：
 
-- Scene & Canvas Model：固定 7x7 实际编辑画布、中心 5x5 主体区、外围 1 圈装饰区、0-based 坐标和区域识别。
-- Open Design Workbench Context：顶部 Pokemon/场景名/保存状态、右侧浮动素材栏、中央 7x7 画布、左侧建筑层面板和左下双预览检查器。
+- Scene & Canvas Model：`SceneDocument v1` 通过 `sceneSize`、`canvasSize` 和 `outerPadding` 表达尺寸；新建场景默认 15x15 主体区、17x17 实际编辑画布、外围 1 圈装饰区，legacy 7x7 数据按自身尺寸恢复。
+- Open Design Workbench Context：顶部 Pokemon/场景名/保存状态、右侧浮动素材栏、中央尺寸驱动画布、左侧建筑层面板和左下双预览检查器。
 - Asset Placement & Editing：素材选择、放置、删除、替换、移动、跨建筑层移动、朝向、染色、备注、footprint 占用、跨层阻塞规则和受控承载/叠放规则。
 - Building Level Management：默认 0/1/2 建筑层，层号递增，数据按 0 层到 n 层组织，UI 按 L2/L1/L0 这类高层到低层顺序展示，支持创建、删除、重命名、复制、隐藏、显示、锁定、解锁和当前编辑层。
 - Asset Catalog & Selection：素材列表、缩略图、名称、分类、标签、适用区域、官方 `No.` 素材 ID、Pokemon 喜好、footprint、搜索、筛选、技能条件和素材详情。
@@ -104,7 +104,13 @@ Footprint 是 asset catalog metadata：每个 asset 拥有 `footprint.length`、
 
 Stacking surface 是 asset catalog metadata：默认不可承载、不可被同层 overlap；明确 override 才能把 `wooden-plate`、`plate`、`party-platter` 标记为 food surface，或把已审计底垫、地毯、嫩芽和低高度素材标记为 floor-cover/low-height surface。`packages/scene-core` 必须提供 DOM-free helpers 计算 stacking compatibility、derived base/top relation、unsupported surface conflicts 和 surface capacity conflicts。`apps/web`、`apps/worker`、MCP tools/resources 和 Codex skill 只能调用这些 helpers，不能复制盘子、地毯、嫩芽或低高度素材规则列表。Web 渲染可以把合法同格 stacking relation 表达为上下半格显示，但该上下分区只是 UI projection，不是保存顺序、z-index 或 schema 字段。
 
-另有 47 条 Non-Functional Requirements，核心架构约束包括：
+### Approved Course Correction - 2026-05-29 15x15 Scene Size / 17x17 编辑画布
+
+本 Architecture 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-29-15x15-scene-size.md` 增加 Epic 12 尺寸扩展边界。当前 `SceneDocument v1` 的字段 shape 继续保持，尺寸仍由 `sceneSize`、`canvasSize` 和 `outerPadding` 表达；新建场景默认 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17`。旧 7x7 SceneDocument v1 JSON payload 必须按自身尺寸恢复，旧 PSE1 短字符串继续按 legacy 7x7 解码。
+
+`packages/scene-core` 必须新增或收敛 dimension helpers，作为 area calculation、coordinate schema bounds、canvas cells、main boundary、footprint bounds、height blocking、stacking relations、selectors、serializer/recovery 和 export summary 的唯一尺寸来源。Zod schema 不能继续把 coordinate max 写死为 6；Web、Worker、MCP 和 Codex skill 不得复制 7x7 常量。新尺寸短字符串必须编码 dimensions 或使用新的 codec revision，避免 17x17 场景被 legacy PSE1 解释为 7x7。
+
+另有 52 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
 - 预览切换需要在 300ms 内完成首个可见更新；素材搜索筛选 1000 个素材以内需要在 200ms 内返回可见结果。
@@ -116,8 +122,9 @@ Stacking surface 是 asset catalog metadata：默认不可承载、不可被同�
 - 恢复数据或未来导入 JSON 必须作为数据处理，用户自定义名称、备注和技能说明必须按安全文本渲染，不得作为 HTML 或脚本执行。
 - 基础可访问性目标是 WCAG 2.2 AA，关键状态不能只依赖颜色表达。
 - 1280px 及以上使用完整 Open Design 浮动工作台，768px 以下进入 Mobile View-only Mode，不允许任何场景写操作。
+- 默认 17x17 画布可以使用内部缩放、滚动或稳定压缩，但不得破坏格子固定宽高比、坐标可读性、主/外围区语义或移动端只读边界。
 
-Open Design UI 确认了新的工作台形态。架构上应支持一个桌面优先的单页工作台：顶部左侧 Pokemon/场景名/保存状态，右侧浮动 Asset Picker，中央 7x7 画布，左侧 Building Level Panel，左下 Preview Inspector 同时展示正视图和俯视图。动态 Pokemon 主题只影响外层 shell 和少量强调色，不允许覆盖主体区、外围区、当前层、选中格、技能标记、锁定层、隐藏、警告和错误状态等语义状态色。
+Open Design UI 确认了新的工作台形态。架构上应支持一个桌面优先的单页工作台：顶部左侧 Pokemon/场景名/保存状态，右侧浮动 Asset Picker，中央尺寸驱动画布（新建场景默认 17x17），左侧 Building Level Panel，左下 Preview Inspector 同时展示正视图和俯视图。动态 Pokemon 主题只影响外层 shell 和少量强调色，不允许覆盖主体区、外围区、当前层、选中格、技能标记、锁定层、隐藏、警告和错误状态等语义状态色。
 
 关键架构结论：
 
@@ -612,7 +619,8 @@ type Result<T, E> =
 - Boolean 使用 `true` / `false`。
 - 技能备注字段必须显式存在；未填写时使用空字符串。普通实例备注 `note` 不属于 MVP payload 必填字段。
 - `BuildingLevel.notes` 必须显式存在；未填写时使用空数组。每条备注包含稳定 `id` 和 `text`，`text` 按用户原文保存。
-- `areaType` 只允许 `main | outer`。
+- `sceneSize`、`canvasSize` 和 `outerPadding` 是 SceneDocument v1 的尺寸事实来源；新建场景默认 15x15 scene、17x17 canvas、1 圈 outer，legacy 7x7 JSON 按自身尺寸恢复。
+- `areaType` 只允许 `main | outer`，并必须由 `sceneSize`、`canvasSize`、`outerPadding` 和 coordinate 重新计算。
 - `rotationDegrees` 只允许 `0 | 90 | 180 | 270`；默认 0 度必须显式保存为 `0`，但 UI 不显示额外旋转标记。
 - `footprint.length`、`footprint.width`、`footprint.height` 只存在于 asset catalog，使用正整数；SceneDocument tile instance 不保存 footprint。
 - `effectiveFootprint`、`occupiedCells`、`blockingCells` 只允许作为 selector/export-summary/API/MCP 派生输出，不允许写入保存 payload。
@@ -622,7 +630,7 @@ type Result<T, E> =
 - `dyeColor` 未设置时必须显式使用 `null`；支持染色且已选择颜色的实例必须保留可恢复颜色值。
 - `skillType` 在未设置时使用 `null`，已设置时只允许 `树叶`、`耕地`、`储水`；`skillNote` 使用空字符串。
 - `selectedAssetId`、`selectedCoordinate`、`dyeColor`、`skillType` 这类可空字段必须以显式 `null` 表达空状态，不允许缺失字段。
-- `schemaVersion` 必须存在，MVP 使用 `1`。
+- `schemaVersion` 必须存在，MVP 使用 `1`。本次尺寸扩展不改变 JSON shape；短字符串可使用 codec revision 表达 dimensions，但不得伪装成 legacy PSE1。
 
 Recovery error 统一结构：
 
@@ -993,6 +1001,7 @@ MVP web app 不使用 service/repository/database layer。跨组件业务操作�
 - FR78-FR86 Asset Footprint & Occupancy Rules：`packages/scene-core/src/domain/assets/catalog.ts`、`packages/scene-core/src/domain/scene/footprint.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/io/scene-schema.ts`、`apps/web/src/state/asset-placement.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
 - FR87-FR92 Building Level Notes：`packages/scene-core/src/domain/scene/levels.ts`、`packages/scene-core/src/domain/scene/types.ts`、`packages/scene-core/src/io/scene-schema.ts`、`packages/scene-core/src/io/scene-string-codec.ts`、`packages/scene-core/src/domain/scene/export-summary.ts`、`apps/web/src/state/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
 - FR93-FR100 Asset Carrying & Stacking Surface Rules：`packages/scene-core/src/domain/assets/catalog.ts`、`packages/scene-core/src/domain/assets/stacking-overrides.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/domain/scene/stacking.ts`、`packages/scene-core/src/io/scene-schema.ts`、`apps/web/src/state/asset-placement.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
+- FR101-FR108 Scene Size Expansion & Legacy Compatibility：`packages/scene-core/src/domain/scene/area.ts`、dimension helpers、`packages/scene-core/src/io/scene-schema.ts`、`packages/scene-core/src/io/scene-string-codec.ts`、`packages/scene-core/src/domain/scene/selectors.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/domain/scene/export-summary.ts`、`apps/web/src/theme/tokens.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
 
 **Cross-Cutting Concerns**
 
@@ -1166,7 +1175,7 @@ The project structure supports the required boundaries. `packages/scene-core` ow
 
 All PRD feature groups have architectural support:
 
-- Scene & Canvas Model maps to `packages/scene-core/src/domain/scene/` and `apps/web/src/components/scene-canvas/`.
+- Scene & Canvas Model maps to `packages/scene-core/src/domain/scene/`, scene-core dimension helpers, schema/codec, and `apps/web/src/components/scene-canvas/`.
 - Open Design Workbench Context maps to `apps/web/src/components/app-shell/`, `apps/web/src/components/pokemon-scene-controls/`, theme tokens and interaction mode state.
 - Asset Placement & Editing maps to `packages/scene-core/src/domain/scene/`, `apps/web/src/state/`, `apps/web/src/components/scene-canvas/` and `apps/web/src/components/selection-inspector/`.
 - Building Level Management maps to `packages/scene-core/src/domain/scene/levels.ts`, web command handling and `apps/web/src/components/building-level-panel/`.
@@ -1177,16 +1186,17 @@ All PRD feature groups have architectural support:
 - Image Export maps to `packages/scene-core` export summary JSON, browser-only `apps/web/src/io/image-export.ts`, `apps/web/src/components/export-preview/` and preview/export selectors; it must be derived from SceneDocument and asset catalog.
 - Scene Worker, MCP and Codex Skill maps to `apps/worker/`, `packages/scene-core/`, `.agents/skills/pokopia-scene-worker/`, `pnpm-workspace.yaml`, root pnpm scripts and `apps/worker/wrangler.toml`.
 - Asset Footprint & Occupancy maps to `packages/scene-core` asset catalog, footprint helpers, occupancy selectors, schema validation, web placement/canvas rendering, preview/export rendering, Worker routes, MCP tools/resources and Codex skill examples.
+- Scene Size Expansion maps to scene-core dimensions, schema, short string codec, Web canvas/preview/export rendering, Worker/MCP parity and legacy 7x7 recovery tests.
 
 **Functional Requirements Coverage**
 
-FR1-FR100 are architecturally supported. The architecture gives each functional area an owning module and prevents duplicated business rules through domain helpers/selectors and command-layer write boundaries. FR65-FR68 are covered by browser-only image export preview, export summary derivation and download helpers that do not mutate SceneDocument or storage. FR69-FR77 are covered by the pnpm workspace structure, shared `scene-core`, stateless Worker HTTP API, Streamable HTTP MCP server, and repo-scoped Codex skill wrapper. FR78-FR86 are covered by catalog-level footprint metadata, shared occupancy helpers, schema validation, web rendering updates, export-summary parity and MCP/Codex no-copy boundaries. FR87-FR92 are covered by building-level notes schema, commands, short string compatibility, export summary and safe-text rendering. FR93-FR100 are covered by catalog-level stacking metadata, shared stacking compatibility helpers, derived relation outputs, web placement feedback, export-summary parity and MCP/Codex no-copy boundaries.
+FR1-FR108 are architecturally supported. The architecture gives each functional area an owning module and prevents duplicated business rules through domain helpers/selectors and command-layer write boundaries. FR65-FR68 are covered by browser-only image export preview, export summary derivation and download helpers that do not mutate SceneDocument or storage. FR69-FR77 are covered by the pnpm workspace structure, shared `scene-core`, stateless Worker HTTP API, Streamable HTTP MCP server, and repo-scoped Codex skill wrapper. FR78-FR86 are covered by catalog-level footprint metadata, shared occupancy helpers, schema validation, web rendering updates, export-summary parity and MCP/Codex no-copy boundaries. FR87-FR92 are covered by building-level notes schema, commands, short string compatibility, export summary and safe-text rendering. FR93-FR100 are covered by catalog-level stacking metadata, shared stacking compatibility helpers, derived relation outputs, web placement feedback, export-summary parity and MCP/Codex no-copy boundaries. FR101-FR108 are covered by scene-core dimension helpers, v1 schema dimension validation, legacy 7x7 recovery, dimension-aware short string codec, Web rendering parity and Worker/MCP/Codex skill dimension outputs.
 
 **Non-Functional Requirements Coverage**
 
 NFR coverage is sufficient for implementation:
 
-- Performance: fixed 7x7 canvas, pure selectors, local state, static asset deployment and optional asset-list pagination/virtualization path support the required response targets.
+- Performance: default 17x17 canvas, pure selectors, local state, static asset deployment and optional viewport/pagination/virtualization paths support the required response targets.
 - Reliability and data integrity: single source of truth, Zod schema validation, strict schemaVersion, command layer, catalog-derived footprint rules, SceneDocument-derived image export data and roundtrip Playwright tests support save/recovery consistency.
 - Usability and accessibility: component boundaries, semantic state tokens, accessible-name tests and Playwright responsive checks support the UX/NFR requirements.
 - Compatibility and responsive behavior: Vite static build plus Playwright desktop/mobile coverage supports the browser and viewport matrix.
@@ -1286,23 +1296,23 @@ No blocking validation issues were found. Minor future refinements were classifi
 - Use implementation patterns consistently across all components.
 - Respect project structure and module dependency direction.
 - Do not introduce auth, database, cloud persistence, public sharing, online publishing, server-side image generation, routing, or external state libraries unless architecture is updated first. Epic 7's approved backend scope is limited to stateless Worker API/MCP adapters over `packages/scene-core`.
-- Do not introduce `SceneDocument v2`, saved blocking cells, saved stacking relations, surface ids, z-index, instance-level footprint overrides, or duplicated Worker/MCP/skill footprint/stacking rules for Epic 8 or Epic 11.
+- Do not introduce `SceneDocument v2`, saved blocking cells, saved stacking relations, surface ids, z-index, instance-level footprint overrides, duplicated Worker/MCP/skill footprint/stacking rules, or a hidden second dimension model. Epic 12 must preserve SceneDocument v1 JSON shape while making dimensions explicit and derived from scene fields.
 - Route all scene writes through the command layer.
 - Use Zod validation for recovered or future imported JSON and preserve safe text rendering.
 - Maintain tests with every new domain rule, command, schema field, UI boundary, Worker route, MCP tool and Codex skill workflow.
 
 **First Implementation Priority**
 
-Continue with BMAD implementation routing from the newly added Epic 11 backlog. The next implementation story is:
+Continue with BMAD implementation routing from the newly added Epic 12 backlog. The next implementation story is:
 
-- `11-1-asset-catalog-stacking-surface-metadata`
+- `12-1-scene-core-dimension-contract-and-legacy-recovery`
 
-Story 11.1 must add catalog-level stacking surface metadata with default non-stackable behavior and audited overrides for `wooden-plate`, `plate`, `party-platter`, selected mats/rugs/shoots/low-height surfaces, while preserving current asset IDs, display names, filtering, footprint metadata and Worker/MCP catalog resources.
+Story 12.1 must make scene-core dimension contracts support the new default `sceneSize=15x15` / `canvasSize=17x17` model while preserving legacy 7x7 SceneDocument v1 JSON recovery and PSE1 string decoding.
 
 Recommended next command:
 
 ```text
-bmad-create-story 11-1-asset-catalog-stacking-surface-metadata
+bmad-create-story 12-1-scene-core-dimension-contract-and-legacy-recovery
 ```
 
-Use `bmad-create-story` for Story 11.1 before implementation. If the current dirty planning branch should be isolated, create a new git worktree before starting development.
+Use `bmad-create-story` for Story 12.1 before implementation. If the current dirty planning branch should be isolated, create a new git worktree before starting development.

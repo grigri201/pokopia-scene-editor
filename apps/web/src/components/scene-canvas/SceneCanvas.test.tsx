@@ -9,6 +9,8 @@ import {
   createSkillMarker,
   createTileInstance,
   getCanvasCellContexts,
+  legacySceneDimensions,
+  type SceneDocument,
 } from '@pokopia-scene-editor/scene-core';
 import { getAssetPlacementPreview } from '../../state';
 import { SceneCanvas } from './SceneCanvas';
@@ -32,43 +34,63 @@ const defaultProps = {
 };
 
 describe('SceneCanvas', () => {
-  it('renders 49 addressable 0-based canvas cells with coordinate watermarks', () => {
+  it('renders 289 addressable 0-based canvas cells with coordinate watermarks', () => {
     render(<SceneCanvas {...defaultProps} readOnly={false} />);
 
     const cells = screen.getAllByRole('gridcell');
     const coordinateWatermarks = document.querySelectorAll('.cell-coordinate-watermark');
 
-    expect(cells).toHaveLength(49);
+    expect(screen.getByRole('grid', { name: '17x17 canvas with main and outer regions' })).toBeVisible();
+    expect(screen.getByTestId('scene-canvas')).toHaveAttribute('data-canvas-density', 'compact');
+    expect(screen.getByTestId('scene-canvas')).toHaveStyle({
+      '--scene-canvas-columns': '17',
+      '--scene-canvas-rows': '17',
+    });
+    expect(cells).toHaveLength(289);
     expect(screen.getByLabelText('Cell 0,0, outer area, level-0, placeable')).toBeVisible();
-    expect(screen.getByLabelText('Cell 6,6, outer area, level-0, placeable')).toBeVisible();
+    expect(screen.getByLabelText('Cell 16,16, outer area, level-0, placeable')).toBeVisible();
     expect(screen.getByLabelText('Cell 1,1, main area, level-0, placeable')).toBeVisible();
-    expect(screen.getByLabelText('Cell 5,5, main area, level-0, placeable')).toBeVisible();
-    expect(coordinateWatermarks).toHaveLength(49);
+    expect(screen.getByLabelText('Cell 15,15, main area, level-0, placeable')).toBeVisible();
+    expect(coordinateWatermarks).toHaveLength(289);
     expect(cells[0]).toHaveTextContent('0,0');
-    expect(cells[8]).toHaveTextContent('1,1');
+    expect(cells[18]).toHaveTextContent('1,1');
     expect(cells[0].querySelector('.cell-coordinate-watermark')).toHaveAttribute('aria-hidden', 'true');
-  });
+  }, 15_000);
 
   it('marks main, outer, main-boundary, and placeable states for tests and styling', () => {
     render(<SceneCanvas {...defaultProps} readOnly={false} />);
 
     const cells = screen.getAllByTestId('scene-cell');
 
-    expect(cells.filter((cell) => cell.dataset.area === 'main')).toHaveLength(25);
-    expect(cells.filter((cell) => cell.dataset.area === 'outer')).toHaveLength(24);
-    expect(cells.filter((cell) => cell.dataset.mainBoundary === 'true')).toHaveLength(16);
+    expect(cells.filter((cell) => cell.dataset.area === 'main')).toHaveLength(225);
+    expect(cells.filter((cell) => cell.dataset.area === 'outer')).toHaveLength(64);
+    expect(cells.filter((cell) => cell.dataset.mainBoundary === 'true')).toHaveLength(56);
     expect(cells.every((cell) => cell.dataset.placeable === 'true')).toBe(true);
     expect(cells.every((cell) => cell.dataset.editable === 'true')).toBe(true);
 
     const coordinates = cells.map((cell) => cell.dataset.coordinate);
-    const expectedCoordinates = Array.from({ length: 49 }, (_, index) => {
-      const x = index % 7;
-      const y = Math.floor(index / 7);
+    const expectedCoordinates = Array.from({ length: 289 }, (_, index) => {
+      const x = index % 17;
+      const y = Math.floor(index / 17);
       return `${x},${y}`;
     });
 
-    expect(new Set(coordinates).size).toBe(49);
+    expect(new Set(coordinates).size).toBe(289);
     expect(coordinates).toEqual(expectedCoordinates);
+  });
+
+  it('continues to render legacy recovered 7x7 scenes by their saved dimensions', () => {
+    render(<SceneCanvas {...createSceneCanvasProps(createLegacyScene())} readOnly={false} />);
+
+    const cells = screen.getAllByTestId('scene-cell');
+
+    expect(screen.getByRole('grid', { name: '7x7 canvas with main and outer regions' })).toBeVisible();
+    expect(screen.getByTestId('scene-canvas')).toHaveAttribute('data-canvas-density', 'standard');
+    expect(cells).toHaveLength(49);
+    expect(cells.filter((cell) => cell.dataset.area === 'main')).toHaveLength(25);
+    expect(cells.filter((cell) => cell.dataset.area === 'outer')).toHaveLength(24);
+    expect(cells.filter((cell) => cell.dataset.mainBoundary === 'true')).toHaveLength(16);
+    expect(screen.getByLabelText('Cell 6,6, outer area, level-0, placeable')).toBeVisible();
   });
 
   it('separates domain placeability from current read-only editability', () => {
@@ -943,6 +965,28 @@ describe('SceneCanvas', () => {
     });
   });
 });
+
+function createLegacyScene(): SceneDocument {
+  const baseScene = createDefaultSceneDocument({
+    sceneId: 'scene-legacy-canvas',
+    now: '2026-05-16T07:00:00.000Z',
+  });
+
+  return {
+    ...baseScene,
+    sceneSize: { ...legacySceneDimensions.sceneSize },
+    canvasSize: { ...legacySceneDimensions.canvasSize },
+    outerPadding: legacySceneDimensions.outerPadding,
+  };
+}
+
+function createSceneCanvasProps(inputScene: SceneDocument) {
+  return {
+    ...defaultProps,
+    canvasSize: inputScene.canvasSize,
+    cells: getCanvasCellContexts(inputScene),
+  };
+}
 
 function getRenderedCell(coordinate: string): HTMLElement {
   const cell = screen.getAllByTestId('scene-cell').find((candidate) => candidate.dataset.coordinate === coordinate);

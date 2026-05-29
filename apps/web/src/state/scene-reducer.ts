@@ -1,8 +1,9 @@
 import {
   assertCanvasCoordinate,
   assertSceneNameLabelsSceneSize,
-  canvasSize,
+  defaultSceneDimensions,
   type GridCoordinate,
+  type GridSize,
   type SceneDocument,
 } from '@pokopia-scene-editor/scene-core';
 import { assertKnownAssetId, assertKnownPokemonKey, type PokemonKey } from '@pokopia-scene-editor/scene-core';
@@ -214,7 +215,11 @@ export function saveScene(
   };
 }
 
-export function moveCoordinate(coordinate: GridCoordinate, direction: 'up' | 'down' | 'left' | 'right') {
+export function moveCoordinate(
+  coordinate: GridCoordinate,
+  direction: 'up' | 'down' | 'left' | 'right',
+  bounds: GridSize = defaultSceneDimensions.canvasSize,
+) {
   const delta = {
     up: { x: 0, y: -1 },
     down: { x: 0, y: 1 },
@@ -223,13 +228,13 @@ export function moveCoordinate(coordinate: GridCoordinate, direction: 'up' | 'do
   }[direction];
 
   return {
-    x: clampCanvasCoordinate(coordinate.x + delta.x),
-    y: clampCanvasCoordinate(coordinate.y + delta.y),
+    x: clampCanvasCoordinate(coordinate.x + delta.x, bounds.width),
+    y: clampCanvasCoordinate(coordinate.y + delta.y, bounds.height),
   };
 }
 
-function clampCanvasCoordinate(value: number): number {
-  return Math.min(Math.max(value, 0), canvasSize - 1);
+function clampCanvasCoordinate(value: number, size: number): number {
+  return Math.min(Math.max(value, 0), size - 1);
 }
 
 function markSceneDirty(scene: SceneDocument, now: string): SceneDocument {

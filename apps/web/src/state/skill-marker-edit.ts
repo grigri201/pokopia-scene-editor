@@ -72,6 +72,11 @@ export function saveCellSkillMarker(
     buildingLevelId: input.buildingLevelId,
     skillType: input.skillType,
     skillNote: input.skillNote,
+    dimensions: {
+      sceneSize: scene.sceneSize,
+      canvasSize: scene.canvasSize,
+      outerPadding: scene.outerPadding,
+    },
   });
   const remainingMarkers = scene.skillMarkers.filter(
     (marker) => !isSameCellMarker(marker, input.buildingLevelId, input.coordinate),

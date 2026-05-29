@@ -82,7 +82,7 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
     const normalizedError = normalizeError(error);
     status = normalizedError.status;
     errorCategory = normalizedError.errors[0]?.code ?? 'internal_error';
-    return jsonError(normalizedError.errors, requestId, { status });
+    return jsonError(normalizedError.errors, requestId, { status }, normalizedError.data);
   } finally {
     logApiRequest({
       method: request.method,
@@ -153,16 +153,18 @@ function assertMethod(request: Request, methods: readonly string[]): void {
   }
 }
 
-function normalizeError(error: unknown): { status: number; errors: ApiError[] } {
+function normalizeError(error: unknown): { status: number; errors: ApiError[]; data: unknown | null } {
   if (error instanceof ApiRequestError) {
     return {
       status: error.status,
       errors: error.apiErrors,
+      data: error.data,
     };
   }
 
   return {
     status: 500,
+    data: null,
     errors: [
       {
         code: 'internal_error',

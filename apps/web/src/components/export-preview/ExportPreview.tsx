@@ -8,6 +8,7 @@ import type {
   ExportLayerSkillSummary,
   ExportMaterialSummary,
   ExportSkillSummary,
+  GridSize,
   ImageExportCellSummary,
   ImageExportLayerSummary,
   ImageExportSummary,
@@ -24,6 +25,7 @@ interface ExportPreviewProps {
   locale?: Locale;
   summary: ImageExportSummary;
   downloadDisabled?: boolean;
+  downloadStatus?: string | null;
   onClose: () => void;
   onDownloadImage?: (previewElement: HTMLElement) => void | Promise<void>;
 }
@@ -32,6 +34,7 @@ export function ExportPreview({
   locale = defaultLocale,
   summary,
   downloadDisabled = false,
+  downloadStatus = null,
   onClose,
   onDownloadImage,
 }: ExportPreviewProps) {
@@ -148,6 +151,16 @@ export function ExportPreview({
             >
               {t(locale, 'close')}
             </button>
+            {downloadStatus ? (
+              <p
+                className="export-preview__download-status"
+                role="status"
+                aria-label={t(locale, 'imageDownloadStatus')}
+                data-image-export-exclude="true"
+              >
+                {downloadStatus}
+              </p>
+            ) : null}
           </div>
         </header>
         <section className="export-preview__body" aria-label={t(locale, 'imageExportContent')}>
@@ -162,7 +175,13 @@ export function ExportPreview({
 
           <section className="export-preview__layers" aria-label={t(locale, 'exportLayerGraphicsAndMaterials')}>
             {summary.layers.map((layer) => (
-              <LayerPreview key={layer.id} locale={locale} layer={layer} materialColorByAssetId={materialColorByAssetId} />
+              <LayerPreview
+                key={layer.id}
+                locale={locale}
+                layer={layer}
+                canvasSize={summary.canvasSize}
+                materialColorByAssetId={materialColorByAssetId}
+              />
             ))}
           </section>
         </section>
@@ -191,10 +210,12 @@ function getFocusableElements(root: HTMLElement | null): HTMLElement[] {
 function LayerPreview({
   locale,
   layer,
+  canvasSize,
   materialColorByAssetId,
 }: {
   locale: Locale;
   layer: ImageExportLayerSummary;
+  canvasSize: GridSize;
   materialColorByAssetId: ReadonlyMap<string, string>;
 }) {
   const usageItems = createUsageItems(layer.materials, layer.skills, materialColorByAssetId);
@@ -202,6 +223,10 @@ function LayerPreview({
   const footprintOverlays = getLayerFootprintOverlays(layer, materialColorByAssetId);
   const footprintOverlayInstanceIds = new Set(footprintOverlays.map((overlay) => overlay.instance.instanceId));
   const coordinateBounds = getLayerCoordinateBounds(layer);
+  const layerGridStyle = {
+    '--export-grid-columns': canvasSize.width,
+    '--export-grid-rows': canvasSize.height,
+  } as CSSProperties;
 
   return (
     <article className="export-layer" aria-label={`${layer.displayId} ${layer.name}`}>
@@ -216,7 +241,15 @@ function LayerPreview({
           <span className="export-layer-coordinate-label export-layer-coordinate-label--origin" aria-hidden="true">
             {coordinateBounds.origin}
           </span>
-          <div className="export-layer-grid" aria-label={t(locale, 'layerGraphic', { displayId: layer.displayId })}>
+          <div
+            className="export-layer-grid"
+            aria-label={t(locale, 'layerGraphic', {
+              displayId: layer.displayId,
+              width: canvasSize.width,
+              height: canvasSize.height,
+            })}
+            style={layerGridStyle}
+          >
             {layer.cells.map((cell) => (
               <ExportCell
                 key={cell.id}

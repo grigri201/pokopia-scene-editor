@@ -25,6 +25,8 @@ vi.mock('html-to-image', () => ({
 
 const toBlobMock = vi.mocked(toBlob);
 
+vi.setConfig({ testTimeout: 15_000 });
+
 describe('AppShell scene storage integration', () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -179,7 +181,7 @@ describe('AppShell scene storage integration', () => {
     fireEvent.click(screen.getByRole('button', { name: '导出字符串' }));
 
     const exportedString = promptSpy.mock.calls[0]?.[1];
-    expect(exportedString).toMatch(/^PSE1~/);
+    expect(exportedString).toMatch(/^PSE2~/);
     expect(exportedString).not.toContain('{');
     expect(exportedString).not.toContain('schemaVersion');
     expect(screen.getByRole('status', { name: '字符串提示' })).toHaveTextContent(
@@ -441,7 +443,7 @@ describe('AppShell scene storage integration', () => {
     await waitFor(() => {
       expect(downloadLink).toEqual({
         href: 'blob:image-export',
-        download: '5x5-布景.pokopia-scene.png',
+        download: '15x15-布景.pokopia-scene.png',
       });
     });
     const exportedBlob = createObjectURL.mock.calls[0]?.[0] as Blob;
@@ -460,6 +462,51 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  }, 20_000);
+
+  it('shows image download progress and disables duplicate download clicks', async () => {
+    const createObjectURL = vi.fn(() => 'blob:image-export-pending');
+    const revokeObjectURL = vi.fn();
+    let resolveBlob: (blob: Blob) => void = () => undefined;
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      const width = this.classList.contains('export-preview') ? 590 : 0;
+      const height = this.classList.contains('export-preview') ? 420 : 0;
+
+      return {
+        bottom: height,
+        height,
+        left: 0,
+        right: width,
+        top: 0,
+        width,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      };
+    });
+    toBlobMock.mockReturnValueOnce(new Promise((resolve) => {
+      resolveBlob = resolve;
+    }));
+
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole('button', { name: '下载预览' }));
+    fireEvent.click(screen.getByRole('button', { name: '下载图片' }));
+
+    expect(screen.getByRole('button', { name: '下载图片' })).toBeDisabled();
+    expect(screen.getByRole('status', { name: '图片下载状态' })).toHaveTextContent('正在生成图片');
+    expect(screen.getByRole('status', { name: '图片导出提示' })).toHaveTextContent('正在生成图片');
+
+    resolveBlob(new Blob(['png'], { type: 'image/png' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '下载图片' })).toBeEnabled();
+      expect(screen.queryByRole('status', { name: '图片下载状态' })).not.toBeInTheDocument();
+      expect(screen.getByRole('status', { name: '图片导出提示' })).toHaveTextContent('图片已准备下载');
+    });
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:image-export-pending');
   }, 20_000);
 
   it('hides the export action on mobile read-only without writing scene storage', () => {
@@ -485,7 +532,9 @@ describe('AppShell scene storage integration', () => {
     expect(lowerInspectors).toHaveAttribute('aria-label', 'Canvas lower inspectors');
     expect(lowerInspectors?.children).toHaveLength(1);
     expect(lowerInspectors?.children[0]).toHaveClass('selection-inspector');
-    expect(container.querySelector('.preview-panel')).toBeNull();
+    expect(screen.getByRole('complementary', { name: '检查器预览' })).toBeVisible();
+    expect(screen.getByLabelText('俯视图预览')).toHaveAttribute('data-preview-columns', '17');
+    expect(screen.getByLabelText('俯视图预览')).toHaveAttribute('data-preview-rows', '17');
   });
 
   it('keeps the workbench theme stable when Pokemon selection changes', () => {
@@ -1200,7 +1249,7 @@ describe('AppShell scene storage integration', () => {
     setViewportWidth(390);
 
     render(<AppShell />);
-    await waitFor(() => expect(readSceneSnapshot()).toContain('"sceneName":"5x5 布景"'));
+    await waitFor(() => expect(readSceneSnapshot()).toContain('"sceneName":"15x15 布景"'));
     const beforeSnapshot = readSceneSnapshot();
     const globalKeyHandler = vi.fn();
     window.addEventListener('keydown', globalKeyHandler);
@@ -1316,15 +1365,15 @@ describe('AppShell scene storage integration', () => {
 
     expect(screen.getByLabelText('Recovery toast')).toBeVisible();
     expect(screen.getByLabelText('Recovery toast details')).toHaveTextContent('schemaVersion');
-    expect(screen.getByLabelText('布景名称')).toHaveValue('5x5 布景');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('15x15 布景');
     expectNoSaveStatus();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'canceled');
     expect(screen.getByLabelText('Recovery toast')).toHaveTextContent('Recovery canceled');
-    expect(screen.getByLabelText('布景名称')).toHaveValue('5x5 布景');
-  });
+    expect(screen.getByLabelText('布景名称')).toHaveValue('15x15 布景');
+  }, 10_000);
 
   it('retries recovery and replaces the scene only after storage becomes valid', async () => {
     window.localStorage.setItem(
@@ -1398,7 +1447,7 @@ describe('AppShell scene storage integration', () => {
 
     expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
     expect(screen.getByLabelText('Recovery toast')).toBeVisible();
-    expect(screen.getByLabelText('布景名称')).toHaveValue('5x5 布景');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('15x15 布景');
 
     writeSceneDocumentToStorage(
       window.localStorage,
@@ -1425,9 +1474,11 @@ describe('AppShell scene storage integration', () => {
     window.localStorage.setItem(
       autosavedSceneStorageKey,
       JSON.stringify({
-        schemaVersion: 1,
-        sceneId: 'bad-unsafe-scene',
-        sceneName: 'Unsafe error',
+        ...serializeSceneDocument(createDefaultSceneDocument({
+          sceneId: 'bad-unsafe-scene',
+          sceneName: 'Unsafe error',
+          now: '2026-05-16T08:30:00.000Z',
+        })),
         selectedPokemonKey: unsafeCombinedText,
       }),
     );
@@ -1440,19 +1491,20 @@ describe('AppShell scene storage integration', () => {
     expect(details).toHaveTextContent(unsafeCombinedText);
     expect(details.querySelector('script')).toBeNull();
     expect(details.querySelector('img')).toBeNull();
-    expect(screen.getByLabelText('布景名称')).toHaveValue('5x5 布景');
+    expect(screen.getByLabelText('布景名称')).toHaveValue('15x15 布景');
     expectNoSaveStatus();
 
+    fireEvent.mouseEnter(validator);
     fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Current Dirty Layout' } });
     await waitFor(() => expect(window.localStorage.getItem(autosavedSceneStorageKey)).not.toBeNull());
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(within(validator).getByRole('button', { name: 'Cancel' }));
 
     expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'canceled');
     expect(screen.getByLabelText('布景名称')).toHaveValue('Current Dirty Layout');
     expectNoSaveStatus();
-  });
+  }, 10_000);
 
   it('recovers unsafe scene text as plain text without inserting executable DOM nodes', async () => {
     const unsafeScene = createDefaultSceneDocument({

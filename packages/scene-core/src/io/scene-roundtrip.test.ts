@@ -19,7 +19,7 @@ describe('SceneDocument v1 roundtrip', () => {
   it('roundtrips an empty scene without relying on UI defaults', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-empty-roundtrip',
-      sceneName: 'Empty 5x5 Roundtrip',
+      sceneName: 'Empty 15x15 Roundtrip',
       selectedPokemonKey: 'eevee',
       now: '2026-05-16T09:00:00.000Z',
     });
@@ -30,10 +30,10 @@ describe('SceneDocument v1 roundtrip', () => {
     expect(roundtrip.sourcePayload).toMatchObject({
       schemaVersion: 1,
       sceneId: 'scene-empty-roundtrip',
-      sceneName: 'Empty 5x5 Roundtrip',
+      sceneName: 'Empty 15x15 Roundtrip',
       selectedPokemonKey: 'eevee',
-      sceneSize: { width: 5, height: 5 },
-      canvasSize: { width: 7, height: 7 },
+      sceneSize: { width: 15, height: 15 },
+      canvasSize: { width: 17, height: 17 },
       outerPadding: 1,
       workspaceState: {
         currentBuildingLevelId: 'level-0',

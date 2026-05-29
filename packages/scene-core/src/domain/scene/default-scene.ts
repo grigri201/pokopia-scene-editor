@@ -2,6 +2,7 @@ import {
   assertCanvasCoordinate,
   canvasSize,
   defaultSceneDimensions,
+  legacySceneDimensions,
   outerPadding,
   sceneSize,
   type GridCoordinate,
@@ -12,7 +13,7 @@ import { createTileInstance } from './tile-instance';
 import type { SceneDocument } from './types';
 
 export const defaultSelectedPokemonKey: PokemonKey = 'ditto';
-export const defaultSceneName = '5x5 布景';
+export const defaultSceneName = '15x15 布景';
 
 export interface CreateDefaultSceneDocumentOptions {
   sceneId?: string;
@@ -71,7 +72,7 @@ export function createDefaultSceneDocument(
   const openDesignDemoInstances = options.includeOpenDesignDemo
     ? createOpenDesignDemoInstances()
     : [];
-  const selectedCoordinate = options.selectedCoordinate ?? (options.includeOpenDesignDemo ? { x: 3, y: 2 } : null);
+  const selectedCoordinate = options.selectedCoordinate ?? (options.includeOpenDesignDemo ? mapLegacyDemoCoordinate(3, 2) : null);
 
   return {
     schemaVersion: 1,
@@ -143,7 +144,7 @@ function createOpenDesignDemoInstances() {
       createTileInstance({
         instanceId: String(instanceId),
         assetId: String(assetId),
-        coordinate: { x: Number(x), y: Number(y) },
+        coordinate: mapLegacyDemoCoordinate(Number(x), Number(y)),
         buildingLevelId: 'level-0',
       }),
     ),
@@ -164,7 +165,7 @@ function createOpenDesignDemoInstances() {
       createTileInstance({
         instanceId: String(instanceId),
         assetId: String(assetId),
-        coordinate: { x: Number(x), y: Number(y) },
+        coordinate: mapLegacyDemoCoordinate(Number(x), Number(y)),
         buildingLevelId: 'level-1',
         rotationDegrees: Number(rotationDegrees) as 0 | 90 | 180 | 270,
         dyeColor: dyeColor ? String(dyeColor) : null,
@@ -182,12 +183,31 @@ function createOpenDesignDemoInstances() {
       createTileInstance({
         instanceId: String(instanceId),
         assetId: String(assetId),
-        coordinate: { x: Number(x), y: Number(y) },
+        coordinate: mapLegacyDemoCoordinate(Number(x), Number(y)),
         buildingLevelId: 'level-2',
         rotationDegrees: Number(rotationDegrees) as 0 | 90 | 180 | 270,
       }),
     ),
   ];
+}
+
+function mapLegacyDemoCoordinate(x: number, y: number): GridCoordinate {
+  return {
+    x: mapLegacyDemoAxis(x),
+    y: mapLegacyDemoAxis(y),
+  };
+}
+
+function mapLegacyDemoAxis(value: number): number {
+  if (value <= 0) {
+    return 0;
+  }
+
+  if (value >= legacySceneDimensions.canvasSize.width - 1) {
+    return defaultSceneDimensions.canvasSize.width - 1;
+  }
+
+  return value + Math.floor((defaultSceneDimensions.sceneSize.width - legacySceneDimensions.sceneSize.width) / 2);
 }
 
 function createSceneId(): string {

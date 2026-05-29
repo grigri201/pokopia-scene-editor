@@ -1,21 +1,23 @@
 # Pokopia Scene Editor 功能验收 Checklist
 
-> 用于手动逐项检查当前实现情况。当前基线：`main` 分支，Vite 服务可通过本地开发地址访问。
+> 用于手动逐项检查当前实现情况。当前基线：Epic 12 尺寸扩展后，新建场景默认 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17`；legacy 5x5/7x7 场景仍按自身尺寸恢复。下一步上下文入口：`12-1-scene-core-dimension-contract-and-legacy-recovery`。本次目标不是 16x16。
 
 ## 工作台与基础布局
 
 - [*] 首屏是工作台，不是 landing page。
-- [*] 顶部工具栏、场景/Pokemon 控制、建筑层面板、中央 7x7 画布、右侧素材栏、底部检查器/预览共同组成主界面。
-- [*] 中央 7x7 画布是主要视觉焦点。
+- [*] 顶部工具栏、场景/Pokemon 控制、建筑层面板、中央 17x17 默认画布、右侧素材栏、底部检查器/预览共同组成主界面。
+- [*] 中央 17x17 默认画布是主要视觉焦点；legacy 7x7 场景按保存尺寸显示。
 - [*] 页面在桌面视口下没有横向滚动。
 - [*] 工作台布局与 Open Design 方向一致：Pokemon/场景控制、建筑层、画布、素材、检查器都能被看到或访问。
 
 ## 场景与画布规则
 
-- [*] 新场景标称为 5x5 布景。
-- [*] 实际编辑画布为 7x7。
-- [*] 中心 5x5 被识别为主体区。
+- [*] 新场景标称为 15x15 布景。
+- [*] 实际编辑画布为 17x17。
+- [*] 中心 15x15 被识别为主体区。
 - [*] 外围 1 圈被识别为装饰区。
+- [*] legacy 5x5/7x7 场景恢复后保留原始 `sceneSize`、`canvasSize`、`outerPadding` 和坐标。
+- [*] 16x16 不属于当前目标尺寸。
 - [*] 每个格子维护 0-based `x,y` 坐标。
 - [*] 用户可以选择画布格子作为当前编辑对象。
 - [*] 格子可显示主体区/外围区。
@@ -75,7 +77,7 @@
 - [-] 可以显示建筑层。
 - [-] 可以锁定建筑层。
 - [-] 可以解锁建筑层。
-- [-] 隐藏/显示/锁定/解锁建筑层后，7x7 画布尺寸和单格尺寸不明显跳动。
+- [-] 隐藏/显示/锁定/解锁建筑层后，当前 scene dimensions 对应的画布尺寸和单格尺寸不明显跳动。
 - [-] 隐藏层内容不在当前层画布中渲染。
 - [-] 锁定层内容不可编辑。
 - [*] 移动端只读模式下仍可切换查看建筑层，但不能修改建筑层。
@@ -174,9 +176,9 @@
 ## 预览检查器
 
 - [*] 工作台中可以查看俯视图预览。
-- [*] 俯视图展示完整 7x7 画布。
+- [*] 俯视图展示完整当前尺寸画布：默认 17x17，legacy 7x7。
 - [*] 俯视图展示当前建筑层内容。
-- [-] 俯视图展示 5x5 主体区边界。
+- [-] 俯视图展示当前主体区边界：默认 15x15，legacy 5x5。
 - [-] 俯视图隐藏当前层不可见内容。
 - [*] 工作台中可以查看正视图预览。
 - [*] 正视图展示主体区、外围装饰区和建筑层高度关系。
@@ -214,8 +216,8 @@
 - [ ] payload 包含 `sceneName`。
 - [ ] payload 包含 `selectedPokemonKey`。
 - [ ] `selectedPokemonKey` 使用 Decor Dex 现有 Pokemon key。
-- [ ] payload 包含 `sceneSize`，固定为 5x5。
-- [ ] payload 包含 `canvasSize`，固定为 7x7。
+- [ ] payload 包含 `sceneSize`；新建默认值为 15x15，legacy 旧 payload 可为 5x5。
+- [ ] payload 包含 `canvasSize`；新建默认值为 17x17，legacy 旧 payload 可为 7x7。
 - [ ] payload 包含 `outerPadding: 1`。
 - [ ] payload 包含 `buildingLevels`。
 - [ ] payload 包含 `tileInstances`。
@@ -253,7 +255,7 @@
 - [ ] 字段类型错误会被拒绝。
 - [ ] unknown Pokemon key 会被拒绝。
 - [ ] unknown asset id 会被拒绝。
-- [ ] 7x7 范围外坐标会被拒绝。
+- [ ] 当前 `canvasSize` 范围外坐标会被拒绝：默认 17x17 为 `0..16`，legacy 7x7 为 `0..6`。
 - [ ] `areaType` 与坐标推导不一致会被拒绝。
 - [ ] 重复 tile instance id 会被拒绝。
 - [ ] tile instance 引用不存在建筑层会被拒绝。
@@ -298,7 +300,19 @@
 
 ## 当前已知验证状态
 
-- [x] `npm run typecheck` 通过。
-- [x] `npm test` 通过。
-- [x] `npm run build` 通过。
-- [x] `npm run smoke` 通过。
+- [x] `pnpm --filter @pokopia-scene-editor/scene-core typecheck` 通过。
+- [x] `pnpm --filter @pokopia-scene-editor/web typecheck` 通过。
+- [x] `pnpm --filter @pokopia-scene-editor/worker typecheck` 通过。
+- [x] `pnpm --filter @pokopia-scene-editor/scene-core test` 覆盖默认 17x17、legacy 7x7、PSE1/PSE2 和 export summary。
+- [x] `pnpm --filter @pokopia-scene-editor/web test` 覆盖 17x17 Web canvas、preview、export preview 和 image export pending state。
+- [x] `pnpm --filter @pokopia-scene-editor/worker test` 与 `pnpm run worker:mcp:smoke` 覆盖 Worker/MCP dimension parity。
+- [x] `pnpm run smoke` 覆盖默认 17x17、legacy 7x7、dense 10 层 performance 和响应式关键视口。
+- [x] `pnpm run skill:verify` 覆盖 repo-scoped skill default/legacy dimension wording。
+- [ ] `pnpm run release:verify` 在 Story 12.4 closeout 时运行。
+
+## Epic 12 交接
+
+- 当前尺寸事实入口：`12-1-scene-core-dimension-contract-and-legacy-recovery`。
+- Web 渲染与导出入口：`12-2-web-canvas-preview-export-17x17-rendering`。
+- Worker/MCP/Codex skill parity 入口：`12-3-short-string-worker-mcp-dimension-parity`。
+- 发布前必须确认目标为 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17`；16x16 不是本次需求。

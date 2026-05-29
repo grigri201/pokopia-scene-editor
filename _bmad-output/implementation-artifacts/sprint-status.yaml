@@ -1,5 +1,5 @@
 # generated: 2026-05-16T06:01:02+0800
-# last_updated: 2026-05-28T14:15:04+0800
+# last_updated: 2026-05-29T10:52:16+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -34,7 +34,7 @@
 # - Dev moves story to 'review', then code-review triages findings before done.
 
 generated: 2026-05-16T06:01:02+0800
-last_updated: 2026-05-28T14:15:04+0800
+last_updated: 2026-05-29T10:52:16+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -116,3 +116,9 @@ development_status:
   11-3-web-stacking-placement-feedback: done
   11-4-stacking-preview-export-worker-mcp-parity: done
   epic-11-retrospective: optional
+  epic-12: done
+  12-1-scene-core-dimension-contract-and-legacy-recovery: done
+  12-2-web-canvas-preview-export-17x17-rendering: done
+  12-3-short-string-worker-mcp-dimension-parity: done
+  12-4-performance-responsive-docs-and-release-gates: done
+  epic-12-retrospective: optional

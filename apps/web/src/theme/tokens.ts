@@ -7,8 +7,8 @@ export const layoutTokens = {
 } as const;
 
 export const gridTokens = {
-  sceneSize: 5,
-  canvasSize: 7,
+  sceneSize: 15,
+  canvasSize: 17,
   cellGap: '2px',
   maxCanvasWidth: '610px',
 } as const;

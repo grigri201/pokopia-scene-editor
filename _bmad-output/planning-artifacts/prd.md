@@ -64,11 +64,11 @@ source: _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28-stacki
 
 ## Executive Summary
 
-Pokopia 5×5 布景编辑器是一个面向 Pokopia 布景创作者的 Web App，用于制作、编辑、预览和保存 5×5 规模布景方案。产品以 7×7 实际编辑画布承载中心 5×5 主体区和外围一圈装饰区，使外立面、屋檐、墙体边缘、植物、遮挡物等真实占格内容能够被纳入同一个结构化方案中管理。
+Pokopia 布景编辑器是一个面向 Pokopia 布景创作者的 Web App，用于制作、编辑、预览和保存结构化布景方案。产品默认以 17×17 实际编辑画布承载中心 15×15 主体区和外围一圈装饰区，使外立面、屋檐、墙体边缘、植物、遮挡物等真实占格内容能够被纳入同一个结构化方案中管理；旧 7×7 场景仍按自身尺寸恢复。
 
-目标用户需要的不只是一个 25 格摆放工具，而是一个能准确表达 Pokopia 布景规则的编辑环境：素材摆放、建筑层高度、外围装饰、百变怪技能需求、俯视图和正视图预览都需要可视化、可编辑、可保存、可恢复。第一版产品应优先保证用户可以完整创建一个 7×7 布景数据模型，并能清楚区分对外标注的 5×5 布景规模与实际编辑所需的外围占格空间。
+目标用户需要的不只是一个格子摆放工具，而是一个能准确表达 Pokopia 布景规则的编辑环境：素材摆放、建筑层高度、外围装饰、百变怪技能需求、俯视图和正视图预览都需要可视化、可编辑、可保存、可恢复。当前产品应优先保证用户可以完整创建默认 17×17 布景数据模型，并能清楚区分中心 15×15 主体区与外围占格空间。
 
-最新 Open Design UI 将第一屏锁定为一个直接可用的编辑工作台：顶部左侧显示当前 Pokemon、场景 `Name` 和保存状态；右侧浮动素材栏提供搜索、分类、喜好筛选、当前素材和固定结果计数；中央保持固定 7×7 画布；左侧浮动建筑层面板按 L2/L1/L0 的视觉顺序靠近画布；左下角检查器同时展示正视图和俯视图缩略预览。PRD、Epics 和 Stories 应以该工作台形态为当前实施基准。
+最新 Open Design UI 将第一屏锁定为一个直接可用的编辑工作台：顶部左侧显示当前 Pokemon、场景 `Name` 和保存状态；右侧浮动素材栏提供搜索、分类、喜好筛选、当前素材和固定结果计数；中央保持尺寸驱动画布，新建场景默认 17×17；左侧浮动建筑层面板按 L2/L1/L0 的视觉顺序靠近画布；左下角检查器同时展示正视图和俯视图缩略预览。PRD、Epics 和 Stories 应以该工作台形态为当前实施基准。
 
 ### Approved Course Correction - 2026-05-19
 
@@ -106,9 +106,15 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 
 当前继续保持 `SceneDocument v1`。本次不新增 `SceneDocument v2`，因为承载/叠放关系可由 `assetId`、anchor `coordinate`、`buildingLevelId`、`rotationDegrees`、当前 asset catalog stacking metadata 和 `scene-core` occupancy helpers 确定性派生；不需要保存 parent/child stack id、z-index、surface id、blocking cells 或 catalog snapshot。若未来需要用户手动指定叠放顺序、绑定某个物品到某个承载面、保存历史 catalog 解释或支持同坐标多个 top item 的持久排序，才需要新的 schema course correction。
 
+### Approved Course Correction - 2026-05-29 15x15 Scene Size / 17x17 编辑画布
+
+本 PRD 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-29-15x15-scene-size.md` 增加 Epic 12，用于把新建场景默认尺寸扩大为 `sceneSize=15x15`、`outerPadding=1`，并由现有尺寸公式派生 `canvasSize=17x17`。旧文档中“固定 5x5 / 7x7”的当前目标语义自本节起被替换为“默认 15x15 主体区 / 17x17 实际编辑画布”；早期 Epic 1-11 的 7x7 描述仍作为历史完成记录保留。
+
+`SceneDocument v1` 的字段 shape 继续保持：仍使用 `sceneSize`、`canvasSize` 和 `outerPadding` 表达尺寸，不新增 `SceneDocument v2`。本次变更要求 schema、area calculation、footprint bounds、stacking/occupancy、预览、导出、Worker/MCP 和 Codex skill 都从 scene dimensions 派生。旧 7x7 SceneDocument v1 JSON payload 必须按其保存的尺寸恢复，不静默改写坐标或 `areaType`；旧 PSE1 短字符串继续按 legacy 7x7 解码，新的短字符串必须编码尺寸或使用新的 codec revision。
+
 ### What Makes This Special
 
-本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：中心 5×5 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、受控承载/叠放、素材实例级技能标记，以及完整 7×7 预览。
+本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：默认中心 15×15 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、受控承载/叠放、素材实例级技能标记，以及完整 17×17 预览。
 
 产品的核心洞察是：布景方案的复现难点不在于记录素材名称，而在于记录素材所在区域、坐标、建筑层、朝向、技能需求和预览关系。通过将这些信息结构化，编辑器可以帮助用户把灵感图、搭建步骤和最终布景数据统一到一个可继续编辑和分享的方案中。
 
@@ -184,9 +190,9 @@ MVP 验收时应使用至少 1 个完整布景方案作为验收场景，包含 
 
 **Must-Have Capabilities:**
 
-- Open Design 工作台第一屏：顶部 Pokemon/场景名/保存状态，右侧浮动 Asset Picker，中央 7×7 画布，左侧 Building Level Panel，左下 Preview Inspector。
-- 7×7 编辑画布。
-- 中心 5×5 主体区边界和外围装饰区显示。
+- Open Design 工作台第一屏：顶部 Pokemon/场景名/保存状态，右侧浮动 Asset Picker，中央尺寸驱动画布，左侧 Building Level Panel，左下 Preview Inspector。
+- 默认 17×17 编辑画布，并兼容 legacy 7×7 恢复。
+- 中心 15×15 主体区边界和外围装饰区显示。
 - 主体区和外围装饰区的坐标、区域类型识别。
 - 素材列表、缩略图、名称、分类、标签、适用区域和 `No.` 官方素材 ID 展示。
 - 素材搜索、分类筛选、喜好素材筛选、适用区域筛选和技能相关筛选。
@@ -297,13 +303,13 @@ MVP 应优先覆盖布景创作者的完整闭环和错误修正路径；素材�
 
 ### Project-Type Overview
 
-Pokopia 5×5 布景编辑器应作为浏览器端 Web App 提供核心编辑体验。产品首要形态是单页应用，用户应能在一个页面内完成 Pokemon/场景名设置、素材搜索、画布编辑、建筑层管理、属性修改、双预览检查、保存状态确认和重新打开恢复，不需要在多个页面之间频繁跳转。
+Pokopia 布景编辑器应作为浏览器端 Web App 提供核心编辑体验。产品首要形态是单页应用，用户应能在一个页面内完成 Pokemon/场景名设置、素材搜索、画布编辑、建筑层管理、属性修改、双预览检查、保存状态确认和重新打开恢复，不需要在多个页面之间频繁跳转。
 
-该 Web App 的核心交互是高频编辑型工作流，而不是内容浏览型网站。界面应优先保证中央 7×7 画布、右侧浮动素材栏、左侧建筑层面板、左下双预览检查器和顶部场景控制之间的操作效率、状态反馈和数据一致性。
+该 Web App 的核心交互是高频编辑型工作流，而不是内容浏览型网站。界面应优先保证中央尺寸驱动画布、右侧浮动素材栏、左侧建筑层面板、左下双预览检查器和顶部场景控制之间的操作效率、状态反馈和数据一致性。
 
 ### Technical Architecture Considerations
 
-应用应采用客户端优先的数据模型管理 7×7 画布、建筑层、素材实例、技能标记和预览状态。MVP 可以优先使用本地状态和 SceneDocument 保存/恢复完成闭环；后续如引入显式导出/导入、分享、模板库或协作能力，再扩展文件入口、后端存储或同步机制。过滤、搜索、favorite-only 和预览显示选项属于浏览器本地 UI 偏好，应单独写入 localStorage，不污染 SceneDocument payload。
+应用应采用客户端优先的数据模型管理尺寸驱动画布、建筑层、素材实例、技能标记和预览状态。MVP 可以优先使用本地状态和 SceneDocument 保存/恢复完成闭环；后续如引入显式导出/导入、分享、模板库或协作能力，再扩展文件入口、后端存储或同步机制。过滤、搜索、favorite-only 和预览显示选项属于浏览器本地 UI 偏好，应单独写入 localStorage，不污染 SceneDocument payload。
 
 核心编辑状态应具有明确的单一数据来源，避免画布、上下文/属性字段、预览和保存数据之间出现分叉。所有用户操作，包括放置、删除、移动、替换素材、切换建筑层、修改技能标记、修改染色和更新备注，都应反映到同一个场景数据结构中。
 
@@ -315,13 +321,13 @@ MVP 应支持当前主流桌面浏览器的现代版本，包括 Chrome、Edge�
 
 ### Responsive Design
 
-桌面端应采用 Open Design 工作台布局：右侧浮动素材栏、中央 7×7 编辑画布、左侧建筑层面板、左下双预览检查器、顶部 Pokemon/场景名/保存状态和图标工具应同时可见或易于访问。画布应保持稳定比例，避免因素材结果、建筑层状态或检查器内容变化导致网格尺寸跳动。
+桌面端应采用 Open Design 工作台布局：右侧浮动素材栏、中央尺寸驱动编辑画布、左侧建筑层面板、左下双预览检查器、顶部 Pokemon/场景名/保存状态和图标工具应同时可见或易于访问。默认 17×17 画布可使用内部滚动、缩放或稳定压缩；画布应保持稳定比例，避免因素材结果、建筑层状态或检查器内容变化导致网格尺寸跳动。
 
 1024-1279px 时左侧建筑层仍应可见，右侧素材栏可收窄；768-1023px 时面板可变成 tabbed drawer，但画布和当前上下文仍保持可见；768px 以下进入 Mobile View-only Mode。较窄视口必须保留核心状态可见性：当前 Pokemon、场景名、当前建筑层、选中素材、选中格子、主体区边界和技能标记不能被隐藏到用户无法理解当前状态的程度。
 
 ### Performance Targets
 
-7×7 画布规模固定较小，常规编辑操作应即时响应。素材放置、删除、选中格切换、建筑层切换、技能标记切换和预览模式切换应在用户感知上无明显延迟。
+默认 17×17 画布显著大于早期 7×7 基线，常规编辑操作仍应即时响应。素材放置、删除、选中格切换、建筑层切换、技能标记切换和预览模式切换应在用户感知上无明显延迟，具体性能目标以 NFR1、NFR2 和 NFR51 为准。
 
 素材列表在数据量增长时必须避免拖慢编辑主流程。搜索和筛选应在输入后快速返回结果；当素材数量较多时，应支持分页、虚拟滚动或等效机制，避免一次性渲染大量缩略图造成卡顿。
 
@@ -348,8 +354,8 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 ### Scene & Canvas Model
 
 - FR1: 用户可以创建一个标注为 5×5 布景的场景。
-- FR2: 系统可以为每个 5×5 布景提供 7×7 实际编辑画布。
-- FR3: 系统可以识别并区分中心 5×5 主体区和外围 1 圈装饰区。
+- FR2: 系统可以为新建场景默认提供 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17` 的实际编辑画布。
+- FR3: 系统可以识别并区分中心 15×15 主体区和外围 1 圈装饰区；旧 7×7 场景按自身保存尺寸继续恢复。
 - FR4: 系统可以为每个画布格子维护 0-based x/y 坐标。
 - FR5: 用户可以在主体区和外围装饰区放置布景内容。
 - FR6: 用户可以查看当前格子属于主体区还是外围装饰区。
@@ -359,7 +365,7 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 
 - FR56: 用户可以在工作台顶部左侧查看并切换当前 Pokemon，Pokemon 选择器支持搜索匹配和当前选择状态。
 - FR57: 用户可以编辑场景 `Name`，并在同一上下文中看到 dirty/saved 状态和保存动作结果。
-- FR58: 工作台必须以中央 7×7 画布为视觉中心，同时保留右侧浮动素材栏、左侧建筑层面板、左下双预览检查器和顶部场景控制。
+- FR58: 工作台必须以中央尺寸驱动画布为视觉中心；新建场景默认显示 17×17 画布，同时保留右侧浮动素材栏、左侧建筑层面板、左下双预览检查器和顶部场景控制。
 
 ### Asset Placement & Editing
 
@@ -405,7 +411,7 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 
 - FR78: Asset catalog 必须为每个可放置素材提供 `footprint.length`、`footprint.width`、`footprint.height` 三个正整数；现有素材默认 1x1x1，真实大素材通过集中 override 覆盖。
 - FR79: `scene-core` 必须根据素材 footprint 和 `rotationDegrees` 派生有效占用尺寸；0/180 度使用原 length/width，90/270 度交换 length/width，height 不随旋转变化。
-- FR80: 放置、替换、保存校验和恢复校验必须检查素材 footprint 的所有占用格均在 7x7 画布内，并且同一建筑层内不同实例的 footprint cells 不得重叠。
+- FR80: 放置、替换、保存校验和恢复校验必须检查素材 footprint 的所有占用格均在当前 SceneDocument 的 `canvasSize` 内，并且同一建筑层内不同实例的 footprint cells 不得重叠，除非 Epic 11 stacking surface 规则明确允许。
 - FR81: 当素材 footprint height 大于 1 时，`scene-core` 必须在上方建筑层对应 footprint cells 派生 blocking cells；这些 blocking cells 在画布中显示为不可放置，但不得写入 SceneDocument payload。
 - FR82: 放置预览必须显示跨格 footprint、将被替换或阻塞的格子、越界原因和跨层阻塞来源；错误提示应包含阻塞 instance id、asset id、building level 和坐标。
 - FR83: 编辑画布、俯视预览、正视预览和图片导出必须按 effective footprint 跨格渲染大素材；导出摘要 JSON 必须包含每个实例的 footprint、effectiveFootprint 和 occupiedCells。
@@ -424,6 +430,17 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR99: Web 编辑画布、素材详情、选中实例检查器、俯视/正视预览和图片导出必须表达承载/被承载/可叠放/不兼容叠放状态；合法同格叠放应把原始格子或对应 footprint cell 拆成上下两部分，下半部分显示可叠放 base 素材，上半部分显示 top 素材；不兼容叠放应显示浅红/红色冲突提示并说明原因；选择同坐标多个实例时必须保持可理解。
 - FR100: Worker validate/recover/export-summary、MCP tools/resources/prompts 和 Codex skill 必须复用同一套 `scene-core` stacking helpers；导出摘要可以包含 derived stacking relation，但不得把它写回 SceneDocument 或短字符串。
 
+### Scene Size Expansion & Legacy Compatibility
+
+- FR101: 新建默认场景必须使用 `sceneSize: { width: 15, height: 15 }`、`outerPadding: 1`，并派生 `canvasSize: { width: 17, height: 17 }`。
+- FR102: `scene-core` 必须从 `SceneDocument.sceneSize`、`canvasSize` 和 `outerPadding` 派生坐标范围、`areaType`、main boundary、canvas cells、footprint bounds、occupancy、stacking relation 和 export summary，不得在业务路径写死 7x7。
+- FR103: SceneDocument v1 JSON shape 保持不变；schema 必须校验 `canvasSize = sceneSize + outerPadding * 2`，并允许当前支持的 legacy 7x7 payload 与新默认 17x17 payload。
+- FR104: 旧 7x7 SceneDocument v1 JSON payload 恢复时必须保留原尺寸和坐标，不得静默扩展到 17x17、重写 `areaType` 或移动实例；若旧 payload 本身冲突，仍返回结构化错误。
+- FR105: PSE1 legacy 短字符串继续按 7x7 语义解码；新的短字符串必须编码 scene dimensions 或使用新的 codec revision，以免 17x17 场景被误解码为 legacy 7x7。
+- FR106: Web 编辑画布、Selection Inspector、Preview Inspector、Export Preview、image export、i18n 文案和 aria label 必须使用 `{width}x{height}` 或 scene-derived labels，不得写死 7x7。
+- FR107: Worker validate/recover/export-summary、MCP tools/resources/prompts 和 Codex skill 必须返回或保留 scene dimensions，并与 Web direct-call tests 对 7x7 legacy 和 17x17 default 得到一致结果。
+- FR108: 16x16 不是本次目标；本次尺寸模型明确为 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17`。
+
 ### Ditto Skill Marking
 
 - FR36: 用户可以在放置素材前设置本次放置是否需要百变怪技能。
@@ -438,7 +455,7 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 ### Preview
 
 - FR41: 用户可以在工作台中查看俯视图预览。
-- FR42: 俯视图可以展示完整 7×7 画布内容。
+- FR42: 俯视图可以展示当前 SceneDocument 的完整画布内容；新建场景默认为完整 17×17 画布。
 - FR43: [Removed from MVP 2026-05-19] 俯视图不展示 5×5 主体区边界；主体区边界由主画布表达。
 - FR44: 用户可以在工作台中查看正视图预览。
 - FR45: 正视图可以展示主体区、外围装饰区和建筑层高度关系。
@@ -455,7 +472,7 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR52: 系统可以在保存和序列化数据中包含 `sceneId`、`sceneName`、`selectedPokemonKey`、场景尺寸、画布尺寸、外围扩展格数和 `metadata` 时间戳；`selectedPokemonKey` 必须使用 Decor Dex 现有 Pokemon key。
 - FR53: 系统可以在自动保存和序列化数据中包含建筑层、素材实例、坐标、区域类型、`rotationDegrees`、染色、技能标记和技能备注，以及 `workspaceState.currentBuildingLevelId`、`workspaceState.selectedAssetId` 和 `workspaceState.selectedCoordinate`。MVP payload 不要求普通实例备注 `note` 或 `workspaceState.saveStatus`。
 - FR54: 用户可以重新打开保存数据并还原布景状态。
-- FR55: 系统可以在恢复数据字段缺失、类型错误或坐标超出 7×7 范围时给出错误提示，提示必须包含问题字段、失败原因和用户可执行的修复方向。
+- FR55: 系统可以在恢复数据字段缺失、类型错误或坐标超出当前 `canvasSize` 范围时给出错误提示，提示必须包含问题字段、失败原因和用户可执行的修复方向。
 - FR64: 系统可以将素材搜索词、分类/区域/技能筛选和 favorite-only 保存到 localStorage，并确保这些 UI 偏好不进入 SceneDocument v1 payload。预览显示选项不进入 MVP。
 - FR89: 选中当前建筑层的空格时，层备注输入和列表必须显示在选中空格提示框下方；备注操作作用于当前建筑层，而不是当前格子或素材实例。
 - FR90: 自动保存、恢复、结构化序列化和短字符串 roundtrip 必须保留 `buildingLevels[].notes`；旧 payload 或旧 PSE1 字符串缺少层备注时恢复为空数组。
@@ -464,7 +481,7 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 
 - FR65: 用户可以从 Open Design 工作台打开图片导出预览，查看即将导出的布景说明图片。
 - FR66: 导出图片必须包含整体使用的素材清单，至少包含素材名称、官方 No. 或 asset id、总使用数量。
-- FR67: 导出图片必须按建筑层展示每层图形，并表达该层 7×7 布局、主体区/外围区关系、素材位置和跨格 footprint。
+- FR67: 导出图片必须按建筑层展示每层图形，并表达当前画布布局、主体区/外围区关系、素材位置和跨格 footprint；新建场景默认为 17×17 布局。
 - FR68: 导出图片必须按建筑层展示每层使用的素材清单；导出预览和下载不得写入 SceneDocument、autosave storage、saved storage 或 UI preferences。
 - FR91: 图片导出预览和下载图片必须在每个建筑层的素材清单下方显示该层备注；没有备注的层不得产生误导性的空备注内容。
 - FR92: Worker export-summary、MCP `summarize_scene_export` 和 Web 图片导出必须使用同一层备注语义，按建筑层 id/name/levelNumber 关联备注。
@@ -485,8 +502,8 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 
 ### Performance
 
-- NFR1: 在桌面浏览器 1280×720 视口、1,000 个素材以内、10 个建筑层以内的测试场景中，7×7 画布上的选中格子、放置素材、删除素材、切换技能标记和切换当前建筑层操作应在 100ms 内完成可见状态更新，使用浏览器性能标记或等效自动化计时测量。
-- NFR2: 在 7×7 画布、10 个建筑层、每层 49 个素材实例以内的测试场景中，俯视图和基础正视图切换应在 300ms 内完成首个可见预览更新；测试场景必须包含至少一个 2x1、1x2 和 height > 1 的 footprint 素材。
+- NFR1: 在桌面浏览器 1280×720 视口、1,000 个素材以内、10 个建筑层以内的测试场景中，默认 17×17 画布上的选中格子、放置素材、删除素材、切换技能标记和切换当前建筑层操作应在 150ms 内完成可见状态更新，使用浏览器性能标记或等效自动化计时测量。
+- NFR2: 在 17×17 画布、10 个建筑层、每层最多 289 个素材实例以内的测试场景中，俯视图和基础正视图切换应在 500ms 内完成首个可见预览更新；测试场景必须包含至少一个 2x1、1x2、height > 1 的 footprint 素材和一个 stacking relation。
 - NFR3: 素材搜索和筛选在 1,000 个素材以内时应在 200ms 内返回可见结果，测量范围从用户输入或筛选变更到结果列表完成首屏更新。
 - NFR4: 素材列表达到 1,000 个素材时，搜索输入、筛选切换、列表滚动和画布选中操作的可见响应时间均应保持在 200ms 内；若一次性渲染超过 100 个素材卡片，应采用分页、虚拟滚动或等效机制限制首屏渲染量。
 - NFR5: [Removed from MVP 2026-05-19] MVP 不提供建筑层隐藏、显示、锁定或解锁状态。
@@ -495,7 +512,7 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 
 - NFR6: 自动保存和序列化数据必须通过往返恢复测试完整还原场景名称、Decor Dex Pokemon key、场景尺寸、画布尺寸、外围扩展格数、建筑层、当前编辑建筑层、当前素材、选中坐标、素材实例、坐标、区域类型、`rotationDegrees`、染色、技能标记和技能备注。
 - NFR7: 保存、序列化、恢复或重新打开后的建筑层数量、素材实例数量和技能标记数量必须与原场景一致；若不一致，系统必须阻止静默成功并显示错误。
-- NFR8: 恢复数据时，如果关键字段缺失、类型错误或坐标超出 7×7 范围，系统必须给出错误提示，提示至少包含字段路径、期望类型或范围、实际问题和修复方向。
+- NFR8: 恢复数据时，如果关键字段缺失、类型错误或坐标超出当前 `canvasSize` 范围，系统必须给出错误提示，提示至少包含字段路径、期望类型或范围、实际问题和修复方向。
 - NFR9: 每次放置、删除、替换素材、切换建筑层、修改技能标记、修改染色或更新技能备注后，画布、上下文/属性字段、建筑层列表、预览和序列化结果必须从同一场景数据源派生；自动化一致性测试应验证五个视图读取的同一素材实例字段完全一致。
 - NFR10: 删除建筑层等破坏性操作必须在执行前显示确认提示，提示至少包含建筑层名称、受影响素材实例数量、操作后果，以及确认或取消操作。
 - NFR37: Footprint、effective footprint、occupied cells 和 height blocking cells 必须由 `scene-core` 纯函数确定性派生；任何端不得保存或缓存会与 SceneDocument/catalog 漂移的独立阻塞状态。
@@ -507,6 +524,11 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - NFR45: `SceneDocument v1` 仍是当前 schema；本次变更不得新增 stacking relation、surface id、z-index、parent instance id、catalog snapshot 或 `SceneDocument v2`。若未来需要持久排序或绑定关系，必须先进行新的 PRD/Architecture/Epics 同步。
 - NFR46: `scene-core`、web UI、Worker API、MCP tools 和 Codex skill 示例必须有契约测试覆盖 plate+food 成功、plate+non-food 阻断、rug/mat/shoot/low-height surface overlap、多格 surface bounds、短字符串 roundtrip 和 export-summary parity。
 - NFR47: Stacking 校验错误必须包含字段路径、冲突类型、top instance/asset、base instance/asset、building level、坐标集合和用户可执行修复方向；Worker/MCP/Codex skill 输出不得只给出 generic validation failed。
+- NFR48: Scene dimensions、coordinate bounds、main/outer area、footprint bounds、height blocking 和 stacking relation 必须由同一套 `scene-core` dimension helpers 派生；任何端不得继续写死 7x7 或 max coordinate 6。
+- NFR49: 旧 7x7 JSON payload 与 legacy PSE1 短字符串必须有 roundtrip/contract tests；新 17x17 default scene 必须有 scene-core、web、Worker/MCP 和 export summary parity tests。
+- NFR50: 17x17 画布在 1280px+ 桌面布局中不得让素材栏、建筑层面板、检查器或导出预览互相遮挡；允许使用缩放、滚动或稳定压缩，但不能破坏格子固定宽高比和坐标可读性。
+- NFR51: 图片导出预览和图片生成在 17×17 画布、10 个建筑层、每层最多 289 个素材实例以内的测试场景中，应在用户感知上可接受；若生成超过 1 秒，应显示非阻塞进度或生成状态。
+- NFR52: 新尺寸短字符串必须避免与 legacy PSE1 7x7 字符串歧义；解码错误必须说明 codec/version 或 dimensions 问题，并给出重新导出或使用完整 JSON 的修复方向。
 
 ### Usability
 
@@ -527,7 +549,7 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 ### Compatibility & Responsive Behavior
 
 - NFR20: MVP 应支持发布时 Chrome、Edge、Safari 和 Firefox 的最新两个稳定大版本；发布验收必须在这些浏览器中完成核心创建、编辑、预览、保存/自动保存和重新打开流程。
-- NFR21: 在 1280px 及以上桌面宽度下，右侧浮动素材栏、中央 7×7 画布、左侧建筑层面板、左下双预览检查器和顶部场景控制必须同时可见或可通过一次点击切换显示，页面不得出现横向滚动条。
+- NFR21: 在 1280px 及以上桌面宽度下，右侧浮动素材栏、中央尺寸驱动画布、左侧建筑层面板、左下双预览检查器和顶部场景控制必须同时可见或可通过一次点击切换显示；默认 17×17 画布可采用内部滚动或缩放，但页面不得出现横向滚动条。
 - NFR22: 在 768px 以下宽度下，页面进入 Mobile View-only Mode；390×844 视口下不得出现控件重叠，且当前 Pokemon、场景名、当前建筑层、选中素材、选中格子、主体区边界和技能标记状态必须在当前查看或预览区域中可访问。
 - NFR23: 画布网格应保持固定宽高比；素材搜索结果、筛选项、上下文/属性字段、建筑层列表或预览检查器内容变化时，单格尺寸变化不得超过 1px。
 
@@ -538,7 +560,7 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - NFR26: 用户自定义名称和技能说明在界面展示时必须进行文本安全处理；使用 `<script>`、`<img onerror>` 等字符串测试时不得破坏页面结构或执行脚本。
 - NFR27: 动态 Pokemon 主题只能影响外层 shell 和少量强调色；主体区、外围区、当前层、选中格、技能标记、警告和错误必须继续使用稳定语义 tokens。
 - NFR28: Open Design 工作台不得使用 landing page、hero-scale 字号、卡片套卡片或装饰性背景来承载核心编辑体验；面板、按钮、格子、预览单元和计数区域必须有稳定尺寸。
-- NFR29: 图片导出预览和图片生成在 7×7 画布、10 个建筑层、每层 49 个素材实例以内的测试场景中，应在用户感知上可接受；若生成超过 1 秒，应显示非阻塞进度或生成状态。
+- NFR29: 图片导出预览和图片生成必须支持当前 SceneDocument 的画布尺寸；默认 17×17 场景按 NFR51 执行，legacy 7×7 场景仍保持现有可读导出。
 - NFR30: 导出图片中的标题、整体素材清单、每层图形和每层素材清单必须在默认导出尺寸下可读；下载按钮、关闭操作和失败提示必须有可访问名称。
 - NFR43: 层备注正文与场景名称、建筑层名称、技能备注一样必须作为纯文本渲染；包含 HTML-like 文本时，工作台、导出预览、下载图片和 Worker/MCP summary 不得执行或注入 HTML。
 

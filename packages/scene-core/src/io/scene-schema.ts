@@ -5,24 +5,22 @@ import {
   isKnownAssetId,
   isKnownPokemonKey,
 } from '../domain/assets';
-import { calculateAreaType, validateSceneOccupancy, type FootprintConflict, type GridCoordinate } from '../domain/scene';
+import {
+  assertCanvasCoordinate,
+  assertSupportedSceneDimensions,
+  calculateAreaType,
+  validateSceneOccupancy,
+  type FootprintConflict,
+  type GridCoordinate,
+  type SceneDimensions,
+} from '../domain/scene';
 
 const isoDateTimeSchema = z.iso.datetime({ precision: 3 });
 
 const gridSizeSchema = z.object({
-  width: z.number().int(),
-  height: z.number().int(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
 }).strict();
-
-const sceneSizeSchema = gridSizeSchema.refine(
-  (size) => size.width === 5 && size.height === 5,
-  'Expected 5x5 scene size',
-);
-
-const canvasSizeSchema = gridSizeSchema.refine(
-  (size) => size.width === 7 && size.height === 7,
-  'Expected 7x7 canvas size',
-);
 
 const rotationDegreesSchema = z.union([
   z.literal(0),
@@ -32,8 +30,8 @@ const rotationDegreesSchema = z.union([
 ]);
 
 const coordinateSchema = z.object({
-  x: z.number().int().min(0).max(6),
-  y: z.number().int().min(0).max(6),
+  x: z.number().int().min(0),
+  y: z.number().int().min(0),
 }).strict();
 
 const buildingLevelNoteSchema = z.object({
@@ -93,9 +91,9 @@ export const sceneDocumentV1Schema = z.object({
   sceneId: z.string().min(1),
   sceneName: z.string().min(1),
   selectedPokemonKey: z.string().refine(isKnownPokemonKey, 'Expected known Decor Dex Pokemon key'),
-  sceneSize: sceneSizeSchema,
-  canvasSize: canvasSizeSchema,
-  outerPadding: z.literal(1),
+  sceneSize: gridSizeSchema,
+  canvasSize: gridSizeSchema,
+  outerPadding: z.number().int().min(0),
   buildingLevels: z.array(buildingLevelSchema).min(1),
   tileInstances: z.array(tileInstanceSchema),
   skillMarkers: z.array(skillMarkerSchema).default([]),
@@ -142,6 +140,26 @@ export const sceneDocumentV1Schema = z.object({
     canvasSize: scene.canvasSize,
     outerPadding: scene.outerPadding,
   };
+  try {
+    assertSupportedSceneDimensions(dimensions);
+  } catch (error) {
+    context.addIssue({
+      code: 'custom',
+      message: error instanceof Error ? error.message : 'Invalid scene dimensions.',
+      path: [],
+    });
+    return;
+  }
+
+  if (scene.workspaceState.selectedCoordinate) {
+    addCoordinateBoundsIssue(
+      context,
+      ['workspaceState', 'selectedCoordinate'],
+      scene.workspaceState.selectedCoordinate,
+      dimensions,
+    );
+  }
+
   const instanceIds = new Set<string>();
   const skillMarkerLevelCoordinates = new Map<string, number>();
 
@@ -155,6 +173,8 @@ export const sceneDocumentV1Schema = z.object({
     }
 
     instanceIds.add(instance.instanceId);
+
+    addCoordinateBoundsIssue(context, ['tileInstances', index, 'coordinate'], instance.coordinate, dimensions);
 
     if (!levelIds.has(instance.buildingLevelId)) {
       context.addIssue({
@@ -191,6 +211,7 @@ export const sceneDocumentV1Schema = z.object({
 
   for (const [index, marker] of scene.skillMarkers.entries()) {
     const markerKey = `${marker.buildingLevelId}:${marker.coordinate.x},${marker.coordinate.y}`;
+    addCoordinateBoundsIssue(context, ['skillMarkers', index, 'coordinate'], marker.coordinate, dimensions);
     const existingIndex = skillMarkerLevelCoordinates.get(markerKey);
 
     if (existingIndex !== undefined) {
@@ -238,6 +259,37 @@ export const sceneDocumentV1Schema = z.object({
   }
 });
 
+function addCoordinateBoundsIssue(
+  context: z.RefinementCtx,
+  path: Array<string | number>,
+  coordinate: GridCoordinate,
+  dimensions: SceneDimensions,
+): void {
+  try {
+    assertCanvasCoordinate(coordinate, dimensions);
+  } catch {
+    const message = `Expected coordinate inside 0..${dimensions.canvasSize.width - 1}, 0..${
+      dimensions.canvasSize.height - 1
+    }.`;
+
+    if (coordinate.x >= dimensions.canvasSize.width) {
+      context.addIssue({
+        code: 'custom',
+        message,
+        path: [...path, 'x'],
+      });
+    }
+
+    if (coordinate.y >= dimensions.canvasSize.height) {
+      context.addIssue({
+        code: 'custom',
+        message,
+        path: [...path, 'y'],
+      });
+    }
+  }
+}
+
 export type SceneDocumentV1 = z.infer<typeof sceneDocumentV1Schema>;
 
 export interface SceneDocumentValidationError {
@@ -278,7 +330,7 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationEr
 }
 
 function formatValidationErrors(issues: z.ZodIssue[], input: unknown): SceneDocumentValidationError[] {
-  return issues.map((issue) => ({
+  const errors = issues.map((issue) => ({
     fieldPath: formatIssuePath(issue.path),
     expected: formatIssueExpected(issue),
     actual: formatIssueActual(issue, input),
@@ -286,6 +338,173 @@ function formatValidationErrors(issues: z.ZodIssue[], input: unknown): SceneDocu
     recoveryAction: getRecoveryAction(issue),
     ...formatFootprintIssueDetails(issue),
   }));
+
+  return mergeValidationErrors(errors, getRawDimensionValidationErrors(input));
+}
+
+function getRawDimensionValidationErrors(input: unknown): SceneDocumentValidationError[] {
+  const root = asRecord(input);
+  if (!root) {
+    return [];
+  }
+
+  const dimensions = readRawDimensions(root);
+  if (!dimensions) {
+    return [];
+  }
+
+  try {
+    assertSupportedSceneDimensions(dimensions);
+  } catch (error) {
+    return [{
+      fieldPath: '$',
+      expected: 'legacy 5x5/7x7 or default 15x15/17x17 scene dimensions',
+      actual: stringifyActualValue({
+        sceneSize: root.sceneSize,
+        canvasSize: root.canvasSize,
+        outerPadding: root.outerPadding,
+      }),
+      reason: error instanceof Error ? error.message : 'Invalid scene dimensions.',
+      recoveryAction: 'Fix the SceneDocument v1 payload field and try again.',
+    }];
+  }
+
+  const errors: SceneDocumentValidationError[] = [];
+  const workspaceState = asRecord(root.workspaceState);
+  const selectedCoordinate = asCoordinate(workspaceState?.selectedCoordinate);
+  if (selectedCoordinate) {
+    errors.push(...getRawCoordinateBoundsErrors('workspaceState.selectedCoordinate', selectedCoordinate, dimensions));
+  }
+
+  if (Array.isArray(root.tileInstances)) {
+    root.tileInstances.forEach((item, index) => {
+      const coordinate = asCoordinate(asRecord(item)?.coordinate);
+      if (coordinate) {
+        errors.push(...getRawCoordinateBoundsErrors(`tileInstances[${index}].coordinate`, coordinate, dimensions));
+      }
+    });
+  }
+
+  if (Array.isArray(root.skillMarkers)) {
+    root.skillMarkers.forEach((item, index) => {
+      const coordinate = asCoordinate(asRecord(item)?.coordinate);
+      if (coordinate) {
+        errors.push(...getRawCoordinateBoundsErrors(`skillMarkers[${index}].coordinate`, coordinate, dimensions));
+      }
+    });
+  }
+
+  return errors;
+}
+
+function readRawDimensions(root: Record<string, unknown>): SceneDimensions | null {
+  const sceneSize = asGridSize(root.sceneSize);
+  const canvasSize = asGridSize(root.canvasSize);
+  const outerPadding = root.outerPadding;
+
+  if (!sceneSize || !canvasSize || typeof outerPadding !== 'number' || !Number.isInteger(outerPadding)) {
+    return null;
+  }
+
+  return {
+    sceneSize,
+    canvasSize,
+    outerPadding,
+  };
+}
+
+function asGridSize(value: unknown): SceneDimensions['sceneSize'] | null {
+  const record = asRecord(value);
+  const width = record?.width;
+  const height = record?.height;
+
+  if (
+    typeof width !== 'number' ||
+    typeof height !== 'number' ||
+    !Number.isInteger(width) ||
+    !Number.isInteger(height)
+  ) {
+    return null;
+  }
+
+  return {
+    width,
+    height,
+  };
+}
+
+function asCoordinate(value: unknown): GridCoordinate | null {
+  const record = asRecord(value);
+  const x = record?.x;
+  const y = record?.y;
+
+  if (typeof x !== 'number' || typeof y !== 'number' || !Number.isInteger(x) || !Number.isInteger(y)) {
+    return null;
+  }
+
+  return {
+    x,
+    y,
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function getRawCoordinateBoundsErrors(
+  fieldPath: string,
+  coordinate: GridCoordinate,
+  dimensions: SceneDimensions,
+): SceneDocumentValidationError[] {
+  const errors: SceneDocumentValidationError[] = [];
+  const message = `Expected coordinate inside 0..${dimensions.canvasSize.width - 1}, 0..${
+    dimensions.canvasSize.height - 1
+  }.`;
+
+  if (coordinate.x >= dimensions.canvasSize.width) {
+    errors.push(createRawCoordinateBoundsError(`${fieldPath}.x`, coordinate.x, message));
+  }
+
+  if (coordinate.y >= dimensions.canvasSize.height) {
+    errors.push(createRawCoordinateBoundsError(`${fieldPath}.y`, coordinate.y, message));
+  }
+
+  return errors;
+}
+
+function createRawCoordinateBoundsError(
+  fieldPath: string,
+  actual: number,
+  reason: string,
+): SceneDocumentValidationError {
+  return {
+    fieldPath,
+    expected: reason,
+    actual: String(actual),
+    reason,
+    recoveryAction: 'Keep coordinates inside the SceneDocument v1 canvas bounds.',
+  };
+}
+
+function mergeValidationErrors(
+  primary: SceneDocumentValidationError[],
+  secondary: SceneDocumentValidationError[],
+): SceneDocumentValidationError[] {
+  const seen = new Set(primary.map((error) => `${error.fieldPath}:${error.reason}`));
+  const merged = [...primary];
+
+  for (const error of secondary) {
+    const key = `${error.fieldPath}:${error.reason}`;
+    if (!seen.has(key)) {
+      merged.push(error);
+      seen.add(key);
+    }
+  }
+
+  return merged;
 }
 
 function formatFootprintIssueDetails(issue: z.ZodIssue): Partial<SceneDocumentValidationError> {

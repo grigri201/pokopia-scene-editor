@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createBuildingLevel, createDefaultSceneDocument, createTileInstance } from '@pokopia-scene-editor/scene-core';
+import {
+  createBuildingLevel,
+  createDefaultSceneDocument,
+  createTileInstance,
+  legacySceneDimensions,
+  type SceneDocument,
+} from '@pokopia-scene-editor/scene-core';
 import { selectAsset } from './scene-reducer';
 import { getAssetPlacementPreview, placeSelectedAsset } from './asset-placement';
 
@@ -89,6 +95,27 @@ describe('asset placement command', () => {
     }
     expect(result.scene.tileInstances[0]).toMatchObject({
       assetId: 'ditto-doll',
+      areaType: 'outer',
+    });
+  });
+
+  it('uses legacy scene dimensions when placing into recovered 7x7 scenes', () => {
+    const scene = selectAsset(createLegacyScene(), 'leafy-plant', 'edit', now);
+
+    const result = placeSelectedAsset(scene, {
+      coordinate: { x: 6, y: 6 },
+      interactionMode: 'edit',
+      now,
+      instanceId: 'tile-legacy-outer',
+      requiresSkill: false,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected legacy placement success.');
+    }
+    expect(result.scene.tileInstances[0]).toMatchObject({
+      coordinate: { x: 6, y: 6 },
       areaType: 'outer',
     });
   });
@@ -373,7 +400,7 @@ describe('asset placement command', () => {
   it('blocks placement when footprint extends outside the canvas or a lower level height blocks the target', () => {
     const selectedScene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'wooden-bench', 'edit', now);
     const outOfBounds = placeSelectedAsset(selectedScene, {
-      coordinate: { x: 2, y: 6 },
+      coordinate: { x: 2, y: 16 },
       interactionMode: 'edit',
       now,
       instanceId: 'tile-outside',
@@ -468,3 +495,14 @@ describe('asset placement command', () => {
     expect(preview?.overwriteLabel).toBe('No overwrite');
   });
 });
+
+function createLegacyScene(): SceneDocument {
+  const scene = createDefaultSceneDocument({ sceneId: 'scene-legacy-placement', now });
+
+  return {
+    ...scene,
+    sceneSize: { ...legacySceneDimensions.sceneSize },
+    canvasSize: { ...legacySceneDimensions.canvasSize },
+    outerPadding: legacySceneDimensions.outerPadding,
+  };
+}

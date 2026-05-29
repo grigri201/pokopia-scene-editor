@@ -15,6 +15,7 @@ inputDocuments:
   - _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-25.md
   - _bmad-output/archive/2026-05-27/planning-artifacts/sprint-change-proposals/sprint-change-proposal-2026-05-27.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28-stacking-surface-rules.md
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-29-15x15-scene-size.md
   - docs/需求文档.md
 ---
 
@@ -46,15 +47,19 @@ Epic 5 已完成并保留为已完成历史。后续新功能不得通过重写 
 
 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28-stacking-surface-rules.md` 已批准。Epic 1-10 保留为现有历史与计划；当前新增 Epic 11，用于 catalog-driven 承载面与受控叠放规则。盘子、木盘子、派对拼盘可以承载食物；已审计的底垫、地毯、嫩芽和低高度素材可以允许兼容物品与其同层叠放或放到其上方。本次继续保持 `SceneDocument v1`，不保存 stacking relation、surface id、z-index、parent instance id 或 catalog snapshot。
 
+## Approved Course Correction - 2026-05-29 15x15 Scene Size / 17x17 编辑画布
+
+`_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-29-15x15-scene-size.md` 已批准。Epic 1-11 保留为现有历史与计划；当前新增 Epic 12，用于把新建场景默认改为 `sceneSize=15x15`、`outerPadding=1`，并由现有公式派生 `canvasSize=17x17`。本次继续保持 `SceneDocument v1` JSON shape；旧 7x7 SceneDocument v1 JSON 和 legacy PSE1 短字符串必须按自身尺寸恢复，不静默改写坐标或 `areaType`。16x16 不是本次目标。
+
 ## Requirements Inventory
 
 ### Functional Requirements
 
 FR1: 用户可以创建一个标注为 5×5 布景的场景。
 
-FR2: 系统可以为每个 5×5 布景提供 7×7 实际编辑画布。
+FR2: 系统可以为新建场景默认提供 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17` 的实际编辑画布。
 
-FR3: 系统可以识别并区分中心 5×5 主体区和外围 1 圈装饰区。
+FR3: 系统可以识别并区分中心 15×15 主体区和外围 1 圈装饰区；旧 7×7 场景按自身保存尺寸继续恢复。
 
 FR4: 系统可以为每个画布格子维护 0-based x/y 坐标。
 
@@ -68,7 +73,7 @@ FR56: 用户可以在工作台顶部左侧查看并切换当前 Pokemon，Pokemo
 
 FR57: 用户可以编辑场景 `Name`，并在同一上下文中看到 dirty/saved 状态和保存动作结果。
 
-FR58: 工作台必须以中央 7×7 画布为视觉中心，同时保留右侧浮动素材栏、左侧建筑层面板、左下双预览检查器和顶部场景控制。
+FR58: 工作台必须以中央尺寸驱动画布为视觉中心；新建场景默认显示 17×17 画布，同时保留右侧浮动素材栏、左侧建筑层面板、左下双预览检查器和顶部场景控制。
 
 FR8: 用户可以选择当前要放置的素材。
 
@@ -146,7 +151,7 @@ FR62: 系统只在 90、180、270 度朝向时显示格内旋转标记，默认 
 
 FR41: 用户可以在工作台中查看俯视图预览。
 
-FR42: 俯视图可以展示完整 7×7 画布内容。
+FR42: 俯视图可以展示当前 SceneDocument 的完整画布内容；新建场景默认为完整 17×17 画布。
 
 FR43: 俯视图可以展示 5×5 主体区边界。
 
@@ -174,7 +179,7 @@ FR53: 系统可以在保存和序列化数据中包含建筑层、素材实例�
 
 FR54: 用户可以重新打开保存数据并还原布景状态。
 
-FR55: 系统可以在恢复数据字段缺失、类型错误或坐标超出 7×7 范围时给出错误提示，提示必须包含问题字段、失败原因和用户可执行的修复方向。
+FR55: 系统可以在恢复数据字段缺失、类型错误或坐标超出当前 `canvasSize` 范围时给出错误提示，提示必须包含问题字段、失败原因和用户可执行的修复方向。
 
 FR64: 系统可以将素材搜索词、分类/区域/技能筛选、favorite-only 和预览显示选项保存到 localStorage，并确保这些 UI 偏好不进入 SceneDocument v1 payload。
 
@@ -182,7 +187,7 @@ FR65: 用户可以从 Open Design 工作台打开图片导出预览，查看即�
 
 FR66: 导出图片必须包含整体使用的素材清单，至少包含素材名称、官方 No. 或 asset id、总使用数量。
 
-FR67: 导出图片必须按建筑层展示每层图形，并表达该层 7×7 布局、主体区/外围区关系、素材位置和跨格 footprint。
+FR67: 导出图片必须按建筑层展示每层图形，并表达当前画布布局、主体区/外围区关系、素材位置和跨格 footprint；新建场景默认为 17×17 布局。
 
 FR68: 导出图片必须按建筑层展示每层使用的素材清单；导出预览和下载不得写入 SceneDocument、autosave storage、saved storage 或 UI preferences。
 
@@ -208,7 +213,7 @@ FR78: Asset catalog 必须为每个可放置素材提供 `footprint.length`、`f
 
 FR79: `scene-core` 必须根据素材 footprint 和 `rotationDegrees` 派生有效占用尺寸；0/180 度使用原 length/width，90/270 度交换 length/width，height 不随旋转变化。
 
-FR80: 放置、替换、保存校验和恢复校验必须检查素材 footprint 的所有占用格均在 7x7 画布内，并且同一建筑层内不同实例的 footprint cells 不得重叠。
+FR80: 放置、替换、保存校验和恢复校验必须检查素材 footprint 的所有占用格均在当前 SceneDocument 的 `canvasSize` 内，并且同一建筑层内不同实例的 footprint cells 不得重叠，除非 Epic 11 stacking surface 规则明确允许。
 
 FR81: 当素材 footprint height 大于 1 时，`scene-core` 必须在上方建筑层对应 footprint cells 派生 blocking cells；这些 blocking cells 在画布中显示为不可放置，但不得写入 SceneDocument payload。
 
@@ -238,11 +243,27 @@ FR99: Web 编辑画布、素材详情、选中实例检查器、俯视/正视预
 
 FR100: Worker validate/recover/export-summary、MCP tools/resources/prompts 和 Codex skill 必须复用同一套 `scene-core` stacking helpers；导出摘要可以包含 derived stacking relation，但不得把它写回 SceneDocument 或短字符串。
 
+FR101: 新建默认场景必须使用 `sceneSize: { width: 15, height: 15 }`、`outerPadding: 1`，并派生 `canvasSize: { width: 17, height: 17 }`。
+
+FR102: `scene-core` 必须从 scene dimensions 派生 coordinate range、areaType、main boundary、canvas cells、footprint bounds、occupancy、stacking relation 和 export summary，不得由各端复制尺寸逻辑。
+
+FR103: `SceneDocument v1` JSON shape 保持不变；schema 必须校验 `canvasSize = sceneSize + outerPadding * 2`，并同时支持旧 7x7 payload 和新 17x17 default scene。
+
+FR104: 旧 7x7 SceneDocument v1 JSON 恢复时必须按其保存尺寸展示和校验；系统不得静默把旧坐标、`areaType` 或 `canvasSize` 改写成 17x17。
+
+FR105: Legacy PSE1 短字符串继续按 7x7 解码；新尺寸短字符串必须编码 dimensions 或使用新的 codec revision，避免 17x17 场景被旧 codec 解释为 7x7。
+
+FR106: Web 编辑画布、选中检查器、预览、图片导出、i18n 文案和 aria labels 必须使用 scene dimensions，不得把 7x7 写死到新默认路径。
+
+FR107: Worker API、MCP tools/resources/prompts 和 Codex skill 必须报告、保留并校验 scene dimensions，且在 legacy 7x7 与 default 17x17 场景之间保持 parity。
+
+FR108: 16x16 不是本次目标；本次尺寸模型明确为 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17`。
+
 ### NonFunctional Requirements
 
-NFR1: 在桌面浏览器 1280×720 视口、1,000 个素材以内、10 个建筑层以内的测试场景中，7×7 画布上的选中格子、放置素材、删除素材、切换技能标记和切换当前建筑层操作应在 100ms 内完成可见状态更新，使用浏览器性能标记或等效自动化计时测量。
+NFR1: 在桌面浏览器 1280×720 视口、1,000 个素材以内、10 个建筑层以内的测试场景中，默认 17×17 画布上的选中格子、放置素材、删除素材、切换技能标记和切换当前建筑层操作应在 150ms 内完成可见状态更新，使用浏览器性能标记或等效自动化计时测量。
 
-NFR2: 在 7×7 画布、10 个建筑层、每层 49 个素材实例以内的测试场景中，俯视图和基础正视图切换应在 300ms 内完成首个可见预览更新；测试场景必须包含至少一个 2x1、1x2 和 height > 1 的 footprint 素材。
+NFR2: 在 17×17 画布、10 个建筑层、每层最多 289 个素材实例以内的测试场景中，俯视图和基础正视图切换应在 500ms 内完成首个可见预览更新；测试场景必须包含至少一个 2x1、1x2、height > 1 的 footprint 素材和一个 stacking relation。
 
 NFR3: 素材搜索和筛选在 1,000 个素材以内时应在 200ms 内返回可见结果，测量范围从用户输入或筛选变更到结果列表完成首屏更新。
 
@@ -254,7 +275,7 @@ NFR6: 保存和序列化数据必须通过往返恢复测试完整还原场景�
 
 NFR7: 保存、序列化、恢复或重新打开后的建筑层数量、素材实例数量和技能标记数量必须与原场景一致；若不一致，系统必须阻止静默成功并显示错误。
 
-NFR8: 恢复数据时，如果关键字段缺失、类型错误或坐标超出 7×7 范围，系统必须给出错误提示，提示至少包含字段路径、期望类型或范围、实际问题和修复方向。
+NFR8: 恢复数据时，如果关键字段缺失、类型错误或坐标超出当前 `canvasSize` 范围，系统必须给出错误提示，提示至少包含字段路径、期望类型或范围、实际问题和修复方向。
 
 NFR9: 每次放置、删除、移动、替换素材、切换建筑层、修改技能标记、修改染色或更新备注后，画布、上下文/属性字段、建筑层列表、预览和序列化结果必须从同一场景数据源派生；自动化一致性测试应验证五个视图读取的同一素材实例字段完全一致。
 
@@ -280,7 +301,7 @@ NFR19: 在 Chrome、Edge、Safari 和 Firefox 的最新两个稳定大版本中�
 
 NFR20: MVP 应支持发布时 Chrome、Edge、Safari 和 Firefox 的最新两个稳定大版本；发布验收必须在这些浏览器中完成核心创建、编辑、预览、保存/自动保存和重新打开流程。
 
-NFR21: 在 1280px 及以上桌面宽度下，右侧浮动素材栏、中央 7×7 画布、左侧建筑层面板、左下双预览检查器和顶部场景控制必须同时可见或可通过一次点击切换显示，页面不得出现横向滚动条。
+NFR21: 在 1280px 及以上桌面宽度下，右侧浮动素材栏、中央尺寸驱动画布、左侧建筑层面板、左下双预览检查器和顶部场景控制必须同时可见或可通过一次点击切换显示；默认 17×17 画布可采用内部滚动或缩放，但页面不得出现横向滚动条。
 
 NFR22: 在 768px 以下宽度下，页面进入 Mobile View-only Mode；390×844 视口下不得出现控件重叠，且当前 Pokemon、场景名、当前建筑层、选中素材、选中格子、主体区边界和技能标记状态必须在当前查看或预览区域中可访问。
 
@@ -296,7 +317,7 @@ NFR27: 动态 Pokemon 主题只能影响外层 shell 和少量强调色；主体
 
 NFR28: Open Design 工作台不得使用 landing page、hero-scale 字号、卡片套卡片或装饰性背景来承载核心编辑体验；面板、按钮、格子、预览单元和计数区域必须有稳定尺寸。
 
-NFR29: 图片导出预览和图片生成在 7×7 画布、10 个建筑层、每层 49 个素材实例以内的测试场景中，应在用户感知上可接受；若生成超过 1 秒，应显示非阻塞进度或生成状态。
+NFR29: 图片导出预览和图片生成必须支持当前 SceneDocument 的画布尺寸；默认 17×17 场景按 NFR51 执行，legacy 7×7 场景仍保持现有可读导出。
 
 NFR30: 导出图片中的标题、整体素材清单、每层图形和每层素材清单必须在默认导出尺寸下可读；下载按钮、关闭操作和失败提示必须有可访问名称。
 
@@ -328,6 +349,16 @@ NFR46: `scene-core`、web UI、Worker API、MCP tools 和 Codex skill 示例必�
 
 NFR47: Stacking 校验错误必须包含字段路径、冲突类型、top instance/asset、base instance/asset、building level、坐标集合和用户可执行修复方向；Worker/MCP/Codex skill 输出不得只给出 generic validation failed。
 
+NFR48: Scene dimensions、coordinate bounds、main/outer area、footprint bounds、height blocking 和 stacking relation 必须由同一套 `scene-core` dimension helpers 派生；任何端不得继续写死 7x7 或 max coordinate 6。
+
+NFR49: 旧 7x7 JSON payload 与 legacy PSE1 短字符串必须有 roundtrip/contract tests；新 17x17 default scene 必须有 scene-core、web、Worker/MCP 和 export summary parity tests。
+
+NFR50: 17x17 画布在 1280px+ 桌面布局中不得让素材栏、建筑层面板、检查器或导出预览互相遮挡；允许使用缩放、滚动或稳定压缩，但不能破坏格子固定宽高比和坐标可读性。
+
+NFR51: 图片导出预览和图片生成在 17×17 画布、10 个建筑层、每层最多 289 个素材实例以内的测试场景中，应在用户感知上可接受；若生成超过 1 秒，应显示非阻塞进度或生成状态。
+
+NFR52: 新尺寸短字符串必须避免与 legacy PSE1 7x7 字符串歧义；解码错误必须说明 codec/version 或 dimensions 问题，并给出重新导出或使用完整 JSON 的修复方向。
+
 ### Additional Requirements
 
 - 已完成 MVP 保持客户端优先静态 Web App；Epic 7 批准新增无状态 Worker/API/MCP 服务层，但不得引入数据库、认证、云同步、分享链接、在线发布或后端管理控制台。
@@ -335,6 +366,8 @@ NFR47: Stacking 校验错误必须包含字段路径、冲突类型、top instan
 - Epic 8 批准新增真实素材 footprint 与 occupancy rules；当前 `SceneDocument v1` 继续作为保存、恢复、短字符串和 Worker/MCP 输入契约。Footprint 属于 asset catalog 元数据，阻塞格和占用格由 `scene-core` 派生，不得作为独立 scene payload 字段保存。
 
 - Epic 11 批准新增承载面与受控叠放规则；当前 `SceneDocument v1` 继续作为保存、恢复、短字符串和 Worker/MCP 输入契约。Stacking surface metadata 属于 asset catalog，承载/被承载关系由 `scene-core` 派生，不得作为独立 scene payload 字段保存。
+
+- Epic 12 批准新增默认 15x15 scene size 与 17x17 实际编辑画布；当前 `SceneDocument v1` JSON shape 继续作为保存、恢复、Worker/MCP 输入契约。Scene dimensions 是现有字段的显式业务事实，所有坐标、区域、footprint、stacking、预览和导出必须从 dimension helpers 派生；legacy 7x7 数据按自身尺寸恢复。
 
 - Starter template 使用 Vite + React + TypeScript (`react-ts`)。第一条实施 story 应初始化该 starter，并建立 `typecheck`、build、Vitest 和 Playwright scaffold。
 
@@ -392,11 +425,11 @@ NFR47: Stacking 校验错误必须包含字段路径、冲突类型、top instan
 
 ### UX Design Requirements
 
-UX-DR1: 使用 Open Design UI「Pokopia Scene Editor Workbench」作为默认设计方向：顶部左侧 Pokemon/场景 `Name`/保存状态，右侧浮动 Asset Picker，中央固定 7×7 编辑画布，左侧 Building Level Panel，左下 Preview Inspector 同时展示正视图和俯视图。
+UX-DR1: 使用 Open Design UI「Pokopia Scene Editor Workbench」作为默认设计方向：顶部左侧 Pokemon/场景 `Name`/保存状态，右侧浮动 Asset Picker，中央尺寸驱动编辑画布，左侧 Building Level Panel，左下 Preview Inspector 同时展示正视图和俯视图。新建场景默认 17×17，legacy 7×7 按自身尺寸恢复。
 
 UX-DR2: 第一屏必须是可用编辑工作台，不做 landing page、营销页 hero、装饰性卡片说明或说明性页面跳转。
 
-UX-DR3: 中心 7×7 画布必须是主视觉焦点，并持续区分中心 5×5 主体区与外围 1 圈装饰区。
+UX-DR3: 中央尺寸驱动画布必须是主视觉焦点，并持续区分主体区与外围 1 圈装饰区；新建场景默认中心 15×15 主体区与 17×17 实际编辑范围。
 
 UX-DR4: 右侧浮动素材栏必须提供搜索、固定宽度结果计数、分类筛选、喜好素材筛选、区域筛选、技能筛选、当前素材、素材行、缩略图、名称、分类、标签、官方 `No.` ID 和默认技能状态。
 
@@ -412,7 +445,7 @@ UX-DR9: 建筑层必须作为一等上下文显示，左侧 Building Level Panel
 
 UX-DR10: 切换建筑层时不得让用户误以为其他层同坐标内容被覆盖或丢失；隐藏层应保留数据但不参与显示。
 
-UX-DR11: Scene Canvas 组件必须表达 7×7 网格、主体边界、外围背景、格子坐标、放置预览、选中格、技能角标、染色入口、非默认旋转标记、锁定层视觉、不可放置和将覆盖状态。
+UX-DR11: Scene Canvas 组件必须表达当前 scene dimensions 对应的网格、主体边界、外围背景、格子坐标、放置预览、选中格、技能角标、染色入口、非默认旋转标记、锁定层视觉、不可放置和将覆盖状态。
 
 UX-DR12: 选中上下文、检查器字段或后续属性抽屉必须按“实例身份 -> 位置 -> 建筑层 -> 朝向 -> 染色 -> 技能 -> 备注”的顺序展示和编辑字段，并区分只读字段、可编辑字段、字段错误和锁定层只读状态。
 
@@ -442,9 +475,9 @@ UX-DR24: 危险操作如删除非空建筑层、删除当前选择、覆盖已�
 
 UX-DR25: 素材搜索无结果或筛选无结果时必须显示空状态和恢复动作，例如清除筛选、显示全部或切换分类。
 
-UX-DR26: 空场景必须仍展示 7×7 画布、默认建筑层和清楚的下一步；未选中实例时，上下文/检查器字段应显示可执行提示，而不是空白。
+UX-DR26: 空场景必须仍展示当前尺寸画布、默认建筑层和清楚的下一步；新建空场景默认展示 17×17 画布。未选中实例时，上下文/检查器字段应显示可执行提示，而不是空白。
 
-UX-DR27: `<1280px` 响应式布局必须保持当前 Pokemon、场景名、当前素材、选中格、当前建筑层、主体区边界和技能状态可访问；`1280px+` 必须支持完整浮动工作台且无横向滚动。
+UX-DR27: `<1280px` 响应式布局必须保持当前 Pokemon、场景名、当前素材、选中格、当前建筑层、主体区边界和技能状态可访问；`1280px+` 必须支持完整浮动工作台且无横向滚动。默认 17×17 画布允许画布内部滚动、缩放或稳定压缩。
 
 UX-DR28: `1024-1279px` 左侧建筑层保持可见，右侧素材栏可收窄；`768-1023px` 面板可压缩为 tabbed drawers 但仍允许编辑；`<768px` 必须进入 Mobile View-only Mode，并明确显示“只读模式/桌面端编辑”状态。
 
@@ -654,6 +687,22 @@ FR99: Epic 11 - Web UI、预览和图片导出表达承载/被承载/可叠放/�
 
 FR100: Epic 11 - Worker/MCP/Codex skill 复用 `scene-core` stacking helpers，导出摘要只返回 derived relation。
 
+FR101: Epic 12 - 新建默认场景使用 `sceneSize=15x15`、`outerPadding=1` 并派生 `canvasSize=17x17`。
+
+FR102: Epic 12 - `scene-core` dimension helpers 统一派生坐标范围、区域、边界、占用、叠放和导出摘要。
+
+FR103: Epic 12 - `SceneDocument v1` JSON shape 保持不变，并校验 `canvasSize = sceneSize + outerPadding * 2`。
+
+FR104: Epic 12 - Legacy 7x7 SceneDocument v1 JSON 按自身保存尺寸恢复，不静默改写。
+
+FR105: Epic 12 - Legacy PSE1 短字符串继续按 7x7 解码，新尺寸短字符串必须编码 dimensions 或使用新 revision。
+
+FR106: Epic 12 - Web 画布、检查器、预览、导出、i18n 和 aria labels 全部使用 scene dimensions。
+
+FR107: Epic 12 - Worker/MCP/Codex skill 报告、保留并校验 legacy 7x7 与 default 17x17 dimensions。
+
+FR108: Epic 12 - 明确排除 16x16；目标是 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17`。
+
 ## Epic List
 
 ### Epic 1: 规则可见的 7×7 布景工作台
@@ -727,6 +776,14 @@ FR100: Epic 11 - Worker/MCP/Codex skill 复用 `scene-core` stacking helpers，�
 **FRs covered:** FR93, FR94, FR95, FR96, FR97, FR98, FR99, FR100, NFR44, NFR45, NFR46, NFR47.
 
 **Implementation notes:** 该 epic 承接 Epic 8 的 footprint/occupancy helpers。承载/叠放能力只存在于 asset catalog stacking metadata 和 `scene-core` derived relation 中；`SceneDocument v1`、autosave、短字符串和 Worker/MCP 输入输出不得保存 stacking relation、surface id、z-index、parent instance id 或 catalog snapshot。
+
+### Epic 12: 15x15 Scene Size 与 17x17 编辑画布兼容迁移
+
+用户可以在新建场景中使用 15x15 主体区与 17x17 实际编辑画布，同时继续打开、校验和导出旧 7x7 场景；Web、Worker、MCP 和 Codex skill 必须从同一套 `scene-core` dimension helpers 派生坐标、区域、footprint、stacking、预览和导出语义。
+
+**FRs covered:** FR101, FR102, FR103, FR104, FR105, FR106, FR107, FR108, NFR48, NFR49, NFR50, NFR51, NFR52.
+
+**Implementation notes:** 该 epic 承接 Epic 7 的 monorepo/Worker/MCP 分层、Epic 8 的 footprint/occupancy helpers 和 Epic 11 的 stacking helpers。`SceneDocument v1` JSON shape 继续保持，尺寸由现有字段表达；短字符串可以升级 codec revision 或显式编码 dimensions，但不得让 17x17 场景被 legacy PSE1 当成 7x7。16x16 明确不属于本 epic。
 
 ## Epic 1: 规则可见的 7×7 布景工作台
 
@@ -2498,3 +2555,126 @@ So that 承载/叠放关系不会在浏览器和 agent 工具之间漂移。
 **When** dev agent 完成 Epic 11
 **Then** `pnpm run release:verify` 必须通过
 **And** 覆盖 catalog stacking metadata、scene-core compatibility helpers、web placement/canvas/inspector、preview/export、Worker routes、MCP smoke、short string codec 和 skill examples。
+
+## Epic 12: 15x15 Scene Size 与 17x17 编辑画布兼容迁移
+
+用户可以在新建场景中使用 15x15 主体区与 17x17 实际编辑画布，同时继续打开、校验和导出旧 7x7 场景。Web、Worker、MCP 和 Codex skill 必须从同一套 `scene-core` dimension helpers 派生坐标、区域、footprint、stacking、预览和导出语义，并继续保持 `SceneDocument v1` JSON shape。
+
+### Story 12.1: Scene-core dimension contract 与 legacy recovery
+
+**Requirements covered:** FR101, FR102, FR103, FR104, FR105, FR108, NFR48, NFR49, NFR52.
+
+As a 维护者,
+I want `scene-core` 把 scene dimensions 变成唯一尺寸事实来源,
+So that 新建 17x17 场景和 legacy 7x7 数据都能被同一套 schema、area、occupancy 和 codec 规则正确处理。
+
+**Acceptance Criteria:**
+
+**Given** 用户创建默认新场景
+**When** `createDefaultSceneDocument` 或等效 factory 执行
+**Then** SceneDocument 必须包含 `sceneSize: { width: 15, height: 15 }`、`outerPadding: 1` 和 `canvasSize: { width: 17, height: 17 }`
+**And** 默认 coordinate range 为 `0..16`，主体区为 `1..15`。
+
+**Given** schema 校验 SceneDocument v1
+**When** payload 包含 scene dimensions
+**Then** schema 必须校验 `canvasSize = sceneSize + outerPadding * 2`
+**And** coordinate bounds、areaType 比对、footprint bounds、height blocking 和 stacking relation 都必须从 dimension helpers 派生，不得使用 hardcoded 7x7 或 max coordinate 6。
+
+**Given** legacy 7x7 SceneDocument v1 JSON
+**When** recover/validate 执行
+**Then** 系统必须按其保存的 7x7 尺寸恢复和校验
+**And** 不得静默改写坐标、`areaType`、`sceneSize`、`canvasSize` 或 `outerPadding`。
+
+**Given** legacy PSE1 短字符串
+**When** decode/recover 执行
+**Then** 结果必须继续按 7x7 legacy dimensions 解码
+**And** 新 17x17 场景的短字符串必须编码 dimensions 或使用新的 codec revision，不能与 PSE1 产生歧义。
+
+### Story 12.2: Web canvas、preview 与 export 的 17x17 渲染
+
+**Requirements covered:** FR101, FR102, FR106, NFR49, NFR50, NFR51.
+
+As a 布景创作者,
+I want 新建场景在 Web 工作台中显示完整 17x17 编辑画布,
+So that 我可以编辑中心 15x15 主体区和外围一圈装饰区，而不丢失现有素材、预览、导出和移动端只读体验。
+
+**Acceptance Criteria:**
+
+**Given** 用户打开默认新场景
+**When** Web 工作台渲染 Scene Canvas
+**Then** 画布必须显示 17x17 共 289 个格子
+**And** 中心 15x15 主体区、外围 1 圈装饰区、坐标标签、选中格和 areaType 文案必须来自 scene dimensions。
+
+**Given** 用户在默认 17x17 场景中放置、替换或删除素材
+**When** 画布、选中检查器、俯视图、正视图和图片导出预览更新
+**Then** 所有视图必须使用同一 scene state 和 dimension helpers
+**And** 不得出现 hardcoded 7x7、49 cells、max coordinate 6 或旧布局假设。
+
+**Given** 桌面视口为 1280px+ 或 1440x900
+**When** 默认 17x17 场景显示在 Open Design 工作台
+**Then** 素材栏、建筑层面板、检查器、顶部控制和导出预览不得互相遮挡
+**And** 允许画布内部滚动、缩放或稳定压缩，但格子固定宽高比和坐标可读性必须保留。
+
+**Given** `<768px` Mobile View-only Mode
+**When** 用户查看 17x17 场景
+**Then** 用户可以查看、缩放、平移和点选查看信息
+**And** 仍不得通过触摸、键盘或隐藏入口修改 SceneDocument。
+
+### Story 12.3: Short string、Worker、MCP 与 Codex skill dimension parity
+
+**Requirements covered:** FR103, FR104, FR105, FR107, FR108, NFR49, NFR52.
+
+As a agent 工具使用者,
+I want Worker、MCP 和 Codex skill 明确保留并报告 scene dimensions,
+So that 7x7 legacy 数据和 17x17 默认场景不会在浏览器、API 和 agent 工具之间发生尺寸漂移。
+
+**Acceptance Criteria:**
+
+**Given** Worker `/api/scene/validate`、`recover`、`export-summary`、`encode` 或 `decode` 收到 scene
+**When** scene 是 legacy 7x7 或 default 17x17
+**Then** 响应必须保留并报告 `sceneSize`、`canvasSize` 和 `outerPadding`
+**And** errors/warnings 必须使用当前 dimensions 解释坐标和 bounds。
+
+**Given** MCP tools/resources/prompts 处理 scene
+**When** 输入包含 legacy 7x7 或 default 17x17 scene
+**Then** structuredContent 和摘要必须包含尺寸信息
+**And** MCP 不得复制 Web-only 或 Worker-only 的 7x7 常量。
+
+**Given** Codex repo-scoped skill 校验、恢复、摘要或搜索素材
+**When** skill 调用 MCP/Worker
+**Then** skill 文档和示例必须说明默认 17x17 与 legacy 7x7 的区别
+**And** 不得在 skill 内复制 schema、dimension helpers、codec 或 asset catalog 逻辑。
+
+**Given** 用户尝试把新 17x17 场景编码成短字符串
+**When** codec 输出字符串
+**Then** 字符串必须包含 dimensions 或使用新的 revision
+**And** legacy PSE1 decoder 不应把它误解释为 7x7 成功场景。
+
+### Story 12.4: Performance、responsive、docs 与 release gates
+
+**Requirements covered:** FR106, FR107, NFR48, NFR49, NFR50, NFR51, NFR52.
+
+As a 发布维护者,
+I want 17x17 尺寸扩展经过性能、响应式、文档和 release gate 验证,
+So that 新默认尺寸不会破坏现有发布质量或 legacy 7x7 兼容性。
+
+**Acceptance Criteria:**
+
+**Given** dev agent 完成 Epic 12 实现
+**When** `pnpm run release:verify` 运行
+**Then** 必须通过 scene-core/web typecheck、unit tests、build、Playwright smoke、Worker runtime tests、MCP smoke 和 short string codec tests
+**And** 覆盖 legacy 7x7 JSON、legacy PSE1 string、default 17x17 scene、export summary parity 和 image export preview。
+
+**Given** 17x17 场景包含 10 个建筑层且每层最多 289 个素材实例
+**When** 用户执行常见编辑、预览切换和图片导出
+**Then** 编辑反馈、预览首帧和导出体验必须满足 NFR1、NFR2、NFR51
+**And** 超过 1 秒的图片生成必须显示非阻塞进度或生成状态。
+
+**Given** 响应式验证运行
+**When** 检查 1440x900、1280x720、1024x768、768x1024 和 390x844
+**Then** legacy 7x7 与 default 17x17 场景都不得出现不可理解的文本截断、控件遮挡、页面级横向滚动或移动端编辑入口。
+
+**Given** 文档和示例更新
+**When** 维护者阅读 README、skill examples、manual QA checklist 或 planning handoff
+**Then** 下一步必须明确指向 `12-1-scene-core-dimension-contract-and-legacy-recovery`
+**And** 文案必须说明本次目标是 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17`，不是 16x16。

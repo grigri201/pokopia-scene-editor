@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultSceneDocument, createTileInstance } from '@pokopia-scene-editor/scene-core';
+import { createDefaultSceneDocument, createTileInstance, legacySceneDimensions } from '@pokopia-scene-editor/scene-core';
 import {
   moveCoordinate,
   saveScene,
@@ -92,14 +92,15 @@ describe('scene reducer selection rules', () => {
       now: '2026-05-16T07:00:00.000Z',
     });
 
-    expect(() => selectCoordinate(scene, { x: 7, y: 0 }, 'edit')).toThrow(RangeError);
-    expect(selectCoordinate(scene, { x: 7, y: 0 }, 'readOnly')).toBe(scene);
+    expect(() => selectCoordinate(scene, { x: 17, y: 0 }, 'edit')).toThrow(RangeError);
+    expect(selectCoordinate(scene, { x: 17, y: 0 }, 'readOnly')).toBe(scene);
   });
 
   it('moves a keyboard coordinate within canvas bounds', () => {
     expect(moveCoordinate({ x: 3, y: 3 }, 'right')).toEqual({ x: 4, y: 3 });
     expect(moveCoordinate({ x: 0, y: 0 }, 'left')).toEqual({ x: 0, y: 0 });
-    expect(moveCoordinate({ x: 6, y: 6 }, 'down')).toEqual({ x: 6, y: 6 });
+    expect(moveCoordinate({ x: 16, y: 16 }, 'down')).toEqual({ x: 16, y: 16 });
+    expect(moveCoordinate({ x: 6, y: 6 }, 'down', legacySceneDimensions.canvasSize)).toEqual({ x: 6, y: 6 });
   });
 
   it('updates scene controls and saved metadata through guarded commands', () => {

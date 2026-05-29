@@ -203,19 +203,112 @@ describe('SceneDocument v1 schema', () => {
     );
   });
 
-  it('rejects coordinates outside the v1 canvas bounds', () => {
+  it('allows coordinates inside the current 17x17 v1 canvas bounds', () => {
+    const payload = createValidPayload();
+    const input = {
+      ...payload,
+      tileInstances: [
+        {
+          ...payload.tileInstances[0],
+          coordinate: { x: 16, y: 16 },
+          areaType: 'outer',
+        },
+      ],
+    };
+
+    expect(validateSceneDocument(input)).toEqual([]);
+  });
+
+  it('rejects coordinates outside the current v1 canvas bounds', () => {
     const input = {
       ...createValidPayload(),
       tileInstances: [
         {
           ...createValidPayload().tileInstances[0],
-          coordinate: { x: 7, y: 0 },
+          coordinate: { x: 17, y: 0 },
         },
       ],
     };
 
     expect(validateSceneDocument(input)).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'tileInstances[0].coordinate.x',
+          recoveryAction: 'Keep coordinates inside the SceneDocument v1 canvas bounds.',
+        }),
+      ]),
+    );
+  });
+
+  it('recovers legacy 7x7 SceneDocument v1 dimensions without rewriting them', () => {
+    const payload = createLegacy7x7Payload();
+
+    const result = parseSceneDocument(payload);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected legacy 7x7 payload to parse.');
+    }
+    expect(result.scene.sceneSize).toEqual({ width: 5, height: 5 });
+    expect(result.scene.canvasSize).toEqual({ width: 7, height: 7 });
+    expect(result.scene.outerPadding).toBe(1);
+    expect(result.scene.tileInstances[0]).toMatchObject({
+      coordinate: { x: 6, y: 6 },
+      areaType: 'outer',
+    });
+  });
+
+  it('rejects inconsistent scene and canvas dimensions', () => {
+    const payload = createValidPayload();
+
+    expect(validateSceneDocument({
+      ...payload,
+      canvasSize: { width: 16, height: 17 },
+    })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: '$',
+          reason: 'Canvas size must equal scene size plus outer padding on each side.',
+        }),
+      ]),
+    );
+  });
+
+  it('rejects internally consistent but unsupported scene dimensions', () => {
+    const payload = createValidPayload();
+
+    expect(validateSceneDocument({
+      ...payload,
+      sceneSize: { width: 14, height: 14 },
+      canvasSize: { width: 16, height: 16 },
+    })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: '$',
+          reason: 'Scene dimensions must be legacy 5x5/7x7 or default 15x15/17x17.',
+        }),
+      ]),
+    );
+  });
+
+  it('reports dimension-derived coordinate errors when base payload fields are also invalid', () => {
+    const payload = createValidPayload();
+    const errors = validateSceneDocument({
+      ...payload,
+      selectedPokemonKey: 'missingno',
+      tileInstances: [
+        {
+          ...payload.tileInstances[0],
+          coordinate: { x: 17, y: 0 },
+        },
+      ],
+    });
+
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'selectedPokemonKey',
+        }),
         expect.objectContaining({
           fieldPath: 'tileInstances[0].coordinate.x',
           recoveryAction: 'Keep coordinates inside the SceneDocument v1 canvas bounds.',
@@ -304,7 +397,7 @@ describe('SceneDocument v1 schema', () => {
         createTileInstance({
           instanceId: 'tile-wide',
           assetId: 'wooden-bench',
-          coordinate: { x: 2, y: 6 },
+          coordinate: { x: 2, y: 16 },
           buildingLevelId: 'level-0',
         }),
       ],
@@ -354,7 +447,7 @@ describe('SceneDocument v1 schema', () => {
           instanceId: 'tile-wide',
           assetId: 'wooden-bench',
           buildingLevelId: 'level-0',
-          coordinates: [{ x: 2, y: 7 }],
+          coordinates: [{ x: 2, y: 17 }],
         }),
       ]),
     );
@@ -599,7 +692,7 @@ describe('SceneDocument v1 schema', () => {
 function createValidPayload(): SceneDocumentV1 {
   const scene = createDefaultSceneDocument({
     sceneId: 'scene-v1',
-    sceneName: 'Ditto 5x5 contract',
+    sceneName: 'Ditto 15x15 contract',
     now: '2026-05-16T06:20:00.000Z',
   });
 
@@ -622,6 +715,28 @@ function createValidPayload(): SceneDocumentV1 {
       selectedCoordinate: { x: 2, y: 2 },
     },
   });
+}
+
+function createLegacy7x7Payload(): SceneDocumentV1 {
+  return {
+    ...createValidPayload(),
+    sceneId: 'scene-legacy-7x7',
+    sceneName: 'Legacy 5x5 contract',
+    sceneSize: { width: 5, height: 5 },
+    canvasSize: { width: 7, height: 7 },
+    outerPadding: 1,
+    tileInstances: [
+      {
+        ...createValidPayload().tileInstances[0],
+        coordinate: { x: 6, y: 6 },
+        areaType: 'outer',
+      },
+    ],
+    workspaceState: {
+      ...createValidPayload().workspaceState,
+      selectedCoordinate: { x: 6, y: 6 },
+    },
+  };
 }
 
 function removeField<T extends Record<string, unknown>, K extends keyof T>(

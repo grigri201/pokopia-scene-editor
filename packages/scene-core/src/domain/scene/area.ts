@@ -1,4 +1,4 @@
-export const sceneSize = 5;
+export const sceneSize = 15;
 export const outerPadding = 1;
 export const canvasSize = sceneSize + outerPadding * 2;
 
@@ -25,9 +25,27 @@ export interface SceneDimensions {
   outerPadding: number;
 }
 
+export type SceneDimensionsClassification = 'default-17x17' | 'legacy-7x7' | 'unsupported';
+
+export interface SceneDimensionsSource {
+  sceneSize: GridSize;
+  canvasSize: GridSize;
+  outerPadding: number;
+}
+
+export interface SceneDimensionsSummary extends SceneDimensions {
+  classification: SceneDimensionsClassification;
+}
+
 export const defaultSceneDimensions: SceneDimensions = {
   sceneSize: { width: sceneSize, height: sceneSize },
   canvasSize: { width: canvasSize, height: canvasSize },
+  outerPadding,
+};
+
+export const legacySceneDimensions: SceneDimensions = {
+  sceneSize: { width: 5, height: 5 },
+  canvasSize: { width: 7, height: 7 },
   outerPadding,
 };
 
@@ -57,11 +75,58 @@ export function assertSceneDimensions(dimensions: SceneDimensions): void {
   }
 }
 
+export function isSupportedSceneDimensions(dimensions: SceneDimensions): boolean {
+  return (
+    dimensionsEqual(dimensions, defaultSceneDimensions) ||
+    dimensionsEqual(dimensions, legacySceneDimensions)
+  );
+}
+
+export function getSceneDimensions(source: SceneDimensionsSource): SceneDimensions {
+  return {
+    sceneSize: { ...source.sceneSize },
+    canvasSize: { ...source.canvasSize },
+    outerPadding: source.outerPadding,
+  };
+}
+
+export function classifySceneDimensions(source: SceneDimensionsSource): SceneDimensionsClassification {
+  const dimensions = getSceneDimensions(source);
+  assertSceneDimensions(dimensions);
+
+  if (dimensionsEqual(dimensions, defaultSceneDimensions)) {
+    return 'default-17x17';
+  }
+
+  if (dimensionsEqual(dimensions, legacySceneDimensions)) {
+    return 'legacy-7x7';
+  }
+
+  return 'unsupported';
+}
+
+export function summarizeSceneDimensions(source: SceneDimensionsSource): SceneDimensionsSummary {
+  const dimensions = getSceneDimensions(source);
+
+  return {
+    ...dimensions,
+    classification: classifySceneDimensions(dimensions),
+  };
+}
+
+export function assertSupportedSceneDimensions(dimensions: SceneDimensions): void {
+  assertSceneDimensions(dimensions);
+
+  if (!isSupportedSceneDimensions(dimensions)) {
+    throw new RangeError('Scene dimensions must be legacy 5x5/7x7 or default 15x15/17x17.');
+  }
+}
+
 export function assertCanvasCoordinate(
   { x, y }: GridCoordinate,
   dimensions: SceneDimensions = defaultSceneDimensions,
 ): void {
-  assertSceneDimensions(dimensions);
+  assertSupportedSceneDimensions(dimensions);
 
   if (!Number.isInteger(x) || !Number.isInteger(y)) {
     throw new RangeError('Canvas coordinates must be integers.');
@@ -116,7 +181,7 @@ export function isMainAreaBoundaryCell(
 }
 
 export function createCanvasCells(dimensions: SceneDimensions = defaultSceneDimensions): CanvasCell[] {
-  assertSceneDimensions(dimensions);
+  assertSupportedSceneDimensions(dimensions);
 
   return Array.from(
     { length: dimensions.canvasSize.width * dimensions.canvasSize.height },
@@ -131,6 +196,16 @@ export function createCanvasCells(dimensions: SceneDimensions = defaultSceneDime
         areaType: calculateAreaType({ x, y }, dimensions),
       };
     },
+  );
+}
+
+function dimensionsEqual(left: SceneDimensions, right: SceneDimensions): boolean {
+  return (
+    left.sceneSize.width === right.sceneSize.width &&
+    left.sceneSize.height === right.sceneSize.height &&
+    left.canvasSize.width === right.canvasSize.width &&
+    left.canvasSize.height === right.canvasSize.height &&
+    left.outerPadding === right.outerPadding
   );
 }
 

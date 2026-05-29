@@ -46,7 +46,7 @@ describe('PreviewInspector', () => {
     window.localStorage.clear();
   });
 
-  it('renders the compact dual 7x7 preview inspector', () => {
+  it('renders the compact dual preview inspector from scene dimensions', () => {
     const { container } = render(
       <PreviewInspector
         scene={scene}
@@ -62,8 +62,11 @@ describe('PreviewInspector', () => {
     expect(container.querySelector('.floating-preview-head')).toBeNull();
     expect(screen.getByLabelText('正视图预览')).toBeVisible();
     expect(screen.getByLabelText('俯视图预览')).toBeVisible();
-    expect(container.querySelectorAll('.front-cell')).toHaveLength(21);
-    expect(container.querySelectorAll('.top-cell')).toHaveLength(49);
+    expect(screen.getByLabelText('正视图预览')).toHaveAttribute('data-preview-columns', '17');
+    expect(screen.getByLabelText('俯视图预览')).toHaveAttribute('data-preview-columns', '17');
+    expect(screen.getByLabelText('俯视图预览')).toHaveAttribute('data-preview-rows', '17');
+    expect(container.querySelectorAll('.front-cell')).toHaveLength(51);
+    expect(container.querySelectorAll('.top-cell')).toHaveLength(289);
     expect(container.querySelectorAll('[data-preview-coordinate="2,3"]')).toHaveLength(1);
     expect(container.querySelector('.top-cell[data-preview-coordinate="2,3"]')).toHaveAttribute(
       'data-preview-asset-id',
@@ -393,7 +396,7 @@ describe('PreviewInspector', () => {
     expect(frontScrollShell).toHaveAttribute('data-front-scroll-can-down', 'true');
     expect(container.querySelector('.preview-scroll-cue--up')).toBeInTheDocument();
     expect(container.querySelector('.preview-scroll-cue--down')).toBeInTheDocument();
-    expect(container.querySelectorAll('.front-cell')).toHaveLength(63);
+    expect(container.querySelectorAll('.front-cell')).toHaveLength(153);
     expect(container.querySelector('.front-cell[data-front-level-display-id="L9"]')).toBeInTheDocument();
     expect(container.querySelector('.front-cell[data-front-level-display-id="L1"]')).toBeInTheDocument();
   });

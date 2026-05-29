@@ -69,11 +69,12 @@ describe('worker HTTP API', () => {
       selectedPokemonKey: 'pikachu',
       schemaVersion: 1,
     });
+    expect(generatedBody.data.dimensions).toEqual(defaultDimensionsSummary);
 
     const validation = await post('/api/v1/scene/validate', { scene: generatedBody.data.scene });
     const validationBody = await readJson(validation);
 
-    expect(validationBody.data).toEqual({ valid: true, errors: [] });
+    expect(validationBody.data).toEqual({ valid: true, dimensions: defaultDimensionsSummary, errors: [] });
   });
 
   it('recovers, summarizes, encodes, and decodes scene payloads', async () => {
@@ -83,18 +84,32 @@ describe('worker HTTP API', () => {
     const recoveryBody = await readJson(recovery);
     expect(recovery.status).toBe(200);
     expect(recoveryBody.data.scene.sceneId).toBe(scene.sceneId);
+    expect(recoveryBody.data.dimensions).toEqual(defaultDimensionsSummary);
 
     const summary = await post('/api/scene/export-summary', { scene });
     const summaryBody = await readJson(summary);
     expect(summaryBody.data.summary.sceneId).toBe(scene.sceneId);
+    expect(summaryBody.data.summary.canvasSize).toEqual(defaultDimensionsSummary.canvasSize);
+    expect(summaryBody.data.dimensions).toEqual(defaultDimensionsSummary);
 
     const encoded = await post('/api/scene/encode', { scene });
     const encodedBody = await readJson(encoded);
-    expect(encodedBody.data.sceneString).toMatch(/^PSE1~/);
+    expect(encodedBody.data.sceneString).toMatch(/^PSE2~/);
+    expect(encodedBody.data.codecRevision).toBe('PSE2');
+    expect(encodedBody.data.dimensions).toEqual(defaultDimensionsSummary);
 
     const decoded = await post('/api/scene/decode', { sceneString: encodedBody.data.sceneString });
     const decodedBody = await readJson(decoded);
     expect(decodedBody.data.scene.sceneId).toMatch(/^scene-import-/);
+    expect(decodedBody.data.codecRevision).toBe('PSE2');
+    expect(decodedBody.data.dimensions).toEqual(defaultDimensionsSummary);
+
+    const decodedWithWhitespace = await post('/api/scene/decode', {
+      sceneString: ` \n${encodedBody.data.sceneString}\n `,
+    });
+    const decodedWithWhitespaceBody = await readJson(decodedWithWhitespace);
+    expect(decodedWithWhitespaceBody.data.codecRevision).toBe('PSE2');
+    expect(decodedWithWhitespaceBody.data.dimensions).toEqual(defaultDimensionsSummary);
   });
 
   it('keeps HTTP scene tools aligned with the shared footprint contract fixture', async () => {
@@ -103,16 +118,19 @@ describe('worker HTTP API', () => {
 
     const validation = await post('/api/scene/validate', { scene });
     const validationBody = await readJson(validation);
-    expect(validationBody.data).toEqual({ valid: true, errors: [] });
+    expect(validationBody.data).toEqual({ valid: true, dimensions: legacyDimensionsSummary, errors: [] });
 
     const recovery = await post('/api/scene/recover', { scene });
     const recoveryBody = await readJson(recovery);
     expect(recovery.status).toBe(200);
     expect(recoveryBody.data.scene).toEqual(scene);
+    expect(recoveryBody.data.dimensions).toEqual(legacyDimensionsSummary);
 
     const summary = await post('/api/scene/export-summary', { scene });
     const summaryBody = await readJson(summary);
     expect(summaryBody.data.summary).toEqual(directSummary);
+    expect(summaryBody.data.summary.canvasSize).toEqual(legacyDimensionsSummary.canvasSize);
+    expect(summaryBody.data.dimensions).toEqual(legacyDimensionsSummary);
     expect(findSummaryInstance(summaryBody.data.summary, footprintContractFixtureIds.rotatedRug)).toMatchObject({
       effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedRug],
       occupiedCells: footprintContractExpected.occupiedCells[footprintContractFixtureIds.rotatedRug],
@@ -132,12 +150,16 @@ describe('worker HTTP API', () => {
     const encoded = await post('/api/scene/encode', { scene });
     const encodedBody = await readJson(encoded);
     expect(encodedBody.data.sceneString).toMatch(/^PSE1~/);
+    expect(encodedBody.data.codecRevision).toBe('PSE1');
+    expect(encodedBody.data.dimensions).toEqual(legacyDimensionsSummary);
     expect(encodedBody.data.sceneString).not.toContain('footprint');
     expect(encodedBody.data.sceneString).not.toContain('occupiedCells');
     expect(encodedBody.data.sceneString).not.toContain('blockingCells');
 
     const decoded = await post('/api/scene/decode', { sceneString: encodedBody.data.sceneString });
     const decodedBody = await readJson(decoded);
+    expect(decodedBody.data.codecRevision).toBe('PSE1');
+    expect(decodedBody.data.dimensions).toEqual(legacyDimensionsSummary);
     expect(buildSceneOccupancy(decodedBody.data.scene).instances.find((instance) =>
       instance.assetId === 'wooden-bench' &&
       instance.instance.rotationDegrees === 90 &&
@@ -182,12 +204,13 @@ describe('worker HTTP API', () => {
 
     const validation = await post('/api/scene/validate', { scene });
     const validationBody = await readJson(validation);
-    expect(validationBody.data).toEqual({ valid: true, errors: [] });
+    expect(validationBody.data).toEqual({ valid: true, dimensions: legacyDimensionsSummary, errors: [] });
 
     const recovery = await post('/api/scene/recover', { scene });
     const recoveryBody = await readJson(recovery);
     expect(recovery.status).toBe(200);
     expect(recoveryBody.data.scene).toEqual(scene);
+    expect(recoveryBody.data.dimensions).toEqual(legacyDimensionsSummary);
     expect(JSON.stringify(recoveryBody.data.scene)).not.toContain('stackingRelations');
     expect(JSON.stringify(recoveryBody.data.scene)).not.toContain('surfaceKind');
 
@@ -210,6 +233,8 @@ describe('worker HTTP API', () => {
     const encoded = await post('/api/scene/encode', { scene });
     const encodedBody = await readJson(encoded);
     expect(encodedBody.data.sceneString).toMatch(/^PSE1~/);
+    expect(encodedBody.data.codecRevision).toBe('PSE1');
+    expect(encodedBody.data.dimensions).toEqual(legacyDimensionsSummary);
     expect(encodedBody.data.sceneString).not.toContain('stacking');
     expect(encodedBody.data.sceneString).not.toContain('surfaceKind');
     expect(encodedBody.data.sceneString).not.toContain('parentInstanceId');
@@ -217,6 +242,8 @@ describe('worker HTTP API', () => {
 
     const decoded = await post('/api/scene/decode', { sceneString: encodedBody.data.sceneString });
     const decodedBody = await readJson(decoded);
+    expect(decodedBody.data.codecRevision).toBe('PSE1');
+    expect(decodedBody.data.dimensions).toEqual(legacyDimensionsSummary);
     expect(buildSceneOccupancy(decodedBody.data.scene).stackingRelations).toEqual([
       expect.objectContaining({
         topAssetId: 'leppa-berry',
@@ -324,6 +351,85 @@ describe('worker HTTP API', () => {
       ]),
     );
     expect(JSON.stringify(multiConflictBody.errors)).not.toContain('"actual"');
+  });
+
+  it('reports coordinate bounds with the input scene dimensions', async () => {
+    const defaultScene = createDefaultSceneDocument({ selectedPokemonKey: 'pikachu' });
+    const defaultInvalidScene = {
+      ...defaultScene,
+      workspaceState: {
+        ...defaultScene.workspaceState,
+        selectedCoordinate: { x: 17, y: 0 },
+      },
+    };
+    const defaultOutOfBounds = await post('/api/scene/validate', {
+      scene: defaultInvalidScene,
+    });
+    const defaultBody = await readJson(defaultOutOfBounds);
+
+    expect(defaultBody.data.valid).toBe(false);
+    expect(defaultBody.data.dimensions).toEqual(defaultDimensionsSummary);
+    expect(JSON.stringify(defaultBody.data.errors)).toContain('0..16');
+
+    const legacyScene = createFootprintContractScene();
+    const legacyInvalidScene = {
+      ...legacyScene,
+      workspaceState: {
+        ...legacyScene.workspaceState,
+        selectedCoordinate: { x: 7, y: 0 },
+      },
+    };
+    const legacyOutOfBounds = await post('/api/scene/validate', {
+      scene: legacyInvalidScene,
+    });
+    const legacyBody = await readJson(legacyOutOfBounds);
+
+    expect(legacyBody.data.valid).toBe(false);
+    expect(legacyBody.data.dimensions).toEqual(legacyDimensionsSummary);
+    expect(JSON.stringify(legacyBody.data.errors)).toContain('0..6');
+    expect(JSON.stringify(legacyBody.data.errors)).not.toContain('0..16');
+
+    for (const route of ['/api/scene/recover', '/api/scene/export-summary', '/api/scene/encode']) {
+      const invalidDefault = await post(route, { scene: defaultInvalidScene });
+      const invalidDefaultText = await invalidDefault.text();
+      const invalidDefaultBody = JSON.parse(invalidDefaultText);
+      expect(invalidDefault.status).toBe(422);
+      expect(invalidDefaultBody.data.dimensions).toEqual(defaultDimensionsSummary);
+      expect(JSON.stringify(invalidDefaultBody.errors)).toContain('0..16');
+      expect(invalidDefaultText).not.toContain('"actual"');
+
+      const invalidLegacy = await post(route, { scene: legacyInvalidScene });
+      const invalidLegacyText = await invalidLegacy.text();
+      const invalidLegacyBody = JSON.parse(invalidLegacyText);
+      expect(invalidLegacy.status).toBe(422);
+      expect(invalidLegacyBody.data.dimensions).toEqual(legacyDimensionsSummary);
+      expect(JSON.stringify(invalidLegacyBody.errors)).toContain('0..6');
+      expect(JSON.stringify(invalidLegacyBody.errors)).not.toContain('0..16');
+      expect(invalidLegacyText).not.toContain('"actual"');
+    }
+
+    const defaultEncoded = await post('/api/scene/encode', { scene: defaultScene });
+    const defaultEncodedBody = await readJson(defaultEncoded);
+    const invalidDefaultString = withInvalidSelectedCoordinate(defaultEncodedBody.data.sceneString);
+    const invalidDefaultDecode = await post('/api/scene/decode', { sceneString: invalidDefaultString });
+    const invalidDefaultDecodeText = await invalidDefaultDecode.text();
+    const invalidDefaultDecodeBody = JSON.parse(invalidDefaultDecodeText);
+    expect(invalidDefaultDecode.status).toBe(422);
+    expect(invalidDefaultDecodeBody.data.dimensions).toEqual(defaultDimensionsSummary);
+    expect(JSON.stringify(invalidDefaultDecodeBody.errors)).toContain('0..16');
+    expect(invalidDefaultDecodeText).not.toContain('"actual"');
+
+    const legacyEncoded = await post('/api/scene/encode', { scene: legacyScene });
+    const legacyEncodedBody = await readJson(legacyEncoded);
+    const invalidLegacyString = withInvalidSelectedCoordinate(legacyEncodedBody.data.sceneString);
+    const invalidLegacyDecode = await post('/api/scene/decode', { sceneString: invalidLegacyString });
+    const invalidLegacyDecodeText = await invalidLegacyDecode.text();
+    const invalidLegacyDecodeBody = JSON.parse(invalidLegacyDecodeText);
+    expect(invalidLegacyDecode.status).toBe(422);
+    expect(invalidLegacyDecodeBody.data.dimensions).toEqual(legacyDimensionsSummary);
+    expect(JSON.stringify(invalidLegacyDecodeBody.errors)).toContain('0..6');
+    expect(JSON.stringify(invalidLegacyDecodeBody.errors)).not.toContain('0..16');
+    expect(invalidLegacyDecodeText).not.toContain('"actual"');
   });
 
   it('searches assets without returning the full catalog by default', async () => {
@@ -483,3 +589,26 @@ function createSceneWithLayerNotes() {
     ],
   };
 }
+
+function withInvalidSelectedCoordinate(sceneString: string): string {
+  const parts = sceneString.split('~');
+  const headerIndex = parts[0] === 'PSE2' ? 2 : 1;
+  const headerParts = parts[headerIndex].split('.');
+  headerParts[4] = 'zz';
+  parts[headerIndex] = headerParts.join('.');
+  return parts.join('~');
+}
+
+const defaultDimensionsSummary = {
+  sceneSize: { width: 15, height: 15 },
+  canvasSize: { width: 17, height: 17 },
+  outerPadding: 1,
+  classification: 'default-17x17',
+};
+
+const legacyDimensionsSummary = {
+  sceneSize: { width: 5, height: 5 },
+  canvasSize: { width: 7, height: 7 },
+  outerPadding: 1,
+  classification: 'legacy-7x7',
+};

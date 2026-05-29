@@ -3,6 +3,7 @@ import {
   buildSceneOccupancy,
   createBuildingLevel,
   createDefaultSceneDocument,
+  legacySceneDimensions,
   createStackingPlateFoodScene,
   createStackingPlateNonFoodScene,
   createTileInstance,
@@ -173,8 +174,50 @@ describe('scene recovery', () => {
     if (!migrated.ok || !custom.ok) {
       throw new Error('Expected valid payloads to recover.');
     }
-    expect(migrated.scene.sceneName).toBe('5x5 布景');
+    expect(migrated.scene.sceneName).toBe('15x15 布景');
     expect(custom.scene.sceneName).toBe('Ditto 5x5 serialization');
+  });
+
+  it('recovers legacy 7x7 JSON payloads and preserves legacy dimensions', () => {
+    const payload = serializeSceneDocument(createDefaultSceneDocument({
+      sceneId: 'scene-legacy-json',
+      sceneName: 'Ditto 5x5 布景草稿',
+      selectedPokemonKey: 'ditto',
+      now: '2026-05-16T08:00:00.000Z',
+    }));
+    const legacyPayload = {
+      ...payload,
+      sceneSize: { ...legacySceneDimensions.sceneSize },
+      canvasSize: { ...legacySceneDimensions.canvasSize },
+      outerPadding: legacySceneDimensions.outerPadding,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-legacy-json',
+          assetId: 'leafy-plant',
+          coordinate: { x: 6, y: 6 },
+          buildingLevelId: 'level-0',
+          dimensions: legacySceneDimensions,
+        }),
+      ],
+      workspaceState: {
+        ...payload.workspaceState,
+        selectedCoordinate: { x: 6, y: 6 },
+      },
+    };
+
+    const recovered = recoverSceneDocument(legacyPayload);
+
+    expect(recovered.ok).toBe(true);
+    if (!recovered.ok) {
+      throw new Error('Expected legacy JSON payload to recover.');
+    }
+    expect(recovered.scene.sceneName).toBe('5x5 布景');
+    expect(recovered.scene.sceneSize).toEqual({ width: 5, height: 5 });
+    expect(recovered.scene.canvasSize).toEqual({ width: 7, height: 7 });
+    expect(recovered.scene.tileInstances[0]).toMatchObject({
+      coordinate: { x: 6, y: 6 },
+      areaType: 'outer',
+    });
   });
 
   it('migrates old generated Pokemon default names to the neutral default name', () => {
@@ -191,7 +234,7 @@ describe('scene recovery', () => {
     if (!migrated.ok) {
       throw new Error('Expected valid payload to recover.');
     }
-    expect(migrated.scene.sceneName).toBe('5x5 布景');
+    expect(migrated.scene.sceneName).toBe('15x15 布景');
   });
 
   it('applies a valid recovered payload only after validation succeeds', () => {
@@ -283,7 +326,7 @@ describe('scene recovery', () => {
           coordinate: { x: 0, y: 2 },
           areaType: 'main',
           buildingLevelId: 'level-0',
-          rotationDegrees: 45,
+          rotationDegrees: 0,
           dyeColor: '#bb6bd9',
           requiresSkill: false,
           skillType: null,
@@ -292,7 +335,7 @@ describe('scene recovery', () => {
         {
           instanceId: 'tile-bad-coordinate',
           assetId: 'leafy-plant',
-          coordinate: { x: 7, y: 0 },
+          coordinate: { x: 17, y: 0 },
           areaType: 'outer',
           buildingLevelId: 'level-0',
           rotationDegrees: 0,
@@ -318,7 +361,7 @@ describe('scene recovery', () => {
     expect(result.errors).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          fieldPath: 'tileInstances[0].rotationDegrees',
+          fieldPath: 'tileInstances[0].areaType',
         }),
         expect.objectContaining({
           fieldPath: 'tileInstances[1].coordinate.x',

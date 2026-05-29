@@ -50,7 +50,7 @@ describe('tile instance rules', () => {
       createTileInstance({
         instanceId: 'tile-1',
         assetId: 'wooden-fencing',
-        coordinate: { x: 7, y: 0 },
+        coordinate: { x: 17, y: 0 },
         buildingLevelId: 'level-0',
       }),
     ).toThrow(RangeError);

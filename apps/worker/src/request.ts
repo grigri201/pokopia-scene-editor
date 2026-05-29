@@ -6,13 +6,15 @@ export class ApiRequestError extends Error {
   readonly status: number;
   readonly apiError: ApiError;
   readonly apiErrors: ApiError[];
+  readonly data: unknown | null;
 
-  constructor(status: number, code: string, message: string, apiErrors?: ApiError[]) {
+  constructor(status: number, code: string, message: string, apiErrors?: ApiError[], data: unknown | null = null) {
     super(message);
     this.name = 'ApiRequestError';
     this.status = status;
     this.apiError = apiErrors?.[0] ?? { code, message };
     this.apiErrors = apiErrors?.length ? apiErrors : [this.apiError];
+    this.data = data;
   }
 }
 

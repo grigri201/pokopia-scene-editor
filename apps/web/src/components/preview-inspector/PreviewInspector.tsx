@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   buildSceneOccupancy,
   getAllVisibleFrontProjectionCellContexts,
@@ -9,6 +9,7 @@ import {
   type BlockingCell,
   type FrontProjectionCellContext,
   type GridCoordinate,
+  type GridSize,
   type OccupancyInstance,
   type PreviewCanvasCellContext,
   type SceneDocument,
@@ -38,11 +39,64 @@ export function PreviewInspector({
     canScrollUp: false,
     canScrollDown: false,
   });
-  const currentLayerCells = getCurrentLayerPreviewCellContexts(scene, activeBuildingLevelId);
-  const frontProjectionCells = getAllVisibleFrontProjectionCellContexts(scene);
-  const topFootprintView = buildTopFootprintView(scene, activeBuildingLevelId);
-  const frontFootprintView = buildFrontFootprintView(scene, frontProjectionCells);
-  const frontProjectionLevelCount = new Set(frontProjectionCells.map((cell) => cell.buildingLevel.id)).size;
+  const currentLayerCells = useMemo(
+    () => getCurrentLayerPreviewCellContexts(scene, activeBuildingLevelId),
+    [
+      scene.buildingLevels,
+      scene.canvasSize.height,
+      scene.canvasSize.width,
+      scene.outerPadding,
+      scene.sceneSize.height,
+      scene.sceneSize.width,
+      scene.skillMarkers,
+      scene.tileInstances,
+      activeBuildingLevelId,
+    ],
+  );
+  const frontProjectionCells = useMemo(
+    () => getAllVisibleFrontProjectionCellContexts(scene),
+    [
+      scene.buildingLevels,
+      scene.canvasSize.height,
+      scene.canvasSize.width,
+      scene.outerPadding,
+      scene.sceneSize.height,
+      scene.sceneSize.width,
+      scene.skillMarkers,
+      scene.tileInstances,
+    ],
+  );
+  const topFootprintView = useMemo(
+    () => buildTopFootprintView(scene, activeBuildingLevelId),
+    [
+      scene.buildingLevels,
+      scene.canvasSize.height,
+      scene.canvasSize.width,
+      scene.outerPadding,
+      scene.sceneSize.height,
+      scene.sceneSize.width,
+      scene.skillMarkers,
+      scene.tileInstances,
+      activeBuildingLevelId,
+    ],
+  );
+  const frontFootprintView = useMemo(
+    () => buildFrontFootprintView(scene, frontProjectionCells),
+    [
+      scene.buildingLevels,
+      scene.canvasSize.height,
+      scene.canvasSize.width,
+      scene.outerPadding,
+      scene.sceneSize.height,
+      scene.sceneSize.width,
+      scene.tileInstances,
+      frontProjectionCells,
+    ],
+  );
+  const frontProjectionLevelCount = useMemo(
+    () => new Set(frontProjectionCells.map((cell) => cell.buildingLevel.id)).size,
+    [frontProjectionCells],
+  );
   const hasFrontOverflowingLevels = frontProjectionLevelCount > 7;
   const frontScrollCanUp = frontScrollHints.canScrollUp;
   const frontScrollCanDown = frontScrollHints.canScrollDown || (hasFrontOverflowingLevels && !frontScrollCanUp);
@@ -133,6 +187,8 @@ export function PreviewInspector({
                 locale={locale}
                 ariaLabel={t(locale, 'frontPreview')}
                 cells={frontProjectionCells}
+                canvasWidth={scene.canvasSize.width}
+                levelCount={frontProjectionLevelCount}
                 footprintView={frontFootprintView}
               />
             </div>
@@ -149,6 +205,7 @@ export function PreviewInspector({
             className="top-preview"
             cellClassName="top-cell"
             cells={currentLayerCells}
+            canvasSize={scene.canvasSize}
             footprintView={topFootprintView}
           />
         </section>
@@ -199,21 +256,30 @@ function ScrollArrowDownIcon() {
   );
 }
 
-function FrontProjectionGrid({
+const FrontProjectionGrid = memo(function FrontProjectionGrid({
   locale,
   ariaLabel,
   cells,
+  canvasWidth,
+  levelCount,
   footprintView,
 }: {
   locale: Locale;
   ariaLabel: string;
   cells: FrontProjectionCellContext[];
+  canvasWidth: number;
+  levelCount: number;
   footprintView: FrontFootprintView;
 }) {
+  const previewGridStyle = getPreviewGridStyle(canvasWidth, Math.max(levelCount, 1));
+
   return (
     <div
       className="front-preview"
       aria-label={ariaLabel}
+      data-preview-columns={canvasWidth}
+      data-preview-rows={Math.max(levelCount, 1)}
+      style={previewGridStyle}
     >
       {cells.map((cell) => {
         const projectionInstance = cell.projectedInstance;
@@ -305,14 +371,15 @@ function FrontProjectionGrid({
       ) : null}
     </div>
   );
-}
+});
 
-function PreviewGrid({
+const PreviewGrid = memo(function PreviewGrid({
   locale,
   ariaLabel,
   className,
   cellClassName,
   cells,
+  canvasSize,
   footprintView,
 }: {
   locale: Locale;
@@ -320,12 +387,18 @@ function PreviewGrid({
   className: string;
   cellClassName: string;
   cells: PreviewCanvasCellContext[];
+  canvasSize: GridSize;
   footprintView: TopFootprintView;
 }) {
+  const previewGridStyle = getPreviewGridStyle(canvasSize.width, canvasSize.height);
+
   return (
     <div
       className={className}
       aria-label={ariaLabel}
+      data-preview-columns={canvasSize.width}
+      data-preview-rows={canvasSize.height}
+      style={previewGridStyle}
     >
       {cells.map((cell) => {
         const visibleCellInstances = cell.hidden ? [] : cell.tileInstances;
@@ -406,6 +479,14 @@ function PreviewGrid({
       ) : null}
     </div>
   );
+});
+
+function getPreviewGridStyle(columns: number, rows: number): CSSProperties {
+  return {
+    '--preview-grid-columns': columns,
+    '--preview-grid-rows': rows,
+    '--preview-cell-size': columns > 7 ? '10px' : '16px',
+  } as CSSProperties;
 }
 
 function getFrontProjectedStackingState(

@@ -18,6 +18,12 @@ import {
   type SceneDocumentValidationError,
 } from '@pokopia-scene-editor/scene-core';
 import { z } from 'zod';
+import {
+  getSupportedDimensionsSummary,
+  summarizeSceneInputDimensions,
+  summarizeSceneSourceDimensions,
+  type SceneDimensionsSummary,
+} from './scene-dimensions';
 import { catalogVersion, schemaVersion, serviceVersion } from './version';
 import type { WorkerEnv } from './index';
 
@@ -45,6 +51,7 @@ interface McpErrorDetail {
 interface McpToolStructuredResult<T extends Record<string, unknown>> {
   ok: boolean;
   data: T | null;
+  dimensions: SceneDimensionsSummary | null;
   errors: McpErrorDetail[];
   warnings: string[];
   fixSuggestions: string[];
@@ -52,6 +59,7 @@ interface McpToolStructuredResult<T extends Record<string, unknown>> {
     serviceVersion: string;
     schemaVersion: number;
     catalogVersion: string;
+    supportedDimensions: ReturnType<typeof getSupportedDimensionsSummary>;
   };
 }
 
@@ -135,8 +143,9 @@ function registerTools(server: McpServer): void {
         now: input.now,
         includeOpenDesignDemo: input.includeOpenDesignDemo ?? false,
       });
+      const dimensions = summarizeSceneSourceDimensions(scene);
 
-      return toolOk('Generated SceneDocument v1.', { scene });
+      return toolOk('Generated SceneDocument v1.', { scene, dimensions }, { dimensions });
     }),
   );
 
@@ -150,17 +159,21 @@ function registerTools(server: McpServer): void {
       },
     },
     (input) => runTool('validate_scene_document', () => {
+      const dimensions = summarizeSceneInputDimensions(input.scene);
       const errors = validateSceneDocument(input.scene);
       const valid = errors.length === 0;
+      const validationErrors = errors.map(toMcpValidationError);
 
       return toolResult(
         valid ? 'SceneDocument is valid.' : 'SceneDocument validation failed.',
         {
           valid,
-          errors: errors.map(toMcpValidationError),
+          dimensions,
+          errors: validationErrors,
         },
         {
-          errors: errors.map(toMcpValidationError),
+          dimensions,
+          errors: validationErrors,
           warnings: valid ? [] : ['SceneDocument failed validation and should be repaired before use.'],
           fixSuggestions: errors.map((error) => error.recoveryAction),
           isError: !valid,
@@ -181,13 +194,15 @@ function registerTools(server: McpServer): void {
     (input) => runTool('recover_scene_document', () => {
       const result = recoverSceneDocument(input.scene);
       if (!result.ok) {
-        return validationToolError(result.errors);
+        return validationToolError(result.errors, summarizeSceneInputDimensions(input.scene));
       }
+      const dimensions = summarizeSceneSourceDimensions(result.scene);
 
       return toolOk('Recovered SceneDocument v1.', {
         scene: result.scene,
+        dimensions,
         warnings: [],
-      });
+      }, { dimensions });
     }),
   );
 
@@ -203,13 +218,15 @@ function registerTools(server: McpServer): void {
     (input) => runTool('summarize_scene_export', () => {
       const result = recoverSceneDocument(input.scene);
       if (!result.ok) {
-        return validationToolError(result.errors);
+        return validationToolError(result.errors, summarizeSceneInputDimensions(input.scene));
       }
+      const dimensions = summarizeSceneSourceDimensions(result.scene);
 
       return toolOk('Prepared scene export summary.', {
         summary: buildImageExportSummary(result.scene),
+        dimensions,
         warnings: [],
-      });
+      }, { dimensions });
     }),
   );
 
@@ -257,7 +274,7 @@ function registerResources(server: McpServer): void {
     'scene-schema-v1',
     'pokopia://scene/schema/v1',
     'SceneDocument v1 Schema',
-    'JSON Schema for the current SceneDocument v1 contract.',
+    'JSON Schema for the current SceneDocument v1 contract. Default scenes are 15x15/17x17; legacy recovered scenes are 5x5/7x7.',
     () => z.toJSONSchema(sceneDocumentV1Schema),
   );
 
@@ -293,13 +310,18 @@ function registerResources(server: McpServer): void {
     'pokopia://scene/examples/default',
     'Default Scene Example',
     'Default SceneDocument v1 example generated from scene-core.',
-    () => ({
-      scene: createDefaultSceneDocument({
+    () => {
+      const scene = createDefaultSceneDocument({
         sceneId: 'scene-mcp-default-example',
         sceneName: 'MCP Default Scene',
         now: '2026-05-26T00:00:00.000Z',
-      }),
-    }),
+      });
+
+      return {
+        scene,
+        dimensions: summarizeSceneSourceDimensions(scene),
+      };
+    },
   );
 
   registerJsonResource(
@@ -333,7 +355,8 @@ function registerPrompts(server: McpServer): void {
               'Use the MCP tools to repair a Pokopia SceneDocument.',
               `Scene reference: ${sceneReference ?? 'use the scene payload provided by the user'}.`,
               'First call validate_scene_document. If it fails, use fieldPath and recoveryAction values to make the smallest safe repair.',
-              'Then call recover_scene_document and report remaining warnings or repair actions. Do not invent schema fields.',
+              'Use structuredContent.dimensions to preserve sceneSize, canvasSize, and outerPadding; default scenes are 15x15/17x17 and legacy recovered scenes are 5x5/7x7.',
+              'Then call recover_scene_document and report remaining warnings, repair actions, and dimensions. Do not invent schema fields.',
             ].join('\n'),
           },
         },
@@ -361,7 +384,8 @@ function registerPrompts(server: McpServer): void {
               'Use summarize_scene_export for the provided Pokopia SceneDocument.',
               `Scene reference: ${sceneReference ?? 'use the current scene payload'}.`,
               'If the tool returns validation errors, repair only the reported fields and retry.',
-              'Return the summary JSON and note that PNG/image generation remains browser-only.',
+              'Return the summary JSON, sceneSize, canvasSize, outerPadding, and classification from structuredContent.dimensions.',
+              'Note that PNG/image generation remains browser-only.',
             ].join('\n'),
           },
         },
@@ -390,6 +414,7 @@ function registerPrompts(server: McpServer): void {
               `Search Pokopia placeable assets for this theme: ${theme}.`,
               `Pokemon preference key: ${pokemonKey ?? defaultSelectedPokemonKey}.`,
               'Call search_pokopia_assets with a concise query and useful category/favorite filters.',
+              'Do not infer scene canvas dimensions from asset results; use scene tools when dimensions matter.',
               'Return asset ids, names, categories, and why each result fits the theme.',
             ].join('\n'),
           },
@@ -481,13 +506,17 @@ function validateGenerateSceneInput(input: {
   return null;
 }
 
-function validationToolError(errors: SceneDocumentValidationError[]): CallToolResult {
+function validationToolError(
+  errors: SceneDocumentValidationError[],
+  dimensions: SceneDimensionsSummary | null = null,
+): CallToolResult {
   return toolResult(
     'SceneDocument validation failed.',
     {
       errors: errors.map(toMcpValidationError),
     },
     {
+      dimensions,
       errors: errors.map(toMcpValidationError),
       warnings: ['SceneDocument failed validation and should be repaired before use.'],
       fixSuggestions: errors.map((error) => error.recoveryAction),
@@ -496,8 +525,12 @@ function validationToolError(errors: SceneDocumentValidationError[]): CallToolRe
   );
 }
 
-function toolOk<T extends Record<string, unknown>>(message: string, data: T, warnings: string[] = []): CallToolResult {
-  return toolResult(message, data, { warnings });
+function toolOk<T extends Record<string, unknown>>(
+  message: string,
+  data: T,
+  options: { warnings?: string[]; dimensions?: SceneDimensionsSummary | null } = {},
+): CallToolResult {
+  return toolResult(message, data, options);
 }
 
 function toolError(code: string, message: string, fieldPath?: string): CallToolResult {
@@ -517,6 +550,7 @@ function toolResult<T extends Record<string, unknown>>(
   message: string,
   data: T,
   options: {
+    dimensions?: SceneDimensionsSummary | null;
     errors?: McpErrorDetail[];
     warnings?: string[];
     fixSuggestions?: string[];
@@ -526,6 +560,7 @@ function toolResult<T extends Record<string, unknown>>(
   const structuredContent: McpToolStructuredResult<T> = {
     ok: !options.isError,
     data: options.isError ? null : data,
+    dimensions: options.dimensions ?? null,
     errors: options.errors ?? [],
     warnings: options.warnings ?? [],
     fixSuggestions: options.fixSuggestions ?? [],
@@ -579,6 +614,7 @@ function mcpMeta() {
     serviceVersion,
     schemaVersion,
     catalogVersion,
+    supportedDimensions: getSupportedDimensionsSummary(),
   };
 }
 

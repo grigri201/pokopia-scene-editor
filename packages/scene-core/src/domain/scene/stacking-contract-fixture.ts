@@ -1,4 +1,5 @@
 import { createDefaultSceneDocument } from './default-scene';
+import { legacySceneDimensions } from './area';
 import { createBuildingLevel } from './levels';
 import { createTileInstance } from './tile-instance';
 import type { SceneDocument } from './types';
@@ -28,12 +29,14 @@ export function createStackingPlateFoodScene(): SceneDocument {
       assetId: 'plate',
       coordinate: { x: 2, y: 2 },
       buildingLevelId: stackingContractFixtureIds.level0,
+      dimensions: legacySceneDimensions,
     }),
     createTileInstance({
       instanceId: stackingContractFixtureIds.food,
       assetId: 'leppa-berry',
       coordinate: { x: 2, y: 2 },
       buildingLevelId: stackingContractFixtureIds.level0,
+      dimensions: legacySceneDimensions,
     }),
   ]);
 }
@@ -45,12 +48,14 @@ export function createStackingPlateNonFoodScene(): SceneDocument {
       assetId: 'plate',
       coordinate: { x: 2, y: 2 },
       buildingLevelId: stackingContractFixtureIds.level0,
+      dimensions: legacySceneDimensions,
     }),
     createTileInstance({
       instanceId: stackingContractFixtureIds.nonFood,
       assetId: 'leafy-plant',
       coordinate: { x: 2, y: 2 },
       buildingLevelId: stackingContractFixtureIds.level0,
+      dimensions: legacySceneDimensions,
     }),
   ]);
 }
@@ -62,12 +67,14 @@ export function createStackingFloorCoverScene(): SceneDocument {
       assetId: 'small-narrow-rug',
       coordinate: { x: 2, y: 2 },
       buildingLevelId: stackingContractFixtureIds.level0,
+      dimensions: legacySceneDimensions,
     }),
     createTileInstance({
       instanceId: stackingContractFixtureIds.rugTop,
       assetId: 'leafy-plant',
       coordinate: { x: 2, y: 2 },
       buildingLevelId: stackingContractFixtureIds.level0,
+      dimensions: legacySceneDimensions,
     }),
   ]);
 }
@@ -79,6 +86,7 @@ export function createStackingPartialSurfaceScene(): SceneDocument {
       assetId: 'small-narrow-rug',
       coordinate: { x: 1, y: 1 },
       buildingLevelId: stackingContractFixtureIds.level0,
+      dimensions: legacySceneDimensions,
     }),
     createTileInstance({
       instanceId: stackingContractFixtureIds.partialTop,
@@ -86,6 +94,7 @@ export function createStackingPartialSurfaceScene(): SceneDocument {
       coordinate: { x: 1, y: 1 },
       buildingLevelId: stackingContractFixtureIds.level0,
       rotationDegrees: 90,
+      dimensions: legacySceneDimensions,
     }),
   ]);
 }
@@ -97,12 +106,14 @@ export function createStackingMultiSurfaceScene(): SceneDocument {
       assetId: 'small-narrow-rug',
       coordinate: { x: 1, y: 1 },
       buildingLevelId: stackingContractFixtureIds.level0,
+      dimensions: legacySceneDimensions,
     }),
     createTileInstance({
       instanceId: stackingContractFixtureIds.multiSurfaceB,
       assetId: 'small-round-rug',
       coordinate: { x: 2, y: 1 },
       buildingLevelId: stackingContractFixtureIds.level0,
+      dimensions: legacySceneDimensions,
     }),
     createTileInstance({
       instanceId: stackingContractFixtureIds.multiSurfaceTop,
@@ -110,6 +121,7 @@ export function createStackingMultiSurfaceScene(): SceneDocument {
       coordinate: { x: 1, y: 1 },
       buildingLevelId: stackingContractFixtureIds.level0,
       rotationDegrees: 90,
+      dimensions: legacySceneDimensions,
     }),
   ]);
 }
@@ -126,18 +138,21 @@ export function createStackingHeightBlockedScene(): SceneDocument {
         assetId: 'strength-rock',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: stackingContractFixtureIds.level0,
+        dimensions: legacySceneDimensions,
       }),
       createTileInstance({
         instanceId: stackingContractFixtureIds.plate,
         assetId: 'plate',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: stackingContractFixtureIds.level1,
+        dimensions: legacySceneDimensions,
       }),
       createTileInstance({
         instanceId: stackingContractFixtureIds.food,
         assetId: 'leppa-berry',
         coordinate: { x: 2, y: 2 },
         buildingLevelId: stackingContractFixtureIds.level1,
+        dimensions: legacySceneDimensions,
       }),
     ],
   };
@@ -153,6 +168,9 @@ function createStackingScene(tileInstances: SceneDocument['tileInstances']): Sce
 
   return {
     ...scene,
+    sceneSize: { ...legacySceneDimensions.sceneSize },
+    canvasSize: { ...legacySceneDimensions.canvasSize },
+    outerPadding: legacySceneDimensions.outerPadding,
     buildingLevels: [createBuildingLevel(0)],
     tileInstances,
     skillMarkers: [],

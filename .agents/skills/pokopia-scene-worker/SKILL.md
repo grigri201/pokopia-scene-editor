@@ -26,6 +26,8 @@ Do not copy or reimplement `scene-core` schema, asset catalog filtering, stackin
 
 Footprint, effective footprint, occupied cells, stacking metadata, derived stacking relations, and height blocking details must also come from MCP `structuredContent`. Never paste local footprint or stacking override tables, recalculate occupied cells, or infer blocking rules inside the skill.
 
+Scene dimensions must also come from MCP or Worker structured output. The current default scene is `15x15` scene / `17x17` canvas with `outerPadding: 1`; legacy recovered payloads may remain `5x5` scene / `7x7` canvas. Do not assume that `7x7` is the default or clamp coordinates to `0..6` unless `structuredContent.dimensions.classification` is legacy.
+
 ## Setup Check
 
 Production deployment now publishes only the static web app. Do not assume that `scene-editor.pokokit.com` exposes API or MCP routes.
@@ -51,6 +53,7 @@ For MCP tool results, treat `structuredContent` as authoritative:
 - `ok: true`: use `data` and preserve `warnings` in the response when relevant.
 - `ok: false` or `isError: true`: report `errors`, `fieldPath`, `warnings`, and `fixSuggestions`; make only the smallest repair implied by the tool result before retrying.
 - Footprint or stacking conflicts: preserve the full `structuredContent.errors[]` objects, including `conflictType`, instance ids, asset ids, building level ids, surface/blocking fields, and `coordinates`.
+- `dimensions`: preserve `sceneSize`, `canvasSize`, `outerPadding`, and `classification` when validating, recovering, summarizing, generating, encoding, or decoding scenes.
 - `meta`: keep service/schema/catalog version information when comparing outputs or explaining provenance.
 
 Never echo a full user scene payload back in error text unless the user explicitly asks to inspect that file and it is already in the repo.

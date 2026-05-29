@@ -13,9 +13,12 @@ Workflow:
 }
 ```
 
-3. Use `structuredContent.data.summary` as the authoritative summary. Preserve `structuredContent.data.summary.layers[].notes` for layer notes, each instance's `footprint`, `effectiveFootprint`, `occupiedCells`, `blockingCells`, `footprintWarnings`, and any derived `stackingRelations`.
+3. Use `structuredContent.data.summary` as the authoritative summary. Preserve `structuredContent.data.summary.sceneSize`, `structuredContent.data.summary.canvasSize`, `structuredContent.data.summary.outerPadding`, `structuredContent.dimensions`, `structuredContent.data.summary.layers[].notes` for layer notes, each instance's `footprint`, `effectiveFootprint`, `occupiedCells`, `blockingCells`, `footprintWarnings`, and any derived `stackingRelations`.
 4. If the tool returns `isError`, follow `fieldPath` and `fixSuggestions`, then retry.
 5. Explain that browser PNG/image generation remains outside the Worker MCP workflow.
 
 The summary must come from MCP, not from a local recreation of export-summary rules.
 Do not compute footprint spans, material counts, or base/top stacking relations in the skill.
+Do not replace legacy `5x5` scene / `7x7` canvas dimensions with the current default `15x15` scene / `17x17` canvas dimensions.
+
+Dimension note: Epic 12 default is `15x15` scene / `17x17` canvas with `outerPadding: 1`; legacy recovered payloads may remain `5x5` / `7x7`; `16x16` is unsupported. Use `_bmad-output/implementation-artifacts/12-1-scene-core-dimension-contract-and-legacy-recovery.md` for the dimension contract context.

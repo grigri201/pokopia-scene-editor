@@ -48,8 +48,8 @@ export function jsonOk<T>(data: T, requestId: string, init: ResponseInit = {}): 
   return jsonResult({ ok: true, data, errors: [], warnings: [], meta: createMeta(requestId) }, init);
 }
 
-export function jsonError(errors: ApiError[], requestId: string, init: ResponseInit = {}): Response {
-  return jsonResult({ ok: false, data: null, errors, warnings: [], meta: createMeta(requestId) }, init);
+export function jsonError<T>(errors: ApiError[], requestId: string, init: ResponseInit = {}, data: T | null = null): Response {
+  return jsonResult({ ok: false, data, errors, warnings: [], meta: createMeta(requestId) }, init);
 }
 
 function jsonResult<T>(result: ApiResult<T>, init: ResponseInit): Response {

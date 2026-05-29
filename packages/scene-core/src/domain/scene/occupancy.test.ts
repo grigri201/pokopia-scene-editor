@@ -318,7 +318,7 @@ describe('scene occupancy rules', () => {
     });
     expect(evaluateScenePlacementFootprint(scene, {
       asset: woodenBench,
-      coordinate: { x: 2, y: 6 },
+      coordinate: { x: 2, y: 16 },
       buildingLevelId: 'level-0',
       rotationDegrees: 0,
     })).toMatchObject({

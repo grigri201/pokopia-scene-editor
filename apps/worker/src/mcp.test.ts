@@ -79,6 +79,13 @@ vi.mock('agents/mcp', () => ({
             description: prompt.description,
           })),
         });
+      case 'prompts/get': {
+        const prompt = server._registeredPrompts[message.params?.name];
+        if (!prompt) {
+          return jsonRpcError(id, -32602, 'Unknown prompt.', 200);
+        }
+        return jsonRpcOk(id, await prompt.callback(message.params?.arguments ?? {}, {}));
+      }
       default:
         return jsonRpcError(id, -32601, 'Unknown MCP method.', 200);
     }
@@ -157,7 +164,9 @@ describe('worker MCP endpoint', () => {
     }));
     expect(generated.result.structuredContent).toMatchObject({
       ok: true,
+      dimensions: defaultDimensionsSummary,
       data: {
+        dimensions: defaultDimensionsSummary,
         scene: {
           sceneName: 'MCP Scene',
           selectedPokemonKey: 'pikachu',
@@ -170,6 +179,8 @@ describe('worker MCP endpoint', () => {
       name: 'search_pokopia_assets',
       arguments: { query: 'wood', pageSize: 3 },
     }));
+    expect(assets.result.structuredContent.dimensions).toBeNull();
+    expect(assets.result.structuredContent.data).not.toHaveProperty('dimensions');
     expect(assets.result.structuredContent.data.assets).toHaveLength(3);
     expect(assets.result.structuredContent.data.filteredCount).toBeGreaterThan(3);
     expect(assets.result.structuredContent.data.assets[0].footprint).toMatchObject({
@@ -206,6 +217,19 @@ describe('worker MCP endpoint', () => {
     expect(JSON.parse(version.result.contents[0].text)).toMatchObject({
       serviceVersion: '0.1.0',
       schemaVersion: 1,
+      supportedDimensions: {
+        default: defaultDimensionsSummary,
+        legacy: legacyDimensionsSummary,
+      },
+    });
+
+    const defaultScene = await readJson(await mcpRpc('resources/read', { uri: 'pokopia://scene/examples/default' }));
+    expect(JSON.parse(defaultScene.result.contents[0].text)).toMatchObject({
+      scene: {
+        sceneName: 'MCP Default Scene',
+        canvasSize: defaultDimensionsSummary.canvasSize,
+      },
+      dimensions: defaultDimensionsSummary,
     });
 
     const schema = await readJson(await mcpRpc('resources/read', { uri: 'pokopia://scene/schema/v1' }));
@@ -217,6 +241,28 @@ describe('worker MCP endpoint', () => {
         selectedPokemonKey: expect.any(Object),
       }),
     });
+  });
+
+  it('returns prompt text that preserves scene dimensions', async () => {
+    const repair = await readJson(await mcpRpc('prompts/get', {
+      name: 'repair_scene_document',
+      arguments: { sceneReference: 'repo-local scene fixture' },
+    }));
+    const summary = await readJson(await mcpRpc('prompts/get', {
+      name: 'prepare_scene_export_summary',
+      arguments: { sceneReference: 'repo-local scene fixture' },
+    }));
+
+    const promptText = [
+      repair.result.messages[0].content.text,
+      summary.result.messages[0].content.text,
+    ].join('\n');
+
+    expect(promptText).toContain('sceneSize');
+    expect(promptText).toContain('canvasSize');
+    expect(promptText).toContain('outerPadding');
+    expect(promptText).toContain('15x15/17x17');
+    expect(promptText).toContain('5x5/7x7');
   });
 
   it('returns structured validation errors without stack traces or raw scene payloads', async () => {
@@ -269,10 +315,14 @@ describe('worker MCP endpoint', () => {
 
     expect(validResponse.result.structuredContent).toMatchObject({
       ok: true,
-      data: { valid: true, errors: [] },
+      dimensions: defaultDimensionsSummary,
+      data: { valid: true, dimensions: defaultDimensionsSummary, errors: [] },
       errors: [],
       warnings: [],
     });
+    expect(validResponse.result.structuredContent.data.dimensions).toEqual(
+      validResponse.result.structuredContent.dimensions,
+    );
 
     const invalidScene = { ...scene, selectedPokemonKey: 'not-a-real-pokemon' };
     const directErrors = validateSceneDocument(invalidScene);
@@ -282,6 +332,7 @@ describe('worker MCP endpoint', () => {
     }));
 
     expect(invalidResponse.result.isError).toBe(true);
+    expect(invalidResponse.result.structuredContent.dimensions).toEqual(defaultDimensionsSummary);
     expect(invalidResponse.result.structuredContent.errors).toEqual(
       directErrors.map((error) => expect.objectContaining({
         fieldPath: error.fieldPath,
@@ -290,6 +341,45 @@ describe('worker MCP endpoint', () => {
         recoveryAction: error.recoveryAction,
       })),
     );
+  });
+
+  it('reports MCP coordinate bounds with default and legacy dimensions', async () => {
+    const defaultScene = createDefaultSceneDocument({ now: '2026-05-26T00:00:00.000Z' });
+    const defaultInvalid = await readJson(await mcpRpc('tools/call', {
+      name: 'validate_scene_document',
+      arguments: {
+        scene: {
+          ...defaultScene,
+          workspaceState: {
+            ...defaultScene.workspaceState,
+            selectedCoordinate: { x: 17, y: 0 },
+          },
+        },
+      },
+    }));
+
+    expect(defaultInvalid.result.isError).toBe(true);
+    expect(defaultInvalid.result.structuredContent.dimensions).toEqual(defaultDimensionsSummary);
+    expect(JSON.stringify(defaultInvalid.result.structuredContent.errors)).toContain('0..16');
+
+    const legacyScene = createFootprintContractScene();
+    const legacyInvalid = await readJson(await mcpRpc('tools/call', {
+      name: 'validate_scene_document',
+      arguments: {
+        scene: {
+          ...legacyScene,
+          workspaceState: {
+            ...legacyScene.workspaceState,
+            selectedCoordinate: { x: 7, y: 0 },
+          },
+        },
+      },
+    }));
+
+    expect(legacyInvalid.result.isError).toBe(true);
+    expect(legacyInvalid.result.structuredContent.dimensions).toEqual(legacyDimensionsSummary);
+    expect(JSON.stringify(legacyInvalid.result.structuredContent.errors)).toContain('0..6');
+    expect(JSON.stringify(legacyInvalid.result.structuredContent.errors)).not.toContain('0..16');
   });
 
   it('keeps MCP tools aligned with the shared footprint contract fixture', async () => {
@@ -310,11 +400,18 @@ describe('worker MCP endpoint', () => {
       name: 'recover_scene_document',
       arguments: { scene: createFootprintContractHeightBlockedScene() },
     }));
+    const blockedSummary = await readJson(await mcpRpc('tools/call', {
+      name: 'summarize_scene_export',
+      arguments: { scene: createFootprintContractHeightBlockedScene() },
+    }));
 
     expect(validation.result.structuredContent).toMatchObject({
       ok: true,
-      data: { valid: true, errors: [] },
+      dimensions: legacyDimensionsSummary,
+      data: { valid: true, dimensions: legacyDimensionsSummary, errors: [] },
     });
+    expect(validation.result.structuredContent.data.dimensions).toEqual(validation.result.structuredContent.dimensions);
+    expect(summary.result.structuredContent.dimensions).toEqual(legacyDimensionsSummary);
     expect(summary.result.structuredContent.data.summary).toEqual(buildImageExportSummary(scene));
     expect(findSummaryInstance(summary.result.structuredContent.data.summary, footprintContractFixtureIds.rotatedBench)).toMatchObject({
       effectiveFootprint: footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rotatedBench],
@@ -326,12 +423,15 @@ describe('worker MCP endpoint', () => {
     });
     expect(recovery.result.structuredContent).toMatchObject({
       ok: true,
+      dimensions: legacyDimensionsSummary,
       data: {
         scene,
+        dimensions: legacyDimensionsSummary,
         warnings: [],
       },
     });
     expect(blocked.result.isError).toBe(true);
+    expect(blocked.result.structuredContent.dimensions).toEqual(legacyDimensionsSummary);
     expect(blocked.result.structuredContent.errors).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -346,6 +446,8 @@ describe('worker MCP endpoint', () => {
       ]),
     );
     expect(blocked.result.structuredContent.fixSuggestions).toEqual(expect.arrayContaining([expect.any(String)]));
+    expect(blockedSummary.result.isError).toBe(true);
+    expect(blockedSummary.result.structuredContent.dimensions).toEqual(legacyDimensionsSummary);
   });
 
   it('returns shared export-summary layer notes through the MCP summary tool', async () => {
@@ -386,8 +488,11 @@ describe('worker MCP endpoint', () => {
 
     expect(validation.result.structuredContent).toMatchObject({
       ok: true,
-      data: { valid: true, errors: [] },
+      dimensions: legacyDimensionsSummary,
+      data: { valid: true, dimensions: legacyDimensionsSummary, errors: [] },
     });
+    expect(validation.result.structuredContent.data.dimensions).toEqual(validation.result.structuredContent.dimensions);
+    expect(summary.result.structuredContent.dimensions).toEqual(legacyDimensionsSummary);
     expect(summary.result.structuredContent.data.summary).toEqual(buildImageExportSummary(scene));
     expect(summary.result.structuredContent.data.summary.stackingRelations).toEqual([
       expect.objectContaining({
@@ -400,8 +505,10 @@ describe('worker MCP endpoint', () => {
     ]);
     expect(recovery.result.structuredContent).toMatchObject({
       ok: true,
+      dimensions: legacyDimensionsSummary,
       data: {
         scene,
+        dimensions: legacyDimensionsSummary,
         warnings: [],
       },
     });
@@ -482,7 +589,9 @@ describe('worker MCP endpoint', () => {
 
     expect(summary.result.structuredContent).toMatchObject({
       ok: true,
+      dimensions: defaultDimensionsSummary,
       data: {
+        dimensions: defaultDimensionsSummary,
         summary: {
           sceneId: scene.sceneId,
         },
@@ -563,3 +672,17 @@ function jsonRpcError(id: string | number | null, code: number, message: string,
     headers: { 'content-type': 'application/json; charset=utf-8' },
   });
 }
+
+const defaultDimensionsSummary = {
+  sceneSize: { width: 15, height: 15 },
+  canvasSize: { width: 17, height: 17 },
+  outerPadding: 1,
+  classification: 'default-17x17',
+};
+
+const legacyDimensionsSummary = {
+  sceneSize: { width: 5, height: 5 },
+  canvasSize: { width: 7, height: 7 },
+  outerPadding: 1,
+  classification: 'legacy-7x7',
+};

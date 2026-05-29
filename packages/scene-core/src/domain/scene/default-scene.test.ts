@@ -7,7 +7,7 @@ import {
 import { knownPokemonKeys } from '../assets';
 
 describe('default scene document', () => {
-  it('creates a complete SceneDocument for a 5x5 scene on a 7x7 canvas', () => {
+  it('creates a complete SceneDocument for a 15x15 scene on a 17x17 canvas', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-test',
       now: '2026-05-16T06:20:00.000Z',
@@ -15,10 +15,10 @@ describe('default scene document', () => {
 
     expect(scene.schemaVersion).toBe(1);
     expect(scene.sceneId).toBe('scene-test');
-    expect(scene.sceneName).toBe('5x5 布景');
+    expect(scene.sceneName).toBe('15x15 布景');
     expect(scene.selectedPokemonKey).toBe(defaultSelectedPokemonKey);
-    expect(scene.sceneSize).toEqual({ width: 5, height: 5 });
-    expect(scene.canvasSize).toEqual({ width: 7, height: 7 });
+    expect(scene.sceneSize).toEqual({ width: 15, height: 15 });
+    expect(scene.canvasSize).toEqual({ width: 17, height: 17 });
     expect(scene.outerPadding).toBe(1);
     expect(scene.tileInstances).toEqual([]);
     expect(scene.skillMarkers).toEqual([]);
@@ -40,7 +40,7 @@ describe('default scene document', () => {
     expect(scene.workspaceState).toMatchObject({
       currentBuildingLevelId: 'level-1',
       selectedAssetId: 'wooden-fencing',
-      selectedCoordinate: { x: 3, y: 2 },
+      selectedCoordinate: { x: 8, y: 7 },
     });
   });
 
@@ -82,7 +82,7 @@ describe('default scene document', () => {
       now: '2026-05-16T06:20:00.000Z',
     });
 
-    expect(scene.sceneName).toBe('5x5 布景');
+    expect(scene.sceneName).toBe('15x15 布景');
   });
 
   it('allows callers to localize only the newly generated initial layer name', () => {
@@ -136,6 +136,6 @@ describe('default scene document', () => {
     const dimensions = getDefaultSceneDimensions();
     dimensions.canvasSize.width = 99;
 
-    expect(getDefaultSceneDimensions().canvasSize.width).toBe(7);
+    expect(getDefaultSceneDimensions().canvasSize.width).toBe(17);
   });
 });

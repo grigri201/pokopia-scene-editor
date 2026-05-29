@@ -95,7 +95,7 @@ describe('asset instance edit command', () => {
         createTileInstance({
           instanceId: 'tile-edge-bench',
           assetId: 'wooden-bench',
-          coordinate: { x: 6, y: 5 },
+          coordinate: { x: 16, y: 15 },
           buildingLevelId: 'level-0',
         }),
       ],

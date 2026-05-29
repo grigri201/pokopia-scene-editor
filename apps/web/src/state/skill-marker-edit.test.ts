@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultSceneDocument } from '@pokopia-scene-editor/scene-core';
+import {
+  createDefaultSceneDocument,
+  legacySceneDimensions,
+  type SceneDocument,
+} from '@pokopia-scene-editor/scene-core';
 import { saveCellSkillMarker } from './skill-marker-edit';
 
 const now = '2026-05-22T17:30:00.000Z';
@@ -96,4 +100,36 @@ describe('cell skill marker command', () => {
     }
     expect(scene.skillMarkers).toEqual([]);
   });
+
+  it('uses legacy scene dimensions when saving markers in recovered 7x7 scenes', () => {
+    const result = saveCellSkillMarker(createLegacyScene(), {
+      coordinate: { x: 6, y: 6 },
+      buildingLevelId: 'level-0',
+      requiresSkill: true,
+      skillType: '储水',
+      skillNote: '',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('Expected legacy marker save.');
+    }
+    expect(result.scene.skillMarkers[0]).toMatchObject({
+      coordinate: { x: 6, y: 6 },
+      areaType: 'outer',
+    });
+  });
 });
+
+function createLegacyScene(): SceneDocument {
+  const scene = createDefaultSceneDocument({ sceneId: 'scene-legacy-marker', now });
+
+  return {
+    ...scene,
+    sceneSize: { ...legacySceneDimensions.sceneSize },
+    canvasSize: { ...legacySceneDimensions.canvasSize },
+    outerPadding: legacySceneDimensions.outerPadding,
+  };
+}
