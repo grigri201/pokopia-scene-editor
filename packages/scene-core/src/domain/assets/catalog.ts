@@ -97,7 +97,6 @@ interface AssetCatalogOverride {
   favoritePokemonKeys: readonly PokemonKey[];
   dyeable: boolean;
   thumbnailAlt: string;
-  sortOrder: number;
 }
 
 const seedAssetOverridesByOfficialId: Record<string, AssetCatalogOverride> = {};
@@ -128,18 +127,12 @@ const pokemonPreferenceEntries: readonly {
     : [],
 );
 
-interface SortableAssetDefinition {
-  asset: AssetDefinition;
-  sortOrder: number;
-}
-
 export const assetCatalog: readonly AssetDefinition[] = sourcePlaceableAssetItems
   .filter((sourceItem) => !isFilteredSourcePlaceableItem(sourceItem))
-  .map((sourceItem, index) => buildAssetDefinition(sourceItem, index))
-  .sort((left, right) => left.sortOrder - right.sortOrder)
-  .map((entry) => entry.asset);
+  .map((sourceItem) => buildAssetDefinition(sourceItem))
+  .sort(compareAssetsByOfficialId);
 
-function buildAssetDefinition(sourceItem: SourcePlaceableAssetItem, sourceIndex: number): SortableAssetDefinition {
+function buildAssetDefinition(sourceItem: SourcePlaceableAssetItem): AssetDefinition {
   const officialId = sourceItem.id.toString().padStart(3, '0');
   const override = seedAssetOverridesByOfficialId[String(sourceItem.id)];
   const assetId = override?.assetId ?? buildGeneratedAssetId(sourceItem.slug, officialId);
@@ -147,24 +140,27 @@ function buildAssetDefinition(sourceItem: SourcePlaceableAssetItem, sourceIndex:
   const displayName = override?.name ?? translatedName ?? sourceItem.name;
 
   return {
-    asset: {
-      assetId,
-      officialId,
-      name: displayName,
-      englishName: sourceItem.name,
-      category: override?.category ?? inferAssetCategory(sourceItem),
-      tags: buildSourceAssetTags(sourceItem),
-      englishTags: buildSourceAssetTags(sourceItem, 'en-US'),
-      searchKeywords: buildSearchKeywords(sourceItem, displayName),
-      favoritePokemonKeys: buildFavoritePokemonKeys(sourceItem, override),
-      dyeable: override?.dyeable ?? inferDyeable(sourceItem),
-      footprint: getAssetFootprint(assetId),
-      stacking: getAssetStacking(assetId),
-      thumbnailUrl: getAssetThumbnailUrl(sourceItem.imageFileName),
-      thumbnailAlt: override?.thumbnailAlt ?? `${displayName}缩略图`,
-    },
-    sortOrder: override?.sortOrder ?? sourceIndex + 100,
+    assetId,
+    officialId,
+    name: displayName,
+    englishName: sourceItem.name,
+    category: override?.category ?? inferAssetCategory(sourceItem),
+    tags: buildSourceAssetTags(sourceItem),
+    englishTags: buildSourceAssetTags(sourceItem, 'en-US'),
+    searchKeywords: buildSearchKeywords(sourceItem, displayName),
+    favoritePokemonKeys: buildFavoritePokemonKeys(sourceItem, override),
+    dyeable: override?.dyeable ?? inferDyeable(sourceItem),
+    footprint: getAssetFootprint(assetId),
+    stacking: getAssetStacking(assetId),
+    thumbnailUrl: getAssetThumbnailUrl(sourceItem.imageFileName),
+    thumbnailAlt: override?.thumbnailAlt ?? `${displayName}缩略图`,
   };
+}
+
+function compareAssetsByOfficialId(left: AssetDefinition, right: AssetDefinition): number {
+  const officialIdOrder = Number(left.officialId) - Number(right.officialId);
+
+  return officialIdOrder === 0 ? left.assetId.localeCompare(right.assetId, 'en') : officialIdOrder;
 }
 
 function buildGeneratedAssetId(slug: string, officialId: string): string {

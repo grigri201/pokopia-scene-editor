@@ -89,11 +89,19 @@ describe('asset catalog', () => {
     expect(woodenFloor).toMatchObject({ officialId: '390', name: '木制栅栏', category: 'buildings' });
   });
 
+  it('sorts the catalog by official item number from low to high', () => {
+    const officialIds = assetCatalog.map((asset) => Number(asset.officialId));
+
+    expect(officialIds).toEqual([...officialIds].sort((left, right) => left - right));
+  });
+
   it('defaults uncovered assets to 1x1x1 footprint and applies audited large-asset overrides', () => {
     expect(getAssetById('leafy-plant')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('garden-ornament')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
+    expect(getAssetById('counter')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('wooden-bench')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
     expect(getAssetById('large-boulder')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
+    expect(getAssetById('bread-oven')?.footprint).toEqual({ length: 1, width: 1, height: 2 });
     expect(assetFootprintOverrideAssetIds.every((assetId) => getAssetById(assetId))).toBe(true);
   });
 
@@ -153,10 +161,12 @@ describe('asset catalog', () => {
       ['leppa-berry', { length: 1, width: 1, height: 1 }],
       ['strength-rock', { length: 1, width: 1, height: 2 }],
       ['office-locker', { length: 1, width: 1, height: 2 }],
+      ['bread-oven', { length: 1, width: 1, height: 2 }],
       ['pointy-tree', { length: 1, width: 1, height: 3 }],
       ['driftwood', { length: 1, width: 2, height: 1 }],
       ['stalagmites', { length: 1, width: 2, height: 2 }],
       ['deck-chair', { length: 2, width: 1, height: 1 }],
+      ['counter', { length: 1, width: 1, height: 1 }],
       ['large-boulder', { length: 2, width: 2, height: 1 }],
       ['lift-platform', { length: 2, width: 2, height: 2 }],
     ] as const;

@@ -46,8 +46,8 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('高度')).toHaveValue('17');
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
   await expect(page.locator('.asset-row')).toHaveCount(10);
-  await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('苹野果');
-  await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('食物');
+  await expect(page.locator('[data-asset-id="pecha-berry"]')).toContainText('桃桃果');
+  await expect(page.locator('[data-asset-id="pecha-berry"]')).toContainText('食物');
   await expect(page.getByLabel('Asset page status')).toHaveText('1 / 116');
   await expect(page.getByText('Showing first')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show more' })).toHaveCount(0);
@@ -160,8 +160,8 @@ test('switches the workbench to English without writing locale into SceneDocumen
   await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible();
   await expect(page.getByLabel('Scene name')).toHaveValue('15x15 布景');
   await expect(page.getByLabel('Current Pokemon')).toHaveValue('Ditto');
-  await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('Leppa Berry');
-  await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('Food');
+  await expect(page.locator('[data-asset-id="pecha-berry"]')).toContainText('Pecha Berry');
+  await expect(page.locator('[data-asset-id="pecha-berry"]')).toContainText('Food');
   expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
   expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
 
@@ -435,21 +435,21 @@ test('keeps retained edit commands wired through the workbench shell', async ({ 
   await page.goto('/');
   await dismissHelpOverlayIfVisible(page);
 
-  const leppaBerryButton = page.locator('[data-asset-id="leppa-berry"] .asset-select-button');
-  await leppaBerryButton.click();
+  const pechaBerryButton = page.locator('[data-asset-id="pecha-berry"] .asset-select-button');
+  await pechaBerryButton.click();
   await expect
     .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
-    .toMatchObject({ selectedAssetId: 'leppa-berry' });
-  await leppaBerryButton.click();
+    .toMatchObject({ selectedAssetId: 'pecha-berry' });
+  await pechaBerryButton.click();
   await expect
     .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
     .toMatchObject({ selectedAssetId: null });
-  await expect(leppaBerryButton).toHaveAttribute('aria-pressed', 'false');
-  await leppaBerryButton.click();
+  await expect(pechaBerryButton).toHaveAttribute('aria-pressed', 'false');
+  await pechaBerryButton.click();
   await page.locator('[data-coordinate="2,2"]').click();
   await expect
     .poll(async () => getFirstStoredTileField(page, 'assetId'))
-    .toBe('leppa-berry');
+    .toBe('pecha-berry');
   await expect
     .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
     .toMatchObject({ selectedAssetId: null, selectedCoordinate: { x: 2, y: 2 } });
@@ -467,7 +467,7 @@ test('keeps retained edit commands wired through the workbench shell', async ({ 
     .poll(async () => getFirstStoredTileField(page, 'skillType'))
     .toBe('树叶');
 
-  await page.locator('[data-asset-id="chesto-berry"] .asset-select-button').click();
+  await page.locator('[data-asset-id="stone"] .asset-select-button').click();
   page.once('dialog', (dialog) => dialog.accept());
   await page.locator('[data-coordinate="2,2"]').click();
   await page.locator('[data-coordinate="2,2"]').click();
@@ -476,11 +476,11 @@ test('keeps retained edit commands wired through the workbench shell', async ({ 
     .toBe(1);
   await expect
     .poll(async () => getFirstStoredTileField(page, 'assetId'))
-    .toBe('chesto-berry');
+    .toBe('stone');
 
-  await page.locator('[data-asset-id="rawst-berry"] .asset-select-button').dblclick();
-  await expect(page.locator('[data-asset-id="rawst-berry"]')).toHaveAttribute('data-selection-mode', 'continuous');
-  await expect(page.locator('[data-asset-id="rawst-berry"]')).toHaveClass(/asset-row--continuous/);
+  await page.locator('[data-asset-id="honey"] .asset-select-button').dblclick();
+  await expect(page.locator('[data-asset-id="honey"]')).toHaveAttribute('data-selection-mode', 'continuous');
+  await expect(page.locator('[data-asset-id="honey"]')).toHaveClass(/asset-row--continuous/);
   await page.locator('[data-coordinate="2,3"]').click();
   await page.locator('[data-coordinate="2,4"]').click();
   await expect
@@ -488,12 +488,12 @@ test('keeps retained edit commands wired through the workbench shell', async ({ 
     .toBe(3);
   await expect
     .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
-    .toMatchObject({ selectedAssetId: 'rawst-berry', selectedCoordinate: { x: 2, y: 4 } });
-  await page.locator('[data-asset-id="rawst-berry"] .asset-select-button').click();
+    .toMatchObject({ selectedAssetId: 'honey', selectedCoordinate: { x: 2, y: 4 } });
+  await page.locator('[data-asset-id="honey"] .asset-select-button').click();
   await expect
     .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
     .toMatchObject({ selectedAssetId: null });
-  await expect(page.locator('[data-asset-id="rawst-berry"]')).toHaveAttribute('data-selection-mode', 'none');
+  await expect(page.locator('[data-asset-id="honey"]')).toHaveAttribute('data-selection-mode', 'none');
 
   await page.getByRole('button', { name: '新建层' }).click();
   await expect
@@ -718,7 +718,7 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await page.getByLabel('L1, 1层, 0 instances, viewing layer').focus();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Space');
-  await page.locator('[data-asset-id="leppa-berry"] .asset-select-button').focus();
+  await page.locator('[data-asset-id="pecha-berry"] .asset-select-button').focus();
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   for (const key of mobileApplicationKeys) {

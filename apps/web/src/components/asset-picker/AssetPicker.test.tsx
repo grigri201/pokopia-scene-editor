@@ -16,7 +16,7 @@ describe('AssetPicker', () => {
     render(
       <AssetPicker
         readOnly={false}
-        selectedAssetId="leppa-berry"
+        selectedAssetId="pecha-berry"
         selectedPokemonKey="ditto"
         currentBuildingLevelName="主体道具"
         placementRequiresSkill={false}
@@ -35,25 +35,26 @@ describe('AssetPicker', () => {
     expect(screen.queryByLabelText('待放置素材控制')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '旋转待放置素材 90 度' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '清除筛选' })).not.toBeInTheDocument();
-    expect(getAssetSelectButton('leppa-berry')).toHaveAttribute('aria-pressed', 'true');
-    expect(getAssetRow('leppa-berry')).toHaveAttribute('data-selection-mode', 'single');
-    expect(getAssetRow('leppa-berry')).not.toHaveClass('asset-row--continuous');
-    expect(getAssetSelectButton('leppa-berry')).toHaveTextContent('No. 197');
-    expect(getAssetSelectButton('leppa-berry')).toHaveTextContent('苹野果');
-    expect(getAssetSelectButton('leppa-berry')).not.toHaveTextContent('Leppa Berry');
-    expect(getAssetSelectButton('leppa-berry')).toHaveTextContent('食物');
-    expect(getAssetSelectButton('leppa-berry')).not.toHaveTextContent('食物 · 食物');
+    expect(getRenderedOfficialIds()).toEqual(['018', '022', '026', '028', '032', '033', '037', '039', '040', '041']);
+    expect(getAssetSelectButton('pecha-berry')).toHaveAttribute('aria-pressed', 'true');
+    expect(getAssetRow('pecha-berry')).toHaveAttribute('data-selection-mode', 'single');
+    expect(getAssetRow('pecha-berry')).not.toHaveClass('asset-row--continuous');
+    expect(getAssetSelectButton('pecha-berry')).toHaveTextContent('No. 028');
+    expect(getAssetSelectButton('pecha-berry')).toHaveTextContent('桃桃果');
+    expect(getAssetSelectButton('pecha-berry')).not.toHaveTextContent('Pecha Berry');
+    expect(getAssetSelectButton('pecha-berry')).toHaveTextContent('食物');
+    expect(getAssetSelectButton('pecha-berry')).not.toHaveTextContent('食物 · 食物');
     expect(
       within(screen.getByRole('group', { name: 'Asset category filters' }))
         .getAllByRole('button')
         .map((button) => button.textContent),
     ).toEqual(['全部', '建筑', '家具', '功能', '户外', '自然', '食物', '材料', '地块', '杂项', '其他']);
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('leppa-berry');
-    expect(screen.getByLabelText('苹野果 asset detail')).not.toHaveTextContent('Skill marker');
+    expect(screen.getByLabelText('桃桃果 asset detail')).toHaveTextContent('pecha-berry');
+    expect(screen.getByLabelText('桃桃果 asset detail')).not.toHaveTextContent('Skill marker');
     expect(screen.queryByLabelText('Asset advanced filters')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset area filter')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset skill filter')).not.toBeInTheDocument();
-    expect(within(screen.getByLabelText('苹野果 asset detail')).getByAltText('苹野果缩略图')).toBeInTheDocument();
+    expect(within(screen.getByLabelText('桃桃果 asset detail')).getByAltText('桃桃果缩略图')).toBeInTheDocument();
   }, 15_000);
 
   it('paginates the catalog with 10 assets per page', () => {
@@ -80,6 +81,7 @@ describe('AssetPicker', () => {
     expect(screen.getByLabelText('Asset page status')).toHaveTextContent('2 / 116');
     expect(screen.getByLabelText('Previous asset page')).toBeEnabled();
     expect(queryAssetSelectButton('wooden-fencing')).toBeNull();
+    expect(queryAssetSelectButton('sturdy-stick')).toBeNull();
   }, 15_000);
 
   it('selects assets by mouse, Enter, Space, and arrow-key focus', () => {
@@ -97,17 +99,17 @@ describe('AssetPicker', () => {
       />,
     );
 
-    const leppaBerry = getAssetSelectButton('leppa-berry');
-    const chestoBerry = getAssetSelectButton('chesto-berry');
+    const pechaBerry = getAssetSelectButton('pecha-berry');
+    const stone = getAssetSelectButton('stone');
 
-    fireEvent.click(leppaBerry);
-    fireEvent.keyDown(leppaBerry, { key: 'ArrowDown' });
-    expect(chestoBerry).toHaveFocus();
-    fireEvent.keyDown(chestoBerry, { key: 'Enter' });
-    fireEvent.keyDown(chestoBerry, { key: ' ' });
+    fireEvent.click(pechaBerry);
+    fireEvent.keyDown(pechaBerry, { key: 'ArrowDown' });
+    expect(stone).toHaveFocus();
+    fireEvent.keyDown(stone, { key: 'Enter' });
+    fireEvent.keyDown(stone, { key: ' ' });
 
-    expect(onAssetSelect).toHaveBeenCalledWith('leppa-berry', 'single');
-    expect(onAssetSelect).toHaveBeenCalledWith('chesto-berry', 'single');
+    expect(onAssetSelect).toHaveBeenCalledWith('pecha-berry', 'single');
+    expect(onAssetSelect).toHaveBeenCalledWith('stone', 'single');
     expect(onAssetSelect).toHaveBeenCalledTimes(3);
   });
 
@@ -126,16 +128,16 @@ describe('AssetPicker', () => {
       />,
     );
 
-    fireEvent.doubleClick(getAssetSelectButton('leppa-berry'));
+    fireEvent.doubleClick(getAssetSelectButton('pecha-berry'));
 
-    expect(onAssetSelect).toHaveBeenLastCalledWith('leppa-berry', 'continuous');
+    expect(onAssetSelect).toHaveBeenLastCalledWith('pecha-berry', 'continuous');
   });
 
   it('renders continuous asset selection differently from single selection', () => {
     render(
       <AssetPicker
         readOnly={false}
-        selectedAssetId="leppa-berry"
+        selectedAssetId="pecha-berry"
         selectedAssetMode="continuous"
         selectedPokemonKey="ditto"
         currentBuildingLevelName="主体道具"
@@ -145,7 +147,7 @@ describe('AssetPicker', () => {
       />,
     );
 
-    const selectedRow = getAssetRow('leppa-berry');
+    const selectedRow = getAssetRow('pecha-berry');
     expect(selectedRow).toHaveAttribute('data-selection-mode', 'continuous');
     expect(selectedRow).toHaveClass('asset-row--selected');
     expect(selectedRow).toHaveClass('asset-row--continuous');
@@ -157,7 +159,7 @@ describe('AssetPicker', () => {
     render(
       <AssetPicker
         readOnly={false}
-        selectedAssetId="leppa-berry"
+        selectedAssetId="pecha-berry"
         selectedPokemonKey="ditto"
         currentBuildingLevelName="主体道具"
         placementRequiresSkill={false}
@@ -166,12 +168,12 @@ describe('AssetPicker', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'View 零余果 details' }));
+    fireEvent.click(screen.getByRole('button', { name: 'View 石头 details' }));
 
     expect(onAssetSelect).not.toHaveBeenCalled();
-    expect(getAssetSelectButton('leppa-berry')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByLabelText('零余果 asset detail')).toHaveTextContent('chesto-berry');
-    expect(within(screen.getByLabelText('零余果 asset detail')).getByAltText('零余果缩略图')).toBeInTheDocument();
+    expect(getAssetSelectButton('pecha-berry')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('石头 asset detail')).toHaveTextContent('stone');
+    expect(within(screen.getByLabelText('石头 asset detail')).getByAltText('石头缩略图')).toBeInTheDocument();
   });
 
   it('enables the placement skill toggle for any selected asset only', () => {
@@ -194,7 +196,7 @@ describe('AssetPicker', () => {
     rerender(
       <AssetPicker
         readOnly={false}
-        selectedAssetId="leppa-berry"
+        selectedAssetId="pecha-berry"
         selectedPokemonKey="ditto"
         currentBuildingLevelName="主体道具"
         placementRequiresSkill={false}
@@ -379,7 +381,7 @@ describe('AssetPicker', () => {
     render(
       <AssetPicker
         readOnly
-        selectedAssetId="leppa-berry"
+        selectedAssetId="pecha-berry"
         selectedPokemonKey="ditto"
         currentBuildingLevelName="主体道具"
         placementRequiresSkill={false}
@@ -388,31 +390,31 @@ describe('AssetPicker', () => {
       />,
     );
 
-    expect(getAssetSelectButton('leppa-berry')).toBeEnabled();
+    expect(getAssetSelectButton('pecha-berry')).toBeEnabled();
     expect(screen.queryByLabelText('Current placement asset')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Search assets')).toHaveAttribute('readonly');
     expect(screen.getByLabelText('Show favorite assets')).toBeDisabled();
     expect(screen.queryByLabelText('Asset advanced filters')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset area filter')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset skill filter')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'View 零余果 details' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'View 石头 details' })).toBeDisabled();
     expect(within(screen.getByRole('group', { name: 'Asset category filters' })).getByRole('button', { name: '全部' }))
       .toBeDisabled();
-    fireEvent.click(getAssetSelectButton('chesto-berry'));
+    fireEvent.click(getAssetSelectButton('stone'));
     expect(onAssetSelect).not.toHaveBeenCalled();
-    expect(getAssetSelectButton('leppa-berry')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByLabelText('零余果 asset detail')).toHaveTextContent('chesto-berry');
+    expect(getAssetSelectButton('pecha-berry')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('石头 asset detail')).toHaveTextContent('stone');
 
-    getAssetSelectButton('leppa-berry').focus();
-    fireEvent.keyDown(getAssetSelectButton('leppa-berry'), { key: 'ArrowDown' });
-    fireEvent.keyDown(getAssetSelectButton('leppa-berry'), { key: 'ArrowUp' });
-    fireEvent.keyDown(getAssetSelectButton('leppa-berry'), { key: 'Enter' });
-    fireEvent.keyDown(getAssetSelectButton('leppa-berry'), { key: ' ' });
-    fireEvent.keyDown(screen.getByRole('button', { name: 'View 零余果 details' }), { key: 'Enter' });
-    fireEvent.keyDown(screen.getByRole('button', { name: 'View 零余果 details' }), { key: ' ' });
+    getAssetSelectButton('pecha-berry').focus();
+    fireEvent.keyDown(getAssetSelectButton('pecha-berry'), { key: 'ArrowDown' });
+    fireEvent.keyDown(getAssetSelectButton('pecha-berry'), { key: 'ArrowUp' });
+    fireEvent.keyDown(getAssetSelectButton('pecha-berry'), { key: 'Enter' });
+    fireEvent.keyDown(getAssetSelectButton('pecha-berry'), { key: ' ' });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'View 石头 details' }), { key: 'Enter' });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'View 石头 details' }), { key: ' ' });
 
     expect(onAssetSelect).not.toHaveBeenCalled();
-    expect(getAssetSelectButton('leppa-berry')).toHaveFocus();
+    expect(getAssetSelectButton('pecha-berry')).toHaveFocus();
     expect(readUiPreferencesFromStorage(window.localStorage)).toEqual({
       schemaVersion: 1,
       assetFilters: {
@@ -450,4 +452,10 @@ function queryAssetSelectButton(assetId: string): HTMLButtonElement | null {
   return screen
     .getByLabelText('Asset results')
     .querySelector<HTMLButtonElement>(`[data-asset-id="${assetId}"] .asset-select-button`);
+}
+
+function getRenderedOfficialIds(): string[] {
+  return within(screen.getByLabelText('Asset results'))
+    .getAllByText(/No\. \d+/)
+    .map((element) => element.textContent?.replace('No. ', '') ?? '');
 }

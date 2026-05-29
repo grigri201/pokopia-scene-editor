@@ -750,16 +750,16 @@ describe('AppShell scene storage integration', () => {
   it('clears the current placement asset when the selected asset is clicked again', async () => {
     render(<AppShell />);
 
-    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
     if (!assetButton) {
-      throw new Error('Expected leppa-berry asset button.');
+      throw new Error('Expected pecha-berry asset button.');
     }
 
     fireEvent.click(assetButton);
     await waitFor(() => {
       const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
       expect(rawAutosavePayload).not.toBeNull();
-      expect(JSON.parse(rawAutosavePayload ?? '{}').workspaceState.selectedAssetId).toBe('leppa-berry');
+      expect(JSON.parse(rawAutosavePayload ?? '{}').workspaceState.selectedAssetId).toBe('pecha-berry');
       expect(assetButton).toHaveAttribute('aria-pressed', 'true');
     });
 
@@ -925,9 +925,9 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
-    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
     if (!assetButton) {
-      throw new Error('Expected leppa-berry asset button.');
+      throw new Error('Expected pecha-berry asset button.');
     }
 
     fireEvent.click(cell);
@@ -940,7 +940,7 @@ describe('AppShell scene storage integration', () => {
       expect(payload.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 3 });
       expect(payload.tileInstances).toHaveLength(1);
       expect(payload.tileInstances[0]).toMatchObject({
-        assetId: 'leppa-berry',
+        assetId: 'pecha-berry',
         coordinate: { x: 2, y: 3 },
       });
       expect(cell).toHaveAttribute('aria-selected', 'true');
@@ -952,9 +952,9 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
-    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
     if (!assetButton) {
-      throw new Error('Expected leppa-berry asset button.');
+      throw new Error('Expected pecha-berry asset button.');
     }
 
     fireEvent.click(assetButton);
@@ -964,7 +964,7 @@ describe('AppShell scene storage integration', () => {
       const payload = JSON.parse(readSceneSnapshot());
       expect(payload.tileInstances).toHaveLength(1);
       expect(payload.tileInstances[0]).toMatchObject({
-        assetId: 'leppa-berry',
+        assetId: 'pecha-berry',
         coordinate: { x: 2, y: 3 },
       });
     });
@@ -984,33 +984,33 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
-    const leppaBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
-    const chestoBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="chesto-berry"] .asset-select-button');
-    if (!leppaBerryButton || !chestoBerryButton) {
+    const pechaBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
+    const stoneButton = document.querySelector<HTMLButtonElement>('[data-asset-id="stone"] .asset-select-button');
+    if (!pechaBerryButton || !stoneButton) {
       throw new Error('Expected first-page asset buttons.');
     }
 
-    fireEvent.click(leppaBerryButton);
+    fireEvent.click(pechaBerryButton);
     fireEvent.click(cell);
     await waitFor(() => {
       const payload = JSON.parse(readSceneSnapshot());
       expect(payload.tileInstances).toHaveLength(1);
       expect(payload.tileInstances[0]).toMatchObject({
-        assetId: 'leppa-berry',
+        assetId: 'pecha-berry',
         coordinate: { x: 2, y: 3 },
       });
       expect(payload.workspaceState.selectedAssetId).toBeNull();
     });
 
-    fireEvent.click(chestoBerryButton);
+    fireEvent.click(stoneButton);
     fireEvent.contextMenu(cell);
 
     await waitFor(() => {
       const payload = JSON.parse(readSceneSnapshot());
       expect(payload.tileInstances).toEqual([]);
-      expect(payload.workspaceState.selectedAssetId).toBe('chesto-berry');
+      expect(payload.workspaceState.selectedAssetId).toBe('stone');
       expect(payload.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 3 });
-      expect(chestoBerryButton).toHaveAttribute('aria-pressed', 'true');
+      expect(stoneButton).toHaveAttribute('aria-pressed', 'true');
       expect(cell).toHaveAttribute('data-has-instance', 'false');
     });
     expect(confirmReplacement).not.toHaveBeenCalled();
@@ -1020,9 +1020,9 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
-    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
     if (!assetButton) {
-      throw new Error('Expected leppa-berry asset button.');
+      throw new Error('Expected pecha-berry asset button.');
     }
 
     fireEvent.click(assetButton);
@@ -1088,9 +1088,9 @@ describe('AppShell scene storage integration', () => {
   it('keeps double-clicked asset selection active for continuous placement until clicked again', async () => {
     render(<AppShell />);
 
-    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
     if (!assetButton) {
-      throw new Error('Expected leppa-berry asset button.');
+      throw new Error('Expected pecha-berry asset button.');
     }
 
     fireEvent.doubleClick(assetButton);
@@ -1099,14 +1099,14 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       const payload = JSON.parse(readSceneSnapshot());
-      expect(payload.workspaceState.selectedAssetId).toBe('leppa-berry');
+      expect(payload.workspaceState.selectedAssetId).toBe('pecha-berry');
       expect(payload.tileInstances).toHaveLength(2);
       expect(assetButton).toHaveAttribute('aria-pressed', 'true');
-      expect(assetButton.closest('[data-asset-id="leppa-berry"]')).toHaveAttribute(
+      expect(assetButton.closest('[data-asset-id="pecha-berry"]')).toHaveAttribute(
         'data-selection-mode',
         'continuous',
       );
-      expect(assetButton.closest('[data-asset-id="leppa-berry"]')).toHaveClass('asset-row--continuous');
+      expect(assetButton.closest('[data-asset-id="pecha-berry"]')).toHaveClass('asset-row--continuous');
     });
 
     fireEvent.click(assetButton);
@@ -1116,7 +1116,7 @@ describe('AppShell scene storage integration', () => {
       expect(payload.workspaceState.selectedAssetId).toBeNull();
       expect(payload.tileInstances).toHaveLength(2);
       expect(assetButton).toHaveAttribute('aria-pressed', 'false');
-      expect(assetButton.closest('[data-asset-id="leppa-berry"]')).toHaveAttribute('data-selection-mode', 'none');
+      expect(assetButton.closest('[data-asset-id="pecha-berry"]')).toHaveAttribute('data-selection-mode', 'none');
     });
   });
 
@@ -1125,40 +1125,40 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     const cell = screen.getByLabelText('Cell 2,2, main area, level-0, placeable');
-    const leppaBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
-    const chestoBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="chesto-berry"] .asset-select-button');
-    const rawstBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="rawst-berry"] .asset-select-button');
-    if (!leppaBerryButton || !chestoBerryButton || !rawstBerryButton) {
+    const pechaBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
+    const stoneButton = document.querySelector<HTMLButtonElement>('[data-asset-id="stone"] .asset-select-button');
+    const honeyButton = document.querySelector<HTMLButtonElement>('[data-asset-id="honey"] .asset-select-button');
+    if (!pechaBerryButton || !stoneButton || !honeyButton) {
       throw new Error('Expected first-page asset buttons.');
     }
 
-    fireEvent.click(leppaBerryButton);
+    fireEvent.click(pechaBerryButton);
     fireEvent.click(cell);
 
     await waitFor(() => {
       const payload = JSON.parse(readSceneSnapshot());
       expect(payload.tileInstances).toHaveLength(1);
-      expect(payload.tileInstances[0].assetId).toBe('leppa-berry');
+      expect(payload.tileInstances[0].assetId).toBe('pecha-berry');
       expect(payload.workspaceState.selectedAssetId).toBeNull();
     });
 
-    fireEvent.click(chestoBerryButton);
+    fireEvent.click(stoneButton);
     fireEvent.click(cell);
 
     await waitFor(() => {
       const payload = JSON.parse(readSceneSnapshot());
       expect(payload.tileInstances).toHaveLength(1);
-      expect(payload.tileInstances[0].assetId).toBe('chesto-berry');
+      expect(payload.tileInstances[0].assetId).toBe('stone');
       expect(payload.workspaceState.selectedAssetId).toBeNull();
     });
 
-    fireEvent.click(rawstBerryButton);
+    fireEvent.click(honeyButton);
     fireEvent.click(cell);
 
     await waitFor(() => {
       const payload = JSON.parse(readSceneSnapshot());
       expect(payload.tileInstances).toHaveLength(1);
-      expect(payload.tileInstances[0].assetId).toBe('rawst-berry');
+      expect(payload.tileInstances[0].assetId).toBe('honey');
       expect(payload.workspaceState.selectedAssetId).toBeNull();
       expect(cell).toHaveAttribute('aria-selected', 'true');
     });
@@ -1278,9 +1278,9 @@ describe('AppShell scene storage integration', () => {
 
     const cell = screen.getByLabelText(/Cell 3,2, main area, level-0, read-only$/);
     const levelRow = screen.getByLabelText('L1, 1层, 0 instances, viewing layer');
-    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
     if (!assetButton) {
-      throw new Error('Expected leppa-berry asset button.');
+      throw new Error('Expected pecha-berry asset button.');
     }
 
     try {
