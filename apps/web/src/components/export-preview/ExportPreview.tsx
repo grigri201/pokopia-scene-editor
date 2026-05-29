@@ -223,10 +223,7 @@ function LayerPreview({
   const footprintOverlays = getLayerFootprintOverlays(layer, materialColorByAssetId);
   const footprintOverlayInstanceIds = new Set(footprintOverlays.map((overlay) => overlay.instance.instanceId));
   const coordinateBounds = getLayerCoordinateBounds(layer);
-  const layerGridStyle = {
-    '--export-grid-columns': canvasSize.width,
-    '--export-grid-rows': canvasSize.height,
-  } as CSSProperties;
+  const layerGridStyle = getExportGridStyle(canvasSize);
 
   return (
     <article className="export-layer" aria-label={`${layer.displayId} ${layer.name}`}>
@@ -355,6 +352,22 @@ function getLayerCoordinateBounds(layer: ImageExportLayerSummary): { origin: str
     origin: '0,0',
     max: `${maxCoordinate.x},${maxCoordinate.y}`,
   };
+}
+
+function getExportGridStyle(canvasSize: GridSize): CSSProperties {
+  const maxCanvasSide = Math.max(canvasSize.width, canvasSize.height);
+  const inlineScale = canvasSize.width / maxCanvasSide;
+
+  return {
+    '--export-grid-columns': canvasSize.width,
+    '--export-grid-rows': canvasSize.height,
+    '--export-grid-aspect-ratio': `${canvasSize.width} / ${canvasSize.height}`,
+    '--export-grid-width': `${formatScaledExportGridWidth(inlineScale)}px`,
+  } as CSSProperties;
+}
+
+function formatScaledExportGridWidth(scale: number): string {
+  return Number((230 * scale).toFixed(4)).toString();
 }
 
 function ExportCell({

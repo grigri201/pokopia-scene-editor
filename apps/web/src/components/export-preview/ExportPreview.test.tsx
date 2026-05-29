@@ -5,6 +5,7 @@ import {
   createBuildingLevel,
   createDefaultSceneDocument,
   createFootprintContractScene,
+  createSceneDimensionsForCanvasSize,
   createSkillMarker,
   createStackingPartialSurfaceScene,
   createStackingPlateFoodScene,
@@ -151,6 +152,32 @@ describe('ExportPreview', () => {
     render(<ExportPreview locale="en-US" summary={summary} onClose={vi.fn()} />);
 
     expect(screen.getByText('17x17 canvas · 1 building layer')).toBeVisible();
+  });
+
+  it('shrinks rectangular layer graphics from the longest side so export preview cells stay square', () => {
+    const dimensions = createSceneDimensionsForCanvasSize({ width: 6, height: 17 });
+    const baseScene = createDefaultSceneDocument({
+      sceneId: 'scene-export-preview-rectangular',
+      sceneName: 'Rectangular export preview',
+      now: '2026-05-29T00:00:00.000Z',
+    });
+    const rectangularScene = {
+      ...baseScene,
+      sceneSize: dimensions.sceneSize,
+      canvasSize: dimensions.canvasSize,
+      outerPadding: dimensions.outerPadding,
+    };
+
+    render(<ExportPreview summary={buildImageExportSummary(rectangularScene)} onClose={vi.fn()} />);
+
+    const layerGraphic = screen.getByLabelText('L1 6x17 图形');
+    expect(layerGraphic.querySelectorAll('.export-layer-cell')).toHaveLength(102);
+    expect(layerGraphic).toHaveStyle({
+      '--export-grid-columns': '6',
+      '--export-grid-rows': '17',
+      '--export-grid-aspect-ratio': '6 / 17',
+      '--export-grid-width': '81.1765px',
+    });
   });
 
   it('renders footprint overlays in layer graphics while keeping material lists instance-count based', () => {
