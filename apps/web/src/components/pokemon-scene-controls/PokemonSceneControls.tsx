@@ -1,7 +1,10 @@
 import { type KeyboardEvent, useEffect, useId, useMemo, useState } from 'react';
 import {
   getPokemonThemeDefinition,
+  maxEditableCanvasSize,
+  minEditableCanvasSize,
   pokemonThemeCatalogByNumber,
+  type GridSize,
   type PokemonThemeDefinition,
   type PokemonKey,
 } from '@pokopia-scene-editor/scene-core';
@@ -10,8 +13,10 @@ import { defaultLocale, getPokemonDisplay, t, type Locale } from '../../i18n';
 interface PokemonSceneControlsProps {
   locale?: Locale;
   readOnly: boolean;
+  canvasSize: GridSize;
   selectedPokemonKey: PokemonKey;
   sceneName: string;
+  onCanvasSizeChange: (canvasSize: GridSize) => void;
   onPokemonChange: (pokemonKey: PokemonKey) => void;
   onSceneNameChange: (sceneName: string) => void;
   onSceneNameValidationError?: (message: string) => void;
@@ -20,8 +25,10 @@ interface PokemonSceneControlsProps {
 export function PokemonSceneControls({
   locale = defaultLocale,
   readOnly,
+  canvasSize,
   selectedPokemonKey,
   sceneName,
+  onCanvasSizeChange,
   onPokemonChange,
   onSceneNameChange,
   onSceneNameValidationError,
@@ -192,6 +199,22 @@ export function PokemonSceneControls({
     }
   };
 
+  const handleCanvasSizeChange = (axis: 'width' | 'height', value: string) => {
+    if (readOnly) {
+      return;
+    }
+
+    const nextSize = Number(value);
+    if (!Number.isInteger(nextSize)) {
+      return;
+    }
+
+    onCanvasSizeChange({
+      ...canvasSize,
+      [axis]: nextSize,
+    });
+  };
+
   return (
     <section className="scene-controls" aria-label={t(locale, 'sceneControls')}>
       <div className="scene-controls__fields">
@@ -296,10 +319,49 @@ export function PokemonSceneControls({
             ) : null}
           </span>
         </label>
+        <fieldset className="scene-size-control" aria-label={t(locale, 'editAreaSize')}>
+          <div className="scene-size-control__selects">
+            <label>
+              {t(locale, 'editAreaWidth')}
+              <select
+                aria-label={t(locale, 'editAreaWidth')}
+                disabled={readOnly}
+                value={canvasSize.width}
+                onChange={(event) => handleCanvasSizeChange('width', event.target.value)}
+              >
+                {editableCanvasSizeOptions.map((size) => (
+                  <option value={size} key={`width-${size}`}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t(locale, 'editAreaHeight')}
+              <select
+                aria-label={t(locale, 'editAreaHeight')}
+                disabled={readOnly}
+                value={canvasSize.height}
+                onChange={(event) => handleCanvasSizeChange('height', event.target.value)}
+              >
+                {editableCanvasSizeOptions.map((size) => (
+                  <option value={size} key={`height-${size}`}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </fieldset>
       </div>
     </section>
   );
 }
+
+const editableCanvasSizeOptions = Array.from(
+  { length: maxEditableCanvasSize - minEditableCanvasSize + 1 },
+  (_, index) => minEditableCanvasSize + index,
+);
 
 function formatPokedexNumber(pokedexNumber: number): string {
   return String(pokedexNumber).padStart(3, '0');

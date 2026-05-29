@@ -9,6 +9,7 @@ import {
   assertCanvasCoordinate,
   assertSupportedSceneDimensions,
   calculateAreaType,
+  maxBuildingLevels,
   validateSceneOccupancy,
   type FootprintConflict,
   type GridCoordinate,
@@ -41,7 +42,7 @@ const buildingLevelNoteSchema = z.object({
 
 const buildingLevelSchema = z.object({
   id: z.string().min(1),
-  levelNumber: z.number().int().min(0),
+  levelNumber: z.number().int().min(0).max(maxBuildingLevels - 1),
   name: z.string(),
   notes: z.array(buildingLevelNoteSchema).default([]),
 }).strip();
@@ -94,7 +95,7 @@ export const sceneDocumentV1Schema = z.object({
   sceneSize: gridSizeSchema,
   canvasSize: gridSizeSchema,
   outerPadding: z.number().int().min(0),
-  buildingLevels: z.array(buildingLevelSchema).min(1),
+  buildingLevels: z.array(buildingLevelSchema).min(1).max(maxBuildingLevels),
   tileInstances: z.array(tileInstanceSchema),
   skillMarkers: z.array(skillMarkerSchema).default([]),
   workspaceState: workspaceStateSchema,
@@ -358,7 +359,7 @@ function getRawDimensionValidationErrors(input: unknown): SceneDocumentValidatio
   } catch (error) {
     return [{
       fieldPath: '$',
-      expected: 'legacy 5x5/7x7 or default 15x15/17x17 scene dimensions',
+      expected: 'outerPadding 1 and canvas width/height 6..17 scene dimensions',
       actual: stringifyActualValue({
         sceneSize: root.sceneSize,
         canvasSize: root.canvasSize,

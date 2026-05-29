@@ -1,6 +1,6 @@
 # Pokopia Scene Editor 功能验收 Checklist
 
-> 用于手动逐项检查当前实现情况。当前基线：Epic 12 尺寸扩展后，新建场景默认 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17`；legacy 5x5/7x7 场景仍按自身尺寸恢复。下一步上下文入口：`12-1-scene-core-dimension-contract-and-legacy-recovery`。本次目标不是 16x16。
+> 用于手动逐项检查当前实现情况。当前基线：新建场景默认 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17`；用户可在场景控制区选择 `6..17` 的画布宽高；legacy 5x5/7x7 场景仍按自身尺寸恢复。
 
 ## 工作台与基础布局
 
@@ -17,7 +17,8 @@
 - [*] 中心 15x15 被识别为主体区。
 - [*] 外围 1 圈被识别为装饰区。
 - [*] legacy 5x5/7x7 场景恢复后保留原始 `sceneSize`、`canvasSize`、`outerPadding` 和坐标。
-- [*] 16x16 不属于当前目标尺寸。
+- [*] 场景控制区可分别选择 6-17 的画布宽度和高度。
+- [*] 自定义尺寸保持 `outerPadding=1`，并从画布宽高派生 `sceneSize`。
 - [*] 每个格子维护 0-based `x,y` 坐标。
 - [*] 用户可以选择画布格子作为当前编辑对象。
 - [*] 格子可显示主体区/外围区。
@@ -315,4 +316,4 @@
 - 当前尺寸事实入口：`12-1-scene-core-dimension-contract-and-legacy-recovery`。
 - Web 渲染与导出入口：`12-2-web-canvas-preview-export-17x17-rendering`。
 - Worker/MCP/Codex skill parity 入口：`12-3-short-string-worker-mcp-dimension-parity`。
-- 发布前必须确认目标为 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17`；16x16 不是本次需求。
+- 发布前必须确认默认目标为 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17`，并确认自定义画布宽高 `6..17` 仍能保存、恢复、导出。

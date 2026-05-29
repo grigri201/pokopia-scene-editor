@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultSceneDocument, createTileInstance, legacySceneDimensions } from '@pokopia-scene-editor/scene-core';
 import {
   moveCoordinate,
+  resizeSceneCanvas,
   saveScene,
   sceneReducer,
   selectAsset,
@@ -103,6 +104,69 @@ describe('scene reducer selection rules', () => {
     expect(moveCoordinate({ x: 6, y: 6 }, 'down', legacySceneDimensions.canvasSize)).toEqual({ x: 6, y: 6 });
   });
 
+  it('resizes the editable canvas and keeps the SceneDocument valid', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      selectedCoordinate: { x: 16, y: 16 },
+      now: '2026-05-16T07:00:00.000Z',
+    });
+    const resized = resizeSceneCanvas(
+      {
+        ...scene,
+        tileInstances: [
+          createTileInstance({
+            instanceId: 'tile-kept',
+            assetId: 'leafy-plant',
+            coordinate: { x: 2, y: 2 },
+            buildingLevelId: 'level-0',
+          }),
+          createTileInstance({
+            instanceId: 'tile-pruned',
+            assetId: 'wooden-fencing',
+            coordinate: { x: 16, y: 16 },
+            buildingLevelId: 'level-0',
+          }),
+        ],
+        skillMarkers: [
+          {
+            coordinate: { x: 2, y: 2 },
+            areaType: 'outer',
+            buildingLevelId: 'level-0',
+            skillType: '树叶',
+            skillNote: '',
+          },
+          {
+            coordinate: { x: 16, y: 16 },
+            areaType: 'outer',
+            buildingLevelId: 'level-0',
+            skillType: '储水',
+            skillNote: '',
+          },
+        ],
+      },
+      { width: 6, height: 10 },
+      'edit',
+      '2026-05-16T08:00:00.000Z',
+    );
+
+    expect(resized.sceneSize).toEqual({ width: 4, height: 8 });
+    expect(resized.canvasSize).toEqual({ width: 6, height: 10 });
+    expect(resized.tileInstances).toHaveLength(1);
+    expect(resized.tileInstances[0]).toMatchObject({
+      instanceId: 'tile-kept',
+      coordinate: { x: 2, y: 2 },
+      areaType: 'main',
+    });
+    expect(resized.skillMarkers).toEqual([
+      expect.objectContaining({
+        coordinate: { x: 2, y: 2 },
+        areaType: 'main',
+      }),
+    ]);
+    expect(resized.workspaceState.selectedCoordinate).toBeNull();
+    expect(resized.metadata.updatedAt).toBe('2026-05-16T08:00:00.000Z');
+  });
+
   it('updates scene controls and saved metadata through guarded commands', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-test',
@@ -198,6 +262,7 @@ describe('scene reducer selection rules', () => {
 
     expect(updateSceneName(scene, 'Blocked 5x5 Layout', 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
     expect(selectPokemon(scene, 'pikachu', 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
+    expect(resizeSceneCanvas(scene, { width: 6, height: 6 }, 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
     expect(saveScene(scene, 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
   });
 });

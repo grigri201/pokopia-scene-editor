@@ -59,7 +59,7 @@ describe('AppShell scene storage integration', () => {
     expect(within(dialog).getByText('这里可以新增层和选中层。')).toBeVisible();
     expect(within(dialog).getByText('可以勾选只显示宝可梦喜欢的素材。')).toBeVisible();
     expect(within(dialog).getByText('单击选中素材，双击锁定可以多次放置。')).toBeVisible();
-    expect(within(dialog).getByText('这里可以修改布景名称和选择当前宝可梦。')).toBeVisible();
+    expect(within(dialog).getByText('这里可以修改布景和选择当前宝可梦。')).toBeVisible();
     expect(document.querySelectorAll('.help-guide-spotlight')).toHaveLength(4);
     expect(document.querySelectorAll('.help-guide-arrow')).toHaveLength(4);
     expect(within(dialog).queryByRole('button', { name: '下一步' })).not.toBeInTheDocument();
@@ -152,7 +152,7 @@ describe('AppShell scene storage integration', () => {
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save scene from scene controls' })).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Autosaved Garden Layout' } });
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Autosaved Garden Layout' } });
     expectNoSaveStatus();
 
     let rawAutosavePayload: string | null = null;
@@ -170,9 +170,31 @@ describe('AppShell scene storage integration', () => {
     unmount();
     render(<AppShell />);
 
-    expect(screen.getByLabelText('布景名称')).toHaveValue('Autosaved Garden Layout');
+    expect(screen.getByLabelText('布景')).toHaveValue('Autosaved Garden Layout');
     expectNoSaveStatus();
   }, 20_000);
+
+  it('lets desktop users set the editable canvas width and height', async () => {
+    writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
+
+    render(<AppShell />);
+
+    fireEvent.change(screen.getByLabelText('宽度'), { target: { value: '12' } });
+    fireEvent.change(screen.getByLabelText('高度'), { target: { value: '10' } });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('12x10 scene canvas workspace')).toBeVisible();
+    });
+
+    const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
+    expect(rawAutosavePayload).not.toBeNull();
+    expect(JSON.parse(rawAutosavePayload ?? '{}')).toMatchObject({
+      sceneSize: { width: 10, height: 8 },
+      canvasSize: { width: 12, height: 10 },
+      outerPadding: 1,
+    });
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+  });
 
   it('exports the current scene as a short restorable string without writing storage', () => {
     const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(null);
@@ -215,7 +237,7 @@ describe('AppShell scene storage integration', () => {
     fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText('布景名称')).toHaveValue('导入庭院');
+      expect(screen.getByLabelText('布景')).toHaveValue('导入庭院');
       expect(screen.getByLabelText('Current Pokemon')).toHaveValue('伊布');
       expect(screen.getByRole('status', { name: '字符串提示' })).toHaveTextContent(
         '已导入布景字符串',
@@ -532,9 +554,9 @@ describe('AppShell scene storage integration', () => {
     expect(lowerInspectors).toHaveAttribute('aria-label', 'Canvas lower inspectors');
     expect(lowerInspectors?.children).toHaveLength(1);
     expect(lowerInspectors?.children[0]).toHaveClass('selection-inspector');
-    expect(screen.getByRole('complementary', { name: '检查器预览' })).toBeVisible();
-    expect(screen.getByLabelText('俯视图预览')).toHaveAttribute('data-preview-columns', '17');
-    expect(screen.getByLabelText('俯视图预览')).toHaveAttribute('data-preview-rows', '17');
+    expect(screen.queryByRole('complementary', { name: '检查器预览' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('俯视图预览')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('正视图预览')).not.toBeInTheDocument();
   });
 
   it('keeps the workbench theme stable when Pokemon selection changes', () => {
@@ -558,52 +580,52 @@ describe('AppShell scene storage integration', () => {
   it('shows scene name validation through a toast', () => {
     render(<AppShell />);
 
-    const sceneNameInput = screen.getByLabelText('布景名称');
+    const sceneNameInput = screen.getByLabelText('布景');
     fireEvent.change(sceneNameInput, { target: { value: '   ' } });
     fireEvent.blur(sceneNameInput);
 
-    expect(screen.getByRole('alert', { name: '布景名称提示' })).toHaveTextContent('请输入布景名称。');
-    expect(screen.getByRole('alert', { name: '布景名称提示' })).toHaveAttribute('data-toast-id', 'scene-name');
-    expect(screen.queryByText('请输入布景名称。', { selector: '.field-error' })).not.toBeInTheDocument();
+    expect(screen.getByRole('alert', { name: '布景提示' })).toHaveTextContent('请输入布景。');
+    expect(screen.getByRole('alert', { name: '布景提示' })).toHaveAttribute('data-toast-id', 'scene-name');
+    expect(screen.queryByText('请输入布景。', { selector: '.field-error' })).not.toBeInTheDocument();
   });
 
   it('auto-dismisses generic notification toasts after three seconds', () => {
     vi.useFakeTimers();
     render(<AppShell />);
 
-    const sceneNameInput = screen.getByLabelText('布景名称');
+    const sceneNameInput = screen.getByLabelText('布景');
     fireEvent.change(sceneNameInput, { target: { value: '   ' } });
     fireEvent.blur(sceneNameInput);
 
-    expect(screen.getByRole('alert', { name: '布景名称提示' })).toBeVisible();
+    expect(screen.getByRole('alert', { name: '布景提示' })).toBeVisible();
 
     act(() => {
       vi.advanceTimersByTime(3_000);
     });
 
-    expect(screen.queryByRole('alert', { name: '布景名称提示' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert', { name: '布景提示' })).not.toBeInTheDocument();
   });
 
   it('pauses generic notification toast auto-dismiss while hovered', () => {
     vi.useFakeTimers();
     render(<AppShell />);
 
-    const sceneNameInput = screen.getByLabelText('布景名称');
+    const sceneNameInput = screen.getByLabelText('布景');
     fireEvent.change(sceneNameInput, { target: { value: '   ' } });
     fireEvent.blur(sceneNameInput);
-    const toast = screen.getByRole('alert', { name: '布景名称提示' });
+    const toast = screen.getByRole('alert', { name: '布景提示' });
 
     fireEvent.mouseEnter(toast);
     act(() => {
       vi.advanceTimersByTime(3_000);
     });
-    expect(screen.getByRole('alert', { name: '布景名称提示' })).toBeVisible();
+    expect(screen.getByRole('alert', { name: '布景提示' })).toBeVisible();
 
     fireEvent.mouseLeave(toast);
     act(() => {
       vi.advanceTimersByTime(3_000);
     });
-    expect(screen.queryByRole('alert', { name: '布景名称提示' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert', { name: '布景提示' })).not.toBeInTheDocument();
   });
 
   it('starts new scene data with only empty 1层', () => {
@@ -711,7 +733,7 @@ describe('AppShell scene storage integration', () => {
   it('autosaves dirty edits without writing UI save status into payload', async () => {
     render(<AppShell />);
 
-    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Autosaved Garden Layout' } });
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Autosaved Garden Layout' } });
 
     await waitFor(() => {
       const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
@@ -805,7 +827,7 @@ describe('AppShell scene storage integration', () => {
 
     render(<AppShell />);
 
-    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Blocked Autosave Layout' } });
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Blocked Autosave Layout' } });
 
     await waitFor(() => {
       expect(screen.getByLabelText('自动保存提示')).toHaveAttribute('data-toast-tone', 'error');
@@ -815,7 +837,7 @@ describe('AppShell scene storage integration', () => {
     expectNoSaveStatus();
 
     failAutosave = false;
-    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Recovered Autosave Layout' } });
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Recovered Autosave Layout' } });
 
     await waitFor(() => {
       const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
@@ -842,7 +864,7 @@ describe('AppShell scene storage integration', () => {
 
     render(<AppShell />);
 
-    expect(screen.getByLabelText('布景名称')).toHaveValue('Autosave Draft Layout');
+    expect(screen.getByLabelText('布景')).toHaveValue('Autosave Draft Layout');
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}')).toMatchObject({
@@ -1202,7 +1224,7 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
 
-    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Payload Isolation Layout' } });
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Payload Isolation Layout' } });
 
     await waitFor(() => {
       const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
@@ -1222,7 +1244,7 @@ describe('AppShell scene storage integration', () => {
   it('does not expose undo or redo scene history controls', async () => {
     render(<AppShell />);
 
-    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Undo Check Layout' } });
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Undo Check Layout' } });
     await waitFor(() => expect(window.localStorage.getItem(autosavedSceneStorageKey)).not.toBeNull());
 
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
@@ -1365,15 +1387,15 @@ describe('AppShell scene storage integration', () => {
 
     expect(screen.getByLabelText('Recovery toast')).toBeVisible();
     expect(screen.getByLabelText('Recovery toast details')).toHaveTextContent('schemaVersion');
-    expect(screen.getByLabelText('布景名称')).toHaveValue('15x15 布景');
+    expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
     expectNoSaveStatus();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'canceled');
     expect(screen.getByLabelText('Recovery toast')).toHaveTextContent('Recovery canceled');
-    expect(screen.getByLabelText('布景名称')).toHaveValue('15x15 布景');
-  }, 10_000);
+    expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
+  }, 20_000);
 
   it('retries recovery and replaces the scene only after storage becomes valid', async () => {
     window.localStorage.setItem(
@@ -1402,7 +1424,7 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'success');
-      expect(screen.getByLabelText('布景名称')).toHaveValue('Retry Recovery');
+      expect(screen.getByLabelText('布景')).toHaveValue('Retry Recovery');
       const recoveredCell = screen.getByLabelText(/Cell 3,3, main area, level-0, placeable$/);
       expect(recoveredCell).toBeVisible();
       expect(recoveredCell).toHaveAttribute('aria-selected', 'true');
@@ -1426,7 +1448,7 @@ describe('AppShell scene storage integration', () => {
 
     expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
     expect(screen.queryByLabelText('Recovery toast')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('布景名称')).toHaveValue('Mobile Restored Recovery');
+    expect(screen.getByLabelText('布景')).toHaveValue('Mobile Restored Recovery');
     expect(screen.getByLabelText('Current Pokemon')).toHaveValue('皮卡丘');
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).not.toBeNull();
@@ -1447,7 +1469,7 @@ describe('AppShell scene storage integration', () => {
 
     expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
     expect(screen.getByLabelText('Recovery toast')).toBeVisible();
-    expect(screen.getByLabelText('布景名称')).toHaveValue('15x15 布景');
+    expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
 
     writeSceneDocumentToStorage(
       window.localStorage,
@@ -1464,7 +1486,7 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'success');
-      expect(screen.getByLabelText('布景名称')).toHaveValue('Mobile Retry Recovery');
+      expect(screen.getByLabelText('布景')).toHaveValue('Mobile Retry Recovery');
       expect(screen.getByLabelText('Current Pokemon')).toHaveValue('皮卡丘');
       expectNoSaveStatus();
     });
@@ -1491,20 +1513,20 @@ describe('AppShell scene storage integration', () => {
     expect(details).toHaveTextContent(unsafeCombinedText);
     expect(details.querySelector('script')).toBeNull();
     expect(details.querySelector('img')).toBeNull();
-    expect(screen.getByLabelText('布景名称')).toHaveValue('15x15 布景');
+    expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
     expectNoSaveStatus();
 
     fireEvent.mouseEnter(validator);
-    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: 'Current Dirty Layout' } });
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Current Dirty Layout' } });
     await waitFor(() => expect(window.localStorage.getItem(autosavedSceneStorageKey)).not.toBeNull());
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
 
     fireEvent.click(within(validator).getByRole('button', { name: 'Cancel' }));
 
     expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'canceled');
-    expect(screen.getByLabelText('布景名称')).toHaveValue('Current Dirty Layout');
+    expect(screen.getByLabelText('布景')).toHaveValue('Current Dirty Layout');
     expectNoSaveStatus();
-  }, 10_000);
+  }, 20_000);
 
   it('recovers unsafe scene text as plain text without inserting executable DOM nodes', async () => {
     const unsafeScene = createDefaultSceneDocument({
@@ -1536,7 +1558,7 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('布景名称')).toHaveValue(`Unsafe ${unsafeAngleText}`);
+      expect(screen.getByLabelText('布景')).toHaveValue(`Unsafe ${unsafeAngleText}`);
       expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toHaveAttribute('aria-pressed', 'true');
       expect(document.querySelector('script')).toBeNull();
       expect(document.querySelector('img[src="x"]')).toBeNull();

@@ -1,6 +1,9 @@
 import {
   defaultSceneDimensions,
   legacySceneDimensions,
+  maxEditableCanvasSize,
+  minEditableCanvasSize,
+  outerPadding,
   summarizeSceneDocumentStringDimensions,
   summarizeSceneDimensions,
   type GridSize,
@@ -39,6 +42,12 @@ export function getSupportedDimensionsSummary() {
   return {
     default: summarizeSceneDimensions(defaultSceneDimensions),
     legacy: summarizeSceneDimensions(legacySceneDimensions),
+    selectableCanvas: {
+      min: minEditableCanvasSize,
+      max: maxEditableCanvasSize,
+      outerPadding,
+      classification: 'custom' as const,
+    },
   };
 }
 

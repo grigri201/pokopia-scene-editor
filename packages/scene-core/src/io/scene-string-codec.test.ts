@@ -149,6 +149,25 @@ describe('SceneDocument short string codec', () => {
     });
   });
 
+  it('decodes PSE2 strings that declare custom selectable dimensions', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-custom-dimensions',
+      sceneName: 'Custom dimensions',
+      now: '2026-05-23T09:00:00.000Z',
+    });
+    const encodedParts = encodeSceneDocumentString(scene).split('~');
+    encodedParts[1] = 'E.C.1';
+
+    const decoded = decodeSceneDocumentString(encodedParts.join('~'), '2026-05-23T09:30:00.000Z');
+
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      throw new Error('Expected custom PSE2 dimensions to decode.');
+    }
+    expect(decoded.scene.sceneSize).toEqual({ width: 14, height: 12 });
+    expect(decoded.scene.canvasSize).toEqual({ width: 16, height: 14 });
+  });
+
   it('rejects PSE2 strings that declare unsupported dimensions', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-unsupported-dimensions',
@@ -156,7 +175,7 @@ describe('SceneDocument short string codec', () => {
       now: '2026-05-23T09:00:00.000Z',
     });
     const encodedParts = encodeSceneDocumentString(scene).split('~');
-    encodedParts[1] = 'E.E.1';
+    encodedParts[1] = 'G.G.1';
 
     const decoded = decodeSceneDocumentString(encodedParts.join('~'), '2026-05-23T09:30:00.000Z');
 
@@ -166,7 +185,7 @@ describe('SceneDocument short string codec', () => {
     }
     expect(decoded.errors[0]).toMatchObject({
       fieldPath: '$',
-      actual: expect.stringContaining('Scene dimensions must be legacy 5x5/7x7 or default 15x15/17x17.'),
+      actual: expect.stringContaining('Scene dimensions must use outerPadding 1 and canvas width/height between 6 and 17.'),
     });
   });
 
@@ -177,7 +196,7 @@ describe('SceneDocument short string codec', () => {
     }));
     const legacyString = encodeSceneDocumentString(createFootprintContractScene());
     const unsupportedParts = defaultString.split('~');
-    unsupportedParts[1] = 'E.E.1';
+    unsupportedParts[1] = 'G.G.1';
 
     expect(summarizeSceneDocumentStringDimensions(defaultString)).toEqual({
       sceneSize: { width: 15, height: 15 },
@@ -192,8 +211,8 @@ describe('SceneDocument short string codec', () => {
       classification: 'legacy-7x7',
     });
     expect(summarizeSceneDocumentStringDimensions(unsupportedParts.join('~'))).toEqual({
-      sceneSize: { width: 14, height: 14 },
-      canvasSize: { width: 16, height: 16 },
+      sceneSize: { width: 16, height: 16 },
+      canvasSize: { width: 18, height: 18 },
       outerPadding: 1,
       classification: 'unsupported',
     });

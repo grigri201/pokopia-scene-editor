@@ -1,6 +1,7 @@
 import type { BuildingLevel } from './types';
 
 export const defaultBuildingLevelNumbers = [0] as const;
+export const maxBuildingLevels = 30;
 
 export function createBuildingLevel(levelNumber: number): BuildingLevel {
   assertBuildingLevelNumber(levelNumber);
@@ -16,6 +17,10 @@ export function createBuildingLevel(levelNumber: number): BuildingLevel {
 export function assertBuildingLevelNumber(levelNumber: number): void {
   if (!Number.isInteger(levelNumber) || levelNumber < 0) {
     throw new RangeError('Building level number must be a non-negative integer.');
+  }
+
+  if (levelNumber >= maxBuildingLevels) {
+    throw new RangeError(`Building level number must be less than ${maxBuildingLevels}.`);
   }
 }
 

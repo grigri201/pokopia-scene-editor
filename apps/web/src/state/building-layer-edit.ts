@@ -1,5 +1,6 @@
 import {
   createBuildingLevel,
+  maxBuildingLevels,
   resequenceBuildingLevels,
   type SceneDocument,
 } from '@pokopia-scene-editor/scene-core';
@@ -12,6 +13,7 @@ export type BuildingLayerEditFailureReason =
   | 'invalid-name'
   | 'invalid-note'
   | 'last-layer'
+  | 'max-layers'
   | 'delete-confirmation-required';
 
 export type BuildingLayerEditResult =
@@ -74,6 +76,10 @@ export function editBuildingLayer(
 
 function createLayer(scene: SceneDocument, now: string, name?: string): BuildingLayerEditResult {
   const buildingLevels = resequenceBuildingLevels(scene.buildingLevels);
+  if (buildingLevels.length >= maxBuildingLevels) {
+    return buildingLayerLimitReached();
+  }
+
   const nextLevel = createUniqueBuildingLevel(buildingLevels, buildingLevels.length, name);
 
   return markLayerSceneDirty(
@@ -100,6 +106,9 @@ function copyLayer(
   const sourceLayer = buildingLevels.find((level) => level.id === levelId);
   if (!sourceLayer) {
     return failure('missing-layer', 'Unknown building layer', 'Choose an existing building layer.');
+  }
+  if (buildingLevels.length >= maxBuildingLevels) {
+    return buildingLayerLimitReached();
   }
 
   const baseNextLevel = createUniqueBuildingLevel(buildingLevels, buildingLevels.length);
@@ -399,4 +408,12 @@ function failure(
     message,
     repairHint,
   };
+}
+
+function buildingLayerLimitReached(): Extract<BuildingLayerEditResult, { ok: false }> {
+  return failure(
+    'max-layers',
+    `Maximum ${maxBuildingLevels} building layers reached`,
+    'Delete a building layer before creating another one.',
+  );
 }

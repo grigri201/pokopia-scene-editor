@@ -70,6 +70,7 @@ assert(skillMarkdown.includes('classification'), 'Skill markdown must mention di
 assert(validateSceneExample.includes('classification'), 'Validate scene example must require dimension classification.');
 assert(skillMarkdown.includes('15x15') && skillMarkdown.includes('17x17'), 'Skill markdown must mention current 15x15/17x17 dimensions.');
 assert(skillMarkdown.includes('5x5') && skillMarkdown.includes('7x7'), 'Skill markdown must mention legacy 5x5/7x7 dimensions.');
+assert(skillMarkdown.includes('6..17'), 'Skill markdown must mention selectable 6..17 canvas dimensions.');
 assert(
   exampleText.includes('search_pokopia_assets') && exampleText.includes('generate_scene_document'),
   'Examples must cover asset search and default scene generation workflow.',

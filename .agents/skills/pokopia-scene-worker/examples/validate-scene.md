@@ -21,4 +21,4 @@ Do not paste the complete scene payload into the final answer unless explicitly 
 Do not rebuild footprint, occupied-cell, or height-blocking rules locally; use the structured MCP error fields as the authority.
 Do not clamp coordinates as if every scene were `7x7`; default scenes use `15x15` scene / `17x17` canvas, while legacy scenes use `5x5` scene / `7x7` canvas.
 
-Dimension note: Epic 12 default is `15x15` scene / `17x17` canvas with `outerPadding: 1`; legacy recovered payloads may remain `5x5` / `7x7`; `16x16` is unsupported. Use `_bmad-output/implementation-artifacts/12-1-scene-core-dimension-contract-and-legacy-recovery.md` for the dimension contract context.
+Dimension note: the default is `15x15` scene / `17x17` canvas with `outerPadding: 1`; users may choose custom canvas width/height from `6..17`; legacy recovered payloads may remain `5x5` / `7x7`. Use Worker/MCP `dimensions` output as the current contract.

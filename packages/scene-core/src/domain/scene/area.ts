@@ -1,6 +1,8 @@
 export const sceneSize = 15;
 export const outerPadding = 1;
 export const canvasSize = sceneSize + outerPadding * 2;
+export const minEditableCanvasSize = 6;
+export const maxEditableCanvasSize = 17;
 
 export type AreaType = 'main' | 'outer';
 
@@ -25,7 +27,7 @@ export interface SceneDimensions {
   outerPadding: number;
 }
 
-export type SceneDimensionsClassification = 'default-17x17' | 'legacy-7x7' | 'unsupported';
+export type SceneDimensionsClassification = 'default-17x17' | 'legacy-7x7' | 'custom' | 'unsupported';
 
 export interface SceneDimensionsSource {
   sceneSize: GridSize;
@@ -48,6 +50,19 @@ export const legacySceneDimensions: SceneDimensions = {
   canvasSize: { width: 7, height: 7 },
   outerPadding,
 };
+
+export function createSceneDimensionsForCanvasSize(canvas: GridSize): SceneDimensions {
+  const dimensions = {
+    sceneSize: {
+      width: canvas.width - outerPadding * 2,
+      height: canvas.height - outerPadding * 2,
+    },
+    canvasSize: { ...canvas },
+    outerPadding,
+  };
+  assertSupportedSceneDimensions(dimensions);
+  return dimensions;
+}
 
 export function getCanvasSizeForScene(scene: GridSize, padding: number): GridSize {
   return {
@@ -78,7 +93,8 @@ export function assertSceneDimensions(dimensions: SceneDimensions): void {
 export function isSupportedSceneDimensions(dimensions: SceneDimensions): boolean {
   return (
     dimensionsEqual(dimensions, defaultSceneDimensions) ||
-    dimensionsEqual(dimensions, legacySceneDimensions)
+    dimensionsEqual(dimensions, legacySceneDimensions) ||
+    isSelectableCanvasDimensions(dimensions)
   );
 }
 
@@ -102,6 +118,10 @@ export function classifySceneDimensions(source: SceneDimensionsSource): SceneDim
     return 'legacy-7x7';
   }
 
+  if (isSelectableCanvasDimensions(dimensions)) {
+    return 'custom';
+  }
+
   return 'unsupported';
 }
 
@@ -118,7 +138,7 @@ export function assertSupportedSceneDimensions(dimensions: SceneDimensions): voi
   assertSceneDimensions(dimensions);
 
   if (!isSupportedSceneDimensions(dimensions)) {
-    throw new RangeError('Scene dimensions must be legacy 5x5/7x7 or default 15x15/17x17.');
+    throw new RangeError('Scene dimensions must use outerPadding 1 and canvas width/height between 6 and 17.');
   }
 }
 
@@ -206,6 +226,20 @@ function dimensionsEqual(left: SceneDimensions, right: SceneDimensions): boolean
     left.canvasSize.width === right.canvasSize.width &&
     left.canvasSize.height === right.canvasSize.height &&
     left.outerPadding === right.outerPadding
+  );
+}
+
+function isSelectableCanvasDimensions(dimensions: SceneDimensions): boolean {
+  const expectedCanvasSize = getCanvasSizeForScene(dimensions.sceneSize, dimensions.outerPadding);
+
+  return (
+    dimensions.outerPadding === outerPadding &&
+    dimensions.canvasSize.width === expectedCanvasSize.width &&
+    dimensions.canvasSize.height === expectedCanvasSize.height &&
+    dimensions.canvasSize.width >= minEditableCanvasSize &&
+    dimensions.canvasSize.width <= maxEditableCanvasSize &&
+    dimensions.canvasSize.height >= minEditableCanvasSize &&
+    dimensions.canvasSize.height <= maxEditableCanvasSize
   );
 }
 

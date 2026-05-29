@@ -1,6 +1,8 @@
 import {
   assertCanvasCoordinate,
   assertSceneNameLabelsSceneSize,
+  calculateAreaType,
+  createSceneDimensionsForCanvasSize,
   defaultSceneDimensions,
   type GridCoordinate,
   type GridSize,
@@ -24,6 +26,12 @@ export type SceneAction =
   | {
       type: 'select-pokemon';
       pokemonKey: PokemonKey;
+      interactionMode: InteractionMode;
+      now: string;
+    }
+  | {
+      type: 'resize-scene-canvas';
+      canvasSize: GridSize;
       interactionMode: InteractionMode;
       now: string;
     }
@@ -53,6 +61,8 @@ export function sceneReducer(scene: SceneDocument, action: SceneAction): SceneDo
       return updateSceneName(scene, action.sceneName, action.interactionMode, action.now);
     case 'select-pokemon':
       return selectPokemon(scene, action.pokemonKey, action.interactionMode, action.now);
+    case 'resize-scene-canvas':
+      return resizeSceneCanvas(scene, action.canvasSize, action.interactionMode, action.now);
     case 'select-asset':
       return selectAsset(scene, action.assetId, action.interactionMode, action.now);
     case 'set-selected-asset':
@@ -136,6 +146,57 @@ export function selectPokemon(
     {
       ...scene,
       selectedPokemonKey: pokemonKey,
+    },
+    now,
+  );
+}
+
+export function resizeSceneCanvas(
+  scene: SceneDocument,
+  canvasSize: GridSize,
+  interactionMode: InteractionMode,
+  now: string,
+): SceneDocument {
+  if (interactionMode === 'readOnly') {
+    return scene;
+  }
+
+  const dimensions = createSceneDimensionsForCanvasSize(canvasSize);
+  if (scene.canvasSize.width === dimensions.canvasSize.width && scene.canvasSize.height === dimensions.canvasSize.height) {
+    return scene;
+  }
+
+  const isInsideCanvas = (coordinate: GridCoordinate) =>
+    coordinate.x >= 0 &&
+    coordinate.y >= 0 &&
+    coordinate.x < dimensions.canvasSize.width &&
+    coordinate.y < dimensions.canvasSize.height;
+
+  return markSceneDirty(
+    {
+      ...scene,
+      sceneSize: dimensions.sceneSize,
+      canvasSize: dimensions.canvasSize,
+      outerPadding: dimensions.outerPadding,
+      tileInstances: scene.tileInstances
+        .filter((instance) => isInsideCanvas(instance.coordinate))
+        .map((instance) => ({
+          ...instance,
+          areaType: calculateAreaType(instance.coordinate, dimensions),
+        })),
+      skillMarkers: scene.skillMarkers
+        .filter((marker) => isInsideCanvas(marker.coordinate))
+        .map((marker) => ({
+          ...marker,
+          areaType: calculateAreaType(marker.coordinate, dimensions),
+        })),
+      workspaceState: {
+        ...scene.workspaceState,
+        selectedCoordinate:
+          scene.workspaceState.selectedCoordinate && isInsideCanvas(scene.workspaceState.selectedCoordinate)
+            ? scene.workspaceState.selectedCoordinate
+            : null,
+      },
     },
     now,
   );

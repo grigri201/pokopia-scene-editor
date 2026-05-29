@@ -3,6 +3,7 @@ import {
   createBuildingLevel,
   createDefaultBuildingLevels,
   getNextBuildingLevelNumber,
+  maxBuildingLevels,
   resequenceBuildingLevels,
   sortBuildingLevelsForDisplay,
 } from './levels';
@@ -27,6 +28,7 @@ describe('building level rules', () => {
     expect(() => createBuildingLevel(-1)).toThrow(RangeError);
     expect(() => createBuildingLevel(1.5)).toThrow(RangeError);
     expect(() => createBuildingLevel(Number.NaN)).toThrow(RangeError);
+    expect(() => createBuildingLevel(maxBuildingLevels)).toThrow(RangeError);
   });
 
   it('sorts building levels for display from high to low without mutating data order', () => {

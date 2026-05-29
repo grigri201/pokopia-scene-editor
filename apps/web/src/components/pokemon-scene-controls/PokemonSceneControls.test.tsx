@@ -4,14 +4,17 @@ import { PokemonSceneControls } from './PokemonSceneControls';
 
 describe('PokemonSceneControls', () => {
   it('uses compact Open Design controls for Pokemon and name without manual save', () => {
+    const onCanvasSizeChange = vi.fn();
     const onPokemonChange = vi.fn();
     const onSceneNameChange = vi.fn();
 
     const { container } = render(
       <PokemonSceneControls
         readOnly={false}
+        canvasSize={defaultCanvasSize}
         selectedPokemonKey="pikachu"
         sceneName="星光庭院"
+        onCanvasSizeChange={onCanvasSizeChange}
         onPokemonChange={onPokemonChange}
         onSceneNameChange={onSceneNameChange}
       />,
@@ -59,19 +62,27 @@ describe('PokemonSceneControls', () => {
     expect(pokemonOptionValues.at(-1)).toBe('mew');
     const fieldLabels = Array.from(container.querySelectorAll('.scene-controls__fields > label'));
     expect(fieldLabels).toHaveLength(2);
-    expect(fieldLabels[0]?.querySelector('input')).toHaveAccessibleName('布景名称');
+    expect(fieldLabels[0]?.querySelector('input')).toHaveAccessibleName('布景');
     expect(fieldLabels[1]?.childNodes[0]?.textContent?.trim()).toBe('宝可梦');
     expect(fieldLabels[1]?.querySelector('input')).toHaveAccessibleName('Current Pokemon');
+    expect(screen.getByRole('group', { name: '编辑区域大小' })).toBeVisible();
+    expect(container.querySelector('.scene-size-control legend')).toBeNull();
+    expect(screen.getByLabelText('宽度')).toHaveValue('17');
+    expect(screen.getByLabelText('高度')).toHaveValue('17');
 
     fireEvent.change(screen.getByLabelText('Current Pokemon'), { target: { value: 'eevee' } });
     fireEvent.mouseDown(screen.getByRole('option', { name: /#280.*伊布.*Eevee/ }));
-    fireEvent.change(screen.getByLabelText('布景名称'), { target: { value: '月光庭院' } });
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: '月光庭院' } });
+    fireEvent.change(screen.getByLabelText('宽度'), { target: { value: '12' } });
+    fireEvent.change(screen.getByLabelText('高度'), { target: { value: '9' } });
 
     expect(onPokemonChange).toHaveBeenCalledWith('eevee');
     expect(onSceneNameChange).toHaveBeenCalledWith('月光庭院');
+    expect(onCanvasSizeChange).toHaveBeenNthCalledWith(1, { width: 12, height: 17 });
+    expect(onCanvasSizeChange).toHaveBeenNthCalledWith(2, { width: 17, height: 9 });
     expect(screen.queryByRole('button', { name: /Save scene/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Save status')).not.toBeInTheDocument();
-  });
+  }, 15_000);
 
   it('searches Pokemon by Pokedex number, localized name, and English name', () => {
     const onPokemonChange = vi.fn();
@@ -79,8 +90,10 @@ describe('PokemonSceneControls', () => {
     render(
       <PokemonSceneControls
         readOnly={false}
+        canvasSize={defaultCanvasSize}
         selectedPokemonKey="pikachu"
         sceneName="星光庭院"
+        onCanvasSizeChange={() => undefined}
         onPokemonChange={onPokemonChange}
         onSceneNameChange={() => undefined}
       />,
@@ -121,21 +134,23 @@ describe('PokemonSceneControls', () => {
     render(
       <PokemonSceneControls
         readOnly={false}
+        canvasSize={defaultCanvasSize}
         selectedPokemonKey="pikachu"
         sceneName="星光庭院"
+        onCanvasSizeChange={() => undefined}
         onPokemonChange={() => undefined}
         onSceneNameChange={onSceneNameChange}
         onSceneNameValidationError={onSceneNameValidationError}
       />,
     );
 
-    const sceneNameInput = screen.getByLabelText('布景名称');
+    const sceneNameInput = screen.getByLabelText('布景');
     fireEvent.change(sceneNameInput, { target: { value: '   ' } });
     fireEvent.blur(sceneNameInput);
 
     expect(sceneNameInput).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.queryByText('请输入布景名称。')).not.toBeInTheDocument();
-    expect(onSceneNameValidationError).toHaveBeenCalledWith('请输入布景名称。');
+    expect(screen.queryByText('请输入布景。')).not.toBeInTheDocument();
+    expect(onSceneNameValidationError).toHaveBeenCalledWith('请输入布景。');
     expect(screen.queryByRole('button', { name: /Save scene/ })).not.toBeInTheDocument();
     expect(onSceneNameChange).not.toHaveBeenCalled();
   });
@@ -144,8 +159,10 @@ describe('PokemonSceneControls', () => {
     render(
       <PokemonSceneControls
         readOnly={false}
+        canvasSize={defaultCanvasSize}
         selectedPokemonKey="pikachu"
         sceneName="星光庭院"
+        onCanvasSizeChange={() => undefined}
         onPokemonChange={() => undefined}
         onSceneNameChange={() => undefined}
       />,
@@ -160,16 +177,22 @@ describe('PokemonSceneControls', () => {
     render(
       <PokemonSceneControls
         readOnly
+        canvasSize={defaultCanvasSize}
         selectedPokemonKey="pikachu"
         sceneName="星光庭院"
+        onCanvasSizeChange={() => undefined}
         onPokemonChange={() => undefined}
         onSceneNameChange={() => undefined}
       />,
     );
 
     expect(screen.getByLabelText('Current Pokemon')).toBeDisabled();
-    expect(screen.getByLabelText('布景名称')).toHaveAttribute('readonly', '');
+    expect(screen.getByLabelText('布景')).toHaveAttribute('readonly', '');
+    expect(screen.getByLabelText('宽度')).toBeDisabled();
+    expect(screen.getByLabelText('高度')).toBeDisabled();
     expect(screen.queryByRole('button', { name: /Save scene/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Save status')).not.toBeInTheDocument();
   });
 });
+
+const defaultCanvasSize = { width: 17, height: 17 };

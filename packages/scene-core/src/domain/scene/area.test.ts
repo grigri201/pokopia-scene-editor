@@ -4,6 +4,7 @@ import {
   assertSceneDimensions,
   canvasSize,
   classifySceneDimensions,
+  createSceneDimensionsForCanvasSize,
   createCanvasCells,
   defaultSceneDimensions,
   getAreaType,
@@ -41,7 +42,7 @@ describe('scene canvas area rules', () => {
     expect(calculateAreaType({ x: 3, y: 3 }, defaultSceneDimensions)).toBe('main');
   });
 
-  it('summarizes supported and unsupported scene dimensions', () => {
+  it('summarizes default, legacy, custom, and unsupported scene dimensions', () => {
     expect(summarizeSceneDimensions(defaultSceneDimensions)).toEqual({
       sceneSize: { width: 15, height: 15 },
       canvasSize: { width: 17, height: 17 },
@@ -54,11 +55,29 @@ describe('scene canvas area rules', () => {
       outerPadding: 1,
       classification: 'legacy-7x7',
     });
+    expect(summarizeSceneDimensions(createSceneDimensionsForCanvasSize({ width: 12, height: 16 }))).toEqual({
+      sceneSize: { width: 10, height: 14 },
+      canvasSize: { width: 12, height: 16 },
+      outerPadding: 1,
+      classification: 'custom',
+    });
     expect(classifySceneDimensions({
       sceneSize: { width: 16, height: 16 },
       canvasSize: { width: 18, height: 18 },
       outerPadding: 1,
     })).toBe('unsupported');
+  });
+
+  it('creates custom rectangular canvas cells from selectable 6..17 canvas dimensions', () => {
+    const dimensions = createSceneDimensionsForCanvasSize({ width: 6, height: 17 });
+    const cells = createCanvasCells(dimensions);
+
+    expect(dimensions.sceneSize).toEqual({ width: 4, height: 15 });
+    expect(cells).toHaveLength(102);
+    expect(Math.max(...cells.map((cell) => cell.x))).toBe(5);
+    expect(Math.max(...cells.map((cell) => cell.y))).toBe(16);
+    expect(calculateAreaType({ x: 1, y: 1 }, dimensions)).toBe('main');
+    expect(calculateAreaType({ x: 5, y: 16 }, dimensions)).toBe('outer');
   });
 
   it('creates every 0-based coordinate inside the default 17x17 range', () => {

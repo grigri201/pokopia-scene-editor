@@ -33,4 +33,4 @@ Do not infer hidden catalog entries or fabricate asset ids.
 Do not copy footprint override lists into the answer; use `structuredContent.data.assets[].footprint`.
 Do not copy stacking override lists into the answer; use `structuredContent.data.assets[].stacking`.
 
-Dimension note: Epic 12 default is `15x15` scene / `17x17` canvas with `outerPadding: 1`; legacy recovered payloads may remain `5x5` / `7x7`; `16x16` is unsupported. Use `_bmad-output/implementation-artifacts/12-1-scene-core-dimension-contract-and-legacy-recovery.md` for the dimension contract context.
+Dimension note: the default is `15x15` scene / `17x17` canvas with `outerPadding: 1`; users may choose custom canvas width/height from `6..17`; legacy recovered payloads may remain `5x5` / `7x7`. Use Worker/MCP `dimensions` output as the current contract.

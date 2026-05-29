@@ -3,7 +3,6 @@ import { type AssetSkillType, type PokemonKey } from '@pokopia-scene-editor/scen
 import { AssetPicker, type AssetSelectionMode } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
 import { PokemonSceneControls } from '../pokemon-scene-controls/PokemonSceneControls';
-import { PreviewInspector } from '../preview-inspector/PreviewInspector';
 import { SceneCanvas } from '../scene-canvas/SceneCanvas';
 import { SelectionInspector } from '../selection-inspector/SelectionInspector';
 import {
@@ -14,6 +13,7 @@ import {
   getCanvasCellContexts,
   getCellContext,
   type GridCoordinate,
+  type GridSize,
   type ImageExportSummary,
   type SceneDocument,
 } from '@pokopia-scene-editor/scene-core';
@@ -581,6 +581,18 @@ export function AppShell() {
     dispatch({
       type: 'update-scene-name',
       sceneName,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+  };
+
+  const updateCanvasSize = (canvasSize: GridSize) => {
+    setHoveredCoordinate(null);
+    setFocusedCoordinate(null);
+    setReadOnlySelectedCoordinate(null);
+    dispatch({
+      type: 'resize-scene-canvas',
+      canvasSize,
       interactionMode,
       now: getCurrentIsoTimestamp(),
     });
@@ -1560,8 +1572,10 @@ export function AppShell() {
           <PokemonSceneControls
             locale={locale}
             readOnly={isReadOnly}
+            canvasSize={scene.canvasSize}
             selectedPokemonKey={scene.selectedPokemonKey}
             sceneName={scene.sceneName}
+            onCanvasSizeChange={updateCanvasSize}
             onPokemonChange={updatePokemon}
             onSceneNameChange={updateSceneName}
             onSceneNameValidationError={showSceneNameValidationError}
@@ -1575,14 +1589,6 @@ export function AppShell() {
             onRenameLayer={renameBuildingLayer}
             onCopyLayer={copyBuildingLayer}
             onDeleteLayer={deleteBuildingLayer}
-          />
-          <PreviewInspector
-            locale={locale}
-            scene={scene}
-            activeBuildingLevelId={activeBuildingLevelId}
-            selectedCoordinate={selectedCoordinate}
-            selectedInstanceId={selectedInstanceId}
-            readOnly={isReadOnly}
           />
         </div>
         <section

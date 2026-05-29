@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createBuildingLevel, createDefaultSceneDocument, createTileInstance } from '@pokopia-scene-editor/scene-core';
+import {
+  createBuildingLevel,
+  createDefaultSceneDocument,
+  createTileInstance,
+  maxBuildingLevels,
+} from '@pokopia-scene-editor/scene-core';
 import { editBuildingLayer } from './building-layer-edit';
 
 const now = '2026-05-16T08:25:00.000Z';
@@ -213,6 +218,36 @@ describe('building layer edit command', () => {
     expect(new Set(result.scene.tileInstances.map((instance) => instance.instanceId)).size).toBe(
       result.scene.tileInstances.length,
     );
+  });
+
+  it('blocks creating and copying once the scene has 30 building layers', () => {
+    const baseScene = createDefaultSceneDocument({ sceneId: 'scene-test', now });
+    const scene = {
+      ...baseScene,
+      buildingLevels: Array.from({ length: maxBuildingLevels }, (_, levelNumber) => createBuildingLevel(levelNumber)),
+      workspaceState: {
+        ...baseScene.workspaceState,
+        currentBuildingLevelId: 'level-29',
+      },
+    };
+
+    const created = editBuildingLayer(scene, { type: 'create', interactionMode: 'edit', now });
+    const copied = editBuildingLayer(scene, {
+      type: 'copy',
+      levelId: 'level-29',
+      instanceIdPrefix: 'copy-level-29',
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(created.ok).toBe(false);
+    if (!created.ok) {
+      expect(created.reason).toBe('max-layers');
+    }
+    expect(copied.ok).toBe(false);
+    if (!copied.ok) {
+      expect(copied.reason).toBe('max-layers');
+    }
   });
 
   it('requires confirmation before deleting layers and blocks deleting the last layer', () => {

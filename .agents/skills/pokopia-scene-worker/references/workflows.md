@@ -4,7 +4,7 @@ This reference describes how to call the MCP tools without duplicating business 
 
 ## Dimensions
 
-Supported scene dimensions are the current default `15x15` scene / `17x17` canvas and legacy recovered `5x5` scene / `7x7` canvas, both with `outerPadding: 1`. All scene workflows must preserve and report returned `sceneSize`, `canvasSize`, `outerPadding`, and `classification` from `structuredContent.dimensions` or the Worker route `dimensions` field.
+Supported scene dimensions use `outerPadding: 1`: the default is `15x15` scene / `17x17` canvas, custom user-selected canvas width/height may be any integer from `6..17`, and legacy recovered payloads may remain `5x5` scene / `7x7` canvas. All scene workflows must preserve and report returned `sceneSize`, `canvasSize`, `outerPadding`, and `classification` from `structuredContent.dimensions` or the Worker route `dimensions` field.
 
 ## Validate Or Recover
 

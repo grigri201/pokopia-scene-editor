@@ -1,6 +1,11 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createBuildingLevel, createDefaultSceneDocument, getBuildingLevelContexts } from '@pokopia-scene-editor/scene-core';
+import {
+  createBuildingLevel,
+  createDefaultSceneDocument,
+  getBuildingLevelContexts,
+  maxBuildingLevels,
+} from '@pokopia-scene-editor/scene-core';
 import { BuildingLevelPanel } from './BuildingLevelPanel';
 
 const scene = createDefaultSceneDocument({
@@ -60,6 +65,33 @@ describe('BuildingLevelPanel', () => {
     expect(props.onCopyLayer).not.toHaveBeenCalled();
     expect(props.onDeleteLayer).not.toHaveBeenCalled();
     expect(props.onRenameLayer).not.toHaveBeenCalled();
+  });
+
+  it('disables new building layers after 30 layers', () => {
+    const props = defaultProps();
+    const cappedScene = {
+      ...scene,
+      buildingLevels: Array.from({ length: maxBuildingLevels }, (_, levelNumber) => createBuildingLevel(levelNumber)),
+    };
+
+    render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(cappedScene)} readOnly={false} />);
+
+    const createLayerButton = screen.getByRole('button', { name: '新建层' });
+    const rows = screen.getAllByTestId('building-level-row');
+    const topCopyButton = within(rows[0]).getByRole('button', { name: /Copy 30层 \(L30\)/ });
+    expect(rows).toHaveLength(maxBuildingLevels);
+    expect(createLayerButton).toBeDisabled();
+    expect(createLayerButton).toHaveAttribute('data-disabled-reason', 'max-layers');
+    expect(createLayerButton).toHaveAttribute('data-tooltip', '最多 30 个建筑层');
+    expect(topCopyButton).toBeDisabled();
+    expect(topCopyButton).toHaveAttribute('data-disabled-reason', 'max-layers');
+    expect(topCopyButton).toHaveAttribute('data-tooltip', '最多 30 个建筑层');
+
+    fireEvent.click(createLayerButton);
+    fireEvent.click(topCopyButton);
+
+    expect(props.onCreateLayer).not.toHaveBeenCalled();
+    expect(props.onCopyLayer).not.toHaveBeenCalled();
   });
 
   it('emits building layer management actions in desktop edit mode', () => {

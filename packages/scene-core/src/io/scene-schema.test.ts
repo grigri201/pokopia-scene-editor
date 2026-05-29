@@ -5,6 +5,7 @@ import {
   createStackingPlateFoodScene,
   createStackingPlateNonFoodScene,
   createTileInstance,
+  maxBuildingLevels,
   stackingContractFixtureIds,
 } from '../domain/scene';
 import { unsafeScriptText } from '../test/fixtures/unsafe-text';
@@ -170,6 +171,27 @@ describe('SceneDocument v1 schema', () => {
     );
   });
 
+  it('rejects scenes with more than 30 building levels', () => {
+    const payload = createValidPayload();
+    const input = {
+      ...payload,
+      buildingLevels: Array.from({ length: maxBuildingLevels + 1 }, (_, levelNumber) => ({
+        id: `level-${levelNumber}`,
+        levelNumber,
+        name: `${levelNumber + 1}层`,
+        notes: [],
+      })),
+    };
+
+    expect(validateSceneDocument(input)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'buildingLevels',
+        }),
+      ]),
+    );
+  });
+
   it('rejects unknown Pokemon and asset ids', () => {
     const unknownPokemon = {
       ...createValidPayload(),
@@ -274,18 +296,28 @@ describe('SceneDocument v1 schema', () => {
     );
   });
 
-  it('rejects internally consistent but unsupported scene dimensions', () => {
+  it('accepts internally consistent custom scene dimensions inside the selectable canvas range', () => {
     const payload = createValidPayload();
 
     expect(validateSceneDocument({
       ...payload,
       sceneSize: { width: 14, height: 14 },
       canvasSize: { width: 16, height: 16 },
+    })).toEqual([]);
+  });
+
+  it('rejects internally consistent but unsupported scene dimensions', () => {
+    const payload = createValidPayload();
+
+    expect(validateSceneDocument({
+      ...payload,
+      sceneSize: { width: 16, height: 16 },
+      canvasSize: { width: 18, height: 18 },
     })).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           fieldPath: '$',
-          reason: 'Scene dimensions must be legacy 5x5/7x7 or default 15x15/17x17.',
+          reason: 'Scene dimensions must use outerPadding 1 and canvas width/height between 6 and 17.',
         }),
       ]),
     );

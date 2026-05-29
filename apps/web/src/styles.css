@@ -429,6 +429,7 @@ button:disabled {
 }
 
 .scene-controls input,
+.scene-controls select,
 .asset-search input {
   height: 38px;
   width: 100%;
@@ -438,6 +439,11 @@ button:disabled {
   padding: 0 10px;
   color: var(--ink);
   background: rgba(255, 255, 255, 0.5);
+}
+
+.scene-controls select {
+  appearance: auto;
+  padding: 0 8px;
 }
 
 .pokemon-select-control {
@@ -505,6 +511,31 @@ button:disabled {
 .scene-controls .pokemon-combobox__input:disabled {
   opacity: 1;
   color: var(--ink);
+}
+
+.scene-size-control {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.scene-size-control legend {
+  padding: 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.scene-size-control__selects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.scene-size-control label {
+  min-width: 0;
 }
 
 .pokemon-combobox__list {
@@ -1357,7 +1388,7 @@ button:disabled {
 .scene-canvas {
   --scene-canvas-padding: 10px;
   --scene-canvas-gap: 6px;
-  --scene-coordinate-watermark-size: clamp(8px, 52cqw, 24px);
+  --scene-coordinate-watermark-size: clamp(5px, min(42cqw, calc(150px / var(--scene-canvas-max-side, 7))), 18px);
   --scene-material-frame-margin: 8px;
   --scene-material-frame-border: 1px solid color-mix(in srgb, var(--line) 72%, var(--ink-muted) 28%);
   --scene-material-frame-radius: 6px;
@@ -1371,8 +1402,8 @@ button:disabled {
   margin-left: 0;
   display: grid;
   grid-template-rows: repeat(var(--scene-canvas-rows, 7), 1fr);
-  width: min(72vh, 660px, 100%);
-  aspect-ratio: 1;
+  width: var(--scene-canvas-width-large, min(72vh, 660px, 100%));
+  aspect-ratio: var(--scene-canvas-aspect-ratio, 1 / 1);
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   padding: var(--scene-canvas-padding);
@@ -3171,7 +3202,7 @@ button:disabled {
   .scene-canvas {
     align-self: center;
     margin-left: 0;
-    width: min(100%, 620px);
+    width: var(--scene-canvas-width-medium, min(100%, 620px));
   }
 
   .selection-inspector {
@@ -3272,7 +3303,7 @@ button:disabled {
   .scene-canvas {
     align-self: center;
     margin-left: 0;
-    width: min(100%, 92vw);
+    width: var(--scene-canvas-width-mobile, min(100%, 92vw));
     --scene-canvas-padding: 6px;
     --scene-canvas-gap: 4px;
   }

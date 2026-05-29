@@ -52,9 +52,16 @@ export function SceneCanvas({
   onHoverCoordinate,
   onFocusCoordinate,
 }: SceneCanvasProps) {
+  const maxCanvasSide = Math.max(canvasSize.width, canvasSize.height);
+  const canvasInlineScale = canvasSize.width / maxCanvasSide;
   const canvasGridStyle = {
     '--scene-canvas-columns': canvasSize.width,
     '--scene-canvas-rows': canvasSize.height,
+    '--scene-canvas-max-side': maxCanvasSide,
+    '--scene-canvas-aspect-ratio': `${canvasSize.width} / ${canvasSize.height}`,
+    '--scene-canvas-width-large': createScaledCanvasWidth(canvasInlineScale, 72, 'vh', 660, 'px', 100, '%'),
+    '--scene-canvas-width-medium': createScaledCanvasWidth(canvasInlineScale, 100, '%', 620, 'px'),
+    '--scene-canvas-width-mobile': createScaledCanvasWidth(canvasInlineScale, 100, '%', 92, 'vw'),
   } as CSSProperties;
   const canvasDensity = canvasSize.width > 7 || canvasSize.height > 7 ? 'compact' : 'standard';
   const rows = Array.from({ length: canvasSize.height }, (_, rowIndex) =>
@@ -399,6 +406,28 @@ export function SceneCanvas({
       ) : null}
     </div>
   );
+}
+
+function createScaledCanvasWidth(
+  scale: number,
+  firstValue: number,
+  firstUnit: string,
+  secondValue: number,
+  secondUnit: string,
+  thirdValue?: number,
+  thirdUnit?: string,
+): string {
+  const terms = [
+    `${formatScaledDimension(firstValue, scale)}${firstUnit}`,
+    `${formatScaledDimension(secondValue, scale)}${secondUnit}`,
+    ...(thirdValue !== undefined && thirdUnit ? [`${formatScaledDimension(thirdValue, scale)}${thirdUnit}`] : []),
+  ];
+
+  return `min(${terms.join(', ')})`;
+}
+
+function formatScaledDimension(value: number, scale: number): string {
+  return Number((value * scale).toFixed(4)).toString();
 }
 
 interface BuildFootprintCanvasViewInput {

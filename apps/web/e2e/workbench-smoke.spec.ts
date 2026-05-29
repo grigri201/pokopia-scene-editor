@@ -28,7 +28,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('这里可以新增层和选中层');
   await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('可以勾选只显示宝可梦喜欢的素材');
   await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('单击选中素材');
-  await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('这里可以修改布景名称和选择当前宝可梦');
+  await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('这里可以修改布景和选择当前宝可梦');
   await expect(page.getByRole('button', { name: '下一步' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '关闭说明' })).toHaveCount(0);
   await page.getByRole('button', { name: '明白了！' }).click();
@@ -41,7 +41,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   expect(await getShellTransitionDuration(page)).toBe('0s');
   await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
   await expect(page.getByLabel('Current Pokemon')).toHaveValue('百变怪');
-  await expect(page.getByLabel('布景名称')).toHaveValue('15x15 布景');
+  await expect(page.getByLabel('布景')).toHaveValue('15x15 布景');
+  await expect(page.getByLabel('宽度')).toHaveValue('17');
+  await expect(page.getByLabel('高度')).toHaveValue('17');
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
   await expect(page.locator('.asset-row')).toHaveCount(10);
   await expect(page.locator('[data-asset-id="leppa-berry"]')).toContainText('苹野果');
@@ -49,9 +51,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Asset page status')).toHaveText('1 / 116');
   await expect(page.getByText('Showing first')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show more' })).toHaveCount(0);
-  await expect(page.getByRole('complementary', { name: '检查器预览' })).toBeVisible();
-  await expect(page.getByLabel('俯视图预览').locator('.top-cell')).toHaveCount(289);
-  await expect(page.getByLabel('正视图预览').locator('.front-cell')).toHaveCount(17);
+  await expect(page.getByRole('complementary', { name: '检查器预览' })).toHaveCount(0);
+  await expect(page.getByLabel('俯视图预览')).toHaveCount(0);
+  await expect(page.getByLabel('正视图预览')).toHaveCount(0);
   await expect(page.getByTestId('scene-cell')).toHaveCount(289);
   await expect(page.getByLabel('Cell 3,2, main area, level-0, placeable')).toBeVisible();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
@@ -116,6 +118,37 @@ test('hides the help guide below 1280px while keeping edit mode', async ({ page 
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
 });
 
+test('resizes the editable canvas from scene controls', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
+
+  await page.getByLabel('宽度').selectOption('12');
+  await page.getByLabel('高度').selectOption('10');
+
+  await expect(page.getByTestId('scene-cell')).toHaveCount(120);
+  await expect(page.getByLabel('Cell 11,9, outer area, level-0, placeable')).toBeVisible();
+  await expect(page.getByLabel('Cell 16,16, outer area, level-0, placeable')).toHaveCount(0);
+  await expectSceneCellsToBeSquare(page, ['0,0', '5,5', '11,9']);
+  await expect.poll(() => readSceneSnapshot(page)).toMatchObject({
+    sceneSize: { width: 10, height: 8 },
+    canvasSize: { width: 12, height: 10 },
+    outerPadding: 1,
+  });
+
+  await page.getByLabel('宽度').selectOption('6');
+  await page.getByLabel('高度').selectOption('17');
+
+  await expect(page.getByTestId('scene-cell')).toHaveCount(102);
+  await expect(page.getByLabel('Cell 5,16, outer area, level-0, placeable')).toBeVisible();
+  await expectSceneCellsToBeSquare(page, ['0,0', '2,8', '5,16']);
+  await expect.poll(() => readSceneSnapshot(page)).toMatchObject({
+    sceneSize: { width: 4, height: 15 },
+    canvasSize: { width: 6, height: 17 },
+    outerPadding: 1,
+  });
+});
+
 test('switches the workbench to English without writing locale into SceneDocument', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
@@ -158,7 +191,7 @@ test('autosaves SceneDocument v1 without UI-only state or manual save entrypoint
   await page.goto('/');
   await dismissHelpOverlayIfVisible(page);
 
-  await page.getByLabel('布景名称').fill('Smoke Payload Boundary');
+  await page.getByLabel('布景').fill('Smoke Payload Boundary');
   const autosavedPayload = await waitForStoredPayload(page, autosavedSceneStorageKey);
   expect(autosavedPayload.sceneName).toBe('Smoke Payload Boundary');
   expectScenePayloadHasNoLegacyFields(autosavedPayload);
@@ -174,7 +207,7 @@ test('restores autosaved SceneDocument v1 on desktop startup', async ({ page }) 
   await page.goto('/');
   await dismissHelpOverlayIfVisible(page);
 
-  await expect(page.getByLabel('布景名称')).toHaveValue('Restored Smoke Layout');
+  await expect(page.getByLabel('布景')).toHaveValue('Restored Smoke Layout');
 
   const snapshot = await readSceneSnapshot(page);
   expect(snapshot).toMatchObject({
@@ -524,14 +557,14 @@ test('keeps 1000-instance 17x17 selection within the NFR1 budget', async ({ page
 
   expect((await readSceneSnapshot(page)).buildingLevels).toHaveLength(10);
   expect((await readSceneSnapshot(page)).tileInstances).toHaveLength(1000);
-  await expect(page.locator('.front-preview[data-preview-rows="10"]')).toBeVisible();
+  await expect(page.getByTestId('scene-cell')).toHaveCount(289);
 
   await measureSelectionDuration(page, '[data-coordinate="2,2"]');
   const selectionDuration = await measureSelectionDuration(page, '[data-coordinate="3,3"]');
   expect(selectionDuration).toBeLessThan(150);
 });
 
-test('keeps dense 17x17 scene selection usable with the preview panel', async ({ page }) => {
+test('keeps dense 17x17 scene selection usable without the preview panel', async ({ page }) => {
   await page.addInitScript((scene) => {
     (window as unknown as { __pokopiaInitialSceneSnapshot?: unknown }).__pokopiaInitialSceneSnapshot = scene;
   }, createDenseScene());
@@ -539,7 +572,7 @@ test('keeps dense 17x17 scene selection usable with the preview panel', async ({
   await page.goto('/');
   await dismissHelpOverlayIfVisible(page);
 
-  await expect(page.getByRole('complementary', { name: '检查器预览' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: '检查器预览' })).toHaveCount(0);
   await expect(page.getByTestId('scene-cell')).toHaveCount(289);
   await expect(page.locator('.cell-asset-thumb')).toHaveCount(289);
   expect(await readSceneSnapshot(page)).toMatchObject({
@@ -549,7 +582,8 @@ test('keeps dense 17x17 scene selection usable with the preview panel', async ({
   });
   expect((await readSceneSnapshot(page)).buildingLevels).toHaveLength(10);
   expect((await readSceneSnapshot(page)).tileInstances).toHaveLength(2890);
-  await expect(page.locator('.front-preview[data-preview-rows="10"]')).toBeVisible();
+  await expect(page.getByLabel('正视图预览')).toHaveCount(0);
+  await expect(page.getByLabel('俯视图预览')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show preview main boundary' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show preview skill markers' })).toHaveCount(0);
@@ -667,7 +701,9 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
     canvasSize: { width: 17, height: 17 },
   });
   await expect(page.getByLabel('Current Pokemon')).toBeDisabled();
-  await expect(page.getByLabel('布景名称')).toHaveAttribute('readonly', '');
+  await expect(page.getByLabel('布景')).toHaveAttribute('readonly', '');
+  await expect(page.getByLabel('宽度')).toBeDisabled();
+  await expect(page.getByLabel('高度')).toBeDisabled();
   await expect(page.getByRole('button', { name: '新建层' })).toBeDisabled();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '下载预览' })).toHaveCount(0);
@@ -769,6 +805,23 @@ async function getCellBorderStyle(
   });
 }
 
+async function expectSceneCellsToBeSquare(page: Page, coordinates: string[]): Promise<void> {
+  await expect
+    .poll(async () => {
+      const deltas = await Promise.all(
+        coordinates.map((coordinate) =>
+          page.locator(`[data-coordinate="${coordinate}"]`).evaluate((cell) => {
+            const box = cell.getBoundingClientRect();
+            return Math.abs(box.width - box.height);
+          }),
+        ),
+      );
+
+      return Math.max(...deltas);
+    })
+    .toBeLessThanOrEqual(2);
+}
+
 async function getSelectionEmptySilhouetteHeightRatio(page: Page): Promise<number> {
   return page.getByLabel('No selected grid cell').evaluate((element) => {
     const promptHeight = element.getBoundingClientRect().height;
@@ -825,7 +878,7 @@ async function expectResponsiveWorkbench(
 
   if (options.isMobile) {
     await expect(page.getByLabel('Current Pokemon')).toBeDisabled();
-    await expect(page.getByLabel('布景名称')).toHaveAttribute('readonly', '');
+    await expect(page.getByLabel('布景')).toHaveAttribute('readonly', '');
     await expect(page.getByRole('button', { name: '下载预览' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '导出字符串' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '导入字符串' })).toHaveCount(0);
@@ -836,9 +889,8 @@ async function expectResponsiveWorkbench(
 
   await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
-  await expect(page.getByRole('complementary', { name: '检查器预览' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: '检查器预览' })).toHaveCount(0);
   await expectElementCenterUncovered(page, page.getByRole('complementary', { name: 'Asset picker' }));
-  await expectElementCenterUncovered(page, page.getByRole('complementary', { name: '检查器预览' }));
   await expect(page.getByRole('button', { name: '下载预览' })).toBeVisible();
   await expect(page.getByRole('button', { name: '新建层' })).toBeEnabled();
 }

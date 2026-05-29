@@ -1,5 +1,5 @@
 import { useEffect, useState, type KeyboardEvent, type MouseEvent } from 'react';
-import type { BuildingLevelContext } from '@pokopia-scene-editor/scene-core';
+import { maxBuildingLevels, type BuildingLevelContext } from '@pokopia-scene-editor/scene-core';
 import { defaultLocale, t, type Locale } from '../../i18n';
 
 interface BuildingLevelPanelProps {
@@ -24,6 +24,14 @@ export function BuildingLevelPanel({
   onDeleteLayer,
 }: BuildingLevelPanelProps) {
   const currentLevel = levels.find((level) => level.current);
+  const layerLimitReached = levels.length >= maxBuildingLevels;
+  const createLayerDisabled = readOnly || layerLimitReached;
+  const createLayerTooltip = layerLimitReached
+    ? t(locale, 'maxBuildingLayersReached', { count: maxBuildingLevels })
+    : t(locale, 'newLayer');
+  const copyLayerTooltip = layerLimitReached
+    ? t(locale, 'maxBuildingLayersReached', { count: maxBuildingLevels })
+    : t(locale, 'copyLayerTooltip');
   const [levelNames, setLevelNames] = useState<Record<string, string>>({});
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
 
@@ -74,9 +82,10 @@ export function BuildingLevelPanel({
           type="button"
           className="icon-button level-create-button has-icon-tooltip"
           aria-label={t(locale, 'newLayer')}
-          data-tooltip={t(locale, 'newLayer')}
-          title={t(locale, 'newLayer')}
-          disabled={readOnly}
+          data-disabled-reason={layerLimitReached ? 'max-layers' : readOnly ? 'read-only' : 'available'}
+          data-tooltip={createLayerTooltip}
+          title={createLayerTooltip}
+          disabled={createLayerDisabled}
           onClick={onCreateLayer}
         >
           <span aria-hidden="true">+</span>
@@ -150,11 +159,11 @@ export function BuildingLevelPanel({
               <button
                 type="button"
                 className="level-action-button level-action-button--copy has-icon-tooltip"
-                disabled={readOnly}
-                data-disabled-reason={readOnly ? 'read-only' : 'available'}
-                data-tooltip={t(locale, 'copyLayerTooltip')}
+                disabled={readOnly || layerLimitReached}
+                data-disabled-reason={layerLimitReached ? 'max-layers' : readOnly ? 'read-only' : 'available'}
+                data-tooltip={copyLayerTooltip}
                 aria-label={`${t(locale, 'copyLayer', { name: level.name, displayId: level.displayId })}${readOnly ? ' disabled in read-only mode' : ''}`}
-                title={t(locale, 'copyLayerTooltip')}
+                title={copyLayerTooltip}
                 onClick={() => onCopyLayer(level.id)}
               >
                 <CopyIcon />

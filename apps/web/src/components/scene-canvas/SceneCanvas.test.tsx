@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createBuildingLevel,
   createDefaultSceneDocument,
+  createSceneDimensionsForCanvasSize,
   createStackingPartialSurfaceScene,
   createStackingPlateFoodScene,
   stackingContractFixtureIds,
@@ -45,6 +46,9 @@ describe('SceneCanvas', () => {
     expect(screen.getByTestId('scene-canvas')).toHaveStyle({
       '--scene-canvas-columns': '17',
       '--scene-canvas-rows': '17',
+      '--scene-canvas-max-side': '17',
+      '--scene-canvas-aspect-ratio': '17 / 17',
+      '--scene-canvas-width-large': 'min(72vh, 660px, 100%)',
     });
     expect(cells).toHaveLength(289);
     expect(screen.getByLabelText('Cell 0,0, outer area, level-0, placeable')).toBeVisible();
@@ -109,6 +113,31 @@ describe('SceneCanvas', () => {
 
     expect(screen.getByLabelText('Cell 0,0, outer area, level-0, placeable')).toBeVisible();
     expect(screen.getAllByTestId('scene-cell').every((cell) => cell.dataset.editable === 'true')).toBe(true);
+  });
+
+  it('shrinks rectangular canvas width from the longest side so cells stay square', () => {
+    const dimensions = createSceneDimensionsForCanvasSize({ width: 6, height: 17 });
+    const rectangularScene = {
+      ...scene,
+      sceneSize: dimensions.sceneSize,
+      canvasSize: dimensions.canvasSize,
+      outerPadding: dimensions.outerPadding,
+    };
+
+    render(<SceneCanvas {...createSceneCanvasProps(rectangularScene)} readOnly={false} />);
+
+    const canvas = screen.getByTestId('scene-canvas');
+    expect(screen.getByRole('grid', { name: '6x17 canvas with main and outer regions' })).toBeVisible();
+    expect(screen.getAllByTestId('scene-cell')).toHaveLength(102);
+    expect(canvas).toHaveStyle({
+      '--scene-canvas-columns': '6',
+      '--scene-canvas-rows': '17',
+      '--scene-canvas-max-side': '17',
+      '--scene-canvas-aspect-ratio': '6 / 17',
+      '--scene-canvas-width-large': 'min(25.4118vh, 232.9412px, 35.2941%)',
+      '--scene-canvas-width-medium': 'min(35.2941%, 218.8235px)',
+      '--scene-canvas-width-mobile': 'min(35.2941%, 32.4706vw)',
+    });
   });
 
   it('emits plain grid coordinates at the UI boundary', () => {
