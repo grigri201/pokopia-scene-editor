@@ -9,6 +9,7 @@ import {
   buildSceneOccupancy,
   buildImageExportSummary,
   createDefaultSceneDocument,
+  getAssetById,
   getBuildingLevelContexts,
   getCanvasCellContexts,
   getCellContext,
@@ -16,6 +17,7 @@ import {
   type GridSize,
   type ImageExportSummary,
   type SceneDocument,
+  type SceneStringDroppedTileInstance,
 } from '@pokopia-scene-editor/scene-core';
 import {
   editAssetInstance,
@@ -36,7 +38,7 @@ import {
   applyRecoveredSceneDocument,
   autosavedSceneStorageKey,
   createImageExportFile,
-  decodeSceneDocumentString,
+  decodeSceneDocumentStringWithLossyRecovery,
   encodeSceneDocumentString,
   getUiPreferencesStorage,
   readLatestSceneDocumentFromStorage,
@@ -48,7 +50,15 @@ import {
   writeSceneDocumentToStorage,
 } from '../../io';
 import { ExportPreview } from '../export-preview/ExportPreview';
-import { getDefaultBuildingLevelName, localeLabels, locales, t, type Locale } from '../../i18n';
+import {
+  getAssetDisplay,
+  getBuildingLevelDisplayName,
+  getDefaultBuildingLevelName,
+  localeLabels,
+  locales,
+  t,
+  type Locale,
+} from '../../i18n';
 
 const replacementConfirmationWindowMs = 15_000;
 const toastAutoDismissMs = 3_000;
@@ -86,7 +96,7 @@ interface HelpGuideLayout {
   arrowPath: string;
 }
 
-type NotificationToastTone = 'info' | 'success' | 'error';
+type NotificationToastTone = 'info' | 'success' | 'warning' | 'error';
 
 interface NotificationToast {
   id: string;
@@ -121,6 +131,93 @@ const helpGuideTargets: HelpGuideTarget[] = [
     messageKey: 'helpOverlaySceneControls',
   },
 ];
+
+function formatDroppedTileInstance(instance: SceneStringDroppedTileInstance, locale: Locale): string {
+  const asset = getAssetById(instance.assetId);
+  const assetName = asset ? getAssetDisplay(asset, locale).name : instance.assetName;
+  const levelName = formatDroppedLevelName(
+    instance.buildingLevelName,
+    instance.buildingLevelNumber,
+    locale,
+  );
+  const conflictLabel = getDroppedTileConflictLabel(instance.conflictType, locale);
+  const coordinateText = formatCoordinate(instance.coordinate);
+  const conflictCoordinates = formatCoordinateList(instance.coordinates);
+  const blockingAsset = instance.blockingAssetId ? getAssetById(instance.blockingAssetId) : null;
+  const blockingAssetName = blockingAsset
+    ? getAssetDisplay(blockingAsset, locale).name
+    : instance.blockingAssetName;
+  const blockingLevelName = instance.blockingBuildingLevelName
+    ? formatDroppedLevelName(
+        instance.blockingBuildingLevelName,
+        instance.blockingBuildingLevelNumber ?? null,
+        locale,
+      )
+    : null;
+
+  if (locale === 'en-US') {
+    const blockingText = blockingAssetName
+      ? `, blocked by ${blockingLevelName ? `${blockingLevelName} ` : ''}${blockingAssetName}`
+      : '';
+
+    return `${levelName} (${coordinateText}) ${assetName}: ${conflictLabel} at ${conflictCoordinates}${blockingText}`;
+  }
+
+  const blockingText = blockingAssetName
+    ? `，阻挡素材 ${blockingLevelName ? `${blockingLevelName} ` : ''}${blockingAssetName}`
+    : '';
+
+  return `${levelName}（${coordinateText}）${assetName}：${conflictLabel}，冲突坐标 ${conflictCoordinates}${blockingText}`;
+}
+
+function formatDroppedLevelName(name: string, levelNumber: number | null, locale: Locale): string {
+  if (levelNumber === null) {
+    return name;
+  }
+
+  return getBuildingLevelDisplayName(name, levelNumber, locale);
+}
+
+function formatCoordinate(coordinate: GridCoordinate): string {
+  return `${coordinate.x},${coordinate.y}`;
+}
+
+function formatCoordinateList(coordinates: readonly GridCoordinate[]): string {
+  return coordinates.map(formatCoordinate).join(' ');
+}
+
+function getDroppedTileConflictLabel(
+  conflictType: SceneStringDroppedTileInstance['conflictType'],
+  locale: Locale,
+): string {
+  if (locale === 'en-US') {
+    switch (conflictType) {
+      case 'footprint-out-of-bounds':
+        return 'outside the canvas footprint bounds';
+      case 'same-level-footprint-overlap':
+        return 'same-layer footprint overlap';
+      case 'height-blocked-by-lower-footprint':
+        return 'blocked by a lower-layer footprint height';
+      case 'unsupported-stack-surface':
+        return 'unsupported stacking surface';
+      case 'surface-capacity-conflict':
+        return 'stacking surface capacity conflict';
+    }
+  }
+
+  switch (conflictType) {
+    case 'footprint-out-of-bounds':
+      return '素材占地超出画布';
+    case 'same-level-footprint-overlap':
+      return '同层占地重叠';
+    case 'height-blocked-by-lower-footprint':
+      return '被低层素材高度阻挡';
+    case 'unsupported-stack-surface':
+      return '不能叠放在当前素材上';
+    case 'surface-capacity-conflict':
+      return '叠放表面容量冲突';
+  }
+}
 
 export function AppShell() {
   const [initialUiPreferences] = useState(() =>
@@ -1068,7 +1165,7 @@ export function AppShell() {
       return;
     }
 
-    const decoded = decodeSceneDocumentString(sceneString, getCurrentIsoTimestamp());
+    const decoded = decodeSceneDocumentStringWithLossyRecovery(sceneString, getCurrentIsoTimestamp());
     if (!decoded.ok) {
       setRecoveryErrors(decoded.errors);
       setRecoveryStatus('error');
@@ -1081,7 +1178,17 @@ export function AppShell() {
       return;
     }
 
-    const confirmed = window.confirm(t(locale, 'sceneStringImportConfirm'));
+    const droppedTileDetails = decoded.droppedTileInstances.map((droppedInstance) =>
+      formatDroppedTileInstance(droppedInstance, locale),
+    );
+    const confirmed = window.confirm(
+      droppedTileDetails.length > 0
+        ? t(locale, 'sceneStringImportLossConfirm', {
+            count: droppedTileDetails.length,
+            details: droppedTileDetails.map((detail) => `- ${detail}`).join('\n'),
+          })
+        : t(locale, 'sceneStringImportConfirm'),
+    );
     if (!confirmed) {
       showNotificationToast({
         id: 'scene-string',
@@ -1118,9 +1225,14 @@ export function AppShell() {
     replacementConfirmationExpiresAtRef.current = 0;
     showNotificationToast({
       id: 'scene-string',
-      tone: 'success',
+      tone: droppedTileDetails.length > 0 ? 'warning' : 'success',
       title: t(locale, 'sceneStringToastTitle'),
-      message: t(locale, 'sceneStringImported'),
+      message: droppedTileDetails.length > 0
+        ? t(locale, 'sceneStringImportedWithLosses', {
+            count: droppedTileDetails.length,
+            details: droppedTileDetails.join('；'),
+          })
+        : t(locale, 'sceneStringImported'),
     });
   };
 

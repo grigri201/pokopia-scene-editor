@@ -255,6 +255,39 @@ describe('AppShell scene storage integration', () => {
     expect(confirmSpy).toHaveBeenCalledWith('导入会替换当前布景。继续导入？');
   });
 
+  it('imports remaining scene string content and reports dropped incompatible materials', async () => {
+    const lossySceneString = [
+      'PSE2',
+      'F.F.1',
+      'Lossy.0.0._._',
+      '0.%E7%B4%A0%E6%9D%90%E5%B1%82;1.%E5%9C%B0%E5%9F%BA',
+      '0.f.C0.0._._._;1.f.6L.0._._._',
+      '_',
+    ].join('~');
+    vi.spyOn(window, 'prompt').mockReturnValue(lossySceneString);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+
+    await waitFor(() => {
+      const toast = screen.getByRole('status', { name: '字符串提示' });
+      expect(toast).toHaveTextContent('已导入可兼容内容');
+      expect(toast).toHaveTextContent('地基（7,2）木地板');
+      expect(toast).toHaveTextContent('素材层 面包烤箱');
+    });
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('丢弃 1 个不兼容素材'));
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('地基（7,2）木地板'));
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('继续导入剩余部分？'));
+    expect(JSON.parse(readSceneSnapshot()).tileInstances).toEqual([
+      expect.objectContaining({
+        assetId: 'bread-oven',
+        coordinate: { x: 7, y: 2 },
+        buildingLevelId: 'level-0',
+      }),
+    ]);
+  });
+
   it('keeps the current scene when importing an invalid scene string', () => {
     vi.spyOn(window, 'prompt').mockReturnValue('bad-code');
     const confirmSpy = vi.spyOn(window, 'confirm');

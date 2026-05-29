@@ -11,6 +11,7 @@ import {
 } from '../domain/scene';
 import {
   decodeSceneDocumentString,
+  decodeSceneDocumentStringWithLossyRecovery,
   encodeSceneDocumentString,
   summarizeSceneDocumentStringDimensions,
 } from './scene-string-codec';
@@ -434,6 +435,60 @@ describe('SceneDocument short string codec', () => {
         }),
       ]),
     );
+  });
+
+  it('lossily imports compatible PSE2 content while reporting dropped footprint conflicts', () => {
+    const encoded = [
+      'PSE2',
+      'F.F.1',
+      'Lossy.0.0._._',
+      '0.Source;1.Base',
+      '0.f.C0.0._._._;1.f.6L.0._._._',
+      '_',
+    ].join('~');
+
+    const strictDecoded = decodeSceneDocumentString(encoded, '2026-05-29T00:10:00.000Z');
+    const lossyDecoded = decodeSceneDocumentStringWithLossyRecovery(encoded, '2026-05-29T00:10:00.000Z');
+
+    expect(strictDecoded.ok).toBe(false);
+    if (strictDecoded.ok) {
+      throw new Error('Expected strict scene string decode to fail.');
+    }
+    expect(strictDecoded.errors[0]).toMatchObject({
+      conflictType: 'height-blocked-by-lower-footprint',
+      instanceId: 'imported-tile-1',
+      assetId: 'wooden-flooring',
+      blockingAssetId: 'bread-oven',
+    });
+
+    expect(lossyDecoded.ok).toBe(true);
+    if (!lossyDecoded.ok) {
+      throw new Error('Expected lossy scene string decode to import remaining content.');
+    }
+    expect(lossyDecoded.scene.tileInstances).toEqual([
+      expect.objectContaining({
+        instanceId: 'imported-tile-0',
+        assetId: 'bread-oven',
+        coordinate: { x: 7, y: 2 },
+        buildingLevelId: 'level-0',
+      }),
+    ]);
+    expect(lossyDecoded.droppedTileInstances).toEqual([
+      expect.objectContaining({
+        instanceId: 'imported-tile-1',
+        assetId: 'wooden-flooring',
+        assetName: '木地板',
+        buildingLevelId: 'level-1',
+        buildingLevelName: 'Base',
+        coordinate: { x: 7, y: 2 },
+        conflictType: 'height-blocked-by-lower-footprint',
+        blockingInstanceId: 'imported-tile-0',
+        blockingAssetId: 'bread-oven',
+        blockingAssetName: '面包烤箱',
+        blockingBuildingLevelId: 'level-0',
+        coordinates: [{ x: 7, y: 2 }],
+      }),
+    ]);
   });
 
   it('roundtrips the shared footprint contract fixture through PSE1 without encoded derived fields', () => {

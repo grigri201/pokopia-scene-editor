@@ -699,6 +699,10 @@ button:disabled {
   border-color: rgba(113, 104, 95, 0.45);
 }
 
+.app-toast--warning {
+  border-color: rgba(181, 118, 28, 0.58);
+}
+
 .recovery-toast__header,
 .app-toast__header {
   display: flex;
