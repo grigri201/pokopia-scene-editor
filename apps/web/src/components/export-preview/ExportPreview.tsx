@@ -28,6 +28,7 @@ interface ExportPreviewProps {
   downloadStatus?: string | null;
   onClose: () => void;
   onDownloadImage?: (previewElement: HTMLElement) => void | Promise<void>;
+  onDownloadLayerImages?: (previewElement: HTMLElement) => void | Promise<void>;
 }
 
 export function ExportPreview({
@@ -37,10 +38,12 @@ export function ExportPreview({
   downloadStatus = null,
   onClose,
   onDownloadImage,
+  onDownloadLayerImages,
 }: ExportPreviewProps) {
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const isDownloadDisabled = downloadDisabled || !onDownloadImage;
+  const isLayerDownloadDisabled = downloadDisabled || !onDownloadLayerImages;
   const selectedPokemon = getPokemonThemeDefinition(summary.selectedPokemonKey);
   const selectedPokemonName = getPokemonDisplay(selectedPokemon, locale);
   const materialColorByAssetId = createMaterialColorMap(summary.overallMaterials);
@@ -103,6 +106,12 @@ export function ExportPreview({
     }
   };
 
+  const handleDownloadLayerImages = () => {
+    if (dialogRef.current) {
+      void onDownloadLayerImages?.(dialogRef.current);
+    }
+  };
+
   return (
     <div className="export-preview-backdrop">
       <section
@@ -143,6 +152,15 @@ export function ExportPreview({
               {t(locale, 'downloadImage')}
             </button>
             <button
+              type="button"
+              className="app-action-button"
+              data-image-export-exclude="true"
+              disabled={isLayerDownloadDisabled}
+              onClick={handleDownloadLayerImages}
+            >
+              {t(locale, 'downloadLayerImages')}
+            </button>
+            <button
               ref={closeButtonRef}
               type="button"
               className="app-action-button"
@@ -164,7 +182,12 @@ export function ExportPreview({
           </div>
         </header>
         <section className="export-preview__body" aria-label={t(locale, 'imageExportContent')}>
-          <section className="export-preview__summary" aria-label={t(locale, 'overallMaterialsList')}>
+          <section
+            className="export-preview__summary"
+            aria-label={t(locale, 'overallMaterialsList')}
+            data-image-export-page="overall"
+            data-image-export-file-part="overall"
+          >
             <h3>{t(locale, 'overallMaterials')}</h3>
             {overallUsageItems.length > 0 ? (
               <UsageList items={overallUsageItems} />
@@ -173,7 +196,11 @@ export function ExportPreview({
             )}
           </section>
 
-          <section className="export-preview__layers" aria-label={t(locale, 'exportLayerGraphicsAndMaterials')}>
+          <section
+            className="export-preview__layers"
+            aria-label={t(locale, 'exportLayerGraphicsAndMaterials')}
+            data-image-export-layer-container="true"
+          >
             {summary.layers.map((layer) => (
               <LayerPreview
                 key={layer.id}
@@ -226,7 +253,12 @@ function LayerPreview({
   const layerGridStyle = getExportGridStyle(canvasSize);
 
   return (
-    <article className="export-layer" aria-label={`${layer.displayId} ${layer.name}`}>
+    <article
+      className="export-layer"
+      aria-label={`${layer.displayId} ${layer.name}`}
+      data-image-export-page="layer"
+      data-image-export-file-part={layer.displayId}
+    >
       <header className="export-layer__header">
         <div>
           <h3>{layer.displayId} · {layer.name}</h3>

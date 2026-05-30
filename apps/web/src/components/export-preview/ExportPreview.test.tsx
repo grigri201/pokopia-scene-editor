@@ -44,6 +44,8 @@ describe('ExportPreview', () => {
     expect(screen.getByText(`${scene.canvasSize.width}x${scene.canvasSize.height} 画布 · ${scene.buildingLevels.length} 个建筑层`)).toBeVisible();
     expect(document.querySelector('.export-preview__pokemon-rail')).toBeNull();
     expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('大叶子的植栽');
+    expect(screen.getByLabelText('整体使用素材清单')).toHaveAttribute('data-image-export-page', 'overall');
+    expect(screen.getByLabelText('整体使用素材清单')).toHaveAttribute('data-image-export-file-part', 'overall');
     expect(screen.getByLabelText('整体使用素材清单')).not.toHaveTextContent('No. 336');
     expect(screen.getByLabelText('图片导出内容').firstElementChild).toBe(screen.getByLabelText('整体使用素材清单'));
     expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('大叶子的植栽缩略图')).toBeVisible();
@@ -64,6 +66,8 @@ describe('ExportPreview', () => {
     expect(screen.getByLabelText('逐层图形和素材清单')).not.toHaveTextContent('placed items');
     const activeLayer = summary.layers[1];
     const activeLayerGraphicLabel = getLayerGraphicLabel(activeLayer, scene.canvasSize);
+    expect(screen.getByLabelText('L2 2层')).toHaveAttribute('data-image-export-page', 'layer');
+    expect(screen.getByLabelText('L2 2层')).toHaveAttribute('data-image-export-file-part', 'L2');
     expect(screen.getByLabelText(activeLayerGraphicLabel).querySelectorAll('.export-layer-cell')).toHaveLength(expectedCellCount);
     const layerGraphicFrame = screen.getByLabelText(activeLayerGraphicLabel).closest('.export-layer-grid-frame');
     expect(layerGraphicFrame).not.toBeNull();
@@ -383,20 +387,26 @@ describe('ExportPreview', () => {
 
   it('enables download when a handler exists and delegates download feedback', () => {
     const onDownloadImage = vi.fn();
+    const onDownloadLayerImages = vi.fn();
 
     render(
       <ExportPreview
         summary={buildImageExportSummary(createPreviewScene())}
         onClose={vi.fn()}
         onDownloadImage={onDownloadImage}
+        onDownloadLayerImages={onDownloadLayerImages}
       />,
     );
 
     const downloadButton = screen.getByRole('button', { name: '下载图片' });
+    const layerDownloadButton = screen.getByRole('button', { name: '按层下载图片' });
     expect(downloadButton).toBeEnabled();
+    expect(layerDownloadButton).toBeEnabled();
     fireEvent.click(downloadButton);
+    fireEvent.click(layerDownloadButton);
 
     expect(onDownloadImage).toHaveBeenCalledTimes(1);
+    expect(onDownloadLayerImages).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('status', { name: 'Image export download status' })).not.toBeInTheDocument();
   });
 
@@ -412,6 +422,7 @@ describe('ExportPreview', () => {
     );
 
     expect(screen.getByRole('button', { name: '下载图片' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '按层下载图片' })).toBeDisabled();
     expect(screen.getByRole('status', { name: '图片下载状态' })).toHaveTextContent('正在生成图片');
   });
 });

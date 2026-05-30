@@ -519,6 +519,69 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
   }, 20_000);
 
+  it('downloads one overall image and one image per building layer', async () => {
+    let objectUrlIndex = 0;
+    const createObjectURL = vi.fn((blob: Blob) => {
+      void blob;
+      objectUrlIndex += 1;
+      return `blob:layer-export-${objectUrlIndex}`;
+    });
+    const revokeObjectURL = vi.fn();
+    const downloadLinks: Array<{ href: string; download: string }> = [];
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function clickAnchor(this: HTMLAnchorElement) {
+      downloadLinks.push({
+        href: this.getAttribute('href') ?? this.href,
+        download: this.download,
+      });
+    });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      const width = this.classList.contains('export-preview') ? 590 : 0;
+      const height = this.classList.contains('export-preview') ? 420 : 0;
+
+      return {
+        bottom: height,
+        height,
+        left: 0,
+        right: width,
+        top: 0,
+        width,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      };
+    });
+
+    writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole('button', { name: '新建层' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status', { name: '建筑层提示' })).toHaveTextContent('Created 2层');
+    });
+
+    const beforeSnapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
+    fireEvent.click(screen.getByRole('button', { name: '下载预览' }));
+    fireEvent.click(screen.getByRole('button', { name: '按层下载图片' }));
+
+    await waitFor(() => {
+      expect(downloadLinks).toHaveLength(3);
+    });
+
+    expect(downloadLinks).toEqual([
+      { href: 'blob:layer-export-1', download: '15x15-布景.overall.pokopia-scene.png' },
+      { href: 'blob:layer-export-2', download: '15x15-布景.L1.pokopia-scene.png' },
+      { href: 'blob:layer-export-3', download: '15x15-布景.L2.pokopia-scene.png' },
+    ]);
+    expect(toBlobMock).toHaveBeenCalledTimes(3);
+    expect(createObjectURL).toHaveBeenCalledTimes(3);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:layer-export-1');
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:layer-export-2');
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:layer-export-3');
+    expect(screen.getByRole('status', { name: '图片导出提示' })).toHaveTextContent('分层图片已准备下载');
+    expect((window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.()).toBe(beforeSnapshot);
+  }, 20_000);
+
   it('shows image download progress and disables duplicate download clicks', async () => {
     const createObjectURL = vi.fn(() => 'blob:image-export-pending');
     const revokeObjectURL = vi.fn();
@@ -550,6 +613,7 @@ describe('AppShell scene storage integration', () => {
     fireEvent.click(screen.getByRole('button', { name: '下载图片' }));
 
     expect(screen.getByRole('button', { name: '下载图片' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '按层下载图片' })).toBeDisabled();
     expect(screen.getByRole('status', { name: '图片下载状态' })).toHaveTextContent('正在生成图片');
     expect(screen.getByRole('status', { name: '图片导出提示' })).toHaveTextContent('正在生成图片');
 
@@ -557,6 +621,7 @@ describe('AppShell scene storage integration', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '下载图片' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: '按层下载图片' })).toBeEnabled();
       expect(screen.queryByRole('status', { name: '图片下载状态' })).not.toBeInTheDocument();
       expect(screen.getByRole('status', { name: '图片导出提示' })).toHaveTextContent('图片已准备下载');
     });

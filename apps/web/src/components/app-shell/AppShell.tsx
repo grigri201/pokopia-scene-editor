@@ -36,6 +36,7 @@ import {
   applyRecoveredSceneDocument,
   autosavedSceneStorageKey,
   createImageExportFile,
+  createLayeredImageExportFiles,
   decodeSceneDocumentStringWithLossyRecovery,
   encodeSceneDocumentString,
   getUiPreferencesStorage,
@@ -1184,6 +1185,62 @@ export function AppShell() {
     }
   };
 
+  const downloadLayeredExportImages = async (previewElement: HTMLElement) => {
+    if (!exportPreviewSummary || imageDownloadPending) {
+      return;
+    }
+
+    const objectUrls: string[] = [];
+    let downloadLink: HTMLAnchorElement | null = null;
+
+    try {
+      setImageDownloadPending(true);
+      showNotificationToast({
+        id: 'image-download',
+        tone: 'info',
+        title: t(locale, 'imageExportToastTitle'),
+        message: t(locale, 'layerImagesPreparing'),
+      });
+      await waitForPlaywrightImageExportDelay();
+      const exportFiles = await createLayeredImageExportFiles({
+        previewElement,
+        sceneName: exportPreviewSummary.sceneName,
+      });
+      downloadLink = document.createElement('a');
+      downloadLink.rel = 'noopener';
+      document.body.append(downloadLink);
+
+      for (const exportFile of exportFiles) {
+        const objectUrl = URL.createObjectURL(exportFile.blob);
+        objectUrls.push(objectUrl);
+        downloadLink.href = objectUrl;
+        downloadLink.download = exportFile.fileName;
+        downloadLink.click();
+      }
+
+      showNotificationToast({
+        id: 'image-download',
+        tone: 'success',
+        title: t(locale, 'imageExportToastTitle'),
+        message: t(locale, 'layerImagesReady'),
+      });
+    } catch (error) {
+      console.error('Layered image export download failed.', error);
+      showNotificationToast({
+        id: 'image-download',
+        tone: 'error',
+        title: t(locale, 'imageExportToastTitle'),
+        message: t(locale, 'imageDownloadFailed'),
+      });
+    } finally {
+      setImageDownloadPending(false);
+      downloadLink?.remove();
+      for (const objectUrl of objectUrls) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
+  };
+
   const updateLocale = (nextLocale: Locale) => {
     setLocale(nextLocale);
     writeLocalePreferenceToStorage(getUiPreferencesStorage(), nextLocale);
@@ -1547,6 +1604,7 @@ export function AppShell() {
           downloadStatus={imageDownloadPending ? t(locale, 'imagePreparing') : null}
           onClose={closeExportPreview}
           onDownloadImage={downloadExportImage}
+          onDownloadLayerImages={downloadLayeredExportImages}
         />
       ) : null}
       <section
