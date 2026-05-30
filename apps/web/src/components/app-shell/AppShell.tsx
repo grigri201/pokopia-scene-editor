@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { type AssetSkillType, type PokemonKey } from '@pokopia-scene-editor/scene-core';
 import { AssetPicker, type AssetSelectionMode } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
@@ -9,7 +9,6 @@ import {
   buildSceneOccupancy,
   buildImageExportSummary,
   createDefaultSceneDocument,
-  getAssetById,
   getBuildingLevelContexts,
   getCanvasCellContexts,
   getCellContext,
@@ -17,7 +16,6 @@ import {
   type GridSize,
   type ImageExportSummary,
   type SceneDocument,
-  type SceneStringDroppedTileInstance,
 } from '@pokopia-scene-editor/scene-core';
 import {
   editAssetInstance,
@@ -51,50 +49,41 @@ import {
 } from '../../io';
 import { ExportPreview } from '../export-preview/ExportPreview';
 import {
-  getAssetDisplay,
-  getBuildingLevelDisplayName,
   getDefaultBuildingLevelName,
   localeLabels,
   locales,
   t,
   type Locale,
 } from '../../i18n';
+import {
+  createCopiedLayerInstancePrefix,
+  createLayerNoteId,
+  createStorageUnavailableRecoveryError,
+  createTileInstanceId,
+  formatDroppedTileInstance,
+  getBrowserStorage,
+  getCurrentIsoTimestamp,
+  getRecoveryStatusMessage,
+  getRecoveryStatusTitle,
+  isMobileReadOnlyApplicationKey,
+  isLocalPreviewHost,
+  markSelectionStart,
+  markSelectionVisible,
+  waitForPlaywrightImageExportDelay,
+  type RecoveryStatus,
+} from './app-shell-helpers';
+import {
+  getHelpGuideLayouts,
+  getPaddedHelpGuideRect,
+  helpGuideTargets,
+  type HelpGuideRect,
+  type HelpGuideSnapshot,
+  type HelpGuideTargetKey,
+} from './help-guide';
 
 const replacementConfirmationWindowMs = 15_000;
 const toastAutoDismissMs = 3_000;
 const helpOverlayMinimumWidth = 1280;
-
-type HelpGuideTargetKey = 'layers' | 'asset-favorites' | 'assets' | 'scene-controls';
-
-interface HelpGuideTarget {
-  key: HelpGuideTargetKey;
-  selector: string;
-  arrowSelector: string;
-  messageKey:
-    | 'helpOverlayLayers'
-    | 'helpOverlayFavoriteAssets'
-    | 'helpOverlayAssets'
-    | 'helpOverlaySceneControls';
-}
-
-interface HelpGuideRect {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
-
-interface HelpGuideSnapshot {
-  viewportWidth: number;
-  viewportHeight: number;
-  targets: Partial<Record<HelpGuideTargetKey, HelpGuideRect>>;
-  arrowTargets: Partial<Record<HelpGuideTargetKey, HelpGuideRect>>;
-}
-
-interface HelpGuideLayout {
-  noteStyle: CSSProperties;
-  arrowPath: string;
-}
 
 type NotificationToastTone = 'info' | 'success' | 'warning' | 'error';
 
@@ -103,120 +92,6 @@ interface NotificationToast {
   tone: NotificationToastTone;
   title: string;
   message: string;
-}
-
-const helpGuideTargets: HelpGuideTarget[] = [
-  {
-    key: 'layers',
-    selector: '.level-panel',
-    arrowSelector: '.level-row--current input',
-    messageKey: 'helpOverlayLayers',
-  },
-  {
-    key: 'asset-favorites',
-    selector: '.asset-picker .favorite-toggle',
-    arrowSelector: '.asset-picker .favorite-toggle input',
-    messageKey: 'helpOverlayFavoriteAssets',
-  },
-  {
-    key: 'assets',
-    selector: '.asset-picker .asset-row:first-of-type .asset-select-button',
-    arrowSelector: '.asset-picker .asset-row:first-of-type .asset-select-button',
-    messageKey: 'helpOverlayAssets',
-  },
-  {
-    key: 'scene-controls',
-    selector: '.scene-controls',
-    arrowSelector: '.scene-controls input',
-    messageKey: 'helpOverlaySceneControls',
-  },
-];
-
-function formatDroppedTileInstance(instance: SceneStringDroppedTileInstance, locale: Locale): string {
-  const asset = getAssetById(instance.assetId);
-  const assetName = asset ? getAssetDisplay(asset, locale).name : instance.assetName;
-  const levelName = formatDroppedLevelName(
-    instance.buildingLevelName,
-    instance.buildingLevelNumber,
-    locale,
-  );
-  const conflictLabel = getDroppedTileConflictLabel(instance.conflictType, locale);
-  const coordinateText = formatCoordinate(instance.coordinate);
-  const conflictCoordinates = formatCoordinateList(instance.coordinates);
-  const blockingAsset = instance.blockingAssetId ? getAssetById(instance.blockingAssetId) : null;
-  const blockingAssetName = blockingAsset
-    ? getAssetDisplay(blockingAsset, locale).name
-    : instance.blockingAssetName;
-  const blockingLevelName = instance.blockingBuildingLevelName
-    ? formatDroppedLevelName(
-        instance.blockingBuildingLevelName,
-        instance.blockingBuildingLevelNumber ?? null,
-        locale,
-      )
-    : null;
-
-  if (locale === 'en-US') {
-    const blockingText = blockingAssetName
-      ? `, blocked by ${blockingLevelName ? `${blockingLevelName} ` : ''}${blockingAssetName}`
-      : '';
-
-    return `${levelName} (${coordinateText}) ${assetName}: ${conflictLabel} at ${conflictCoordinates}${blockingText}`;
-  }
-
-  const blockingText = blockingAssetName
-    ? `，阻挡素材 ${blockingLevelName ? `${blockingLevelName} ` : ''}${blockingAssetName}`
-    : '';
-
-  return `${levelName}（${coordinateText}）${assetName}：${conflictLabel}，冲突坐标 ${conflictCoordinates}${blockingText}`;
-}
-
-function formatDroppedLevelName(name: string, levelNumber: number | null, locale: Locale): string {
-  if (levelNumber === null) {
-    return name;
-  }
-
-  return getBuildingLevelDisplayName(name, levelNumber, locale);
-}
-
-function formatCoordinate(coordinate: GridCoordinate): string {
-  return `${coordinate.x},${coordinate.y}`;
-}
-
-function formatCoordinateList(coordinates: readonly GridCoordinate[]): string {
-  return coordinates.map(formatCoordinate).join(' ');
-}
-
-function getDroppedTileConflictLabel(
-  conflictType: SceneStringDroppedTileInstance['conflictType'],
-  locale: Locale,
-): string {
-  if (locale === 'en-US') {
-    switch (conflictType) {
-      case 'footprint-out-of-bounds':
-        return 'outside the canvas footprint bounds';
-      case 'same-level-footprint-overlap':
-        return 'same-layer footprint overlap';
-      case 'height-blocked-by-lower-footprint':
-        return 'blocked by a lower-layer footprint height';
-      case 'unsupported-stack-surface':
-        return 'unsupported stacking surface';
-      case 'surface-capacity-conflict':
-        return 'stacking surface capacity conflict';
-    }
-  }
-
-  switch (conflictType) {
-    case 'footprint-out-of-bounds':
-      return '素材占地超出画布';
-    case 'same-level-footprint-overlap':
-      return '同层占地重叠';
-    case 'height-blocked-by-lower-footprint':
-      return '被低层素材高度阻挡';
-    case 'unsupported-stack-surface':
-      return '不能叠放在当前素材上';
-    case 'surface-capacity-conflict':
-      return '叠放表面容量冲突';
-  }
 }
 
 export function AppShell() {
@@ -230,7 +105,7 @@ export function AppShell() {
   const [recoveryErrors, setRecoveryErrors] = useState<RecoveryError[]>(
     initialSceneState.recoveryErrors,
   );
-  const [recoveryStatus, setRecoveryStatus] = useState<'idle' | 'error' | 'success' | 'canceled'>(
+  const [recoveryStatus, setRecoveryStatus] = useState<RecoveryStatus>(
     initialSceneState.recoveryErrors.length > 0 ? 'error' : 'idle',
   );
   const [locale, setLocale] = useState<Locale>(initialUiPreferences.locale);
@@ -1776,256 +1651,6 @@ export function AppShell() {
   );
 }
 
-function getHelpGuideLayouts(
-  snapshot: HelpGuideSnapshot,
-): Partial<Record<HelpGuideTargetKey, HelpGuideLayout>> {
-  return helpGuideTargets.reduce<Partial<Record<HelpGuideTargetKey, HelpGuideLayout>>>(
-    (layouts, target) => {
-      const targetRect = snapshot.targets[target.key];
-      if (!targetRect) {
-        return layouts;
-      }
-
-      layouts[target.key] = getHelpGuideLayout(
-        targetRect,
-        snapshot.arrowTargets?.[target.key] ?? targetRect,
-        target.key,
-        snapshot,
-      );
-      return layouts;
-    },
-    {},
-  );
-}
-
-function getHelpGuideLayout(
-  targetRect: HelpGuideRect,
-  arrowTargetRect: HelpGuideRect,
-  targetKey: HelpGuideTargetKey,
-  snapshot: HelpGuideSnapshot,
-): HelpGuideLayout {
-  const viewportWidth = snapshot.viewportWidth;
-  const viewportHeight = snapshot.viewportHeight;
-  const noteWidth =
-    targetKey === 'assets' ? Math.min(400, viewportWidth - 36) : Math.min(330, viewportWidth - 36);
-  const noteHeight = 58;
-  const viewportPadding = 18;
-  const targetPoint = getHelpGuideTargetPoint(arrowTargetRect, targetKey);
-  let noteLeft = targetPoint.x - noteWidth / 2;
-  let noteTop = targetRect.top + targetRect.height + 26;
-
-  if (targetKey === 'layers') {
-    noteLeft = targetRect.left + targetRect.width + 116;
-    noteTop = targetRect.top + 128;
-  }
-
-  if (targetKey === 'asset-favorites') {
-    noteLeft = targetRect.left - noteWidth - 170;
-    noteTop = targetRect.top + 78;
-  }
-
-  if (targetKey === 'assets') {
-    noteLeft = targetRect.left - noteWidth - 116;
-    noteTop = targetRect.top + 172;
-  }
-
-  if (targetKey === 'scene-controls') {
-    noteLeft = targetRect.left + targetRect.width + 116;
-    noteTop = targetRect.top + 8;
-  }
-
-  noteLeft = clamp(noteLeft, viewportPadding, viewportWidth - noteWidth - viewportPadding);
-  noteTop = clamp(noteTop, viewportPadding, viewportHeight - noteHeight - viewportPadding);
-
-  const noteAnchorX = getHelpGuideNoteArrowAnchorX(targetPoint, targetKey, noteLeft, noteWidth);
-  const noteAnchorY = 32;
-  const anchorX = noteLeft + noteAnchorX;
-  const anchorY = noteTop + noteAnchorY;
-  const targetEdgePoint = getHelpGuideTargetEdgePoint(arrowTargetRect, targetPoint, {
-    x: anchorX,
-    y: anchorY,
-  });
-
-  return {
-    noteStyle: {
-      left: `${noteLeft}px`,
-      top: `${noteTop}px`,
-      width: `${noteWidth}px`,
-    },
-    arrowPath: getHelpGuideArrowPath({ x: anchorX, y: anchorY }, targetEdgePoint),
-  };
-}
-
-function getHelpGuideNoteArrowAnchorX(
-  targetPoint: { x: number; y: number },
-  targetKey: HelpGuideTargetKey,
-  noteLeft: number,
-  noteWidth: number,
-): number {
-  if (targetPoint.x < noteLeft) {
-    return 8;
-  }
-
-  if (targetPoint.x > noteLeft + noteWidth) {
-    return getHelpGuideRightArrowAnchorX(targetKey, noteWidth);
-  }
-
-  return noteWidth / 2;
-}
-
-function getHelpGuideRightArrowAnchorX(targetKey: HelpGuideTargetKey, noteWidth: number): number {
-  if (targetKey === 'assets') {
-    return Math.min(noteWidth - 8, 292);
-  }
-
-  if (targetKey === 'asset-favorites') {
-    return Math.min(noteWidth - 8, 304);
-  }
-
-  return noteWidth - 8;
-}
-
-function getHelpGuideArrowPath(
-  startPoint: { x: number; y: number },
-  endPoint: { x: number; y: number },
-): string {
-  const deltaX = endPoint.x - startPoint.x;
-  const deltaY = endPoint.y - startPoint.y;
-  const distance = Math.max(1, Math.hypot(deltaX, deltaY));
-  const downwardCurveOffset = clamp(distance * 0.32, 34, 96);
-  const controlPoint = {
-    x: startPoint.x + deltaX * 0.5,
-    y: Math.max(startPoint.y, endPoint.y) + downwardCurveOffset,
-  };
-
-  return `M ${formatSvgNumber(startPoint.x)} ${formatSvgNumber(startPoint.y)} Q ${formatSvgNumber(controlPoint.x)} ${formatSvgNumber(controlPoint.y)} ${formatSvgNumber(endPoint.x)} ${formatSvgNumber(endPoint.y)}`;
-}
-
-function getHelpGuideTargetEdgePoint(
-  targetRect: HelpGuideRect,
-  targetPoint: { x: number; y: number },
-  fromPoint: { x: number; y: number },
-): { x: number; y: number } {
-  const deltaX = fromPoint.x - targetPoint.x;
-  const deltaY = fromPoint.y - targetPoint.y;
-  const candidates: Array<{ x: number; y: number; distance: number }> = [];
-  const right = targetRect.left + targetRect.width;
-  const bottom = targetRect.top + targetRect.height;
-
-  if (deltaX !== 0) {
-    const edgeX = deltaX > 0 ? right : targetRect.left;
-    const distance = (edgeX - targetPoint.x) / deltaX;
-    const y = targetPoint.y + deltaY * distance;
-    if (distance > 0 && y >= targetRect.top && y <= bottom) {
-      candidates.push({ x: edgeX, y, distance });
-    }
-  }
-
-  if (deltaY !== 0) {
-    const edgeY = deltaY > 0 ? bottom : targetRect.top;
-    const distance = (edgeY - targetPoint.y) / deltaY;
-    const x = targetPoint.x + deltaX * distance;
-    if (distance > 0 && x >= targetRect.left && x <= right) {
-      candidates.push({ x, y: edgeY, distance });
-    }
-  }
-
-  const nearestEdgePoint = candidates.sort((first, second) => first.distance - second.distance)[0];
-  if (!nearestEdgePoint) {
-    return targetPoint;
-  }
-
-  return {
-    x: nearestEdgePoint.x,
-    y: nearestEdgePoint.y,
-  };
-}
-
-function formatSvgNumber(value: number): string {
-  return value.toFixed(1);
-}
-
-function getPaddedHelpGuideRect(targetRect: HelpGuideRect, snapshot: HelpGuideSnapshot): HelpGuideRect {
-  const left = Math.max(8, targetRect.left - 8);
-  const top = Math.max(8, targetRect.top - 8);
-
-  return {
-    left,
-    top,
-    width: Math.min(targetRect.width + 16, snapshot.viewportWidth - left - 8),
-    height: Math.min(targetRect.height + 16, snapshot.viewportHeight - top - 8),
-  };
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
-
-function getHelpGuideTargetPoint(
-  targetRect: HelpGuideRect,
-  targetKey: HelpGuideTargetKey,
-): { x: number; y: number } {
-  if (targetKey === 'layers') {
-    return {
-      x: targetRect.left + targetRect.width * 0.48,
-      y: targetRect.top + Math.min(116, targetRect.height * 0.38),
-    };
-  }
-
-  if (targetKey === 'assets') {
-    return {
-      x: targetRect.left + targetRect.width * 0.5,
-      y: targetRect.top + Math.min(210, targetRect.height * 0.34),
-    };
-  }
-
-  return {
-    x: targetRect.left + targetRect.width / 2,
-    y: targetRect.top + targetRect.height / 2,
-  };
-}
-
-function markSelectionStart(counter: number): string {
-  const measureId = `scene-selection-${counter}`;
-  performance.mark(`${measureId}-start`);
-
-  return measureId;
-}
-
-function markSelectionVisible(measureId: string): void {
-  const startMark = `${measureId}-start`;
-  const visibleMark = `${measureId}-visible`;
-
-  if (performance.getEntriesByName(startMark, 'mark').length === 0) {
-    return;
-  }
-
-  performance.mark(visibleMark);
-  performance.clearMeasures('scene-selection-duration');
-  performance.clearMeasures(`${measureId}-duration`);
-  performance.measure(`${measureId}-duration`, startMark, visibleMark);
-  performance.measure('scene-selection-duration', startMark, visibleMark);
-  performance.clearMarks(startMark);
-  performance.clearMarks(visibleMark);
-}
-
-function waitForPlaywrightImageExportDelay(): Promise<void> {
-  const testWindow = window as unknown as { __pokopiaImageExportDelayMs?: number };
-  const delayMs = navigator.webdriver && isLocalPreviewHost(window.location.hostname)
-    ? testWindow.__pokopiaImageExportDelayMs
-    : undefined;
-
-  if (!delayMs || delayMs <= 0) {
-    return Promise.resolve();
-  }
-
-  return new Promise((resolve) => window.setTimeout(resolve, delayMs));
-}
-
-function isLocalPreviewHost(hostname: string): boolean {
-  return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]';
-}
-
 interface InitialSceneState {
   scene: SceneDocument;
   recoveryErrors: RecoveryError[];
@@ -2084,88 +1709,4 @@ function createInitialSceneState(): InitialSceneState {
     scene: defaultScene,
     recoveryErrors: [],
   };
-}
-
-function getCurrentIsoTimestamp(): string {
-  return new Date().toISOString();
-}
-
-function isMobileReadOnlyApplicationKey(event: KeyboardEvent): boolean {
-  const normalizedKey = event.key.toLowerCase();
-
-  return (
-    normalizedKey === 'arrowup' ||
-    normalizedKey === 'arrowdown' ||
-    normalizedKey === 'arrowleft' ||
-    normalizedKey === 'arrowright' ||
-    normalizedKey === 'enter' ||
-    normalizedKey === ' ' ||
-    normalizedKey === 'spacebar' ||
-    normalizedKey === 'escape' ||
-    normalizedKey === 'delete' ||
-    normalizedKey === 'backspace' ||
-    ((event.metaKey || event.ctrlKey) && normalizedKey === 's')
-  );
-}
-
-function getBrowserStorage(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-function createStorageUnavailableRecoveryError(): RecoveryError {
-  return {
-    fieldPath: '$',
-    expected: 'browser localStorage',
-    actual: 'unavailable',
-    reason: 'Saved scene storage is unavailable.',
-    recoveryAction: 'Enable localStorage and retry recovery.',
-  };
-}
-
-function getRecoveryStatusTitle(status: 'idle' | 'error' | 'success' | 'canceled', locale: Locale): string {
-  if (status === 'success') {
-    return t(locale, 'savedSceneRecovered');
-  }
-
-  if (status === 'canceled') {
-    return t(locale, 'recoveryCanceled');
-  }
-
-  if (status === 'error') {
-    return t(locale, 'savedSceneRejected');
-  }
-
-  return t(locale, 'recoveryIdle');
-}
-
-function getRecoveryStatusMessage(status: 'idle' | 'error' | 'success' | 'canceled', locale: Locale): string {
-  if (status === 'success') {
-    return t(locale, 'recoverySuccessMessage');
-  }
-
-  if (status === 'canceled') {
-    return t(locale, 'recoveryCanceledMessage');
-  }
-
-  if (status === 'error') {
-    return t(locale, 'recoveryErrorMessage');
-  }
-
-  return t(locale, 'recoveryIdleMessage');
-}
-
-function createTileInstanceId(): string {
-  return `tile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function createCopiedLayerInstancePrefix(): string {
-  return `layer-copy-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function createLayerNoteId(levelId: string): string {
-  return `${levelId}-note-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
