@@ -113,7 +113,6 @@ const assetFootprintOverridesByAssetId: Readonly<Record<string, AssetFootprint>>
   'speaker': { length: 1, width: 1, height: 2 },
   'punching-game': { length: 1, width: 1, height: 2 },
   'auspicious-armor': { length: 1, width: 1, height: 2 },
-  'cooking-stove': { length: 2, width: 2, height: 1 },
   'modern-sink': { length: 2, width: 2, height: 1 },
   'hanging-scroll': { length: 1, width: 1, height: 2 },
   'control-unit': { length: 2, width: 2, height: 1 },
