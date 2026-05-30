@@ -303,17 +303,15 @@
 
 - [x] `pnpm --filter @pokopia-scene-editor/scene-core typecheck` 通过。
 - [x] `pnpm --filter @pokopia-scene-editor/web typecheck` 通过。
-- [x] `pnpm --filter @pokopia-scene-editor/worker typecheck` 通过。
 - [x] `pnpm --filter @pokopia-scene-editor/scene-core test` 覆盖默认 17x17、legacy 7x7、PSE1/PSE2 和 export summary。
 - [x] `pnpm --filter @pokopia-scene-editor/web test` 覆盖 17x17 Web canvas、preview、export preview 和 image export pending state。
-- [x] `pnpm --filter @pokopia-scene-editor/worker test` 与 `pnpm run worker:mcp:smoke` 覆盖 Worker/MCP dimension parity。
+- [x] `pnpm run scene-core:file-install:smoke` 覆盖外部 file-install consumer 的 runtime import 与 TypeScript NodeNext declaration contract。
 - [x] `pnpm run smoke` 覆盖默认 17x17、legacy 7x7、dense 10 层 performance 和响应式关键视口。
-- [x] `pnpm run skill:verify` 覆盖 repo-scoped skill default/legacy dimension wording。
-- [ ] `pnpm run release:verify` 在 Story 12.4 closeout 时运行。
+- [ ] `pnpm run release:verify` 在 Epic 13 closeout 时运行。
 
 ## Epic 12 交接
 
 - 当前尺寸事实入口：`12-1-scene-core-dimension-contract-and-legacy-recovery`。
 - Web 渲染与导出入口：`12-2-web-canvas-preview-export-17x17-rendering`。
-- Worker/MCP/Codex skill parity 入口：`12-3-short-string-worker-mcp-dimension-parity`。
+- 已删除 API/MCP/Codex skill surface；外迁参考见 `docs/worker-api-mcp-skill-handoff.md`。
 - 发布前必须确认默认目标为 `sceneSize=15x15`、`outerPadding=1`、`canvasSize=17x17`，并确认自定义画布宽高 `6..17` 仍能保存、恢复、导出。

@@ -1,5 +1,5 @@
 # generated: 2026-05-30T11:45:43+0800
-# last_updated: 2026-05-30T12:24:11+0800
+# last_updated: 2026-05-30T12:38:09+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -29,7 +29,7 @@
 # - Stories are worked in epic/story order unless the user redirects.
 
 generated: 2026-05-30T11:45:43+0800
-last_updated: 2026-05-30T12:24:11+0800
+last_updated: 2026-05-30T12:38:09+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -42,7 +42,7 @@ development_status:
   epic-13: in-progress
   13-1-planning-archive-and-release-boundary-rewrite: done
   13-2-scene-core-file-installable-package: done
-  13-3-remove-worker-api-mcp-skill-code: backlog
+  13-3-remove-worker-api-mcp-skill-code: done
   13-4-resource-data-single-source-of-truth-cleanup: backlog
   13-5-web-core-complexity-and-code-volume-reduction: backlog
   13-6-tests-release-gate-derived-from-business-data: backlog

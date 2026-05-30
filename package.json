@@ -6,22 +6,14 @@
   "scripts": {
     "dev": "pnpm --filter @pokopia-scene-editor/web dev",
     "preview": "pnpm --filter @pokopia-scene-editor/web preview",
-    "typecheck": "pnpm --filter @pokopia-scene-editor/scene-core typecheck && pnpm --filter @pokopia-scene-editor/web typecheck && pnpm --filter @pokopia-scene-editor/worker typecheck",
-    "test": "pnpm --filter @pokopia-scene-editor/scene-core test && pnpm --filter @pokopia-scene-editor/web test && pnpm --filter @pokopia-scene-editor/worker test",
+    "typecheck": "pnpm --filter @pokopia-scene-editor/scene-core typecheck && pnpm --filter @pokopia-scene-editor/web typecheck",
+    "test": "pnpm --filter @pokopia-scene-editor/scene-core test && pnpm --filter @pokopia-scene-editor/web test",
     "test:watch": "pnpm --filter @pokopia-scene-editor/web test:watch",
     "build": "pnpm --filter @pokopia-scene-editor/scene-core build && pnpm --filter @pokopia-scene-editor/web build",
     "smoke": "pnpm --filter @pokopia-scene-editor/web smoke",
     "scene-core:file-install:smoke": "node scripts/verify-scene-core-file-install.mjs",
-    "skill:verify": "node scripts/verify-pokopia-scene-worker-skill.mjs",
-    "worker:mcp:smoke": "pnpm --filter @pokopia-scene-editor/worker mcp:smoke",
-    "worker:bundle:check": "pnpm --filter @pokopia-scene-editor/worker bundle:check",
-    "worker:dev": "pnpm --filter @pokopia-scene-editor/worker dev",
-    "worker:types": "pnpm --filter @pokopia-scene-editor/worker types",
-    "worker:types:check": "pnpm --filter @pokopia-scene-editor/worker types:check",
-    "worker:deploy:dry-run": "pnpm --filter @pokopia-scene-editor/worker deploy:dry-run",
-    "worker:deploy": "pnpm --filter @pokopia-scene-editor/worker run deploy",
-    "web:deploy": "pnpm --filter @pokopia-scene-editor/web build && pnpm --dir apps/worker exec wrangler pages deploy ../web/dist --project-name pokopia-scene-editor --branch main",
+    "web:deploy": "pnpm --filter @pokopia-scene-editor/web build && pnpm dlx wrangler@4.94.0 pages deploy apps/web/dist --project-name pokopia-scene-editor --branch main",
     "deploy": "pnpm run web:deploy",
-    "release:verify": "pnpm run worker:types:check && pnpm run typecheck && pnpm run test && pnpm --filter @pokopia-scene-editor/scene-core exec vitest run src/io/scene-string-codec.test.ts --environment node && pnpm run build && pnpm run smoke && pnpm run worker:mcp:smoke && pnpm run skill:verify"
+    "release:verify": "pnpm run typecheck && pnpm run test && pnpm --filter @pokopia-scene-editor/scene-core exec vitest run src/io/scene-string-codec.test.ts --environment node && pnpm run build && pnpm run scene-core:file-install:smoke && pnpm run smoke"
   }
 }

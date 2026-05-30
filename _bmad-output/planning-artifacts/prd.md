@@ -496,6 +496,8 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 
 ### Scene Worker, MCP & Codex Skill
 
+Superseded by Epic 13.3 on 2026-05-30: FR69-FR76 are historical requirements only and are no longer active backlog for this repository. Future API/MCP/Worker/skill projects must use the external handoff and depend on file-installed `@pokopia-scene-editor/scene-core` instead of restoring `apps/worker` or `.agents/skills/pokopia-scene-worker`.
+
 - FR69: 系统可以迁移为 pnpm workspace monorepo：现有 React 浏览器 UI 放入 `apps/web`，Cloudflare Worker/MCP 放入 `apps/worker`，共享领域核心放入 `packages/scene-core`。
 - FR70: 系统可以将 `SceneDocument v1` 类型、Zod schema、序列化/恢复、短字符串 codec、asset catalog 查询、footprint/occupancy helpers、selectors、导出摘要 JSON 和默认 scene 生成抽取为共享 `scene-core`。
 - FR71: Worker 可以提供无状态 HTTP API：`/api/health`、`/api/scene/generate`、`/api/scene/validate`、`/api/scene/recover`、`/api/scene/export-summary`、`/api/scene/encode`、`/api/scene/decode` 和 `/api/assets`。

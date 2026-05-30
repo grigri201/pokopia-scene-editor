@@ -486,7 +486,7 @@ type InteractionMode = "edit" | "readOnly";
 
 `apps/web` 的 Vite production build 输出静态文件并通过 Cloudflare Pages 发布到 `pokopia-scene-editor` project。生产部署不再发布 `/api/*`、`/api/v1/*` 或 `/mcp`，也不再把 Worker/MCP 作为 release gate 的默认目标。
 
-根 `package.json` 作为 pnpm workspace orchestration 层，`deploy` 必须委托到静态 Pages 部署。`apps/worker` 可以保留 local dev、types、tests 和 MCP smoke 入口，但 Worker deploy/dry-run 必须显式拒绝执行，避免误发布 API/MCP。
+根 `package.json` 作为 pnpm workspace orchestration 层，`deploy` 必须委托到静态 Pages 部署。`apps/worker`、Worker local dev、Worker types、Worker tests 和 MCP smoke 已从本仓库 active 架构外迁；移除清单与 future adapter 要求保留在 `docs/worker-api-mcp-skill-handoff.md`。
 
 **Decision: Environment configuration remains minimal.**
 
@@ -1104,13 +1104,11 @@ Worker API / MCP
 - `pnpm-workspace.yaml` declares `apps/*` and `packages/*`.
 - `apps/web/package.json` owns React/Vite UI dependencies and web scripts.
 - `apps/web/vite.config.ts`, `vitest.config.ts`, `playwright.config.ts` and `tsconfig*.json` own web app build/test config.
-- `apps/worker/package.json` owns Worker/MCP/Wrangler dependencies and scripts.
-- `apps/worker/wrangler.toml` owns Cloudflare Worker config and static assets binding to `../web/dist`.
 - `packages/scene-core/package.json` and `tsconfig.json` own shared domain package build/test config.
 
 **Source Organization**
 
-Shared domain modules must not import React, DOM APIs, localStorage, Worker runtime or UI components. Web state modules may import `packages/scene-core` and browser IO types, but should avoid importing components. Components can import shared selectors and state dispatcher hooks. Worker adapter code can import `packages/scene-core`, but cannot import `apps/web/src/*`.
+Shared domain modules must not import React, DOM APIs, localStorage, Worker runtime or UI components. Web state modules may import `packages/scene-core` and browser IO types, but should avoid importing components. Components can import shared selectors and state dispatcher hooks. Future external API/MCP/skill adapters must depend on file-installed `scene-core` and must not import `apps/web/src/*`.
 
 Allowed dependency direction:
 
@@ -1120,8 +1118,6 @@ apps/web/components -> apps/web/theme
 apps/web/components -> apps/web/io only for browser save/recovery/export UI
 apps/web/state -> packages/scene-core
 apps/web/io -> packages/scene-core
-apps/worker -> packages/scene-core
-.agents/skills/pokopia-scene-worker -> MCP tools only
 packages/scene-core -> no React, no DOM, no Worker runtime, no app imports
 ```
 
@@ -1132,7 +1128,6 @@ packages/scene-core -> no React, no DOM, no Worker runtime, no app imports
 - Shared scene-core fixtures live in `packages/scene-core/src/test/fixtures/`.
 - Web component fixtures live in `apps/web/src/test/fixtures/`.
 - Playwright tests live under `apps/web/e2e/` or another web-owned e2e folder declared by `apps/web/playwright.config.ts`.
-- Worker runtime and MCP smoke tests live under `apps/worker/src/` or `apps/worker/test/`.
 - New domain rule, command, schema field or recovery error requires tests in the same story.
 
 **Asset Organization**

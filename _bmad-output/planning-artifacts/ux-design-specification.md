@@ -598,12 +598,13 @@ flowchart TD
 
 #### Developer / Agent Workflow Surface
 
-**Purpose:** 让 Codex、MCP 客户端和开发者通过高语义工具调用 Scene Editor 的权威领域能力。
-**Usage:** Codex skill 或 MCP 客户端调用 `generate_scene_document`、`validate_scene_document`、`recover_scene_document`、`summarize_scene_export` 和 `search_pokopia_assets`。
-**Anatomy:** 任务名、输入 schema、结构化结果、错误列表、warnings、schema/catalog/service version、可执行修复建议。
-**States:** 工具可用、输入无效、校验失败、footprint 冲突、stacking 冲突、可恢复、摘要生成成功、素材查询无结果、服务不可用。
-**Accessibility:** 面向 agent 的文本结果应简短、可扫描，并保留字段路径和用户可执行动作；不得要求人阅读完整 raw JSON 才能理解结果。
-**Interaction Behavior:** Agent-facing 工具不得复制业务规则、footprint rules、stacking rules 或 catalog overrides，不得机械暴露所有 HTTP endpoints，不得保存用户 scene。Codex skill 只组织 workflow 和解释 MCP 结果。
+**Status:** Superseded by Epic 13.3 on 2026-05-30; this surface is now an external project handoff, not an in-repository UX surface.
+**Purpose:** Future Codex, MCP client, or developer tools can call Scene Editor domain capabilities through an external adapter over file-installed `@pokopia-scene-editor/scene-core`.
+**Usage:** This repository no longer ships MCP tools, Worker endpoints, or a repo-scoped Codex skill. External adapters may recreate high-semantic tools such as validation, recovery, export summary, and asset search by depending on `scene-core`.
+**Anatomy:** Adapter-owned task name, input schema, structured result, errors, warnings, schema/catalog/service version, and executable repair suggestion.
+**States:** Tool available, invalid input, validation failed, footprint conflict, stacking conflict, recoverable, summary generated, asset query empty, service unavailable.
+**Accessibility:** Agent-facing text should be concise, scannable, and preserve field paths and actionable repair steps; users should not need to read complete raw JSON to understand results.
+**Interaction Behavior:** External agent-facing tools must not copy business rules, footprint rules, stacking rules, catalog overrides, or SceneDocument schema; they must call `scene-core` and must not save user scenes by default.
 
 ### Component Implementation Strategy
 
