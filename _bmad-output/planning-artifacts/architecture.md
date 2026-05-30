@@ -110,7 +110,15 @@ Stacking surface 是 asset catalog metadata：默认不可承载、不可被同�
 
 `packages/scene-core` 必须新增或收敛 dimension helpers，作为 area calculation、coordinate schema bounds、canvas cells、main boundary、footprint bounds、height blocking、stacking relations、selectors、serializer/recovery 和 export summary 的唯一尺寸来源。Zod schema 不能继续把 coordinate max 写死为 6；Web、Worker、MCP 和 Codex skill 不得复制 7x7 常量。新尺寸短字符串必须编码 dimensions 或使用新的 codec revision，避免 17x17 场景被 legacy PSE1 解释为 7x7。
 
-另有 52 条 Non-Functional Requirements，核心架构约束包括：
+### Approved Course Correction - 2026-05-30 仓库瘦身与 Scene Core 库化
+
+本 Architecture 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-30-repo-slim-core-library.md` 进入 Polish 阶段。产品已经不是 MVP；主流程已可用，并且可以生成用户需要的攻略/导出说明图。旧架构中的 MVP 描述保留为历史基线，当前架构目标是降低复杂度、收敛仓库边界、强化数据 single source of truth，并让 `packages/scene-core` 成为可通过 pnpm `file:` 安装的领域库。
+
+新的目标结构是：`apps/web` 承载唯一用户可见 Web 工作台，`packages/scene-core` 承载 DOM-free 领域规则和 IO contract。`apps/worker`、Worker HTTP API、Streamable HTTP MCP server、repo-scoped Codex skill、Wrangler deploy/dry-run、MCP smoke 和 skill verify 不再属于本仓库 active 架构；这些能力应在新项目中依赖 file-installed `scene-core` 重新设计。
+
+Epic 1-12 归档为完成历史，active architecture/backlog 只服务 Epic 13。生产发布继续是 Cloudflare Pages static assets；默认 release gate 应聚焦 core/web typecheck、unit tests、build、Playwright smoke、file-install smoke 和 asset-reference smoke。本次继续保持 `SceneDocument v1`，不得新增 `SceneDocument v2` 或保存 derived footprint/stacking/dimension state。
+
+另有 58 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
 - 预览切换需要在 300ms 内完成首个可见更新；素材搜索筛选 1000 个素材以内需要在 200ms 内返回可见结果。

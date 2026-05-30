@@ -86,6 +86,12 @@ pokopia-scene-editor 是一个面向 Pokopia 布景创作者的结构化布景�
 
 17×17 画布不能简单把格子缩到不可读。桌面工作台必须为 289 格场景提供稳定的缩放、滚动或压缩策略，同时保留当前 Pokemon、当前建筑层、当前素材、选中格、主体区边界和错误状态可见。Mobile View-only Mode 允许查看和缩放 17×17，但仍禁止任何 scene mutation。
 
+### Approved Course Correction - 2026-05-30 仓库瘦身与 Scene Core 库化
+
+本 UX 规格已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-30-repo-slim-core-library.md` 进入 Polish 阶段。产品已经不是 MVP：主流程已可用，用户可以完成布景编辑、保存/恢复、预览、导出，并生成所需攻略/导出说明图。当前 UX 工作不再定义最小可用范围，而是保护已有主流程、减少维护复杂度、保持导出说明图可读，并为后续 polish 迭代提供稳定边界。
+
+终端用户工作台不因仓库瘦身改变。Scene Canvas、Asset Picker、Building Level Panel、Selection Inspector、Preview Inspector、Export Preview、Mobile View-only Mode、i18n、安全文本、17×17/legacy 7×7 表达、footprint、stacking 和层备注体验都必须保持。Developer / Agent Workflow Surface 从本仓库外迁；API/MCP/skill failure 不再是本仓库 UX concern。
+
 ### Target Users
 
 目标用户包括 Pokopia 布景创作者和素材库维护者。布景创作者需要把灵感或搭建方案整理成可复现、可继续编辑、可分享的数据；素材库维护者需要维护素材名称、分类、标签、适用区域、技能需求、footprint、承载/叠放规则、缩略图和筛选信息，让创作者能快速找到正确素材。
@@ -96,8 +102,8 @@ pokopia-scene-editor 是一个面向 Pokopia 布景创作者的结构化布景�
 - 必须在有限空间中同时呈现素材选择、画布、建筑层、属性和预览状态，避免编辑工具变成分散的多页面流程。
 - 必须让大素材的跨格 footprint、旋转后占用方向和 height 上层阻塞清楚可见，避免用户以为素材仍是单格对象。
 - 必须让承载/叠放例外足够清楚：食物放盘子是合法承载，非食物放盘子是不兼容，已审计底垫/地毯/嫩芽/低高度素材只开放被允许的 overlap。
-- 建筑层、当前编辑层、技能标记和选中格状态必须清楚可见，不能只依赖颜色；MVP 不提供建筑层锁定或隐藏状态。
-- 俯视图和正视图需要足够直观，但 MVP 不应陷入复杂真实视角或遮挡模拟。
+- 建筑层、当前编辑层、技能标记和选中格状态必须清楚可见，不能只依赖颜色；当前产品不提供建筑层锁定或隐藏状态。
+- 俯视图和正视图需要足够直观，但当前产品不应陷入复杂真实视角或遮挡模拟。
 
 ### Design Opportunities
 
@@ -117,9 +123,9 @@ pokopia-scene-editor 是一个面向 Pokopia 布景创作者的结构化布景�
 
 ### Platform Strategy
 
-MVP 采用桌面优先 Web App。主要交互面向鼠标/指针，支持高频搜索、筛选、悬停预览、点击放置、实例选中、属性编辑、建筑层切换和预览切换。键盘快捷操作可以保留，但不作为 MVP 强制验收要求。
+当前产品继续采用桌面优先 Web App。主要交互面向鼠标/指针，支持高频搜索、筛选、悬停预览、点击放置、实例选中、属性编辑、建筑层切换和预览切换。键盘快捷操作可以保留，但不作为当前 Polish 阶段的强制验收要求。
 
-移动端不作为完整编辑主场景，但窄视口下必须保证页面不崩溃、关键状态可访问、控件不重叠。离线能力不是 MVP 核心要求，但本地保存、图片导出和重新打开必须可靠。
+移动端不作为完整编辑主场景，但窄视口下必须保证页面不崩溃、关键状态可访问、控件不重叠。离线能力不是当前 Polish 阶段的核心目标，但本地保存、图片导出和重新打开必须可靠。
 
 ### Effortless Interactions
 

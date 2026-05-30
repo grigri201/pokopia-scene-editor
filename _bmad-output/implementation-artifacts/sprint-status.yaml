@@ -1,9 +1,11 @@
-# generated: 2026-05-16T06:01:02+0800
-# last_updated: 2026-05-29T10:52:16+0800
+# generated: 2026-05-30T11:45:43+0800
+# last_updated: 2026-05-30T12:01:30+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
 # story_location: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/implementation-artifacts
+# archived_completed_tracker: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/archive/2026-05-30/implementation-artifacts/sprint-status-epics-1-12-completed.yaml
+# archived_completed_stories: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/archive/2026-05-30/implementation-artifacts/completed-stories
 
 # STATUS DEFINITIONS:
 # ==================
@@ -12,10 +14,6 @@
 #   - in-progress: Epic actively being worked on
 #   - done: All stories in epic completed
 #
-# Epic Status Transitions:
-#   - backlog -> in-progress: Automatically when first story is created
-#   - in-progress -> done: When all stories reach 'done' status
-#
 # Story Status:
 #   - backlog: Story only exists in epic file
 #   - ready-for-dev: Story file created in stories folder
@@ -23,102 +21,29 @@
 #   - review: Ready for code review
 #   - done: Story completed
 #
-# Retrospective Status:
-#   - optional: Can be completed but not required
-#   - done: Retrospective has been completed
-#
 # WORKFLOW NOTES:
 # ===============
-# - Epic transitions to 'in-progress' when the first story is created.
+# - Epic 1-12 are completed and archived.
+# - Active work is Polish-stage Epic 13.
+# - Story 13.1 was completed as part of the approved course-correction sync.
 # - Stories are worked in epic/story order unless the user redirects.
-# - Dev moves story to 'review', then code-review triages findings before done.
 
-generated: 2026-05-16T06:01:02+0800
-last_updated: 2026-05-29T10:52:16+0800
+generated: 2026-05-30T11:45:43+0800
+last_updated: 2026-05-30T12:01:30+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
 story_location: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/implementation-artifacts
+archived_completed_tracker: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/archive/2026-05-30/implementation-artifacts/sprint-status-epics-1-12-completed.yaml
+archived_completed_epics: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/archive/2026-05-30/planning-artifacts/epics-1-12-completed.md
+archived_completed_stories: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/archive/2026-05-30/implementation-artifacts/completed-stories
 
 development_status:
-  epic-1: done
-  1-1-vite-react-typescript-starter: done
-  1-2-scene-canvas-domain-model: done
-  1-3-fixed-seven-by-seven-canvas: done
-  1-4-grid-selection-context: done
-  1-5-building-layer-context: done
-  1-6-mobile-readonly-boundary: done
-  1-7-pokemon-scene-controls-theme: done
-  epic-1-retrospective: optional
-  epic-2: done
-  2-1-asset-browser-selection: done
-  2-2-asset-search-filters: done
-  2-3-place-assets-on-building-layer: done
-  2-4-edit-asset-instance: done
-  2-5-building-layer-crud-visibility-lock: done
-  2-6-copy-delete-building-layer: done
-  2-7-cross-layer-placement-move: done
-  2-8-inspector-instance-fields: done
-  2-9-ditto-skill-instances: done
-  epic-2-retrospective: optional
-  epic-3: done
-  3-1-dual-preview-inspector: done
-  3-2-top-view-preview: done
-  3-3-layer-preview-scope: done
-  3-4-front-view-height-preview: done
-  3-5-preview-overlays: done
-  3-6-preview-performance-responsive-a11y: done
-  epic-3-retrospective: optional
-  epic-4: done
-  4-1-scene-document-v1-contract: done
-  4-2-autosave-reopen-restore: done
-  4-3-scene-document-roundtrip: done
-  4-4-restore-failure-protection: done
-  4-5-restore-validation-ui-safe-text: done
-  4-6-localstorage-ui-preferences: done
-  epic-4-retrospective: optional
-  epic-5: done
-  5-1-clean-data-model-and-command-scope: done
-  5-2-clean-workbench-ui-and-preview-controls: done
-  5-3-mobile-keyboard-block-and-regression-tests: done
-  epic-5-retrospective: optional
-  epic-6: done
-  6-1-image-export-summary-and-layer-data: done
-  6-2-image-export-preview-ui: done
-  6-3-image-file-generation-download-and-regression-tests: done
-  epic-6-retrospective: optional
-  epic-7: done
-  7-1-extract-scene-core-shared-package: done
-  7-2-worker-http-api-and-deploy-scripts: done
-  7-3-mcp-server-tools-resources-prompts: done
-  7-4-codex-skill-wrapper-and-examples: done
-  7-5-worker-mcp-skill-hardening-and-release-gates: done
-  epic-7-retrospective: optional
-  epic-8: done
-  8-1-asset-catalog-footprint-metadata: done
-  8-2-scene-core-footprint-occupancy-rules: done
-  8-3-web-placement-canvas-footprint-feedback: done
-  8-4-preview-export-footprint-rendering: done
-  8-5-footprint-contract-parity-gates: done
-  epic-8-retrospective: optional
-  epic-9: done
-  9-1-building-layer-export-readability-polish: done
-  epic-9-retrospective: optional
-  epic-10: done
-  10-1-building-level-notes-data-contract: done
-  10-2-edit-layer-notes-under-empty-selection: done
-  10-3-export-summary-and-preview-layer-notes: done
-  10-4-layer-notes-parity-gates: done
-  epic-10-retrospective: optional
-  epic-11: done
-  11-1-asset-catalog-stacking-surface-metadata: done
-  11-2-scene-core-stacking-compatibility-rules: done
-  11-3-web-stacking-placement-feedback: done
-  11-4-stacking-preview-export-worker-mcp-parity: done
-  epic-11-retrospective: optional
-  epic-12: done
-  12-1-scene-core-dimension-contract-and-legacy-recovery: done
-  12-2-web-canvas-preview-export-17x17-rendering: done
-  12-3-short-string-worker-mcp-dimension-parity: done
-  12-4-performance-responsive-docs-and-release-gates: done
-  epic-12-retrospective: optional
+  epic-13: in-progress
+  13-1-planning-archive-and-release-boundary-rewrite: done
+  13-2-scene-core-file-installable-package: ready-for-dev
+  13-3-remove-worker-api-mcp-skill-code: backlog
+  13-4-resource-data-single-source-of-truth-cleanup: backlog
+  13-5-web-core-complexity-and-code-volume-reduction: backlog
+  13-6-tests-release-gate-derived-from-business-data: backlog
+  epic-13-retrospective: optional

@@ -112,6 +112,14 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 
 `SceneDocument v1` 的字段 shape 继续保持：仍使用 `sceneSize`、`canvasSize` 和 `outerPadding` 表达尺寸，不新增 `SceneDocument v2`。本次变更要求 schema、area calculation、footprint bounds、stacking/occupancy、预览、导出、Worker/MCP 和 Codex skill 都从 scene dimensions 派生。旧 7x7 SceneDocument v1 JSON payload 必须按其保存的尺寸恢复，不静默改写坐标或 `areaType`；旧 PSE1 短字符串继续按 legacy 7x7 解码，新的短字符串必须编码尺寸或使用新的 codec revision。
 
+### Approved Course Correction - 2026-05-30 仓库瘦身与 Scene Core 库化
+
+本 PRD 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-30-repo-slim-core-library.md` 进入 Polish 阶段。产品已经不是 MVP：主流程已可用，用户可以完成布景编辑、保存/恢复、预览、导出，并生成所需攻略/导出说明图。自本节起，旧文档中的 “MVP” 应理解为历史完成基线，而不是当前产品阶段或当前范围控制语言。
+
+当前目标是仓库边界、维护性和稳定性收敛：本仓库只继续维护浏览器 Web 工作台和可被其他项目通过 pnpm `file:` 安装的 `scene-core` 领域库。API、MCP、Codex skill 和 Worker adapter 从本仓库外迁到新项目重新设计，不再作为本仓库的 PRD 目标、默认 release gate 或 active backlog。
+
+Epic 1-12 的详细需求和完成历史归档到 `_bmad-output/archive/2026-05-30/planning-artifacts/epics-1-12-completed.md`。Active PRD/epics/tracker 只承载 Epic 13 仓库瘦身与 Scene Core 库化。终端用户 Web 行为不得回退：编辑、保存/恢复、默认 15x15 / 17x17 尺寸、legacy 7x7 恢复、footprint、stacking、层备注、导出预览和图片下载都必须保持。`SceneDocument v1` 继续保持；本次不需要 schema change。
+
 ### What Makes This Special
 
 本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：默认中心 15×15 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、受控承载/叠放、素材实例级技能标记，以及完整 17×17 预览。
