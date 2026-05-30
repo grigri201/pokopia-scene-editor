@@ -273,11 +273,11 @@ test('previews and downloads an image export without mutating scene storage', as
   await expect(page.locator('.export-preview__body > :first-child')).toHaveAttribute('aria-label', '整体使用素材清单');
   await expect(page.locator('.export-preview__layers > .export-layer').first()).toContainText('L1 · 1层');
   await expect(page.locator('.export-preview__layers')).not.toContainText('placed items');
-  await expect(page.getByLabel('整体使用素材清单')).toContainText('绿叶植物');
+  await expect(page.getByLabel('整体使用素材清单')).toContainText('大叶子的植栽');
   await expect(page.getByLabel('整体使用素材清单')).toContainText('树叶');
   await expect(page.getByLabel('整体使用素材清单')).toContainText('储水');
   await expect(page.getByLabel('整体使用素材清单')).not.toContainText('No.');
-  await expect(page.getByLabel('整体使用素材清单').locator('img[alt="绿叶植物缩略图"]')).toBeVisible();
+  await expect(page.getByLabel('整体使用素材清单').locator('img[alt="大叶子的植栽缩略图"]')).toBeVisible();
   await expect(page.getByLabel('整体使用素材清单').locator('img[alt="储水技能图标"]')).toBeVisible();
   await expect(page.getByLabel('整体技能数量')).toHaveCount(0);
   const overallMaterialItems = page.getByLabel('整体使用素材清单').locator('.export-material-list--with-thumbs > li');
@@ -309,9 +309,9 @@ test('previews and downloads an image export without mutating scene storage', as
       }),
     )
     .toBe(0);
-  const leafyExportCell = page.getByLabel('4,4: 绿叶植物');
+  const leafyExportCell = page.getByLabel('4,4: 大叶子的植栽');
   await leafyExportCell.scrollIntoViewIfNeeded();
-  await expect(leafyExportCell.locator('img[title="绿叶植物"]')).toBeVisible();
+  await expect(leafyExportCell.locator('img[title="大叶子的植栽"]')).toBeVisible();
   await expect(leafyExportCell).not.toContainText('绿叶');
   await expect
     .poll(async () =>
@@ -347,12 +347,12 @@ test('previews and downloads an image export without mutating scene storage', as
       }),
     )
     .toBe(true);
-  await expect(page.getByLabel('L2 使用素材清单')).toContainText('绿叶植物');
+  await expect(page.getByLabel('L2 使用素材清单')).toContainText('大叶子的植栽');
   await expect(page.getByLabel('L2 使用素材清单')).toContainText('树叶');
   await expect(page.getByLabel('L2 使用素材清单')).toContainText('储水');
   await expect(page.getByLabel('L2 使用素材清单')).not.toContainText('No.');
   await expect(page.getByLabel('L2 使用素材清单')).not.toContainText('restore smoke');
-  await expect(page.getByLabel('L2 使用素材清单').locator('img[alt="绿叶植物缩略图"]')).toBeVisible();
+  await expect(page.getByLabel('L2 使用素材清单').locator('img[alt="大叶子的植栽缩略图"]')).toBeVisible();
   const layerWaterSkillIcon = page.getByLabel('L2 使用素材清单').locator('img[alt="储水技能图标"]');
   await expect(layerWaterSkillIcon).toBeVisible();
   await expect
@@ -471,7 +471,7 @@ test('keeps retained edit commands wired through the workbench shell', async ({ 
     .poll(async () => getFirstStoredTileField(page, 'skillType'))
     .toBe('树叶');
 
-  await page.locator('[data-asset-id="stone"] .asset-select-button').click();
+  await page.locator('[data-asset-id="leppa-berry"] .asset-select-button').click();
   page.once('dialog', (dialog) => dialog.accept());
   await page.locator('[data-coordinate="2,2"]').click();
   await page.locator('[data-coordinate="2,2"]').click();
@@ -480,11 +480,11 @@ test('keeps retained edit commands wired through the workbench shell', async ({ 
     .toBe(1);
   await expect
     .poll(async () => getFirstStoredTileField(page, 'assetId'))
-    .toBe('stone');
+    .toBe('leppa-berry');
 
-  await page.locator('[data-asset-id="honey"] .asset-select-button').dblclick();
-  await expect(page.locator('[data-asset-id="honey"]')).toHaveAttribute('data-selection-mode', 'continuous');
-  await expect(page.locator('[data-asset-id="honey"]')).toHaveClass(/asset-row--continuous/);
+  await page.locator('[data-asset-id="lum-berry"] .asset-select-button').dblclick();
+  await expect(page.locator('[data-asset-id="lum-berry"]')).toHaveAttribute('data-selection-mode', 'continuous');
+  await expect(page.locator('[data-asset-id="lum-berry"]')).toHaveClass(/asset-row--continuous/);
   await page.locator('[data-coordinate="2,3"]').click();
   await page.locator('[data-coordinate="2,4"]').click();
   await expect
@@ -492,12 +492,12 @@ test('keeps retained edit commands wired through the workbench shell', async ({ 
     .toBe(3);
   await expect
     .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
-    .toMatchObject({ selectedAssetId: 'honey', selectedCoordinate: { x: 2, y: 4 } });
-  await page.locator('[data-asset-id="honey"] .asset-select-button').click();
+    .toMatchObject({ selectedAssetId: 'lum-berry', selectedCoordinate: { x: 2, y: 4 } });
+  await page.locator('[data-asset-id="lum-berry"] .asset-select-button').click();
   await expect
     .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
     .toMatchObject({ selectedAssetId: null });
-  await expect(page.locator('[data-asset-id="honey"]')).toHaveAttribute('data-selection-mode', 'none');
+  await expect(page.locator('[data-asset-id="lum-berry"]')).toHaveAttribute('data-selection-mode', 'none');
 
   await page.getByRole('button', { name: '新建层' }).click();
   await expect

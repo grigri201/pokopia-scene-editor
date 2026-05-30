@@ -26,6 +26,8 @@ export type AssetSkillType = ConcreteAssetSkillType | null;
 export interface AssetDefinition {
   assetId: string;
   officialId: string;
+  sceneCodecOfficialId?: string;
+  legacyOfficialIds?: readonly string[];
   name: string;
   englishName: string;
   category: AssetCategory;
@@ -84,6 +86,21 @@ const sourceAssetTagLabels: Record<string, string> = {
   Utilities: '功能',
 };
 
+const sourceAssetCategoryLabels: Record<string, string> = {
+  建筑: '建筑',
+  家具: '家具',
+  实用: '实用',
+  室外: '室外',
+  自然: '自然',
+  食物: '食物',
+  材料: '材料',
+  方块: '方块',
+  杂货: '杂货',
+  其他: '其他',
+  套组: '套组',
+  重要物品: '重要物品',
+};
+
 const legacyAssetSkillTypeMap: Record<string, ConcreteAssetSkillType> = {
   leaf: '树叶',
   soil: '耕地',
@@ -107,6 +124,12 @@ const favoriteCategoryIdsByPokemonKey: Readonly<Partial<Record<PokemonKey, reado
   ditto: [],
   eevee: [2204, 2208, 2212, 2213, 2215, 2240],
   pikachu: [2206, 2211, 2212, 2228, 2229, 2234],
+};
+
+const preferenceTermAliases: Record<string, string> = {
+  百花盛开的: '百花盛开',
+  能出声的: '会出声的',
+  能感受自然的: '能感受大自然的',
 };
 
 const itemPreferenceTermsBySlug = new Map<string, readonly string[]>(
@@ -133,15 +156,19 @@ export const assetCatalog: readonly AssetDefinition[] = sourcePlaceableAssetItem
   .sort(compareAssetsByOfficialId);
 
 function buildAssetDefinition(sourceItem: SourcePlaceableAssetItem): AssetDefinition {
-  const officialId = sourceItem.id.toString().padStart(3, '0');
+  const sceneCodecOfficialId = sourceItem.id.toString().padStart(3, '0');
+  const officialId = (sourceItem.sourceNumber ?? sourceItem.displayNumber ?? sourceItem.id).toString().padStart(3, '0');
   const override = seedAssetOverridesByOfficialId[String(sourceItem.id)];
-  const assetId = override?.assetId ?? buildGeneratedAssetId(sourceItem.slug, officialId);
+  const assetId = override?.assetId ?? buildGeneratedAssetId(sourceItem.slug, sceneCodecOfficialId);
   const translatedName = sourcePlaceableAssetNameTranslations[sourceItem.id];
   const displayName = override?.name ?? translatedName ?? sourceItem.name;
+  const legacyOfficialIds = officialId === sceneCodecOfficialId ? [] : [sceneCodecOfficialId];
 
   return {
     assetId,
     officialId,
+    sceneCodecOfficialId,
+    legacyOfficialIds,
     name: displayName,
     englishName: sourceItem.name,
     category: override?.category ?? inferAssetCategory(sourceItem),
@@ -169,65 +196,85 @@ function buildGeneratedAssetId(slug: string, officialId: string): string {
 
 function isFilteredSourcePlaceableItem(sourceItem: SourcePlaceableAssetItem): boolean {
   const translatedName = sourcePlaceableAssetNameTranslations[sourceItem.id] ?? '';
-  const searchable = `${sourceItem.name} ${sourceItem.slug} ${sourceItem.menuCategory} ${sourceItem.tags.join(' ')}`;
+  const sourceCategory = sourceItem.sourceCategory ?? '';
+  const searchable = `${sourceItem.name} ${sourceItem.slug} ${sourceItem.menuCategory} ${sourceCategory} ${sourceItem.tags.join(' ')} ${sourceItem.sourceTags?.join(' ') ?? ''}`;
 
   return (
     sourceItem.menuCategory === 'Kits' ||
     sourceItem.menuCategory === 'Key Items' ||
+    sourceCategory === '套组' ||
+    sourceCategory === '重要物品' ||
     translatedName.includes('套件') ||
     /\bkit\b/i.test(searchable)
   );
 }
 
 function inferAssetCategory(sourceItem: SourcePlaceableAssetItem): AssetCategory {
-  return normalizeSourceAssetCategory(sourceItem.menuCategory);
+  return normalizeSourceAssetCategory(sourceItem.sourceCategory ?? sourceItem.menuCategory);
 }
 
 function normalizeSourceAssetCategory(menuCategory: string): AssetCategory {
   switch (menuCategory) {
+    case '建筑':
     case 'Buildings':
       return 'buildings';
+    case '家具':
     case 'Furniture':
       return 'furniture';
+    case '实用':
     case 'Utilities':
       return 'utilities';
+    case '室外':
     case 'Outdoor':
       return 'outdoor';
+    case '自然':
     case 'Nature':
       return 'nature';
+    case '食物':
     case 'Food':
       return 'food';
+    case '材料':
     case 'Materials':
       return 'materials';
+    case '方块':
     case 'Blocks':
       return 'blocks';
+    case '杂货':
     case 'Misc.':
       return 'misc';
+    case '其他':
     case 'Other':
       return 'other';
     default:
-      return 'misc';
+      throw new RangeError(`Unknown asset category: ${menuCategory}`);
   }
 }
 
 function buildSourceAssetTags(sourceItem: SourcePlaceableAssetItem, locale: 'zh-CN' | 'en-US' = 'zh-CN'): readonly string[] {
-  const tagSet = new Set(
-    sourceItem.tags
-      .filter(Boolean)
-      .map((tag) => (locale === 'en-US' ? tag : sourceAssetTagLabels[tag] ?? tag)),
-  );
+  const sourceTags = locale === 'zh-CN' && sourceItem.sourceTags ? sourceItem.sourceTags : sourceItem.tags;
+  const tagSet = new Set(sourceTags.filter(Boolean).map((tag) => {
+    if (locale === 'en-US') {
+      return tag;
+    }
+
+    return sourceAssetTagLabels[tag] ?? sourceAssetCategoryLabels[tag] ?? tag;
+  }));
 
   return Array.from(tagSet);
 }
 
 function buildSearchKeywords(sourceItem: SourcePlaceableAssetItem, displayName: string): readonly string[] {
+  const officialId = (sourceItem.sourceNumber ?? sourceItem.displayNumber ?? sourceItem.id).toString().padStart(3, '0');
   const keywordSet = new Set([
     displayName,
     sourceItem.name,
     sourceItem.slug,
+    officialId,
     sourceItem.menuCategory,
+    sourceItem.sourceCategory,
     ...sourceItem.tags,
-  ].filter(Boolean));
+    ...(sourceItem.sourceTags ?? []),
+  ].filter((keyword): keyword is string => Boolean(keyword)));
 
   return Array.from(keywordSet);
 }
@@ -237,13 +284,16 @@ function buildFavoritePokemonKeys(
   override: AssetCatalogOverride | undefined,
 ): readonly PokemonKey[] {
   const favoritePokemonKeySet = new Set<PokemonKey>(override?.favoritePokemonKeys ?? []);
-  const sourceFavoriteCategoryIdSet = new Set(sourceItem.favoriteCategoryIds);
 
-  for (const pokemonKey of Object.keys(favoriteCategoryIdsByPokemonKey) as PokemonKey[]) {
-    const favoriteCategoryIds = favoriteCategoryIdsByPokemonKey[pokemonKey] ?? [];
+  if (!sourceItem.sourceNumber) {
+    const sourceFavoriteCategoryIdSet = new Set(sourceItem.favoriteCategoryIds);
 
-    if (favoriteCategoryIds.some((categoryId) => sourceFavoriteCategoryIdSet.has(categoryId))) {
-      favoritePokemonKeySet.add(pokemonKey);
+    for (const pokemonKey of Object.keys(favoriteCategoryIdsByPokemonKey) as PokemonKey[]) {
+      const favoriteCategoryIds = favoriteCategoryIdsByPokemonKey[pokemonKey] ?? [];
+
+      if (favoriteCategoryIds.some((categoryId) => sourceFavoriteCategoryIdSet.has(categoryId))) {
+        favoritePokemonKeySet.add(pokemonKey);
+      }
     }
   }
 
@@ -269,7 +319,15 @@ function normalizePreferenceTerms(terms: readonly string[]): readonly string[] {
 }
 
 function normalizePreferenceTerm(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalized = value
+    .normalize('NFKC')
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{Letter}\p{Number}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return preferenceTermAliases[normalized] ?? normalized;
 }
 
 function inferDyeable(sourceItem: SourcePlaceableAssetItem): boolean {
@@ -288,6 +346,7 @@ assertUniqueCatalogValues(
 );
 
 const assetIdSet = new Set(assetCatalog.map((asset) => asset.assetId));
+const assetIdBySceneCodecOfficialId = buildAssetIdBySceneCodecOfficialId(assetCatalog);
 assertKnownAssetFootprintOverrideIds(assetFootprintOverrideAssetIds, assetIdSet);
 assertKnownAssetStackingOverrideIds(assetStackingOverrideAssetIds, assetIdSet);
 assertKnownAssetStackingAllowedCategories(assetCatalog, new Set(assetCategories));
@@ -308,6 +367,20 @@ export function getAssetById(assetId: string | null | undefined): AssetDefinitio
   }
 
   return assetCatalog.find((asset) => asset.assetId === assetId) ?? null;
+}
+
+export function getAssetSceneCodecOfficialId(assetId: string): string {
+  const asset = getAssetById(assetId);
+
+  if (!asset) {
+    throw new Error(`Unknown asset id: ${assetId}`);
+  }
+
+  return asset.sceneCodecOfficialId ?? asset.officialId;
+}
+
+export function getAssetIdBySceneCodecOfficialId(officialId: string): string | null {
+  return assetIdBySceneCodecOfficialId.get(officialId) ?? null;
 }
 
 export function isAssetSkillType(value: string | null | undefined): value is ConcreteAssetSkillType {
@@ -354,6 +427,24 @@ export function filterAssetsByFavorite(
 
 function getAssetThumbnailUrl(fileName: string): string {
   return getPokopiaAssetUrl(`assets/pokopia_image_sources/item_portraits/${fileName}`);
+}
+
+function buildAssetIdBySceneCodecOfficialId(assets: readonly AssetDefinition[]): ReadonlyMap<string, string> {
+  const assetIdByOfficialId = new Map<string, string>();
+
+  for (const asset of assets) {
+    for (const officialId of [asset.sceneCodecOfficialId ?? asset.officialId, ...(asset.legacyOfficialIds ?? [])]) {
+      const existingAssetId = assetIdByOfficialId.get(officialId);
+
+      if (existingAssetId && existingAssetId !== asset.assetId) {
+        throw new Error(`Duplicate scene codec official id: ${officialId}`);
+      }
+
+      assetIdByOfficialId.set(officialId, asset.assetId);
+    }
+  }
+
+  return assetIdByOfficialId;
 }
 
 function assertUniqueCatalogValues(values: readonly string[], fieldName: string): void {

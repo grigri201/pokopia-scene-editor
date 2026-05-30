@@ -325,7 +325,7 @@ describe('SceneCanvas', () => {
     );
 
     const cell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, 绿叶植物, Skill marker 绿叶植物 树',
+      'Cell 2,3, main area, level-0, placeable, 大叶子的植栽, Skill marker 大叶子的植栽 树',
     );
     expect(cell).toHaveAttribute('data-has-instance', 'true');
     expect(cell).toHaveAttribute('data-requires-skill', 'true');
@@ -335,7 +335,7 @@ describe('SceneCanvas', () => {
       'src',
       expect.stringContaining('/assets/pokopia_image_sources/item_portraits/0345-leafy-plant.png'),
     );
-    const skillMarker = screen.getByLabelText('Skill marker 绿叶植物 树');
+    const skillMarker = screen.getByLabelText('Skill marker 大叶子的植栽 树');
     expect(skillMarker).toHaveAttribute('data-tooltip', '树叶');
     expect(skillMarker).not.toHaveTextContent('树');
     expect(skillMarker.querySelector('img')).toHaveAttribute(
@@ -443,7 +443,7 @@ describe('SceneCanvas', () => {
     );
 
     const duplicateCell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, 砖瓦屋顶装饰, rotated 90, dyed #56ccf2, Skill marker 砖瓦屋顶装饰 耕',
+      'Cell 2,3, main area, level-0, placeable, 屋顶装饰, rotated 90, dyed #56ccf2, Skill marker 屋顶装饰 耕',
     );
     expect(duplicateCell).toHaveAttribute('data-instance-count', '1');
     expect(duplicateCell).toHaveAttribute('data-skill-marker-label', '耕');
@@ -458,7 +458,7 @@ describe('SceneCanvas', () => {
     expect(rotationMarker?.querySelector('svg')).toBeInTheDocument();
     expect(screen.queryByLabelText('高度 +1')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Dye #56ccf2')).toBeVisible();
-    const skillMarker = screen.getByLabelText('Skill marker 砖瓦屋顶装饰 耕');
+    const skillMarker = screen.getByLabelText('Skill marker 屋顶装饰 耕');
     expect(skillMarker).toHaveAttribute('data-tooltip', '耕地');
     expect(skillMarker.querySelector('img')).toHaveAttribute(
       'src',
@@ -491,7 +491,7 @@ describe('SceneCanvas', () => {
     );
 
     const tallCell = screen.getByLabelText(
-      'Cell 3,3, main area, level-0, placeable, 办公储物柜, rotated 270',
+      'Cell 3,3, main area, level-0, placeable, 办公室储物柜, rotated 270',
     );
     const heightMarker = screen.getByLabelText('高度 +1');
     const rotationMarker = screen.getByLabelText('旋转 270 度');
@@ -535,7 +535,7 @@ describe('SceneCanvas', () => {
       'Cell 2,3, main area, level-0, placeable, 木长椅',
     );
     expect(cell.querySelector('.cell-asset-label')).toBeNull();
-    expect(screen.queryByLabelText('Skill marker 绿叶植物 树')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Skill marker 大叶子的植栽 树')).not.toBeInTheDocument();
     expect(cell).toHaveAttribute('data-instance-count', '1');
   });
 
@@ -607,7 +607,7 @@ describe('SceneCanvas', () => {
     const topSlot = split?.querySelector('[data-stacking-role="top"]');
     const baseSlot = split?.querySelector('[data-stacking-role="base"]');
 
-    expect(cell).toHaveAccessibleName(expect.stringContaining('stacked 番茄 on 大方地毯'));
+    expect(cell).toHaveAccessibleName(expect.stringContaining('stacked 番茄 on 方形大地垫'));
     expect(cell).toHaveAttribute('data-stacking-state', 'placed');
     expect(cell).toHaveAttribute('data-stacking-base-asset-id', stacking.relation.baseAssetId);
     expect(cell).toHaveAttribute('data-stacking-top-asset-id', stacking.relation.topAssetId);
@@ -771,7 +771,7 @@ describe('SceneCanvas', () => {
     const baseSlot = stackedSplit?.querySelector('[data-stacking-role="base"]');
     const topOverlay = screen.getByTestId(`scene-footprint-overlay-${stacking.relation.topInstanceId}`);
 
-    expect(stackedCell).toHaveAccessibleName(expect.stringContaining('stacked 大型收纳箱 on 大圆地毯'));
+    expect(stackedCell).toHaveAccessibleName(expect.stringContaining('stacked 大收纳箱 on 圆形大地垫'));
     expect(stackedCell).toHaveAttribute('data-stacking-state', 'placed');
     expect(stackedCell).toHaveAttribute('data-stacking-base-asset-id', stacking.relation.baseAssetId);
     expect(stackedCell).toHaveAttribute('data-stacking-top-asset-id', stacking.relation.topAssetId);
@@ -878,7 +878,7 @@ describe('SceneCanvas', () => {
 
     expect(cell).toHaveClass('scene-cell--placement-conflict');
     expect(cell).toHaveClass('scene-cell--stacking-conflict');
-    expect(cell).toHaveAccessibleName(expect.stringContaining('unsupported stacking 绿叶植物 on 盘子'));
+    expect(cell).toHaveAccessibleName(expect.stringContaining('unsupported stacking 大叶子的植栽 on 盘子'));
     expect(cell).toHaveAttribute('data-placement-status', 'blocked');
     expect(cell).toHaveAttribute('data-placement-conflicts', 'unsupported-stack-surface');
     expect(cell).toHaveAttribute('data-stacking-state', 'conflict');
@@ -1031,7 +1031,7 @@ describe('SceneCanvas', () => {
     );
 
     const cell = screen.getByLabelText(
-      'Cell 2,3, main area, level-0, placeable, 绿叶植物, Skill marker 绿叶植物 树',
+      'Cell 2,3, main area, level-0, placeable, 大叶子的植栽, Skill marker 大叶子的植栽 树',
     );
     expect(cell).toHaveAttribute('data-has-instance', 'true');
     expect(cell).toHaveAttribute('data-requires-skill', 'true');

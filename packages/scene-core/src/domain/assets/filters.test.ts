@@ -10,10 +10,10 @@ import {
 
 describe('asset catalog filters', () => {
   it('matches keyword queries by name, id, category, and tag', () => {
-    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: '绿叶植物' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['leafy-plant']);
+    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: '大叶子的植栽' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['leafy-plant']);
     expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: 'leafy-plant' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['leafy-plant']);
-    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: '1168' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['stone-brick-wall']);
-    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: '砖瓦屋顶装饰' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['brick-roof-decoration']);
+    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: '733' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['stone-brick-wall']);
+    expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: '屋顶装饰' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['brick-roof-decoration']);
     expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: '木长椅' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['wooden-bench']);
     expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: '苹野果' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toContain('leppa-berry');
     expect(filterAssetCatalog(assetCatalog, { ...defaultAssetFilters, query: 'Leppa Berry' }, 'ditto').filteredAssets.map((asset) => asset.assetId)).toEqual(['leppa-berry']);

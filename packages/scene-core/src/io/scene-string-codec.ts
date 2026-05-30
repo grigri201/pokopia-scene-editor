@@ -1,7 +1,8 @@
 import {
-  assetCatalog,
   assetSkillTypes,
   getAssetById,
+  getAssetIdBySceneCodecOfficialId,
+  getAssetSceneCodecOfficialId,
   knownPokemonKeys,
   type ConcreteAssetSkillType,
 } from '../domain/assets';
@@ -499,12 +500,7 @@ function decodeRecordList(value: string | undefined): string[] {
 }
 
 function encodeOfficialAssetId(assetId: string): string {
-  const asset = assetCatalog.find((entry) => entry.assetId === assetId);
-  if (!asset) {
-    throw new Error(`Unknown asset id: ${assetId}`);
-  }
-
-  return encodeNumber(Number(asset.officialId));
+  return encodeNumber(Number(getAssetSceneCodecOfficialId(assetId)));
 }
 
 function decodeOfficialAssetId(value: string): string {
@@ -512,12 +508,12 @@ function decodeOfficialAssetId(value: string): string {
 }
 
 function getAssetIdByOfficialId(officialId: string): string {
-  const asset = assetCatalog.find((entry) => entry.officialId === officialId);
-  if (!asset) {
+  const assetId = getAssetIdBySceneCodecOfficialId(officialId);
+  if (!assetId) {
     throw new Error(`Unknown asset official id: ${officialId}`);
   }
 
-  return asset.assetId;
+  return assetId;
 }
 
 function encodeSkillType(skillType: ConcreteAssetSkillType): string {

@@ -10,12 +10,14 @@
     "test": "pnpm --filter @pokopia-scene-editor/scene-core test && pnpm --filter @pokopia-scene-editor/web test",
     "test:watch": "pnpm --filter @pokopia-scene-editor/web test:watch",
     "build": "pnpm --filter @pokopia-scene-editor/scene-core build && pnpm --filter @pokopia-scene-editor/web build",
+    "data:xzonn:sync": "node scripts/sync-xzonn-data.mjs",
+    "data:xzonn:check": "node scripts/sync-xzonn-data.mjs --check",
     "smoke": "pnpm --filter @pokopia-scene-editor/web smoke",
     "scene-core:file-install:smoke": "node scripts/verify-scene-core-file-install.mjs",
     "asset-references:verify": "node scripts/verify-runtime-assets.mjs",
     "asset-references:smoke": "pnpm run build && pnpm run asset-references:verify",
     "web:deploy": "pnpm --filter @pokopia-scene-editor/web build && pnpm dlx wrangler@4.94.0 pages deploy apps/web/dist --project-name pokopia-scene-editor --branch main",
     "deploy": "pnpm run web:deploy",
-    "release:verify": "pnpm run typecheck && pnpm run test && pnpm --filter @pokopia-scene-editor/scene-core exec vitest run src/io/scene-string-codec.test.ts --environment node && pnpm run build && pnpm run scene-core:file-install:smoke && pnpm run asset-references:verify && pnpm run smoke"
+    "release:verify": "pnpm run data:xzonn:check && pnpm run typecheck && pnpm run test && pnpm --filter @pokopia-scene-editor/scene-core exec vitest run src/io/scene-string-codec.test.ts --environment node && pnpm run build && pnpm run scene-core:file-install:smoke && pnpm run asset-references:verify && pnpm run smoke"
   }
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { getAssetById } from '../domain/assets';
 import {
   buildSceneOccupancy,
   createBuildingLevel,
@@ -148,6 +149,81 @@ describe('SceneDocument short string codec', () => {
       coordinate: { x: 6, y: 6 },
       areaType: 'outer',
     });
+  });
+
+  it('keeps legacy asset codec ids stable after Xzonn display renumbering', () => {
+    expect(getAssetById('leafy-plant')).toMatchObject({
+      officialId: '336',
+      sceneCodecOfficialId: '1052',
+    });
+
+    const legacyDecoded = decodeSceneDocumentString(
+      'PSE1~Legacy.0.0._._~0.1%E5%B1%82~0.m.Gy.0._._._~_',
+      '2026-05-29T00:00:00.000Z',
+    );
+    expect(legacyDecoded.ok).toBe(true);
+    if (!legacyDecoded.ok) {
+      throw new Error('Expected legacy scene string decode to pass.');
+    }
+    expect(legacyDecoded.scene.tileInstances[0]?.assetId).toBe('leafy-plant');
+
+    const scene = {
+      ...createDefaultSceneDocument({
+        sceneId: 'scene-stable-codec-id',
+        sceneName: '稳定编号',
+        now: '2026-05-29T00:00:00.000Z',
+      }),
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-leafy-plant',
+          assetId: 'leafy-plant',
+          coordinate: { x: 1, y: 1 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const encoded = encodeSceneDocumentString(scene);
+    const encodedAssetId = encoded.split('~')[4]?.split('.')[2];
+
+    expect(encodedAssetId).toBe('Gy');
+  });
+
+  it('continues to decode legacy PSE2 strings that use pre-Xzonn asset numbers', () => {
+    const legacyPse2 = 'PSE2~F.F.1~Legacy%20PSE2.3Q.1._.1A~0.1%E5%B1%82;1.%E4%B8%8A%E5%B1%82~0.I.Gy.0._.0._;1.1A.Fn.1._._._~_';
+    const decoded = decodeSceneDocumentString(legacyPse2, '2026-05-29T00:00:00.000Z');
+
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      throw new Error('Expected legacy PSE2 scene string decode to pass.');
+    }
+    expect(decoded.scene.selectedPokemonKey).toBe('pikachu');
+    expect(decoded.scene.sceneSize).toEqual({ width: 15, height: 15 });
+    expect(decoded.scene.canvasSize).toEqual({ width: 17, height: 17 });
+    expect(decoded.scene.workspaceState).toMatchObject({
+      currentBuildingLevelId: 'level-1',
+      selectedAssetId: null,
+      selectedCoordinate: { x: 4, y: 4 },
+    });
+    expect(decoded.scene.buildingLevels).toEqual([
+      expect.objectContaining({ id: 'level-0', levelNumber: 0, name: '1层' }),
+      expect.objectContaining({ id: 'level-1', levelNumber: 1, name: '上层' }),
+    ]);
+    expect(decoded.scene.tileInstances).toEqual([
+      expect.objectContaining({
+        assetId: 'leafy-plant',
+        coordinate: { x: 1, y: 1 },
+        buildingLevelId: 'level-0',
+        requiresSkill: true,
+        skillType: '树叶',
+      }),
+      expect.objectContaining({
+        assetId: 'ditto-doll',
+        coordinate: { x: 4, y: 4 },
+        buildingLevelId: 'level-1',
+        rotationDegrees: 90,
+        dyeColor: null,
+      }),
+    ]);
   });
 
   it('decodes PSE2 strings that declare custom selectable dimensions', () => {
@@ -484,7 +560,7 @@ describe('SceneDocument short string codec', () => {
         conflictType: 'height-blocked-by-lower-footprint',
         blockingInstanceId: 'imported-tile-0',
         blockingAssetId: 'bread-oven',
-        blockingAssetName: '面包烤箱',
+        blockingAssetName: '面包窑',
         blockingBuildingLevelId: 'level-0',
         coordinates: [{ x: 7, y: 2 }],
       }),

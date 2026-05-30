@@ -23,13 +23,13 @@ describe('image export summary', () => {
     expect(summary.overallMaterials).toEqual([
       expect.objectContaining({
         assetId: 'leafy-plant',
-        assetName: '绿叶植物',
-        officialId: '1052',
+        assetName: '大叶子的植栽',
+        officialId: '336',
         totalCount: 2,
       }),
       expect.objectContaining({
         assetId: 'wooden-fencing',
-        officialId: '390',
+        officialId: '661',
         totalCount: 1,
       }),
     ]);
@@ -100,9 +100,9 @@ describe('image export summary', () => {
           expect.objectContaining({
             instanceId: 'tile-skill',
             assetId: 'leafy-plant',
-            assetName: '绿叶植物',
+            assetName: '大叶子的植栽',
             thumbnailUrl: expect.stringContaining('leafy-plant'),
-            thumbnailAlt: '绿叶植物缩略图',
+            thumbnailAlt: '大叶子的植栽缩略图',
           }),
         ],
       }),
@@ -257,7 +257,7 @@ describe('image export summary', () => {
 
     expect(cellInstance).toEqual(
       expect.objectContaining({
-        assetName: '绿叶植物',
+        assetName: '大叶子的植栽',
         coordinate: { x: 3, y: 3 },
         footprint: { length: 1, width: 1, height: 1 },
         occupiedCells: [{ x: 3, y: 3 }],

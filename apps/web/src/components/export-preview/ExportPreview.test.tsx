@@ -43,11 +43,11 @@ describe('ExportPreview', () => {
     );
     expect(screen.getByText(`${scene.canvasSize.width}x${scene.canvasSize.height} 画布 · ${scene.buildingLevels.length} 个建筑层`)).toBeVisible();
     expect(document.querySelector('.export-preview__pokemon-rail')).toBeNull();
-    expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('绿叶植物');
-    expect(screen.getByLabelText('整体使用素材清单')).not.toHaveTextContent('No. 1052');
+    expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('大叶子的植栽');
+    expect(screen.getByLabelText('整体使用素材清单')).not.toHaveTextContent('No. 336');
     expect(screen.getByLabelText('图片导出内容').firstElementChild).toBe(screen.getByLabelText('整体使用素材清单'));
-    expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('绿叶植物缩略图')).toBeVisible();
-    const overallMaterialItem = within(screen.getByLabelText('整体使用素材清单')).getByText('绿叶植物').closest('li');
+    expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('大叶子的植栽缩略图')).toBeVisible();
+    const overallMaterialItem = within(screen.getByLabelText('整体使用素材清单')).getByText('大叶子的植栽').closest('li');
     expect(overallMaterialItem).not.toBeNull();
     expect(overallMaterialItem?.style.getPropertyValue('--export-material-color')).toBe('');
     expect(overallMaterialItem?.querySelector('.export-material-list__color')).toBeNull();
@@ -71,19 +71,19 @@ describe('ExportPreview', () => {
     expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--origin')).toHaveAttribute('aria-hidden', 'true');
     expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--max')).toHaveTextContent(getMaxCoordinateText(scene.canvasSize));
     expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--max')).toHaveAttribute('aria-hidden', 'true');
-    const previewCell = screen.getByLabelText('3,3: 绿叶植物');
+    const previewCell = screen.getByLabelText('3,3: 大叶子的植栽');
     expect(previewCell).toHaveTextContent('');
     expect(previewCell.querySelector('img')).toHaveAttribute('src', expect.stringContaining('leafy-plant'));
     const skillCell = screen.getByLabelText('4,4: 储水技能');
     expect(skillCell.querySelector('img')).toHaveAttribute('src', expect.stringContaining('specialty_icons/water.png'));
-    expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('绿叶植物');
-    expect(within(screen.getByLabelText('L2 使用素材清单')).getByAltText('绿叶植物缩略图')).toBeVisible();
-    expect(screen.getByLabelText('L2 使用素材清单')).not.toHaveTextContent('No. 1052');
+    expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('大叶子的植栽');
+    expect(within(screen.getByLabelText('L2 使用素材清单')).getByAltText('大叶子的植栽缩略图')).toBeVisible();
+    expect(screen.getByLabelText('L2 使用素材清单')).not.toHaveTextContent('No. 336');
     expect(screen.getByLabelText('L2 使用素材清单')).not.toHaveTextContent('(3, 3)');
     expect(screen.getByLabelText('L2 使用素材清单')).not.toHaveTextContent(unsafeAngleText);
     expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('树叶');
     expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('储水');
-    const leafyMaterialItem = within(screen.getByLabelText('L2 使用素材清单')).getByText('绿叶植物').closest('li');
+    const leafyMaterialItem = within(screen.getByLabelText('L2 使用素材清单')).getByText('大叶子的植栽').closest('li');
     expect(leafyMaterialItem).not.toBeNull();
     const leafyMaterialColor = leafyMaterialItem?.style.getPropertyValue('--export-material-color');
     expect(leafyMaterialColor).toBeTruthy();
@@ -322,7 +322,7 @@ describe('ExportPreview', () => {
 
     render(<ExportPreview summary={summary} onClose={vi.fn()} />);
 
-    const stackedCell = screen.getByLabelText('1,1: 木长椅 stacked on 小型窄地毯');
+    const stackedCell = screen.getByLabelText('1,1: 木长椅 stacked on 长方形小地垫');
     const topOverlay = screen.getByTestId(`export-footprint-overlay-${stackingContractFixtureIds.partialTop}`);
 
     expect(summary.stackingRelations).toEqual([

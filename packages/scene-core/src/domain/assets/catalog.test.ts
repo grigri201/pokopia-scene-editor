@@ -52,16 +52,18 @@ describe('asset catalog', () => {
   });
 
   it('looks up assets and rejects unknown ids', () => {
-    expect(getAssetById('leafy-plant')?.name).toBe('绿叶植物');
+    expect(getAssetById('leafy-plant')?.name).toBe('大叶子的植栽');
     expect(getAssetById(null)).toBeNull();
     expect(() => assertKnownAssetId('missing-asset')).toThrow(RangeError);
     expect(getAssetById('leaf-den-kit')).toBeNull();
     expect(() => assertKnownAssetId('leaf-den-kit')).toThrow(RangeError);
     expect(getAssetById('bouldery-badge')).toBeNull();
     expect(() => assertKnownAssetId('bouldery-badge')).toThrow(RangeError);
-    expect(getAssetById('wooden-bench')?.officialId).toBe('047');
+    expect(getAssetById('wooden-bench')?.officialId).toBe('277');
+    expect(getAssetById('wooden-bench')?.sceneCodecOfficialId).toBe('047');
     expect(getAssetById('wooden-bench')?.name).toBe('木长椅');
-    expect(getAssetById('ditto-doll')?.officialId).toBe('979');
+    expect(getAssetById('ditto-doll')?.officialId).toBe('448');
+    expect(getAssetById('ditto-doll')?.sceneCodecOfficialId).toBe('979');
     expect(getAssetById('ditto-doll')?.name).toBe('百变怪玩偶');
   });
 
@@ -70,7 +72,8 @@ describe('asset catalog', () => {
     const chestoBerry = getAssetById('chesto-berry');
 
     expect(leppaBerry).toMatchObject({
-      officialId: '197',
+      officialId: '001',
+      sceneCodecOfficialId: '197',
       name: '苹野果',
       tags: ['食物'],
       thumbnailAlt: '苹野果缩略图',
@@ -85,8 +88,8 @@ describe('asset catalog', () => {
 
     expect(gardenPlant).not.toBeNull();
     expect(woodenFloor).not.toBeNull();
-    expect(gardenPlant).toMatchObject({ officialId: '1052', name: '绿叶植物', category: 'misc' });
-    expect(woodenFloor).toMatchObject({ officialId: '390', name: '木制栅栏', category: 'buildings' });
+    expect(gardenPlant).toMatchObject({ officialId: '336', sceneCodecOfficialId: '1052', name: '大叶子的植栽', category: 'misc' });
+    expect(woodenFloor).toMatchObject({ officialId: '661', sceneCodecOfficialId: '390', name: '木栏杆', category: 'buildings' });
   });
 
   it('sorts the catalog by official item number from low to high', () => {
@@ -202,12 +205,11 @@ describe('asset catalog', () => {
     const allAssets = filterAssetsByFavorite(assetCatalog, 'eevee', false);
     const eeveeFavoriteIds = eeveeFavorites.map((asset) => asset.assetId);
 
-    expect(eeveeFavorites).toHaveLength(249);
+    expect(eeveeFavorites).toHaveLength(193);
     expect(eeveeFavoriteIds).toEqual(expect.arrayContaining([
       'ditto-doll',
       'wooden-bench',
       'stone-brick-wall',
-      'pecha-berry',
       'stone',
     ]));
     expect(eeveeFavoriteIds).not.toContain('wooden-fencing');
@@ -218,12 +220,12 @@ describe('asset catalog', () => {
     expect(allAssets).toBe(assetCatalog);
   });
 
-  it('uses imported PokopiaDex preference terms for all Pokemon', () => {
+  it('uses imported Xzonn preference terms for all Pokemon', () => {
     const abraFavoriteIds = filterAssetsByFavorite(assetCatalog, 'abra', true).map((asset) => asset.assetId);
 
     expect(sourcePokemonPreferences).toHaveLength(knownPokemonKeys.length);
     expect(sourcePokemonPreferences.every((entry) => knownPokemonKeys.includes(entry.key))).toBe(true);
-    expect(sourceItemPreferenceTerms).toHaveLength(553);
+    expect(sourceItemPreferenceTerms).toHaveLength(548);
     expect(sourcePokemonPreferences.find((entry) => entry.key === 'ditto')?.preferenceTerms).toEqual([]);
     expect(abraFavoriteIds).toEqual(expect.arrayContaining(['fluff', 'alarm-clock']));
     expect(abraFavoriteIds).not.toContain('leppa-berry');

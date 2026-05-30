@@ -341,7 +341,7 @@ describe('SelectionInspector', () => {
       'Skill note',
       '90 deg',
     );
-    expect(screen.getByText('砖瓦屋顶装饰')).toBeVisible();
+    expect(screen.getByText('屋顶装饰')).toBeVisible();
     expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
     expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
     expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();
@@ -609,7 +609,7 @@ describe('SelectionInspector', () => {
     );
 
     expectSelectionCopyRemoved('0,2', 'outer', 'L3 3层', '270 deg', '#56ccf2', '耕地', 'soil roof note');
-    expect(screen.getByText('砖瓦屋顶装饰')).toBeVisible();
+    expect(screen.getByText('屋顶装饰')).toBeVisible();
     expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
     expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
     expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();

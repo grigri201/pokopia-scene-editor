@@ -334,7 +334,7 @@ describe('asset placement command', () => {
 
     expect(preview).toMatchObject({
       status: 'blocked',
-      message: 'unsupported-stack-surface: top=绿叶植物 base=盘子 level=level-0 coordinates=2,2',
+      message: 'unsupported-stack-surface: top=大叶子的植栽 base=盘子 level=level-0 coordinates=2,2',
       footprintConflicts: [
         expect.objectContaining({
           conflictType: 'unsupported-stack-surface',

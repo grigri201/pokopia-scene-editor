@@ -32,6 +32,12 @@ Epic 1-12 保留为已完成历史并归档，不回滚。当前新增 Epic 13�
 
 本次继续保持 `SceneDocument v1`。除非后续 story 发现必须改 schema 并另行 course correction，否则不得新增 `SceneDocument v2`，不得改变终端用户可见行为。
 
+## Approved Course Correction - 2026-05-30 Xzonn 数据重新基线
+
+`_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-30-xzonn-data-cleanup.md` 已批准。
+
+在 Story 13.4 的 single source of truth 基础上，新增 Story 13.7，将 Xzonn/PokemonPokopiaDatabase 的 `data/item.txt`、`data/pokemon.txt` 和 `data/habitat.txt` 作为 pinned 数据清理输入。本次不改变 `SceneDocument v1`，并且必须兼容过去已经导出的 `PSE1`/`PSE2` 短字符串。
+
 ## Requirements Inventory
 
 ### Functional Requirements
@@ -48,6 +54,8 @@ FR113: Catalog 业务数据、footprint metadata、stacking metadata、dimension
 
 FR114: 测试必须优先从 `scene-core` factories、dimension helpers、catalog helpers 和 shared fixtures 读取事实，不得把当前配置复制成第二套测试真相。
 
+FR115: 素材和 Pokemon 数据重基线必须使用 pinned Xzonn `data/*.txt` 作为可复现输入；Xzonn 缺失或无法唯一确认的本地条目以本地现有数据为权威 fallback。
+
 ### Non-Functional Requirements
 
 NFR53: 本次重构不得改变终端用户 Web 行为，包括编辑、保存/恢复、17x17 默认画布、legacy 7x7 恢复、footprint、stacking、层备注、导出预览和图片下载。
@@ -61,6 +69,8 @@ NFR56: Active release gate 必须聚焦 core/web/file-install smoke；Worker/MCP
 NFR57: 资源清理必须先证明 Web 素材列表、缩略图、预览和导出不回退；不得为降低体积而误删用户可见资源。
 
 NFR58: 归档不得删除历史证据；完成历史应可从 dated archive 中恢复和审计。
+
+NFR59: 数据重基线不得破坏过去导出的 `PSE1`/`PSE2` 短字符串导入；旧编号必须能映射回稳定 `assetId`。
 
 ## Epic 13: 仓库瘦身与 Scene Core 库化
 
@@ -248,3 +258,54 @@ So that 默认尺寸、catalog 或配置变化不会导致测试复制旧常量�
 **When** `pnpm run release:verify` 执行
 **Then** 覆盖 core/web typecheck、unit tests、build、Playwright smoke、file-install smoke 和 asset-reference smoke
 **And** 不再默认运行 Worker runtime、MCP smoke 或 skill verify。
+
+### Story 13.7: Xzonn 数据重新基线与生成器
+
+**Requirements covered:** FR113, FR114, FR115, NFR53, NFR54, NFR57, NFR59.
+
+As a 维护者,
+I want 使用 Xzonn/PokemonPokopiaDatabase 的 `data/*.txt` 重新基线本地 catalog、translation、Pokemon preference，并 pinned habitat 数据,
+So that 素材名称、编号、分类、标签、喜好筛选、未来 habitat 功能和后续数据维护有可复现的权威输入。
+
+**Acceptance Criteria:**
+
+**Given** Xzonn `data/item.txt`、`data/pokemon.txt` 和 `data/habitat.txt` 是本次数据清理输入
+**When** Story 13.7 完成
+**Then** 这些文件必须作为 pinned upstream snapshot 或 generator 输入记录在仓库中
+**And** 记录 upstream commit 和同步方式。
+
+**Given** 本地 `source-*.ts` 会被 Web 和 downstream `scene-core` 消费
+**When** 生成器运行
+**Then** 生成器必须可复现输出受影响的 snapshot
+**And** 提供 stale check 或等价 guard。
+
+**Given** 条目可唯一匹配到 Xzonn
+**When** 数据生成
+**Then** 中文名、Pokemon 喜好、item 喜好类别和素材筛选 category 使用 Xzonn txt 数据
+**And** `AssetDefinition.category` 可保留内部枚举，但必须由 Xzonn `分类` 字段映射生成。
+
+**Given** Xzonn 缺失或无法唯一确认本地条目
+**When** 生成器处理这些条目
+**Then** 保留本地条目
+**And** 非 Interior/wallpaper 的本地新条目或命名差异以本地数据为准
+**And** 审计报告列出待人工确认项，不静默删除。
+
+**Given** Xzonn `data/item.txt` 包含 `10001-10056`
+**When** 生成 source/habitat matching input
+**Then** 这些泛化匹配项必须进入 source 或未来 habitat matcher 输入
+**And** 不得进入当前 `assetCatalog`、Asset Picker、导出素材清单或普通素材搜索结果。
+
+**Given** Pokemon 特殊 form 存在本地命名和 Xzonn 行差异
+**When** 生成 Pokemon 数据
+**Then** 必须有显式 Xzonn row mapping
+**And** `peakychu` 对应 Xzonn `皮卡丘`/`浅色`，但 Web 显示名使用“浅浅丘”。
+
+**Given** 过去已有用户导出的短字符串
+**When** 数据编号或 catalog 显示编号变化
+**Then** `PSE1`/`PSE2` 旧字符串仍必须 decode 成相同的稳定 scene 语义
+**And** 旧 PokopiaDex id 必须作为 decode alias 映射回稳定 `assetId`。
+
+**Given** `habitat.txt` 当前没有 Web/runtime 消费者
+**When** Story 13.7 完成
+**Then** 它只做 pinned snapshot、schema/checksum 校验和未来 generator 输入
+**And** 不新增 Web UI、SceneDocument 字段或 runtime catalog 消费。

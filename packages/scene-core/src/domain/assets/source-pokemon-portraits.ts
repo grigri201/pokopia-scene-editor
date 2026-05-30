@@ -207,7 +207,7 @@ export const sourcePokemonPortraits = [
   {"key":"pawmi","name":"布拨","englishName":"Pawmi","portraitFileName":"203-pawmi.png","pokedexNumber":142},
   {"key":"pawmo","name":"布土拨","englishName":"Pawmo","portraitFileName":"204-pawmo.png","pokedexNumber":143},
   {"key":"pawmot","name":"巴布土拨","englishName":"Pawmot","portraitFileName":"205-pawmot.png","pokedexNumber":144},
-  {"key":"peakychu","name":"皮卡丘（浅色）","englishName":"Peakychu","portraitFileName":"206-peakychu.webp","pokedexNumber":79},
+  {"key":"peakychu","name":"浅浅丘","englishName":"Peakychu","portraitFileName":"206-peakychu.webp","pokedexNumber":79},
   {"key":"pelipper","name":"大嘴鸥","englishName":"Pelipper","portraitFileName":"207-pelipper.png","pokedexNumber":124},
   {"key":"persian","name":"猫老大","englishName":"Persian","portraitFileName":"208-persian.png","pokedexNumber":85},
   {"key":"pichu","name":"皮丘","englishName":"Pichu","portraitFileName":"209-pichu.png","pokedexNumber":78},

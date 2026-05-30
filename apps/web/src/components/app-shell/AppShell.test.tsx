@@ -274,7 +274,7 @@ describe('AppShell scene storage integration', () => {
       const toast = screen.getByRole('status', { name: '字符串提示' });
       expect(toast).toHaveTextContent('已导入可兼容内容');
       expect(toast).toHaveTextContent('地基（7,2）木地板');
-      expect(toast).toHaveTextContent('素材层 面包烤箱');
+      expect(toast).toHaveTextContent('素材层 面包窑');
     });
     expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('丢弃 1 个不兼容素材'));
     expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('地基（7,2）木地板'));
@@ -1018,8 +1018,8 @@ describe('AppShell scene storage integration', () => {
 
     const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
     const pechaBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
-    const stoneButton = document.querySelector<HTMLButtonElement>('[data-asset-id="stone"] .asset-select-button');
-    if (!pechaBerryButton || !stoneButton) {
+    const leppaBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    if (!pechaBerryButton || !leppaBerryButton) {
       throw new Error('Expected first-page asset buttons.');
     }
 
@@ -1035,15 +1035,15 @@ describe('AppShell scene storage integration', () => {
       expect(payload.workspaceState.selectedAssetId).toBeNull();
     });
 
-    fireEvent.click(stoneButton);
+    fireEvent.click(leppaBerryButton);
     fireEvent.contextMenu(cell);
 
     await waitFor(() => {
       const payload = JSON.parse(readSceneSnapshot());
       expect(payload.tileInstances).toEqual([]);
-      expect(payload.workspaceState.selectedAssetId).toBe('stone');
+      expect(payload.workspaceState.selectedAssetId).toBe('leppa-berry');
       expect(payload.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 3 });
-      expect(stoneButton).toHaveAttribute('aria-pressed', 'true');
+      expect(leppaBerryButton).toHaveAttribute('aria-pressed', 'true');
       expect(cell).toHaveAttribute('data-has-instance', 'false');
     });
     expect(confirmReplacement).not.toHaveBeenCalled();
@@ -1159,9 +1159,9 @@ describe('AppShell scene storage integration', () => {
 
     const cell = screen.getByLabelText('Cell 2,2, main area, level-0, placeable');
     const pechaBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
-    const stoneButton = document.querySelector<HTMLButtonElement>('[data-asset-id="stone"] .asset-select-button');
-    const honeyButton = document.querySelector<HTMLButtonElement>('[data-asset-id="honey"] .asset-select-button');
-    if (!pechaBerryButton || !stoneButton || !honeyButton) {
+    const leppaBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="leppa-berry"] .asset-select-button');
+    const lumBerryButton = document.querySelector<HTMLButtonElement>('[data-asset-id="lum-berry"] .asset-select-button');
+    if (!pechaBerryButton || !leppaBerryButton || !lumBerryButton) {
       throw new Error('Expected first-page asset buttons.');
     }
 
@@ -1175,23 +1175,23 @@ describe('AppShell scene storage integration', () => {
       expect(payload.workspaceState.selectedAssetId).toBeNull();
     });
 
-    fireEvent.click(stoneButton);
+    fireEvent.click(leppaBerryButton);
     fireEvent.click(cell);
 
     await waitFor(() => {
       const payload = JSON.parse(readSceneSnapshot());
       expect(payload.tileInstances).toHaveLength(1);
-      expect(payload.tileInstances[0].assetId).toBe('stone');
+      expect(payload.tileInstances[0].assetId).toBe('leppa-berry');
       expect(payload.workspaceState.selectedAssetId).toBeNull();
     });
 
-    fireEvent.click(honeyButton);
+    fireEvent.click(lumBerryButton);
     fireEvent.click(cell);
 
     await waitFor(() => {
       const payload = JSON.parse(readSceneSnapshot());
       expect(payload.tileInstances).toHaveLength(1);
-      expect(payload.tileInstances[0].assetId).toBe('honey');
+      expect(payload.tileInstances[0].assetId).toBe('lum-berry');
       expect(payload.workspaceState.selectedAssetId).toBeNull();
       expect(cell).toHaveAttribute('aria-selected', 'true');
     });
