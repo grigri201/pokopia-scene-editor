@@ -3,21 +3,35 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
+  "files": [
+    "dist",
+    "README.md",
+    "package.json"
+  ],
   "scripts": {
+    "clean": "node -e \"const fs=require('node:fs'); for (const target of ['dist','../../node_modules/.tmp/scene-core-build.tsbuildinfo']) fs.rmSync(target,{force:true,recursive:true});\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --environment node",
-    "build": "pnpm run typecheck"
+    "build": "pnpm run clean && pnpm run build:js && pnpm run build:types",
+    "build:js": "esbuild src/index.ts --bundle --format=esm --platform=node --target=es2024 --external:zod --outfile=dist/index.js",
+    "build:types": "tsc -p tsconfig.build.json && node ../../scripts/fix-scene-core-declarations.mjs"
   },
   "dependencies": {
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "esbuild": "0.27.3",
     "typescript": "6.0.3",
     "vitest": "4.1.6"
   }

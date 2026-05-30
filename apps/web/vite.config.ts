@@ -1,8 +1,12 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { createReadStream, cpSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
-import { relative, resolve, sep } from 'node:path';
+import { dirname, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig } from 'vite';
+
+const configDir = dirname(fileURLToPath(import.meta.url));
+const sceneCoreSourceEntry = resolve(configDir, '../../packages/scene-core/src/index.ts');
 
 const runtimeAssetDirectories = [
   'ability_icons',
@@ -28,6 +32,11 @@ const runtimeImageContentTypes: Record<string, string> = {
 export default defineConfig({
   base: process.env.VITE_PUBLIC_BASE_PATH ?? './',
   plugins: [react(), copyPokopiaRuntimeAssets()],
+  resolve: {
+    alias: {
+      '@pokopia-scene-editor/scene-core': sceneCoreSourceEntry,
+    },
+  },
   build: {
     rolldownOptions: {
       output: {

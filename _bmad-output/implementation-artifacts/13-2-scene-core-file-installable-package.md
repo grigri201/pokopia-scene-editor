@@ -1,6 +1,6 @@
 # Story 13.2: Scene Core 可被 pnpm file 安装
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -22,30 +22,37 @@ so that 新项目可以复用 SceneDocument、catalog、schema、codec、selecto
 
 ## Tasks / Subtasks
 
-- [ ] 收敛 `scene-core` package contract (AC: 1, 2)
-  - [ ] 更新 `packages/scene-core/package.json`：将 `exports` / `types` 指向 `dist`，补充 `files`，保留或调整 `private` 时写清 rationale。
-  - [ ] 拆分 `typecheck` 与 `build`：`typecheck` 继续 `--noEmit`，`build` 必须清理并生成 `dist/index.js` 与 `.d.ts`。
-  - [ ] 优先采用“bundle runtime ESM + tsc declarations”的实现，避免 Node ESM 因源码 extensionless relative imports 失败。若选择 tsc NodeNext 直出 JS，必须同步修正源码相对 import 的 `.js` 扩展名并验证 consumer smoke。
-- [ ] 新增 file-install consumer smoke (AC: 3, 4)
-  - [ ] 新建 `scripts/verify-scene-core-file-install.mjs` 或同等脚本。
-  - [ ] 脚本应使用临时目录、写入最小 `package.json`、执行 `pnpm add file:<absolute core path>`，再运行 `node` 导入测试。
-  - [ ] Smoke 必须先确保 core 已 build，或在缺少 `dist` 时给出明确错误；不要让外部 consumer 依赖 workspace 源码。
-  - [ ] 在根 `package.json` 增加可运行脚本，例如 `scene-core:file-install:smoke`。是否纳入 `release:verify` 可在 Story 13.6 统一收敛，但本 story 至少要能单独运行。
-- [ ] 保护领域库边界 (AC: 2, 5, 7)
-  - [ ] 检查 `packages/scene-core/src/**` 和构建配置，确认没有引入 React/DOM/Worker/MCP/Wrangler/localStorage 依赖。
-  - [ ] 确认 `dist` 不打包 `assets/pokopia_image_sources/**`。Core 可以继续返回 asset URL/path，但图片文件仍由 Web runtime asset pipeline 管理。
-  - [ ] 保持 `SceneDocument v1` 字段不变；如果实现过程中发现必须改 schema，停止并先发起 course correction。
-- [ ] 保持 Web workspace 使用体验 (AC: 6)
-  - [ ] 验证 `apps/web` 的 `workspace:*` dependency 能解析到同一 package contract。
-  - [ ] 若 Web dev server 因 dist export 需要预构建，选择一个明确、可维护的策略：root build ordering、package `dev` condition/source alias，或 Vite alias。不得让开发者手工改 import。
-  - [ ] 不在本 story 删除 `apps/worker`、`.agents/skills/pokopia-scene-worker` 或 Worker scripts；这些属于 Story 13.3。
-- [ ] 验证 (AC: 1-7)
-  - [ ] `pnpm --filter @pokopia-scene-editor/scene-core typecheck`
-  - [ ] `pnpm --filter @pokopia-scene-editor/scene-core test`
-  - [ ] `pnpm --filter @pokopia-scene-editor/scene-core build`
-  - [ ] `pnpm run scene-core:file-install:smoke` 或实际新增的等价脚本
-  - [ ] `pnpm --filter @pokopia-scene-editor/web typecheck`
-  - [ ] `git diff --check`
+- [x] 收敛 `scene-core` package contract (AC: 1, 2)
+  - [x] 更新 `packages/scene-core/package.json`：将 `exports` / `types` 指向 `dist`，补充 `files`，保留或调整 `private` 时写清 rationale。
+  - [x] 拆分 `typecheck` 与 `build`：`typecheck` 继续 `--noEmit`，`build` 必须清理并生成 `dist/index.js` 与 `.d.ts`。
+  - [x] 优先采用“bundle runtime ESM + tsc declarations”的实现，避免 Node ESM 因源码 extensionless relative imports 失败。若选择 tsc NodeNext 直出 JS，必须同步修正源码相对 import 的 `.js` 扩展名并验证 consumer smoke。
+- [x] 新增 file-install consumer smoke (AC: 3, 4)
+  - [x] 新建 `scripts/verify-scene-core-file-install.mjs` 或同等脚本。
+  - [x] 脚本应使用临时目录、写入最小 `package.json`、执行 `pnpm add file:<absolute core path>`，再运行 `node` 导入测试。
+  - [x] Smoke 必须先确保 core 已 build，或在缺少 `dist` 时给出明确错误；不要让外部 consumer 依赖 workspace 源码。
+  - [x] 在根 `package.json` 增加可运行脚本，例如 `scene-core:file-install:smoke`。是否纳入 `release:verify` 可在 Story 13.6 统一收敛，但本 story 至少要能单独运行。
+- [x] 保护领域库边界 (AC: 2, 5, 7)
+  - [x] 检查 `packages/scene-core/src/**` 和构建配置，确认没有引入 React/DOM/Worker/MCP/Wrangler/localStorage 依赖。
+  - [x] 确认 `dist` 不打包 `assets/pokopia_image_sources/**`。Core 可以继续返回 asset URL/path，但图片文件仍由 Web runtime asset pipeline 管理。
+  - [x] 保持 `SceneDocument v1` 字段不变；如果实现过程中发现必须改 schema，停止并先发起 course correction。
+- [x] 保持 Web workspace 使用体验 (AC: 6)
+  - [x] 验证 `apps/web` 的 `workspace:*` dependency 能解析到同一 package contract。
+  - [x] 若 Web dev server 因 dist export 需要预构建，选择一个明确、可维护的策略：root build ordering、package `dev` condition/source alias，或 Vite alias。不得让开发者手工改 import。
+  - [x] 不在本 story 删除 `apps/worker`、`.agents/skills/pokopia-scene-worker` 或 Worker scripts；这些属于 Story 13.3。
+- [x] 验证 (AC: 1-7)
+  - [x] `pnpm --filter @pokopia-scene-editor/scene-core typecheck`
+  - [x] `pnpm --filter @pokopia-scene-editor/scene-core test`
+  - [x] `pnpm --filter @pokopia-scene-editor/scene-core build`
+  - [x] `pnpm run scene-core:file-install:smoke` 或实际新增的等价脚本
+  - [x] `pnpm --filter @pokopia-scene-editor/web typecheck`
+  - [x] `git diff --check`
+
+### Review Findings
+
+- [x] [Review][Patch] File-install smoke could validate stale `dist` and missed TypeScript NodeNext declaration consumers.
+- [x] [Review][Patch] Generated `.d.ts.map` files pointed to source files excluded from package contents.
+- [x] [Review][Patch] Catalog helper assertion used `assetCatalog[0].id`, producing a false-positive runtime smoke.
+- [x] [Review][Patch] Package runtime floor and clean script portability were implicit.
 
 ## Dev Notes
 
@@ -111,11 +118,42 @@ so that 新项目可以复用 SceneDocument、catalog、schema、codec、selecto
 
 ### Agent Model Used
 
-TBD by dev-story agent.
+GPT-5 Codex
 
 ### Debug Log References
 
+- 2026-05-30T12:10:17+0800 - Started `bmad-dev-story` implementation; tracker moved to `in-progress`.
+- 2026-05-30T12:11:00+0800 - Added file-install smoke first; it failed as expected because `dist/index.js` did not exist.
+- 2026-05-30T12:12:00+0800 - Added `dist` package contract, esbuild runtime bundle, TypeScript declaration build, and README rationale for `private: true`.
+- 2026-05-30T12:14:00+0800 - Added Web TypeScript/Vite source alias so workspace dev/typecheck does not require manual core prebuild.
+- 2026-05-30T12:20:00+0800 - Code review found stale-dist, TypeScript declaration, declaration-map, smoke assertion, and portability/runtime-floor issues.
+- 2026-05-30T12:24:11+0800 - Addressed code review findings and moved story to `done`.
+
 ### Completion Notes List
+
+- `scene-core` package root now resolves external consumers to `dist/index.js` and `dist/index.d.ts`; `src/index.ts` is no longer the external install contract.
+- `scene-core` build now cleans `dist`, bundles runtime ESM with esbuild, and emits declarations with a dedicated build tsconfig that excludes tests and `src/test/**`.
+- Added `scene-core:file-install:smoke`, which installs the built package into a temporary ESM consumer and imports real public APIs covering schema/parse, default scene, catalog, dimensions, codec, selector, and export summary.
+- The smoke now rebuilds `scene-core` first and also runs a temporary TypeScript NodeNext consumer against the installed package declarations.
+- Declaration output now rewrites relative `.d.ts` specifiers to NodeNext-compatible `.js` / `index.js` targets and omits declaration maps that would point to unpacked source files.
+- Web workspace consumption keeps the package name but uses a TS/Vite source alias for local development; root build still builds core before web.
+- `SceneDocument v1` schema shape and user-visible Web behavior were not changed.
 
 ### File List
 
+- `_bmad-output/implementation-artifacts/13-2-scene-core-file-installable-package.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `apps/web/tsconfig.app.json`
+- `apps/web/vite.config.ts`
+- `package.json`
+- `packages/scene-core/README.md`
+- `packages/scene-core/package.json`
+- `packages/scene-core/tsconfig.build.json`
+- `pnpm-lock.yaml`
+- `scripts/fix-scene-core-declarations.mjs`
+- `scripts/verify-scene-core-file-install.mjs`
+
+### Change Log
+
+- 2026-05-30: Implemented Story 13.2 and moved status to `review`.
+- 2026-05-30: Addressed code review findings and moved status to `done`.

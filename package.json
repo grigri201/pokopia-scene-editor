@@ -11,6 +11,7 @@
     "test:watch": "pnpm --filter @pokopia-scene-editor/web test:watch",
     "build": "pnpm --filter @pokopia-scene-editor/scene-core build && pnpm --filter @pokopia-scene-editor/web build",
     "smoke": "pnpm --filter @pokopia-scene-editor/web smoke",
+    "scene-core:file-install:smoke": "node scripts/verify-scene-core-file-install.mjs",
     "skill:verify": "node scripts/verify-pokopia-scene-worker-skill.mjs",
     "worker:mcp:smoke": "pnpm --filter @pokopia-scene-editor/worker mcp:smoke",
     "worker:bundle:check": "pnpm --filter @pokopia-scene-editor/worker bundle:check",
