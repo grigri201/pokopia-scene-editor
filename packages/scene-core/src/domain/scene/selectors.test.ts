@@ -17,6 +17,7 @@ import {
   getSelectedCellContext,
   getVisibleBuildingLevelContexts,
   getVisibleBuildingLevelContextsInRenderOrder,
+  legacySceneDimensions,
 } from './index';
 
 describe('scene selectors', () => {
@@ -118,8 +119,8 @@ describe('scene selectors', () => {
       placeable: true,
       mainBoundary: false,
     });
-    expect(cells.filter((cell) => cell.areaType === 'main')).toHaveLength(225);
-    expect(cells.filter((cell) => cell.mainBoundary)).toHaveLength(56);
+    expect(cells.filter((cell) => cell.areaType === 'main')).toHaveLength(scene.sceneSize.width * scene.sceneSize.height);
+    expect(cells.filter((cell) => cell.mainBoundary)).toHaveLength(getBoundaryCellCount(scene.sceneSize));
     expect(levels.map((level) => level.displayId)).toEqual(['L3', 'L2', 'L1']);
     expect(levels.map((level) => level.instanceCount)).toEqual([1, 0, 1]);
     expect(levels.every((level) => !('visible' in level))).toBe(true);
@@ -214,14 +215,18 @@ describe('scene selectors', () => {
     const topCells = getAllVisiblePreviewCellContexts(scene);
     const frontLevels = getAllVisibleFrontPreviewContexts(scene);
 
-    expect(topCells).toHaveLength(289);
-    expect(topCells.flatMap((cell) => cell.tileInstances)).toHaveLength(490);
+    expect(topCells).toHaveLength(scene.canvasSize.width * scene.canvasSize.height);
+    expect(topCells.flatMap((cell) => cell.tileInstances)).toHaveLength(scene.tileInstances.length);
     expect(topCells.filter((cell) => cell.tileInstances.length > 0).every((cell) => cell.instanceLayerContexts.length === 10)).toBe(true);
     expect(frontLevels).toHaveLength(10);
     expect(frontLevels.reduce((total, level) => total + level.totalInstanceCount, 0)).toBe(490);
     expect(frontLevels.every((level) => level.heightPercent >= 28 && level.heightPercent <= 100)).toBe(true);
   });
 });
+
+function getBoundaryCellCount(sceneSize: { width: number; height: number }): number {
+  return sceneSize.width * 2 + Math.max(0, sceneSize.height - 2) * 2;
+}
 
 function createPreviewScene() {
   const scene = createDefaultSceneDocument({
@@ -270,15 +275,19 @@ function createDensePreviewScene() {
   }));
   const assetIds = assetCatalog.map((asset) => asset.assetId);
   const skillTypes = assetSkillTypes;
+  const denseInstancesPerLevel = legacySceneDimensions.canvasSize.width * legacySceneDimensions.canvasSize.height;
   const tileInstances = buildingLevels.flatMap((level) =>
-    Array.from({ length: 49 }, (_, index) => {
+    Array.from({ length: denseInstancesPerLevel }, (_, index) => {
       const assetId = assetIds[index % assetIds.length];
       assertKnownAssetId(assetId);
 
       return createTileInstance({
         instanceId: `tile-${level.levelNumber}-${index}`,
         assetId,
-        coordinate: { x: index % 7, y: Math.floor(index / 7) },
+        coordinate: {
+          x: index % legacySceneDimensions.canvasSize.width,
+          y: Math.floor(index / legacySceneDimensions.canvasSize.width),
+        },
         buildingLevelId: level.id,
         requiresSkill: index % 3 === 0,
         skillType: skillTypes[index % skillTypes.length],

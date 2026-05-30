@@ -8,6 +8,7 @@ import { knownPokemonKeys } from '../assets';
 
 describe('default scene document', () => {
   it('creates a complete SceneDocument for a 15x15 scene on a 17x17 canvas', () => {
+    const defaultDimensions = getDefaultSceneDimensions();
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-test',
       now: '2026-05-16T06:20:00.000Z',
@@ -17,9 +18,9 @@ describe('default scene document', () => {
     expect(scene.sceneId).toBe('scene-test');
     expect(scene.sceneName).toBe('15x15 布景');
     expect(scene.selectedPokemonKey).toBe(defaultSelectedPokemonKey);
-    expect(scene.sceneSize).toEqual({ width: 15, height: 15 });
-    expect(scene.canvasSize).toEqual({ width: 17, height: 17 });
-    expect(scene.outerPadding).toBe(1);
+    expect(scene.sceneSize).toEqual(defaultDimensions.sceneSize);
+    expect(scene.canvasSize).toEqual(defaultDimensions.canvasSize);
+    expect(scene.outerPadding).toBe(defaultDimensions.outerPadding);
     expect(scene.tileInstances).toEqual([]);
     expect(scene.skillMarkers).toEqual([]);
     expect(scene.buildingLevels).toEqual([{ id: 'level-0', levelNumber: 0, name: '1层', notes: [] }]);
@@ -134,8 +135,9 @@ describe('default scene document', () => {
 
   it('returns a copy of default dimensions instead of a mutable singleton', () => {
     const dimensions = getDefaultSceneDimensions();
+    const expectedDefaultCanvasWidth = getDefaultSceneDimensions().canvasSize.width;
     dimensions.canvasSize.width = 99;
 
-    expect(getDefaultSceneDimensions().canvasSize.width).toBe(17);
+    expect(getDefaultSceneDimensions().canvasSize.width).toBe(expectedDefaultCanvasWidth);
   });
 });

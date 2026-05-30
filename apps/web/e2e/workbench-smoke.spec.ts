@@ -1,14 +1,18 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { defaultSceneDimensions, legacySceneDimensions } from '@pokopia-scene-editor/scene-core';
 
 const autosavedSceneStorageKey = 'pokopia.sceneDocument.autosave.v1';
 const savedSceneStorageKey = 'pokopia.sceneDocument.v1';
 const uiPreferencesStorageKey = 'pokopia.uiPreferences.v1';
 const densePreviewAssetIds = ['wooden-fencing', 'leafy-plant', 'stepping-stones', 'ditto-doll', 'stone-brick-wall', 'brick-roof-decoration'];
 const densePreviewSkillTypes = ['树叶', '耕地', '储水'];
-const defaultSceneSize = { width: 15, height: 15 };
-const defaultCanvasSize = { width: 17, height: 17 };
-const defaultOuterPadding = 1;
+const defaultSceneSize = defaultSceneDimensions.sceneSize;
+const defaultCanvasSize = defaultSceneDimensions.canvasSize;
+const defaultOuterPadding = defaultSceneDimensions.outerPadding;
+const defaultCanvasCellCount = getCanvasCellCount(defaultCanvasSize);
+const defaultMaxCoordinate = getMaxCoordinate(defaultCanvasSize);
+const legacyMaxCoordinate = getMaxCoordinate(legacySceneDimensions.canvasSize);
 const responsiveReleaseViewports = [
   { width: 1440, height: 900 },
   { width: 1280, height: 720 },
@@ -54,7 +58,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByRole('complementary', { name: '检查器预览' })).toHaveCount(0);
   await expect(page.getByLabel('俯视图预览')).toHaveCount(0);
   await expect(page.getByLabel('正视图预览')).toHaveCount(0);
-  await expect(page.getByTestId('scene-cell')).toHaveCount(289);
+  await expect(page.getByTestId('scene-cell')).toHaveCount(defaultCanvasCellCount);
   await expect(page.getByLabel('Cell 3,2, main area, level-0, placeable')).toBeVisible();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Save scene' })).toHaveCount(0);
@@ -128,7 +132,7 @@ test('resizes the editable canvas from scene controls', async ({ page }) => {
 
   await expect(page.getByTestId('scene-cell')).toHaveCount(120);
   await expect(page.getByLabel('Cell 11,9, outer area, level-0, placeable')).toBeVisible();
-  await expect(page.getByLabel('Cell 16,16, outer area, level-0, placeable')).toHaveCount(0);
+  await expect(page.getByLabel(`Cell ${defaultMaxCoordinate.x},${defaultMaxCoordinate.y}, outer area, level-0, placeable`)).toHaveCount(0);
   await expectSceneCellsToBeSquare(page, ['0,0', '5,5', '11,9']);
   await expect.poll(() => readSceneSnapshot(page)).toMatchObject({
     sceneSize: { width: 10, height: 8 },
@@ -557,7 +561,7 @@ test('keeps 1000-instance 17x17 selection within the NFR1 budget', async ({ page
 
   expect((await readSceneSnapshot(page)).buildingLevels).toHaveLength(10);
   expect((await readSceneSnapshot(page)).tileInstances).toHaveLength(1000);
-  await expect(page.getByTestId('scene-cell')).toHaveCount(289);
+  await expect(page.getByTestId('scene-cell')).toHaveCount(defaultCanvasCellCount);
 
   await measureSelectionDuration(page, '[data-coordinate="2,2"]');
   const selectionDuration = await measureSelectionDuration(page, '[data-coordinate="3,3"]');
@@ -573,15 +577,17 @@ test('keeps dense 17x17 scene selection usable without the preview panel', async
   await dismissHelpOverlayIfVisible(page);
 
   await expect(page.getByRole('complementary', { name: '检查器预览' })).toHaveCount(0);
-  await expect(page.getByTestId('scene-cell')).toHaveCount(289);
-  await expect(page.locator('.cell-asset-thumb')).toHaveCount(289);
-  expect(await readSceneSnapshot(page)).toMatchObject({
+  await expect(page.getByTestId('scene-cell')).toHaveCount(defaultCanvasCellCount);
+  await expect(page.locator('.cell-asset-thumb')).toHaveCount(defaultCanvasCellCount);
+  const denseSnapshot = await readSceneSnapshot(page);
+  expect(denseSnapshot).toMatchObject({
     buildingLevels: expect.arrayContaining([
       expect.objectContaining({ id: 'level-9' }),
     ]),
   });
-  expect((await readSceneSnapshot(page)).buildingLevels).toHaveLength(10);
-  expect((await readSceneSnapshot(page)).tileInstances).toHaveLength(2890);
+  const denseBuildingLevels = denseSnapshot.buildingLevels as unknown[];
+  expect(denseBuildingLevels).toHaveLength(10);
+  expect(denseSnapshot.tileInstances).toHaveLength(defaultCanvasCellCount * denseBuildingLevels.length);
   await expect(page.getByLabel('正视图预览')).toHaveCount(0);
   await expect(page.getByLabel('俯视图预览')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveCount(0);
@@ -605,8 +611,8 @@ test('keeps default 17x17 scenes responsive across the release viewport matrix',
     await dismissHelpOverlayIfVisible(page);
 
     await expectResponsiveWorkbench(page, {
-      expectedCells: 289,
-      edgeCellLabel: `Cell 16,16, outer area, level-0, ${viewport.width < 768 ? 'read-only' : 'placeable'}`,
+      expectedCells: defaultCanvasCellCount,
+      edgeCellLabel: `Cell ${defaultMaxCoordinate.x},${defaultMaxCoordinate.y}, outer area, level-0, ${viewport.width < 768 ? 'read-only' : 'placeable'}`,
       isMobile: viewport.width < 768,
     });
   }
@@ -623,8 +629,8 @@ test('keeps legacy 7x7 scenes responsive across the release viewport matrix', as
     await dismissHelpOverlayIfVisible(page);
 
     await expectResponsiveWorkbench(page, {
-      expectedCells: 49,
-      edgeCellLabel: `Cell 6,6, outer area, level-0, ${viewport.width < 768 ? 'read-only' : 'placeable'}`,
+      expectedCells: getCanvasCellCount(legacySceneDimensions.canvasSize),
+      edgeCellLabel: `Cell ${legacyMaxCoordinate.x},${legacyMaxCoordinate.y}, outer area, level-0, ${viewport.width < 768 ? 'read-only' : 'placeable'}`,
       isMobile: viewport.width < 768,
     });
   }
@@ -694,11 +700,11 @@ test('switches scaffold controls to read-only below the mobile breakpoint', asyn
   await expect(page.getByRole('button', { name: '打开说明' })).toHaveCount(0);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
   await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile read-only mode');
-  await expect(page.getByTestId('scene-cell')).toHaveCount(289);
-  await expect(page.getByLabel('Cell 16,16, outer area, level-0, read-only')).toBeVisible();
+  await expect(page.getByTestId('scene-cell')).toHaveCount(defaultCanvasCellCount);
+  await expect(page.getByLabel(`Cell ${defaultMaxCoordinate.x},${defaultMaxCoordinate.y}, outer area, level-0, read-only`)).toBeVisible();
   expect(await readSceneSnapshot(page)).toMatchObject({
-    sceneSize: { width: 15, height: 15 },
-    canvasSize: { width: 17, height: 17 },
+    sceneSize: defaultSceneSize,
+    canvasSize: defaultCanvasSize,
   });
   await expect(page.getByLabel('Current Pokemon')).toBeDisabled();
   await expect(page.getByLabel('布景')).toHaveAttribute('readonly', '');
@@ -954,6 +960,17 @@ function getPngSize(bytes: Buffer): { height: number; width: number } {
   };
 }
 
+function getCanvasCellCount(canvasSize: { width: number; height: number }): number {
+  return canvasSize.width * canvasSize.height;
+}
+
+function getMaxCoordinate(canvasSize: { width: number; height: number }): { x: number; y: number } {
+  return {
+    x: canvasSize.width - 1,
+    y: canvasSize.height - 1,
+  };
+}
+
 const mobileApplicationKeys = [
   'ArrowUp',
   'ArrowDown',
@@ -1105,9 +1122,9 @@ function createLegacyResponsiveScene() {
     sceneId: 'scene-legacy-responsive',
     sceneName: 'Legacy Responsive Smoke',
     selectedPokemonKey: 'pikachu',
-    sceneSize: { width: 5, height: 5 },
-    canvasSize: { width: 7, height: 7 },
-    outerPadding: 1,
+    sceneSize: { ...legacySceneDimensions.sceneSize },
+    canvasSize: { ...legacySceneDimensions.canvasSize },
+    outerPadding: legacySceneDimensions.outerPadding,
     buildingLevels: [
       { id: 'level-0', levelNumber: 0, name: '1层' },
     ],
@@ -1115,7 +1132,7 @@ function createLegacyResponsiveScene() {
       {
         instanceId: 'tile-legacy-responsive',
         assetId: 'leafy-plant',
-        coordinate: { x: 6, y: 6 },
+        coordinate: { ...legacyMaxCoordinate },
         areaType: 'outer',
         buildingLevelId: 'level-0',
         rotationDegrees: 0,
@@ -1128,7 +1145,7 @@ function createLegacyResponsiveScene() {
     workspaceState: {
       currentBuildingLevelId: 'level-0',
       selectedAssetId: null,
-      selectedCoordinate: { x: 6, y: 6 },
+      selectedCoordinate: { ...legacyMaxCoordinate },
     },
     metadata: {
       createdAt: now,

@@ -16,8 +16,8 @@ import {
 
 describe('scene canvas area rules', () => {
   it('creates the default 17x17 canvas', () => {
-    expect(canvasSize).toBe(17);
-    expect(createCanvasCells()).toHaveLength(289);
+    expect(canvasSize).toBe(defaultSceneDimensions.canvasSize.width);
+    expect(createCanvasCells()).toHaveLength(getCanvasCellCount(defaultSceneDimensions));
   });
 
   it('marks the center 15x15 as main and the surrounding ring as outer', () => {
@@ -31,9 +31,9 @@ describe('scene canvas area rules', () => {
 
   it('rejects coordinates outside the default 17x17 canvas', () => {
     expect(() => getAreaType({ x: -1, y: 0 })).toThrow(RangeError);
-    expect(() => getAreaType({ x: 17, y: 0 })).toThrow(RangeError);
+    expect(() => getAreaType({ x: defaultSceneDimensions.canvasSize.width, y: 0 })).toThrow(RangeError);
     expect(() => getAreaType({ x: 0, y: -1 })).toThrow(RangeError);
-    expect(() => getAreaType({ x: 0, y: 17 })).toThrow(RangeError);
+    expect(() => getAreaType({ x: 0, y: defaultSceneDimensions.canvasSize.height })).toThrow(RangeError);
     expect(() => getAreaType({ x: 1.5, y: 1 })).toThrow(RangeError);
   });
 
@@ -44,15 +44,15 @@ describe('scene canvas area rules', () => {
 
   it('summarizes default, legacy, custom, and unsupported scene dimensions', () => {
     expect(summarizeSceneDimensions(defaultSceneDimensions)).toEqual({
-      sceneSize: { width: 15, height: 15 },
-      canvasSize: { width: 17, height: 17 },
-      outerPadding: 1,
+      sceneSize: defaultSceneDimensions.sceneSize,
+      canvasSize: defaultSceneDimensions.canvasSize,
+      outerPadding: defaultSceneDimensions.outerPadding,
       classification: 'default-17x17',
     });
     expect(summarizeSceneDimensions(legacySceneDimensions)).toEqual({
-      sceneSize: { width: 5, height: 5 },
-      canvasSize: { width: 7, height: 7 },
-      outerPadding: 1,
+      sceneSize: legacySceneDimensions.sceneSize,
+      canvasSize: legacySceneDimensions.canvasSize,
+      outerPadding: legacySceneDimensions.outerPadding,
       classification: 'legacy-7x7',
     });
     expect(summarizeSceneDimensions(createSceneDimensionsForCanvasSize({ width: 12, height: 16 }))).toEqual({
@@ -84,9 +84,9 @@ describe('scene canvas area rules', () => {
     const cells = createCanvasCells();
 
     expect(Math.min(...cells.map((cell) => cell.x))).toBe(0);
-    expect(Math.max(...cells.map((cell) => cell.x))).toBe(16);
+    expect(Math.max(...cells.map((cell) => cell.x))).toBe(defaultSceneDimensions.canvasSize.width - 1);
     expect(Math.min(...cells.map((cell) => cell.y))).toBe(0);
-    expect(Math.max(...cells.map((cell) => cell.y))).toBe(16);
+    expect(Math.max(...cells.map((cell) => cell.y))).toBe(defaultSceneDimensions.canvasSize.height - 1);
   });
 
   it('marks both MVP areas as placeable', () => {
@@ -97,8 +97,8 @@ describe('scene canvas area rules', () => {
   it('detects the visible 15x15 main-area boundary cells', () => {
     const boundaryCells = createCanvasCells().filter((cell) => isMainAreaBoundaryCell(cell));
 
-    expect(boundaryCells).toHaveLength(56);
-    expect(isMainAreaBoundaryCell({ x: 1, y: 1 })).toBe(true);
+    expect(boundaryCells).toHaveLength(getBoundaryCellCount(defaultSceneDimensions));
+    expect(isMainAreaBoundaryCell({ x: defaultSceneDimensions.outerPadding, y: defaultSceneDimensions.outerPadding })).toBe(true);
     expect(isMainAreaBoundaryCell({ x: 8, y: 8 })).toBe(false);
     expect(isMainAreaBoundaryCell({ x: 0, y: 8 })).toBe(false);
   });
@@ -139,3 +139,11 @@ describe('scene canvas area rules', () => {
     ).toThrow(RangeError);
   });
 });
+
+function getCanvasCellCount(dimensions: typeof defaultSceneDimensions): number {
+  return dimensions.canvasSize.width * dimensions.canvasSize.height;
+}
+
+function getBoundaryCellCount(dimensions: typeof defaultSceneDimensions): number {
+  return dimensions.sceneSize.width * 2 + Math.max(0, dimensions.sceneSize.height - 2) * 2;
+}

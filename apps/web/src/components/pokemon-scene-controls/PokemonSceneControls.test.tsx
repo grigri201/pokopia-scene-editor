@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { createDefaultSceneDocument } from '@pokopia-scene-editor/scene-core';
 import { PokemonSceneControls } from './PokemonSceneControls';
 
 describe('PokemonSceneControls', () => {
@@ -67,8 +68,8 @@ describe('PokemonSceneControls', () => {
     expect(fieldLabels[1]?.querySelector('input')).toHaveAccessibleName('Current Pokemon');
     expect(screen.getByRole('group', { name: '编辑区域大小' })).toBeVisible();
     expect(container.querySelector('.scene-size-control legend')).toBeNull();
-    expect(screen.getByLabelText('宽度')).toHaveValue('17');
-    expect(screen.getByLabelText('高度')).toHaveValue('17');
+    expect(screen.getByLabelText('宽度')).toHaveValue(`${defaultCanvasSize.width}`);
+    expect(screen.getByLabelText('高度')).toHaveValue(`${defaultCanvasSize.height}`);
 
     fireEvent.change(screen.getByLabelText('Current Pokemon'), { target: { value: 'eevee' } });
     fireEvent.mouseDown(screen.getByRole('option', { name: /#280.*伊布.*Eevee/ }));
@@ -78,8 +79,8 @@ describe('PokemonSceneControls', () => {
 
     expect(onPokemonChange).toHaveBeenCalledWith('eevee');
     expect(onSceneNameChange).toHaveBeenCalledWith('月光庭院');
-    expect(onCanvasSizeChange).toHaveBeenNthCalledWith(1, { width: 12, height: 17 });
-    expect(onCanvasSizeChange).toHaveBeenNthCalledWith(2, { width: 17, height: 9 });
+    expect(onCanvasSizeChange).toHaveBeenNthCalledWith(1, { width: 12, height: defaultCanvasSize.height });
+    expect(onCanvasSizeChange).toHaveBeenNthCalledWith(2, { width: defaultCanvasSize.width, height: 9 });
     expect(screen.queryByRole('button', { name: /Save scene/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Save status')).not.toBeInTheDocument();
   }, 15_000);
@@ -195,4 +196,7 @@ describe('PokemonSceneControls', () => {
   });
 });
 
-const defaultCanvasSize = { width: 17, height: 17 };
+const defaultCanvasSize = createDefaultSceneDocument({
+  sceneId: 'scene-controls-default-canvas',
+  now: '2026-05-16T07:00:00.000Z',
+}).canvasSize;

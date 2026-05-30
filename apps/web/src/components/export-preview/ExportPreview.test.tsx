@@ -10,8 +10,12 @@ import {
   createStackingPartialSurfaceScene,
   createStackingPlateFoodScene,
   createTileInstance,
+  footprintContractExpected,
   footprintContractFixtureIds,
   stackingContractFixtureIds,
+  type GridCoordinate,
+  type ImageExportSummary,
+  type SceneDocument,
 } from '@pokopia-scene-editor/scene-core';
 import { unsafeAngleText, unsafeImageText, unsafeScriptText } from '../../test/fixtures/unsafe-text';
 import { ExportPreview } from './ExportPreview';
@@ -19,7 +23,12 @@ import { ExportPreview } from './ExportPreview';
 describe('ExportPreview', () => {
   it('renders the title, overall materials, layer graphics, layer materials and empty layers', () => {
     const onClose = vi.fn();
-    const summary = buildImageExportSummary(createPreviewScene());
+    const scene = createPreviewScene();
+    const summary = buildImageExportSummary(scene);
+    const expectedCellCount = getCanvasCellCount(scene.canvasSize);
+
+    expect(summary.canvasSize).toEqual(scene.canvasSize);
+    expect(summary.layers[1]?.cells).toHaveLength(expectedCellCount);
 
     render(<ExportPreview summary={summary} downloadDisabled onClose={onClose} />);
 
@@ -32,7 +41,7 @@ describe('ExportPreview', () => {
       'src',
       expect.stringContaining('/assets/pokopia_image_sources/pokemon_portraits/063-ditto.png'),
     );
-    expect(screen.getByText('17x17 画布 · 3 个建筑层')).toBeVisible();
+    expect(screen.getByText(`${scene.canvasSize.width}x${scene.canvasSize.height} 画布 · ${scene.buildingLevels.length} 个建筑层`)).toBeVisible();
     expect(document.querySelector('.export-preview__pokemon-rail')).toBeNull();
     expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('绿叶植物');
     expect(screen.getByLabelText('整体使用素材清单')).not.toHaveTextContent('No. 1052');
@@ -53,12 +62,14 @@ describe('ExportPreview', () => {
       'L3 · 3层',
     ]);
     expect(screen.getByLabelText('逐层图形和素材清单')).not.toHaveTextContent('placed items');
-    expect(screen.getByLabelText('L2 17x17 图形').querySelectorAll('.export-layer-cell')).toHaveLength(289);
-    const layerGraphicFrame = screen.getByLabelText('L2 17x17 图形').closest('.export-layer-grid-frame');
+    const activeLayer = summary.layers[1];
+    const activeLayerGraphicLabel = getLayerGraphicLabel(activeLayer, scene.canvasSize);
+    expect(screen.getByLabelText(activeLayerGraphicLabel).querySelectorAll('.export-layer-cell')).toHaveLength(expectedCellCount);
+    const layerGraphicFrame = screen.getByLabelText(activeLayerGraphicLabel).closest('.export-layer-grid-frame');
     expect(layerGraphicFrame).not.toBeNull();
     expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--origin')).toHaveTextContent('0,0');
     expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--origin')).toHaveAttribute('aria-hidden', 'true');
-    expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--max')).toHaveTextContent('16,16');
+    expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--max')).toHaveTextContent(getMaxCoordinateText(scene.canvasSize));
     expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--max')).toHaveAttribute('aria-hidden', 'true');
     const previewCell = screen.getByLabelText('3,3: 绿叶植物');
     expect(previewCell).toHaveTextContent('');
@@ -124,13 +135,14 @@ describe('ExportPreview', () => {
   });
 
   it('renders system-provided export content in English mode', () => {
-    const summary = buildImageExportSummary(createPreviewScene(), 'en-US');
+    const scene = createPreviewScene();
+    const summary = buildImageExportSummary(scene, 'en-US');
 
     render(<ExportPreview locale="en-US" summary={summary} onClose={vi.fn()} />);
 
     expect(screen.getByRole('dialog', { name: 'Download preview' })).toBeVisible();
     expect(screen.getByLabelText('Ditto export preview Pokemon image')).toBeVisible();
-    expect(screen.getByText('17x17 canvas · 3 building layers')).toBeVisible();
+    expect(screen.getByText(`${scene.canvasSize.width}x${scene.canvasSize.height} canvas · ${scene.buildingLevels.length} building layers`)).toBeVisible();
     expect(screen.getByLabelText('Overall material list')).toHaveTextContent(/Leafy/i);
     expect(screen.getByLabelText('Overall material list')).toHaveTextContent('Leaf');
     expect(screen.getByLabelText('Overall material list')).toHaveTextContent('Water Storage');
@@ -147,11 +159,12 @@ describe('ExportPreview', () => {
   });
 
   it('uses a singular English layer summary for one-layer exports', () => {
-    const summary = buildImageExportSummary(createDefaultSceneDocument(), 'en-US');
+    const scene = createDefaultSceneDocument();
+    const summary = buildImageExportSummary(scene, 'en-US');
 
     render(<ExportPreview locale="en-US" summary={summary} onClose={vi.fn()} />);
 
-    expect(screen.getByText('17x17 canvas · 1 building layer')).toBeVisible();
+    expect(screen.getByText(`${scene.canvasSize.width}x${scene.canvasSize.height} canvas · ${scene.buildingLevels.length} building layer`)).toBeVisible();
   });
 
   it('shrinks rectangular layer graphics from the longest side so export preview cells stay square', () => {
@@ -181,24 +194,29 @@ describe('ExportPreview', () => {
   });
 
   it('renders footprint overlays in layer graphics while keeping material lists instance-count based', () => {
-    render(<ExportPreview summary={buildImageExportSummary(createFootprintContractScene())} onClose={vi.fn()} />);
+    const scene = createFootprintContractScene();
+    const summary = buildImageExportSummary(scene);
+    const benchSource = getSceneTileInstance(scene, footprintContractFixtureIds.bench);
+    const rugSource = getSceneTileInstance(scene, footprintContractFixtureIds.rug);
+
+    render(<ExportPreview summary={summary} onClose={vi.fn()} />);
 
     const layerGraphic = screen.getByLabelText('L1 7x7 图形');
     const layerMaterials = screen.getByLabelText('L1 使用素材清单');
     const benchOverlay = screen.getByTestId(`export-footprint-overlay-${footprintContractFixtureIds.bench}`);
     const chairOverlay = screen.getByTestId(`export-footprint-overlay-${footprintContractFixtureIds.rug}`);
-    const benchMaterial = layerMaterials.querySelector<HTMLElement>('li[data-material-asset-id="wooden-bench"]');
+    const benchMaterial = layerMaterials.querySelector<HTMLElement>(`li[data-material-asset-id="${benchSource.assetId}"]`);
 
-    expect(layerGraphic.querySelectorAll('.export-layer-cell')).toHaveLength(49);
-    expect(benchOverlay).toHaveAttribute('data-footprint-asset-id', 'wooden-bench');
-    expect(benchOverlay).toHaveAttribute('data-effective-footprint', '1x2x1');
-    expect(benchOverlay).toHaveAttribute('data-occupied-cells', '2,1 2,2');
+    expect(layerGraphic.querySelectorAll('.export-layer-cell')).toHaveLength(summary.layers[0].cells.length);
+    expect(benchOverlay).toHaveAttribute('data-footprint-asset-id', benchSource.assetId);
+    expect(benchOverlay).toHaveAttribute('data-effective-footprint', formatFootprint(footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.bench]));
+    expect(benchOverlay).toHaveAttribute('data-occupied-cells', formatCoordinates(footprintContractExpected.occupiedCells[footprintContractFixtureIds.bench]));
     expect(benchMaterial?.querySelector('.export-material-list__color')).toBeNull();
     expect(benchOverlay.style.getPropertyValue('--export-material-color')).toBe(
       benchMaterial?.style.getPropertyValue('--export-material-color'),
     );
-    expect(chairOverlay).toHaveAttribute('data-footprint-asset-id', 'deck-chair');
-    expect(chairOverlay).toHaveAttribute('data-effective-footprint', '2x1x1');
+    expect(chairOverlay).toHaveAttribute('data-footprint-asset-id', rugSource.assetId);
+    expect(chairOverlay).toHaveAttribute('data-effective-footprint', formatFootprint(footprintContractExpected.effectiveFootprints[footprintContractFixtureIds.rug]));
     expect(layerMaterials.querySelectorAll('li')).toHaveLength(5);
     expect(Array.from(layerMaterials.querySelectorAll('.export-material-list__row span')).map((node) => node.textContent)).toEqual([
       'x2',
@@ -211,6 +229,9 @@ describe('ExportPreview', () => {
 
   it('renders stacking relations as split export cells while keeping material lists instance-count based', () => {
     const summary = buildImageExportSummary(createStackingPlateFoodScene());
+    const relation = getExportStackingRelation(summary, stackingContractFixtureIds.food);
+    const baseInstance = getExportInstance(summary, relation.baseInstanceId);
+    const topInstance = getExportInstance(summary, relation.topInstanceId);
 
     render(<ExportPreview summary={summary} onClose={vi.fn()} />);
 
@@ -220,25 +241,25 @@ describe('ExportPreview', () => {
 
     expect(summary.stackingRelations).toEqual([
       expect.objectContaining({
-        topInstanceId: stackingContractFixtureIds.food,
-        topAssetId: 'leppa-berry',
-        baseInstanceId: stackingContractFixtureIds.plate,
-        baseAssetId: 'plate',
-        surfaceKind: 'food-surface',
+        topInstanceId: relation.topInstanceId,
+        topAssetId: relation.topAssetId,
+        baseInstanceId: relation.baseInstanceId,
+        baseAssetId: relation.baseAssetId,
+        surfaceKind: relation.surfaceKind,
       }),
     ]);
-    expect(layerGraphic.querySelectorAll('.export-layer-cell')).toHaveLength(49);
+    expect(layerGraphic.querySelectorAll('.export-layer-cell')).toHaveLength(summary.layers[0].cells.length);
     expect(stackingCell).toHaveAttribute('data-stacking-state', 'placed');
-    expect(stackingCell).toHaveAttribute('data-stacking-base-instance-id', stackingContractFixtureIds.plate);
-    expect(stackingCell).toHaveAttribute('data-stacking-top-instance-id', stackingContractFixtureIds.food);
-    expect(stackingCell).toHaveAttribute('data-stacking-base-footprint', '1x1x1');
-    expect(stackingCell).toHaveAttribute('data-stacking-top-footprint', '1x1x1');
-    expect(stackingCell).toHaveAttribute('data-stacking-surface-kind', 'food-surface');
+    expect(stackingCell).toHaveAttribute('data-stacking-base-instance-id', relation.baseInstanceId);
+    expect(stackingCell).toHaveAttribute('data-stacking-top-instance-id', relation.topInstanceId);
+    expect(stackingCell).toHaveAttribute('data-stacking-base-footprint', formatFootprint(baseInstance.effectiveFootprint));
+    expect(stackingCell).toHaveAttribute('data-stacking-top-footprint', formatFootprint(topInstance.effectiveFootprint));
+    expect(stackingCell).toHaveAttribute('data-stacking-surface-kind', relation.surfaceKind);
     expect(stackingCell.querySelector('.export-stacking-split')).toHaveAttribute('data-stacking-base-visibility', 'visible');
     expect(stackingCell.querySelector('.export-stacking-split')).toHaveAttribute('data-stacking-split-axis', 'block');
-    expect(stackingCell.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-asset-id', 'leppa-berry');
-    expect(stackingCell.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-asset-id', 'plate');
-    expect(stackingCell.querySelector('[data-stacking-role="base"] img')).toHaveAttribute('src', expect.stringContaining('plate'));
+    expect(stackingCell.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-asset-id', relation.topAssetId);
+    expect(stackingCell.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-asset-id', relation.baseAssetId);
+    expect(stackingCell.querySelector('[data-stacking-role="base"] img')).toHaveAttribute('src', expect.stringContaining(relation.baseAssetId));
     expect(layerMaterials.querySelectorAll('li')).toHaveLength(2);
     expect(Array.from(layerMaterials.querySelectorAll('.export-material-list__row span')).map((node) => node.textContent)).toEqual([
       'x1',
@@ -248,6 +269,9 @@ describe('ExportPreview', () => {
 
   it('renders multi-cell base overlays behind stacked export cells', () => {
     const summary = buildImageExportSummary(createLargeRugStackingScene());
+    const relation = getExportStackingRelation(summary, 'export-top-plant');
+    const baseInstance = getExportInstance(summary, relation.baseInstanceId);
+    const topInstance = getExportInstance(summary, relation.topInstanceId);
 
     render(<ExportPreview summary={summary} onClose={vi.fn()} />);
 
@@ -259,28 +283,28 @@ describe('ExportPreview', () => {
 
     expect(summary.stackingRelations).toEqual([
       expect.objectContaining({
-        topInstanceId: 'export-top-plant',
-        topAssetId: 'leafy-plant',
-        baseInstanceId: 'export-base-large-rug',
-        baseAssetId: 'large-round-rug',
-        surfaceKind: 'floor-cover',
+        topInstanceId: relation.topInstanceId,
+        topAssetId: relation.topAssetId,
+        baseInstanceId: relation.baseInstanceId,
+        baseAssetId: relation.baseAssetId,
+        surfaceKind: relation.surfaceKind,
       }),
     ]);
-    expect(rugOverlay).toHaveAttribute('data-effective-footprint', '2x2x1');
-    expect(rugOverlay).toHaveAttribute('data-occupied-cells', '2,2 3,2 2,3 3,3');
+    expect(rugOverlay).toHaveAttribute('data-effective-footprint', formatFootprint(baseInstance.effectiveFootprint));
+    expect(rugOverlay).toHaveAttribute('data-occupied-cells', formatCoordinates(baseInstance.occupiedCells));
     expect(rugOverlay).toHaveAttribute('data-stacking-state', '');
     expect(rugOverlay).toHaveAttribute('data-stacking-role', '');
     expect(rugOverlay.querySelector('.export-stacking-split')).toBeNull();
-    expect(rugOverlay.querySelector('img')).toHaveAttribute('src', expect.stringContaining('large-round-rug'));
-    expect(stackingCell).toHaveAttribute('data-stacking-base-footprint', '2x2x1');
-    expect(stackingCell).toHaveAttribute('data-stacking-top-footprint', '1x1x1');
+    expect(rugOverlay.querySelector('img')).toHaveAttribute('src', expect.stringContaining(relation.baseAssetId));
+    expect(stackingCell).toHaveAttribute('data-stacking-base-footprint', formatFootprint(baseInstance.effectiveFootprint));
+    expect(stackingCell).toHaveAttribute('data-stacking-top-footprint', formatFootprint(topInstance.effectiveFootprint));
     expect(stackingCell).toHaveAttribute('data-stacking-base-visibility', 'hidden');
     expect(stackingCell).toHaveAttribute('data-stacking-base-render', 'overlay');
     expect(stackingCell).toHaveAttribute('data-stacking-top-render', 'cell');
     expect(stackingSplit).toHaveClass('export-stacking-split--base-hidden');
     expect(stackingSplit).toHaveAttribute('data-stacking-base-render', 'overlay');
     expect(stackingSplit).toHaveAttribute('data-stacking-top-render', 'cell');
-    expect(stackingSplit?.querySelector('[data-stacking-role="top"] img')).toHaveAttribute('src', expect.stringContaining('leafy-plant'));
+    expect(stackingSplit?.querySelector('[data-stacking-role="top"] img')).toHaveAttribute('src', expect.stringContaining(relation.topAssetId));
     expect(stackingSplit?.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-base-image-visible', 'false');
     expect(stackingSplit?.querySelector('[data-stacking-role="base"] img')).toBeNull();
     expect(layerMaterials.querySelectorAll('li')).toHaveLength(2);
@@ -292,6 +316,9 @@ describe('ExportPreview', () => {
 
   it('renders partial stacking on the overlapped export cell while keeping the multi-cell top overlay', () => {
     const summary = buildImageExportSummary(createStackingPartialSurfaceScene());
+    const relation = getExportStackingRelation(summary, stackingContractFixtureIds.partialTop);
+    const baseInstance = getExportInstance(summary, relation.baseInstanceId);
+    const topInstance = getExportInstance(summary, relation.topInstanceId);
 
     render(<ExportPreview summary={summary} onClose={vi.fn()} />);
 
@@ -300,32 +327,32 @@ describe('ExportPreview', () => {
 
     expect(summary.stackingRelations).toEqual([
       expect.objectContaining({
-        topInstanceId: stackingContractFixtureIds.partialTop,
-        baseInstanceId: stackingContractFixtureIds.partialSurface,
-        surfaceKind: 'floor-cover',
-        coordinates: [{ x: 1, y: 1 }],
+        topInstanceId: relation.topInstanceId,
+        baseInstanceId: relation.baseInstanceId,
+        surfaceKind: relation.surfaceKind,
+        coordinates: relation.coordinates,
       }),
     ]);
     expect(stackedCell).toHaveAttribute('data-stacking-state', 'placed');
-    expect(stackedCell).toHaveAttribute('data-stacking-base-instance-id', stackingContractFixtureIds.partialSurface);
-    expect(stackedCell).toHaveAttribute('data-stacking-top-instance-id', stackingContractFixtureIds.partialTop);
-    expect(stackedCell).toHaveAttribute('data-stacking-base-footprint', '1x1x1');
-    expect(stackedCell).toHaveAttribute('data-stacking-top-footprint', '2x1x1');
+    expect(stackedCell).toHaveAttribute('data-stacking-base-instance-id', relation.baseInstanceId);
+    expect(stackedCell).toHaveAttribute('data-stacking-top-instance-id', relation.topInstanceId);
+    expect(stackedCell).toHaveAttribute('data-stacking-base-footprint', formatFootprint(baseInstance.effectiveFootprint));
+    expect(stackedCell).toHaveAttribute('data-stacking-top-footprint', formatFootprint(topInstance.effectiveFootprint));
     expect(stackedCell.querySelector('.export-stacking-split')).toHaveAttribute('data-stacking-base-visibility', 'visible');
     expect(stackedCell).toHaveAttribute('data-stacking-base-render', 'cell');
     expect(stackedCell).toHaveAttribute('data-stacking-top-render', 'overlay');
     expect(stackedCell.querySelector('.export-stacking-split')).toHaveAttribute('data-stacking-top-render', 'overlay');
     expect(stackedCell.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-top-image-visible', 'false');
     expect(stackedCell.querySelector('[data-stacking-role="top"] img')).toBeNull();
-    expect(stackedCell.querySelector('[data-stacking-role="base"] img')).toHaveAttribute('src', expect.stringContaining('small-narrow-rug'));
-    expect(topOverlay).toHaveAttribute('data-footprint-instance-id', stackingContractFixtureIds.partialTop);
-    expect(topOverlay).toHaveAttribute('data-effective-footprint', '2x1x1');
+    expect(stackedCell.querySelector('[data-stacking-role="base"] img')).toHaveAttribute('src', expect.stringContaining(relation.baseAssetId));
+    expect(topOverlay).toHaveAttribute('data-footprint-instance-id', relation.topInstanceId);
+    expect(topOverlay).toHaveAttribute('data-effective-footprint', formatFootprint(topInstance.effectiveFootprint));
     expect(topOverlay).toHaveAttribute('data-stacking-state', 'placed');
     expect(topOverlay).toHaveAttribute('data-stacking-role', 'top');
-    expect(topOverlay).toHaveAttribute('data-stacking-base-instance-id', stackingContractFixtureIds.partialSurface);
-    expect(topOverlay).toHaveAttribute('data-stacking-top-instance-id', stackingContractFixtureIds.partialTop);
-    expect(topOverlay).toHaveAttribute('data-stacking-base-footprint', '1x1x1');
-    expect(topOverlay).toHaveAttribute('data-stacking-top-footprint', '2x1x1');
+    expect(topOverlay).toHaveAttribute('data-stacking-base-instance-id', relation.baseInstanceId);
+    expect(topOverlay).toHaveAttribute('data-stacking-top-instance-id', relation.topInstanceId);
+    expect(topOverlay).toHaveAttribute('data-stacking-base-footprint', formatFootprint(baseInstance.effectiveFootprint));
+    expect(topOverlay).toHaveAttribute('data-stacking-top-footprint', formatFootprint(topInstance.effectiveFootprint));
     expect(topOverlay).toHaveAttribute('data-stacking-top-crop-axis', 'block');
     expect(topOverlay.querySelectorAll('img')).toHaveLength(1);
   });
@@ -501,6 +528,72 @@ function createLargeRugStackingScene() {
       }),
     ],
   };
+}
+
+function getLayerGraphicLabel(
+  layer: { displayId: string },
+  canvasSize: { width: number; height: number },
+): string {
+  return `${layer.displayId} ${canvasSize.width}x${canvasSize.height} 图形`;
+}
+
+function getMaxCoordinateText(canvasSize: { width: number; height: number }): string {
+  return `${canvasSize.width - 1},${canvasSize.height - 1}`;
+}
+
+function getCanvasCellCount(canvasSize: { width: number; height: number }): number {
+  return canvasSize.width * canvasSize.height;
+}
+
+function getSceneTileInstance(scene: SceneDocument, instanceId: string): SceneDocument['tileInstances'][number] {
+  const instance = scene.tileInstances.find((candidate) => candidate.instanceId === instanceId);
+
+  if (!instance) {
+    throw new Error(`Expected scene tile instance ${instanceId}.`);
+  }
+
+  return instance;
+}
+
+function getExportInstance(
+  summary: ImageExportSummary,
+  instanceId: string,
+): ImageExportSummary['layers'][number]['cells'][number]['tileInstances'][number] {
+  const instance = summary.layers
+    .flatMap((layer) => layer.cells)
+    .flatMap((cell) => cell.tileInstances)
+    .find((candidate) => candidate.instanceId === instanceId);
+
+  if (!instance) {
+    throw new Error(`Expected export instance ${instanceId}.`);
+  }
+
+  return instance;
+}
+
+function getExportStackingRelation(
+  summary: ImageExportSummary,
+  topInstanceId: string,
+): ImageExportSummary['stackingRelations'][number] {
+  const relation = summary.stackingRelations.find((candidate) => candidate.topInstanceId === topInstanceId);
+
+  if (!relation) {
+    throw new Error(`Expected export stacking relation for ${topInstanceId}.`);
+  }
+
+  return relation;
+}
+
+function formatFootprint(footprint: { length: number; width: number; height: number } | null): string {
+  if (!footprint) {
+    throw new Error('Expected footprint.');
+  }
+
+  return `${footprint.length}x${footprint.width}x${footprint.height}`;
+}
+
+function formatCoordinates(coordinates: readonly GridCoordinate[]): string {
+  return coordinates.map((coordinate) => `${coordinate.x},${coordinate.y}`).join(' ');
 }
 
 interface TestRgbColor {

@@ -83,13 +83,15 @@ describe('image export summary', () => {
   });
 
   it('builds a 17x17 graphical cell summary for every default building layer, including empty layers', () => {
-    const summary = buildImageExportSummary(createExportScene());
+    const scene = createExportScene();
+    const expectedCellCount = scene.canvasSize.width * scene.canvasSize.height;
+    const summary = buildImageExportSummary(scene);
     const emptyLayer = summary.layers.find((layer) => layer.id === 'level-2');
     const layerOne = summary.layers.find((layer) => layer.id === 'level-1');
 
-    expect(emptyLayer?.cells).toHaveLength(289);
+    expect(emptyLayer?.cells).toHaveLength(expectedCellCount);
     expect(emptyLayer?.cells.every((cell) => cell.tileInstances.length === 0)).toBe(true);
-    expect(layerOne?.cells).toHaveLength(289);
+    expect(layerOne?.cells).toHaveLength(expectedCellCount);
     expect(layerOne?.cells.find((cell) => cell.id === '3-3')).toEqual(
       expect.objectContaining({
         coordinate: { x: 3, y: 3 },
