@@ -1,311 +1,80 @@
 ---
-stepsCompleted:
-  - step-01-validate-prerequisites.md
-  - step-02-design-epics.md
-  - step-03-create-stories.md
-  - step-04-final-validation.md
+stepsCompleted: []
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/architecture.md
   - _bmad-output/planning-artifacts/ux-design-specification.md
-  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-30-repo-slim-core-library.md
   - _bmad-output/archive/2026-05-30/planning-artifacts/epics-1-12-completed.md
+  - _bmad-output/archive/2026-05-31/planning-artifacts/epics-13-completed.md
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-31-mobile-import-preview.md
 ---
 
-# pokopia-scene-editor - Active Epic Breakdown
+# pokopia-scene-editor - Active Epic Index
 
-## Overview
+As of 2026-05-31, Epic 14 is the active BMAD planning surface.
 
-This document now tracks the active Polish-stage roadmap for pokopia-scene-editor.
+Completed planning history is archived here:
 
-Epic 1-12 are complete and archived. Their full historical epic/story breakdown lives at:
+- `_bmad-output/archive/2026-05-30/planning-artifacts/epics-1-12-completed.md`: Epic 1-12 completed product/build history.
+- `_bmad-output/archive/2026-05-31/planning-artifacts/epics-13-completed.md`: Epic 13 completed Polish-stage repo boundary, Scene Core libraryization, and data baseline work.
 
-`_bmad-output/archive/2026-05-30/planning-artifacts/epics-1-12-completed.md`
+Archived content is historical evidence and must not be treated as active backlog.
 
-The product is no longer an MVP. It already has the main creation flow and can generate the required strategy/export guide image. The active work is Polish-stage maintenance: repo boundary cleanup, lower code complexity, stronger data ownership, and a file-installable `scene-core` package.
+## Epic 14: Mobile 导入与下载预览模式重写
 
-## Approved Course Correction - 2026-05-30 仓库瘦身与 Scene Core 库化
+Mobile 不再作为桌面工作台的缩窄只读版本，而是成为导入驱动的布景说明预览 surface。移动端进入后读取本地 scene storage；有有效记录时以内联方式展示与 desktop 下载预览完全相同的内容；没有记录时提供“导入字符串”按钮。导入使用自定义 modal，不使用系统 prompt/confirm；导入成功后保存到本地 scene storage。Mobile 仍不提供编辑器能力。
 
-`_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-30-repo-slim-core-library.md` 已批准。
+### Story 14.1: Mobile Preview Mode 规划与状态契约
 
-Epic 1-12 保留为已完成历史并归档，不回滚。当前新增 Epic 13，用于把本仓库收敛为 Web app + file-installable `scene-core` library。API、MCP、Codex skill 和 Worker adapter 从本仓库移除，并通过 handoff 文档交给新项目重新设计。
+As a mobile 用户, I want 打开 mobile 页面后直接看到本地保存布景的说明预览或导入入口, So that 我不用进入桌面编辑器也能查看/恢复一个布景说明。
 
-本次继续保持 `SceneDocument v1`。除非后续 story 发现必须改 schema 并另行 course correction，否则不得新增 `SceneDocument v2`，不得改变终端用户可见行为。
+Acceptance Criteria:
 
-## Approved Course Correction - 2026-05-30 Xzonn 数据重新基线
+- PRD、Architecture、UX、Epics 和 sprint-status 同步新增 Epic 14，并明确 mobile 从 View-only Workbench 改为 Preview Mode。
+- `<768px` 下不再渲染完整 desktop workbench layout；不得显示素材选择、建筑层编辑、实例编辑、重置或桌面导出 modal 入口。
+- Mobile startup 使用 `readLatestSceneDocumentFromStorage()` 读取本地记录。
+- 有 valid stored scene 时，mobile 进入 `preview-ready` state，并可生成 `ImageExportSummary`。
+- 无 stored scene 时，mobile 进入 `empty` state，只显示“导入字符串”入口。
+- Invalid stored scene 时，mobile 不静默成功；显示可读错误和“导入字符串”入口。
+- 旧 desktop 编辑工作台、desktop autosave、desktop download preview modal 不回退。
 
-`_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-30-xzonn-data-cleanup.md` 已批准。
+### Story 14.2: ExportPreview 内容拆分并支持 mobile inline 渲染
 
-在 Story 13.4 的 single source of truth 基础上，新增 Story 13.7，将 Xzonn/PokemonPokopiaDatabase 的 `data/item.txt`、`data/pokemon.txt` 和 `data/habitat.txt` 作为 pinned 数据清理输入。本次不改变 `SceneDocument v1`，并且必须兼容过去已经导出的 `PSE1`/`PSE2` 短字符串。
+As a mobile 用户, I want mobile 页面显示和 desktop 下载预览完全一样的布景说明内容, So that 我在手机上看到的素材清单和逐层图形与下载图一致。
 
-## Requirements Inventory
+Acceptance Criteria:
 
-### Functional Requirements
+- `ExportPreview` 拆出共享 content/presentation 层，desktop modal 和 mobile inline 共用同一内容组件。
+- Desktop `下载预览` 仍使用 modal/backdrop、`role="dialog"`、focus trap、Escape close、下载按钮和现有下载逻辑。
+- Mobile inline preview 不使用 backdrop，不设置 `aria-modal`，不 trap focus，不遮挡页面。
+- Mobile inline preview 展示与 desktop preview 同一份 scene-derived content：scene name、Pokemon、canvas dimensions、overall materials、per-layer graphics、per-layer materials、layer notes、footer。
+- Mobile inline preview 不写 SceneDocument、autosave、saved storage 或 UI preferences。
+- ExportPreview component tests 覆盖 modal 和 inline 两种容器。
 
-FR109: 产品阶段描述必须从 MVP 更新为 Polish：已有主流程，能生成所需攻略/导出说明图，当前目标是质量、维护性和仓库边界收敛。
+### Story 14.3: 自定义导入字符串 modal 与 mobile 导入落盘
 
-FR110: 本仓库必须收敛为只维护浏览器 Web 工作台和可被其他项目通过 pnpm `file:` 安装的 `scene-core` 领域库。
+As a mobile 用户, I want 通过自定义 modal 粘贴布景字符串并确认导入, So that 没有本地记录时也能在手机上查看布景说明。
 
-FR111: Epic 1-12 的完整历史内容必须归档，active planning/tracker 只承载当前 Polish-stage Epic 13。
+Acceptance Criteria:
 
-FR112: API、MCP、Codex skill 和 Worker adapter 必须从本仓库移除；新项目若需要这些能力，必须通过 file-installed `scene-core` 依赖重新设计。
+- Mobile empty state 显示“导入字符串”按钮。
+- 点击后打开自定义 modal，包含 textarea、确认、取消和关闭按钮。
+- 导入 flow 不调用 `window.prompt` 或 `window.confirm`。
+- 确认时复用 `decodeSceneDocumentStringWithLossyRecovery()` 和 `applyRecoveredSceneDocument()`；invalid string 显示错误，不关闭 modal，不写 storage。
+- 有 dropped incompatible materials 时，modal 内展示丢弃明细，并要求用户再次确认导入剩余兼容内容。
+- 导入成功后写入现有 scene storage 的 autosave slot，清除导入 modal 状态，并在 mobile 页面显示 inline preview。
+- 取消或关闭 modal 不改变 scene，不写 scene storage，不写 UI preferences。
+- 如 desktop 继续保留“导入字符串”入口，desktop 入口也应复用同一 modal，避免 system prompt/confirm 和 custom modal 两套导入逻辑并存。
 
-FR113: Catalog 业务数据、footprint metadata、stacking metadata、dimension helpers、Pokemon preference/translation 和 runtime image references 必须有明确 single source of truth。
+### Story 14.4: Mobile preview/import 回归测试与浏览器验证
 
-FR114: 测试必须优先从 `scene-core` factories、dimension helpers、catalog helpers 和 shared fixtures 读取事实，不得把当前配置复制成第二套测试真相。
+As a 维护者, I want mobile preview/import flow 有 focused tests 和 smoke 验证, So that 后续不会把 mobile 重新变成旧只读工作台或打破导入落盘。
 
-FR115: 素材和 Pokemon 数据重基线必须使用 pinned Xzonn `data/*.txt` 作为可复现输入；Xzonn 缺失或无法唯一确认的本地条目以本地现有数据为权威 fallback。
+Acceptance Criteria:
 
-### Non-Functional Requirements
-
-NFR53: 本次重构不得改变终端用户 Web 行为，包括编辑、保存/恢复、17x17 默认画布、legacy 7x7 恢复、footprint、stacking、层备注、导出预览和图片下载。
-
-NFR54: `SceneDocument v1` 继续作为当前 payload contract；本次不得新增 `SceneDocument v2` 或保存 derived footprint/stacking/dimension state。
-
-NFR55: `packages/scene-core` 必须保持 DOM-free、React-free、localStorage-free、Worker-runtime-free，并能被外部项目通过 pnpm `file:` 安装后直接 import。
-
-NFR56: Active release gate 必须聚焦 core/web/file-install smoke；Worker/MCP/skill gate 不再作为本仓库默认验证目标。
-
-NFR57: 资源清理必须先证明 Web 素材列表、缩略图、预览和导出不回退；不得为降低体积而误删用户可见资源。
-
-NFR58: 归档不得删除历史证据；完成历史应可从 dated archive 中恢复和审计。
-
-NFR59: 数据重基线不得破坏过去导出的 `PSE1`/`PSE2` 短字符串导入；旧编号必须能映射回稳定 `assetId`。
-
-## Epic 13: 仓库瘦身与 Scene Core 库化
-
-产品已具备主流程和攻略/导出说明生成能力，当前进入 Polish 阶段。本仓库收敛为只维护浏览器 Web 工作台和可被其他项目通过 pnpm `file:` 安装的 `scene-core` 领域库。API、MCP、Codex skill 和 Worker adapter 从本仓库移除，并通过 handoff 文档交给新项目重新设计。终端用户 Web 行为、`SceneDocument v1`、默认 15x15 / 17x17 场景、legacy 7x7 恢复、footprint、stacking、层备注、自动保存和图片导出不得回退。
-
-### Story 13.1: 规划归档与发布边界重写
-
-**Requirements covered:** FR109, FR110, FR111, FR112, NFR53, NFR54, NFR56, NFR58.
-
-As a 维护者,
-I want 归档已完成 epics 并同步 PRD、Architecture、UX、Epics 和 sprint-status 的新仓库边界,
-So that 后续实现不会继续把 Worker/API/MCP/skill 当成本仓库目标。
-
-**Acceptance Criteria:**
-
-**Given** Epic 1-12 已完成
-**When** active planning 更新
-**Then** Epic 1-12 的完整历史内容从 active `epics.md` 归档到 dated archive
-**And** active `epics.md` 只保留归档索引/摘要和 Epic 13。
-
-**Given** 当前 `sprint-status.yaml` 包含 Epic 1-12 done 状态
-**When** tracker 更新
-**Then** 旧 done 状态归档到 dated archive
-**And** active tracker 只保留当前项目元信息、归档指针、Epic 13 和 Story 13.1-13.6。
-
-**Given** PRD、Architecture 和 UX 仍包含旧 MVP 阶段描述
-**When** Story 13.1 完成
-**Then** 当前产品阶段必须更新为 Polish
-**And** 文档必须说明主流程已可用，能够生成所需攻略/导出说明，当前目标是质量和维护性收敛。
-
-**Given** 本仓库边界收敛
-**When** 文档同步完成
-**Then** PRD 明确本仓库目标为 Web + `scene-core` library
-**And** Architecture 删除 Worker/API/MCP 作为本仓库模块的目标结构
-**And** UX 删除本仓库内 developer/agent workflow surface 的交付要求。
-
-**Given** 本次重构不面向 payload 变更
-**When** 文档同步完成
-**Then** 必须明确本次不改变 `SceneDocument v1`
-**And** 如后续必须改 schema，必须另行 course correction。
-
-### Story 13.2: Scene Core 可被 pnpm file 安装
-
-**Requirements covered:** FR110, FR112, NFR54, NFR55.
-
-As a 下游项目开发者,
-I want 通过 `pnpm add file:../pokopia-scene-editor/packages/scene-core` 使用 core,
-So that 新项目可以复用 SceneDocument、catalog、schema、codec、selectors 和 export summary。
-
-**Acceptance Criteria:**
-
-**Given** `packages/scene-core` 目前是 workspace package
-**When** Story 13.2 完成
-**Then** `package.json` 提供可消费的 `exports`、`types`、`files` 和 build output
-**And** 不再依赖 workspace-only TS source export 作为外部安装契约。
-
-**Given** 外部项目通过 pnpm `file:` 安装 `scene-core`
-**When** consumer smoke import 关键 API
-**Then** 可以使用 SceneDocument types/schema、default scene factory、catalog helpers、dimension helpers、codec、selectors 和 export summary
-**And** consumer 不需要编译本仓库 TS 源。
-
-**Given** `scene-core` 是领域库
-**When** dependency boundary 检查运行
-**Then** 不得依赖 React、DOM、localStorage、Worker runtime、Wrangler、MCP SDK 或 web components。
-
-**Given** Web app 继续存在
-**When** root build/test 运行
-**Then** `apps/web` 继续通过 workspace dependency 使用同一 `scene-core`
-**And** 不复制 core 规则。
-
-### Story 13.3: 移除本仓库 Worker/API/MCP/Skill 代码
-
-**Requirements covered:** FR110, FR112, NFR53, NFR56.
-
-As a 仓库维护者,
-I want 从本仓库移除 API、MCP、Worker 和 repo-scoped skill,
-So that 仓库边界和依赖图只服务 Web 与 core。
-
-**Acceptance Criteria:**
-
-**Given** 本仓库不再维护 API/MCP/skill surface
-**When** Story 13.3 完成
-**Then** 删除 `apps/worker/**`、`.agents/skills/pokopia-scene-worker/**`、Worker/MCP/skill 专用验证脚本和 Wrangler/MCP/agents 依赖。
-
-**Given** root package scripts 更新
-**When** 维护者查看 `package.json`
-**Then** `worker:*`、`skill:verify`、`worker:mcp:smoke`、`worker:bundle:check` 等脚本不存在
-**And** `typecheck`、`test`、`build`、`release:verify` 只覆盖 core/web/file-install smoke。
-
-**Given** 新项目未来需要 API/MCP/skill
-**When** Story 13.3 完成
-**Then** 生成 handoff 文档列出被移除 endpoint/tool/resource/prompt/script
-**And** handoff 明确新项目必须依赖 file-installable `scene-core`，不得复制业务规则。
-
-**Given** Web app 是唯一 app
-**When** deploy 脚本运行
-**Then** Cloudflare Pages static deploy 行为保持
-**And** 终端用户 Web 行为不回退。
-
-### Story 13.4: 资源与数据 Single Source of Truth 清理
-
-**Requirements covered:** FR113, FR114, NFR53, NFR57.
-
-As a 维护者,
-I want 明确 catalog 数据、override 和 runtime images 的权威来源,
-So that 后续修改不会在 CSV/JSON/generated TS/runtime assets 之间漂移。
-
-**Acceptance Criteria:**
-
-**Given** catalog business metadata 分布在 source files、generated TS 和 overrides
-**When** Story 13.4 完成
-**Then** 必须明确 canonical source
-**And** generated TS 是否只可由脚本生成必须写入文档或脚本 guard。
-
-**Given** footprint、stacking、dimension、Pokemon preference 和 translation 都会影响 Web 行为
-**When** 数据边界更新
-**Then** 每类业务数据只允许一个维护入口
-**And** Web 和 tests 必须从 core 读取。
-
-**Given** runtime images 影响素材列表、缩略图和导出
-**When** 删除或移动资源
-**Then** 必须先通过 asset reference smoke
-**And** 证明 Web 素材列表、缩略图、预览和导出不回退。
-
-**Given** 大型 raw/source snapshots 仍可能有审计价值
-**When** 它们保留在仓库中
-**Then** 必须标注为 reference-only
-**And** 不得参与运行时导入或测试真相。
-
-### Story 13.5: Web/Core 复杂度与代码量收敛
-
-**Requirements covered:** FR110, FR113, FR114, NFR53, NFR54.
-
-As a 维护者,
-I want 在不改变用户可见行为的前提下降低 Web 和 core 的复杂度,
-So that 后续功能和 bugfix 不再集中到少数超大文件。
-
-**Acceptance Criteria:**
-
-**Given** Web 存在超大组件、样式和测试文件
-**When** Story 13.5 完成
-**Then** 拆分或收敛 `AppShell.tsx`、`styles.css`、大型 component tests 等热点
-**And** 不改变 UI 行为。
-
-**Given** dimension、catalog、fixture、i18n display 和 derived selector 逻辑存在重复
-**When** 重构完成
-**Then** 可共享领域逻辑下沉到 `scene-core`
-**And** Web-only 展示逻辑收敛到 web-local helpers。
-
-**Given** Worker-only compatibility wrappers 或 obsolete fixtures 不再可达
-**When** dead-code cleanup 运行
-**Then** 删除这些代码
-**And** 保持 `SceneDocument v1` payload 与 storage key 行为不变。
-
-**Given** 每个拆分点可能影响用户行为
-**When** Story 13.5 完成
-**Then** 必须有 focused tests 或 existing tests 证明行为不变。
-
-### Story 13.6: 测试与 Release Gate 去配置耦合
-
-**Requirements covered:** FR114, NFR53, NFR54, NFR56.
-
-As a 维护者,
-I want 测试像前端一样从业务代码和数据读取事实,
-So that 默认尺寸、catalog 或配置变化不会导致测试复制旧常量。
-
-**Acceptance Criteria:**
-
-**Given** 测试需要默认尺寸、legacy 尺寸、catalog ids、footprint 或 stacking facts
-**When** Story 13.6 完成
-**Then** 测试应从 `createDefaultSceneDocument`、dimension helpers、catalog helpers 或 shared fixtures 派生
-**And** 不把当前配置复制成第二套测试真相。
-
-**Given** Worker/MCP/skill 已从本仓库移除
-**When** 测试套件更新
-**Then** 删除 Worker/MCP/skill tests
-**And** 保留的业务契约迁移到 `scene-core` direct-call tests。
-
-**Given** Web component/e2e tests 验证用户可见行为
-**When** Story 13.6 完成
-**Then** 它们继续覆盖编辑、保存/恢复、导出、17x17 和 legacy 7x7 行为
-**And** 不依赖 API/MCP endpoint。
-
-**Given** release gate 运行
-**When** `pnpm run release:verify` 执行
-**Then** 覆盖 core/web typecheck、unit tests、build、Playwright smoke、file-install smoke 和 asset-reference smoke
-**And** 不再默认运行 Worker runtime、MCP smoke 或 skill verify。
-
-### Story 13.7: Xzonn 数据重新基线与生成器
-
-**Requirements covered:** FR113, FR114, FR115, NFR53, NFR54, NFR57, NFR59.
-
-As a 维护者,
-I want 使用 Xzonn/PokemonPokopiaDatabase 的 `data/*.txt` 重新基线本地 catalog、translation、Pokemon preference，并 pinned habitat 数据,
-So that 素材名称、编号、分类、标签、喜好筛选、未来 habitat 功能和后续数据维护有可复现的权威输入。
-
-**Acceptance Criteria:**
-
-**Given** Xzonn `data/item.txt`、`data/pokemon.txt` 和 `data/habitat.txt` 是本次数据清理输入
-**When** Story 13.7 完成
-**Then** 这些文件必须作为 pinned upstream snapshot 或 generator 输入记录在仓库中
-**And** 记录 upstream commit 和同步方式。
-
-**Given** 本地 `source-*.ts` 会被 Web 和 downstream `scene-core` 消费
-**When** 生成器运行
-**Then** 生成器必须可复现输出受影响的 snapshot
-**And** 提供 stale check 或等价 guard。
-
-**Given** 条目可唯一匹配到 Xzonn
-**When** 数据生成
-**Then** 中文名、Pokemon 喜好、item 喜好类别和素材筛选 category 使用 Xzonn txt 数据
-**And** `AssetDefinition.category` 可保留内部枚举，但必须由 Xzonn `分类` 字段映射生成。
-
-**Given** Xzonn 缺失或无法唯一确认本地条目
-**When** 生成器处理这些条目
-**Then** 保留本地条目
-**And** 非 Interior/wallpaper 的本地新条目或命名差异以本地数据为准
-**And** 审计报告列出待人工确认项，不静默删除。
-
-**Given** Xzonn `data/item.txt` 包含 `10001-10056`
-**When** 生成 source/habitat matching input
-**Then** 这些泛化匹配项必须进入 source 或未来 habitat matcher 输入
-**And** 不得进入当前 `assetCatalog`、Asset Picker、导出素材清单或普通素材搜索结果。
-
-**Given** Pokemon 特殊 form 存在本地命名和 Xzonn 行差异
-**When** 生成 Pokemon 数据
-**Then** 必须有显式 Xzonn row mapping
-**And** `peakychu` 对应 Xzonn `皮卡丘`/`浅色`，但 Web 显示名使用“浅浅丘”。
-
-**Given** 过去已有用户导出的短字符串
-**When** 数据编号或 catalog 显示编号变化
-**Then** `PSE1`/`PSE2` 旧字符串仍必须 decode 成相同的稳定 scene 语义
-**And** 旧 PokopiaDex id 必须作为 decode alias 映射回稳定 `assetId`。
-
-**Given** `habitat.txt` 当前没有 Web/runtime 消费者
-**When** Story 13.7 完成
-**Then** 它只做 pinned snapshot、schema/checksum 校验和未来 generator 输入
-**And** 不新增 Web UI、SceneDocument 字段或 runtime catalog 消费。
+- AppShell/component tests 覆盖 mobile empty、valid storage、invalid storage、import success、invalid import、lossy import、cancel、close。
+- Tests 明确断言 mobile import 不调用 system prompt/confirm。
+- Tests 明确断言 mobile inline preview 和 desktop modal preview 使用同一 scene summary 内容。
+- Playwright 390x844 覆盖 no-storage import path、stored-scene preview path、无编辑控件和无布局重叠。
+- Existing desktop edit/autosave/download-preview tests 继续通过。
+- 验证命令至少包含 web focused tests、web typecheck、web build 和 Playwright mobile smoke。

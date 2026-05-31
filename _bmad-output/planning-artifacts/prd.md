@@ -120,6 +120,14 @@ MVP 保留的闭环是：7×7 画布、中心 5×5 主体区与外围装饰区�
 
 Epic 1-12 的详细需求和完成历史归档到 `_bmad-output/archive/2026-05-30/planning-artifacts/epics-1-12-completed.md`。Active PRD/epics/tracker 只承载 Epic 13 仓库瘦身与 Scene Core 库化。终端用户 Web 行为不得回退：编辑、保存/恢复、默认 15x15 / 17x17 尺寸、legacy 7x7 恢复、footprint、stacking、层备注、导出预览和图片下载都必须保持。`SceneDocument v1` 继续保持；本次不需要 schema change。
 
+### Approved Course Correction - 2026-05-31 Mobile 导入与下载预览模式重写
+
+本 PRD 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-31-mobile-import-preview.md` 增加 Epic 14。Mobile 目标从“缩窄版只读工作台”调整为“导入驱动的布景说明预览”：`<768px` 下系统优先读取本地 scene storage 的最新有效 `SceneDocument`；存在记录时直接展示与 desktop “下载预览”相同的布景说明内容；不存在记录时显示“导入字符串”按钮。
+
+Mobile 允许用户通过显式“导入字符串”操作替换当前本地布景记录。该操作必须使用自定义 modal 输入和确认，不使用系统 `prompt` / `confirm`；导入成功后写入现有 scene storage，以便刷新或再次进入 mobile 时继续显示该布景。Mobile 仍不提供完整编辑体验，不允许素材放置、删除、旋转、染色、技能编辑、建筑层编辑、层备注编辑、撤销/重做、JSON 文件导入/导出、分享链接、云同步或账号。
+
+`SceneDocument v1`、PSE1/PSE2 短字符串 codec、footprint/stacking/dimension 派生规则和 export summary contract 继续保持。本次变更只调整 mobile surface、导入 UI 和 export preview 的承载方式：desktop 继续使用 modal 下载预览，mobile 使用页面内 inline preview。
+
 ### What Makes This Special
 
 本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：默认中心 15×15 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、受控承载/叠放、素材实例级技能标记，以及完整 17×17 预览。
@@ -325,13 +333,13 @@ Pokopia 布景编辑器应作为浏览器端 Web App 提供核心编辑体验。
 
 MVP 应支持当前主流桌面浏览器的现代版本，包括 Chrome、Edge、Safari 和 Firefox。优先优化桌面浏览器体验，因为编辑器包含多面板布局、网格画布、素材列表、建筑层面板和检查器预览，主要使用场景更接近桌面创作工具。
 
-移动浏览器可以作为浏览和轻量预览的后续增强方向，但不应作为 MVP 的主要编辑目标。若移动端访问 MVP，应进入只读检查模式，隐藏编辑控件、素材栏、保存/删除、建层、上下文操作和染色控件，保证页面不崩溃、内容可查看、主要状态不重叠。
+移动浏览器不是完整编辑目标。`<768px` 下进入 Mobile Preview Mode：系统读取本地保存布景并以内联下载预览形式展示；没有本地记录时显示“导入字符串”入口。移动端隐藏桌面工作台编辑控件、素材栏、建层、重置、上下文编辑和染色控件，保证页面不崩溃、布景说明内容可读、主要状态不重叠。
 
 ### Responsive Design
 
 桌面端应采用 Open Design 工作台布局：右侧浮动素材栏、中央尺寸驱动编辑画布、左侧建筑层面板、左下双预览检查器、顶部 Pokemon/场景名/保存状态和图标工具应同时可见或易于访问。默认 17×17 画布可使用内部滚动、缩放或稳定压缩；画布应保持稳定比例，避免因素材结果、建筑层状态或检查器内容变化导致网格尺寸跳动。
 
-1024-1279px 时左侧建筑层仍应可见，右侧素材栏可收窄；768-1023px 时面板可变成 tabbed drawer，但画布和当前上下文仍保持可见；768px 以下进入 Mobile View-only Mode。较窄视口必须保留核心状态可见性：当前 Pokemon、场景名、当前建筑层、选中素材、选中格子、主体区边界和技能标记不能被隐藏到用户无法理解当前状态的程度。
+1024-1279px 时左侧建筑层仍应可见，右侧素材栏可收窄；768-1023px 时面板可变成 tabbed drawer，但画布和当前上下文仍保持可见；768px 以下进入 Mobile Preview Mode。移动端不再展示完整工作台，而是展示本地保存布景的 inline 下载预览内容，或在无记录时展示“导入字符串”入口。
 
 ### Performance Targets
 
@@ -494,6 +502,17 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR91: 图片导出预览和下载图片必须在每个建筑层的素材清单下方显示该层备注；没有备注的层不得产生误导性的空备注内容。
 - FR92: Worker export-summary、MCP `summarize_scene_export` 和 Web 图片导出必须使用同一层备注语义，按建筑层 id/name/levelNumber 关联备注。
 
+### Mobile Preview / Import
+
+- FR109: `<768px` 下系统必须进入 Mobile Preview Mode，而不是渲染完整 desktop workbench 或旧 mobile read-only workbench。
+- FR110: Mobile startup 必须读取本地 scene storage 的最新有效 `SceneDocument`；读取成功时直接以内联方式展示与 desktop “下载预览”相同的布景说明内容。
+- FR111: Mobile 没有本地有效记录时必须显示“导入字符串”按钮；invalid stored scene 不得静默成功，应显示可读错误并保留导入入口。
+- FR112: Mobile “导入字符串”必须使用自定义 modal，包含字符串输入、确认、取消和关闭按钮；不得使用系统 `window.prompt` 或 `window.confirm`。
+- FR113: Mobile 导入必须复用现有短字符串 decode、lossy recovery 和 `SceneDocument` recovery 逻辑；invalid string 显示错误且不得写 storage。
+- FR114: Mobile 导入成功后必须写入现有 scene storage，使刷新或重新进入 mobile 后能直接显示导入的布景。
+- FR115: Mobile inline preview 与 desktop 下载预览必须共享同一 scene-derived 内容，包括标题、Pokemon、canvas dimensions、整体素材清单、逐层图形、逐层素材清单、层备注、footprint/stacking 表达、安全文本和 i18n。
+- FR116: Mobile 仍不得提供素材放置、删除、旋转、染色、技能编辑、建筑层编辑、层备注编辑、撤销/重做、JSON 文件导入/导出、分享链接、云同步或账号。
+
 ### Scene Worker, MCP & Codex Skill
 
 Superseded by Epic 13.3 on 2026-05-30: FR69-FR76 are historical requirements only and are no longer active backlog for this repository. Future API/MCP/Worker/skill projects must use the external handoff and depend on file-installed `@pokopia-scene-editor/scene-core` instead of restoring `apps/worker` or `.agents/skills/pokopia-scene-worker`.
@@ -539,6 +558,8 @@ Superseded by Epic 13.3 on 2026-05-30: FR69-FR76 are historical requirements onl
 - NFR50: 17x17 画布在 1280px+ 桌面布局中不得让素材栏、建筑层面板、检查器或导出预览互相遮挡；允许使用缩放、滚动或稳定压缩，但不能破坏格子固定宽高比和坐标可读性。
 - NFR51: 图片导出预览和图片生成在 17×17 画布、10 个建筑层、每层最多 289 个素材实例以内的测试场景中，应在用户感知上可接受；若生成超过 1 秒，应显示非阻塞进度或生成状态。
 - NFR52: 新尺寸短字符串必须避免与 legacy PSE1 7x7 字符串歧义；解码错误必须说明 codec/version 或 dimensions 问题，并给出重新导出或使用完整 JSON 的修复方向。
+- NFR53: Mobile 导入成功只能写入现有 scene storage，不得写 UI preferences，不得保存 `ImageExportSummary`、footprint/stacking derived state 或任何下载预览专用状态。
+- NFR54: Mobile inline preview 和 desktop download preview 必须共用同一内容组件或等价共享渲染路径，防止素材清单、逐层图形、层备注或安全文本表达漂移。
 
 ### Usability
 
@@ -547,20 +568,23 @@ Superseded by Epic 13.3 on 2026-05-30: FR69-FR76 are historical requirements onl
 - NFR13: 删除、旋转、染色和预览查看必须能从主编辑界面通过一次点击触发；桌面键盘快捷操作不作为 MVP 强制要求，显式导出入口若进入 MVP，也必须遵守同一可达性约束。
 - NFR14: 用户不应需要理解内部 JSON 结构才能完成创建、编辑、预览、保存和恢复流程。
 - NFR15: 错误提示必须说明问题字段或操作原因，并给出至少一个用户可执行的修复方向。
-- NFR42: 层备注编辑不得挤压 7x7 画布或改变格子固定尺寸；在桌面布局中输入框位于选中空格提示框下方，在 `<768px` Mobile View-only Mode 中只能查看不能编辑。
+- NFR42: 层备注编辑不得挤压 7x7 画布或改变格子固定尺寸；在桌面布局中输入框位于选中空格提示框下方，在 `<768px` Mobile Preview Mode 中只能通过 inline 下载预览查看不能编辑。
+- NFR55: Mobile 无本地记录、invalid stored scene、invalid import、lossy import、cancel 和 close 状态必须提供明确反馈；用户不应需要理解内部 JSON 才能完成 mobile 导入和预览。
 
 ### Accessibility
 
 - NFR16: 所有主要按钮、输入框、筛选控件、建筑层操作和预览切换控件必须有可访问名称；可通过浏览器无障碍树检查或等效自动化测试验证。
 - NFR17: 关键状态不得只依赖颜色表达；主体区、外围区、选中格和技能标记必须至少通过图标、边框、文本、角标或形态中的两种方式表达。
-- NFR18: 桌面和平板编辑模式下的键盘快捷操作不作为 MVP 强制要求；现有键盘支持可以保留或删除。Mobile View-only Mode 下必须禁用应用级键盘操作，不允许键盘触发选择、放置、删除、旋转、保存、撤销/重做、建筑层切换或任何 scene/view command。
+- NFR18: 桌面和平板编辑模式下的键盘快捷操作不作为 MVP 强制要求；现有键盘支持可以保留或删除。Mobile Preview Mode 下必须禁用应用级编辑键盘操作，不允许键盘触发选择、放置、删除、旋转、保存、撤销/重做、建筑层切换或任何 scene edit command；导入 modal 内的文本输入和按钮键盘操作必须保持可访问。
 - NFR19: 在 Chrome、Edge、Safari 和 Firefox 的最新两个稳定大版本中，1280×720 桌面视口和 390×844 窄视口下，主要按钮、字段标签、建筑层名称、坐标和错误提示不得被截断到无法识别。
 
 ### Compatibility & Responsive Behavior
 
 - NFR20: MVP 应支持发布时 Chrome、Edge、Safari 和 Firefox 的最新两个稳定大版本；发布验收必须在这些浏览器中完成核心创建、编辑、预览、保存/自动保存和重新打开流程。
 - NFR21: 在 1280px 及以上桌面宽度下，右侧浮动素材栏、中央尺寸驱动画布、左侧建筑层面板、左下双预览检查器和顶部场景控制必须同时可见或可通过一次点击切换显示；默认 17×17 画布可采用内部滚动或缩放，但页面不得出现横向滚动条。
-- NFR22: 在 768px 以下宽度下，页面进入 Mobile View-only Mode；390×844 视口下不得出现控件重叠，且当前 Pokemon、场景名、当前建筑层、选中素材、选中格子、主体区边界和技能标记状态必须在当前查看或预览区域中可访问。
+- NFR22: 在 768px 以下宽度下，页面进入 Mobile Preview Mode；390×844 视口下不得出现控件重叠，且有本地布景时 scene name、Pokemon、canvas dimensions、整体素材清单和逐层图形必须可访问；无本地布景时“导入字符串”入口必须可访问。
+- NFR56: Mobile import modal 必须有可访问名称，确认、取消和关闭按钮必须可通过键盘和屏幕阅读器识别；关闭和取消不得改变 scene 或写 storage。
+- NFR57: Playwright/mobile smoke 必须覆盖 390×844 下 no-storage import path、stored-scene inline preview path、invalid import、无编辑控件和无布局重叠。
 - NFR23: 画布网格应保持固定宽高比；素材搜索结果、筛选项、上下文/属性字段、建筑层列表或预览检查器内容变化时，单格尺寸变化不得超过 1px。
 
 ### Security & Data Safety

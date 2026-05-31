@@ -118,7 +118,15 @@ Stacking surface 是 asset catalog metadata：默认不可承载、不可被同�
 
 Epic 1-12 归档为完成历史，active architecture/backlog 只服务 Epic 13。生产发布继续是 Cloudflare Pages static assets；默认 release gate 应聚焦 core/web typecheck、unit tests、build、Playwright smoke、file-install smoke 和 asset-reference smoke。本次继续保持 `SceneDocument v1`，不得新增 `SceneDocument v2` 或保存 derived footprint/stacking/dimension state。
 
-另有 58 条 Non-Functional Requirements，核心架构约束包括：
+### Approved Course Correction - 2026-05-31 Mobile 导入与下载预览模式重写
+
+本 Architecture 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-31-mobile-import-preview.md` 增加 Epic 14。`<768px` 下的 mobile surface 从完整工作台的只读版本改为导入驱动的布景说明预览 surface：读取本地 scene storage，有有效 `SceneDocument` 时构建 `ImageExportSummary` 并以内联方式展示与 desktop “下载预览”相同的内容；没有有效记录时展示自定义“导入字符串”入口。
+
+Mobile import 是一个显式 replacement flow，不是普通编辑能力。普通 scene edit commands 仍受 `interactionMode` / read-only guard 阻断；mobile import 必须复用现有短字符串 decode、lossy recovery、`applyRecoveredSceneDocument` 和 scene storage adapter。导入成功只写入现有 scene storage，不写 UI preferences，不保存 export summary 或任何 footprint/stacking derived state。
+
+`ExportPreview` 必须拆出共享 content/presentation 层，desktop modal wrapper 与 mobile inline wrapper 共享同一 scene-derived 内容。Desktop 继续使用 modal/backdrop/focus trap/download controls；mobile inline surface 不使用 `aria-modal`、不 trap focus、不遮挡页面。
+
+另有 63 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
 - 预览切换需要在 300ms 内完成首个可见更新；素材搜索筛选 1000 个素材以内需要在 200ms 内返回可见结果。
@@ -129,7 +137,7 @@ Epic 1-12 归档为完成历史，active architecture/backlog 只服务 Epic 13�
 - Stacking surface compatibility 和 derived stacking relation 必须由 `scene-core` 确定性派生；不得保存为独立 state。
 - 恢复数据或未来导入 JSON 必须作为数据处理，用户自定义名称、备注和技能说明必须按安全文本渲染，不得作为 HTML 或脚本执行。
 - 基础可访问性目标是 WCAG 2.2 AA，关键状态不能只依赖颜色表达。
-- 1280px 及以上使用完整 Open Design 浮动工作台，768px 以下进入 Mobile View-only Mode，不允许任何场景写操作。
+- 1280px 及以上使用完整 Open Design 浮动工作台，768px 以下进入 Mobile Preview Mode；普通编辑命令不得写 scene，只有显式 import flow 可替换本地 scene storage。
 - 默认 17x17 画布可以使用内部缩放、滚动或稳定压缩，但不得破坏格子固定宽高比、坐标可读性、主/外围区语义或移动端只读边界。
 
 Open Design UI 确认了新的工作台形态。架构上应支持一个桌面优先的单页工作台：顶部左侧 Pokemon/场景名/保存状态，右侧浮动 Asset Picker，中央尺寸驱动画布（新建场景默认 17x17），左侧 Building Level Panel，左下 Preview Inspector 同时展示正视图和俯视图。动态 Pokemon 主题只影响外层 shell 和少量强调色，不允许覆盖主体区、外围区、当前层、选中格、技能标记、锁定层、隐藏、警告和错误状态等语义状态色。
@@ -140,7 +148,7 @@ Open Design UI 确认了新的工作台形态。架构上应支持一个桌面�
 - 当前生产部署采用 pnpm workspace monorepo + Cloudflare Pages static assets：`apps/web` 承载浏览器编辑器，`packages/scene-core` 承载共享领域规则。`apps/worker` 保留为本地 API/MCP 开发与测试适配层，但不再进入生产发布路径。
 - Scene document 必须是编辑数据的单一事实来源。画布、上下文/检查器字段、建筑层列表、预览和保存/恢复校验不得维护互相分叉的业务状态。
 - 所有会修改 scene document 的行为都应经过统一 command 层，便于只读模式、校验、自动保存和自动化测试；MVP 不提供撤销/重做。
-- `<768px` 的只读边界不能只靠隐藏按钮实现；command 层、canvas pointer handler 和 keyboard handler 都必须检查 `interactionMode`。
+- `<768px` 的编辑禁用边界不能只靠隐藏按钮实现；command 层、canvas pointer handler 和 keyboard handler 都必须检查 `interactionMode`。Mobile import 作为独立显式 replacement flow 实现，不得复用普通编辑 command 绕过 guard。
 - 建筑层、素材实例、染色/朝向/技能状态和保存/恢复 schema 是最重要的领域模型边界，应优先稳定。
 - 正视图在 MVP 中应是结构化高度关系预览，不做真实游戏视角和复杂遮挡模拟。
 - 素材库在 MVP 中可以使用静态/本地数据源，但数据结构必须支持官方素材 ID、Pokemon 喜好、可染色性、footprint、后续批量导入、模板、更多技能类型和更大画布扩展。
@@ -435,6 +443,7 @@ Epic 7/8 新增无状态 service layer 与 shared domain rules：
 - Pokemon Scene Controls read selected Pokemon and scene name
 - Recovery Validator reads schema validation result
 - Image Export Preview reads export summary/render data, including layer notes, derived from SceneDocument and asset catalog
+- Mobile Scene Preview reads the same export summary/render data as Image Export Preview, but renders it inline instead of inside a dialog
 
 组件可以拥有 local UI state，例如 hover cell、focused control、panel open state、search input text、filter controls、favorite-only、zoom/pan 或 modal open state；这些 UI 偏好可以保存到 localStorage，但不能复制 `SceneDocument` 的业务字段作为独立 truth，也不能进入自动保存 payload 或图片导出业务摘要。
 
@@ -470,7 +479,7 @@ command layer 必须统一检查：
 
 MVP 是单页工作台，不引入 React Router。未来如果加入方案库、模板、公开分享页或文档页，再引入 routing。
 
-**Decision: Mobile read-only mode is architecture-level, not CSS-only.**
+**Decision: Mobile preview/import mode is architecture-level, not CSS-only.**
 
 统一定义：
 
@@ -478,7 +487,7 @@ MVP 是单页工作台，不引入 React Router。未来如果加入方案库、
 type InteractionMode = "edit" | "readOnly";
 ```
 
-`<768px` 时进入 `readOnly`。只读模式允许通过指针改变查看状态，例如选中格子、当前查看建筑层、预览模式、缩放和平移；应用级键盘操作必须 no-op。只读模式禁止改变 scene document、实例列表、建筑层、染色、技能标记或 autosave state。
+`<768px` 时进入 `readOnly` interaction mode，但用户可见 surface 是 Mobile Preview Mode，而不是完整只读工作台。普通编辑命令、canvas pointer mutation 和应用级编辑键盘操作必须 no-op。Mobile 只允许两个高层行为：读取本地 scene storage 并以内联下载预览方式展示；通过自定义 import modal 显式替换本地 scene storage。该 import flow 必须走 decode/recovery/storage adapter，不得直接 mutate scene object 或保存派生状态。
 
 ### Infrastructure & Deployment
 
@@ -697,13 +706,15 @@ MVP 不引入全局 event bus。组件通信走 React props/context + command di
   - `error`
 - loading state 命名使用 `status` union，不使用多个散落 boolean，例如避免 `isLoading` + `hasError` + `isDone` 同时存在。
 
-**Responsive and Read-Only Patterns**
+**Responsive and Mobile Preview Patterns**
 
 - `interactionMode` 是权限边界，不是样式变量。
-- `<768px` 必须进入 `readOnly`。
-- read-only 允许通过指针 selection、preview mode、current viewed level、zoom/pan 和查看详情。
-- read-only 禁止 place、delete、rotate、dye, skill toggle、layer note mutate、level mutate、recover replace 和 autosave。
+- `<768px` 必须进入 `readOnly` interaction mode，并渲染 Mobile Preview Mode surface。
+- mobile preview 有本地有效 scene 时展示 inline export preview content；无有效 scene 时展示 import string empty state。
+- mobile import 是唯一允许的 replacement flow，必须由用户显式确认，并写入现有 scene storage。
+- read-only 禁止 place、delete、rotate、dye, skill toggle、layer note mutate、level mutate、普通 recover replace 和 autosave。
 - command layer 和 canvas pointer handler 必须检查只读边界；mobile application keyboard handler 必须 no-op。
+- mobile import modal 内的 textarea 和确认/取消/关闭按钮必须保持标准键盘可访问性。
 
 **Safe Text Rendering Patterns**
 
@@ -1014,7 +1025,7 @@ MVP web app 不使用 service/repository/database layer。跨组件业务操作�
 **Cross-Cutting Concerns**
 
 - Single source of truth：`apps/web/src/state/scene-state.ts`、`scene-reducer.ts`、`packages/scene-core` selectors 和 occupancy helpers。
-- Mobile read-only：`apps/web/src/state/interaction-mode.ts`、scene commands、canvas handlers、`apps/web/e2e/mobile-readonly.spec.ts`。
+- Mobile preview/import：`apps/web/src/state/interaction-mode.ts`、scene commands、canvas handlers、`apps/web/src/components/export-preview/`、mobile preview wrapper、scene-string import modal、`apps/web/e2e/mobile-readonly.spec.ts` or equivalent mobile preview smoke。
 - Safe text rendering：`apps/web/src/io/safe-text.ts` 或 shared safe-text helper、React text rendering conventions、web/shared unsafe text fixtures、`apps/web/e2e/unsafe-text.spec.ts`。
 - Accessibility：component tests for accessible names, Playwright smoke across desktop/mobile.
 - Performance：domain selectors kept pure and memoizable in `packages/scene-core`; asset filtering lives in `packages/scene-core/src/domain/assets/filters.ts`; virtualization/pagination added inside `apps/web/src/components/asset-picker/` only when implementation requires it.
@@ -1037,6 +1048,7 @@ View-only state such as hover cell, selected panel tab, zoom/pan, asset search/f
 MVP web app has no required external service integrations. Browser APIs used:
 
 - localStorage or equivalent local scene storage adapter for MVP autosave and reopen.
+- localStorage scene storage adapter for mobile startup restore and explicit mobile import persistence.
 - localStorage UI-preferences namespace for asset search/filter/favorite-only; this namespace is explicitly outside SceneDocument.
 - File input / drag-and-drop for future explicit import, outside current MVP UI.
 - Canvas/SVG/Blob URL/download for current image export, browser-only and outside any backend integration.
@@ -1078,6 +1090,21 @@ Image export preview
         -> derive overall material summary and per-layer summaries
         -> render export image preview
         -> no SceneDocument mutation and no storage write
+
+Mobile startup
+        -> readLatestSceneDocumentFromStorage
+        -> valid scene: buildImageExportSummary
+        -> inline export preview content
+        -> no autosave side effect
+
+Mobile import string
+        -> custom modal textarea
+        -> decodeSceneDocumentStringWithLossyRecovery
+        -> applyRecoveredSceneDocument with explicit import source
+        -> write imported scene to scene storage
+        -> buildImageExportSummary
+        -> inline export preview content
+        -> no UI preference write and no derived-state persistence
 
 Image export download
         -> use same export render data as preview

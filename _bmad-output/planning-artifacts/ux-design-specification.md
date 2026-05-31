@@ -92,6 +92,14 @@ pokopia-scene-editor 是一个面向 Pokopia 布景创作者的结构化布景�
 
 终端用户工作台不因仓库瘦身改变。Scene Canvas、Asset Picker、Building Level Panel、Selection Inspector、Preview Inspector、Export Preview、Mobile View-only Mode、i18n、安全文本、17×17/legacy 7×7 表达、footprint、stacking 和层备注体验都必须保持。Developer / Agent Workflow Surface 从本仓库外迁；API/MCP/skill failure 不再是本仓库 UX concern。
 
+### Approved Course Correction - 2026-05-31 Mobile 导入与下载预览模式重写
+
+本 UX 规格已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-31-mobile-import-preview.md` 增加 Epic 14。Mobile 不再作为桌面工作台的缩窄只读版本，而是成为导入驱动的布景说明预览 surface。`<768px` 下，用户只看到本地保存布景的 inline 下载预览内容，或在没有本地记录时看到“导入字符串”入口。
+
+Mobile inline preview 的内容必须与 desktop “下载预览”一致，包括标题、Pokemon、canvas dimensions、整体素材清单、逐层图形、逐层素材清单、层备注、footprint/stacking 表达、安全文本和 i18n。区别仅在容器：desktop 使用 modal，mobile 使用页面内 inline surface。
+
+Mobile 导入必须使用自定义 modal，不使用系统输入框或系统确认框。modal 提供粘贴 textarea、确认、取消和关闭按钮；invalid string 留在 modal 内显示错误；存在 lossy recovery 时列出丢弃素材并要求二次确认。导入成功后 mobile 页面直接进入 inline preview，不弹出下载预览层。Mobile 仍不提供任何编辑器能力。
+
 ### Target Users
 
 目标用户包括 Pokopia 布景创作者和素材库维护者。布景创作者需要把灵感或搭建方案整理成可复现、可继续编辑、可分享的数据；素材库维护者需要维护素材名称、分类、标签、适用区域、技能需求、footprint、承载/叠放规则、缩略图和筛选信息，让创作者能快速找到正确素材。
@@ -717,29 +725,29 @@ MVP 采用桌面优先 Web App。`1280px+` 使用完整三栏工作台：左侧�
 
 `768-1279px` 保留编辑能力，但压缩布局：素材库与检查器可改为抽屉、标签页或单侧面板。当前素材、选中格子、当前楼层、技能状态必须一键可达。
 
-`<768px` 进入 **Mobile View-only Mode**。Mobile 不是简化编辑器，而是只读检查器/预览器。允许查看场景、切换楼层、点选格子或实例查看属性、查看当前层备注、查看素材信息、缩放和平移画布、查看恢复校验结果。禁止放置、移动、旋转、删除、修改属性、修改楼层、新增/编辑/删除层备注、切换技能状态、保存、自动保存、导入覆盖、撤销/重做、批量清空和任何会改变场景数据或 dirty state 的行为。
+`<768px` 进入 **Mobile Preview Mode**。Mobile 不是简化编辑器，也不再展示完整只读工作台。它只承担两个任务：读取本地保存布景并以内联下载预览形式展示；无记录时允许通过自定义导入 modal 粘贴布景字符串。禁止放置、移动、旋转、删除、修改属性、修改楼层、新增/编辑/删除层备注、切换技能状态、撤销/重做、批量清空和任何普通编辑行为。
 
-Mobile 上编辑入口应禁用或不渲染，并显示“桌面端编辑”提示。画布标签与界面状态需要明确标记“只读模式”。
+Mobile 有本地有效布景时，页面主体就是 inline 下载预览内容；无本地布景时，页面主体是空状态和“导入字符串”按钮。Mobile 上编辑入口不渲染；导入是唯一允许替换本地布景记录的显式流程。
 
 ### Breakpoint Strategy
 
 - `1280px+`: 完整三栏工作台，无横向滚动。
 - `1024-1279px`: 紧凑桌面/平板横屏，缩窄侧栏，保持画布稳定。
 - `768-1023px`: 平板布局，一次展示一个辅助面板，但仍允许编辑。
-- `<768px`: 只读预览/检查模式，不允许编辑。
+- `<768px`: Mobile Preview Mode，不渲染完整工作台；有本地布景则显示 inline 下载预览，无本地布景则显示导入入口。
 - `390x844`: 必测目标，确认无控件重叠，且任何编辑路径都不可触发。
 
-从桌面缩小到 Mobile 时，如果已有未保存编辑，必须保留草稿并进入只读预览，提示用户回到桌面宽度继续编辑；从 Mobile 放大回桌面后恢复编辑能力，不能丢失查看位置、选中实例或未保存状态。
+从桌面缩小到 Mobile 时，如果已有未保存编辑，必须保留草稿；Mobile surface 读取当前可用 scene/storage 并显示 inline 下载预览，不得触发普通 autosave 或编辑 command。从 Mobile 放大回桌面后恢复编辑能力，不能丢失桌面 scene state。
 
 ### Accessibility Strategy
 
 目标基线为 WCAG 2.2 AA。
 
 - 所有工具栏、筛选、楼层、预览、图片导出和恢复控件都有可访问名称。
-- Scene Canvas 暴露整体标签、当前格子状态，并在 Mobile 下说明“只读模式”。
+- Scene Canvas 在桌面/平板布局中暴露整体标签、当前格子状态；Mobile Preview Mode 不要求渲染 Scene Canvas，而是要求 inline 下载预览和导入 modal 有明确可访问名称。
 - 键盘用户可在桌面/平板编辑模式下用方向键移动选区，`Enter` / `Space` 确认，`Escape` 取消。
-- Mobile 下键盘只能移动查看焦点或选择查看对象，不能通过 `Enter`、`Space`、`Delete`、`Backspace`、`Cmd/Ctrl+S` 或隐藏快捷键触发编辑。
-- 禁用控件使用 `aria-disabled` 或等价语义，并提供“桌面端编辑”的可读说明。
+- Mobile 下键盘不能通过 `Enter`、`Space`、`Delete`、`Backspace`、`Cmd/Ctrl+S` 或隐藏快捷键触发编辑。导入 modal 内 textarea、确认、取消和关闭按钮必须保持标准键盘操作。
+- 禁用或隐藏的桌面编辑入口不得留下可触发的隐藏编辑路径；如保留只读提示，必须说明 mobile 只能预览或导入字符串。
 - 状态不能只依赖颜色：主区域、外围区域、悬停、选中、锁定、隐藏、技能标记、错误状态至少使用两种视觉通道。
 - 宝可梦动态背景必须计算可读前景色，且不能覆盖错误、警告、选中等语义状态色。
 - 遵守 `prefers-reduced-motion`，动态背景切换和悬停动效需要禁用或缩短。
@@ -748,13 +756,16 @@ Mobile 上编辑入口应禁用或不渲染，并显示“桌面端编辑”提�
 
 响应式测试覆盖 `1440x900`、`1280x720`、`1024x768`、`768x1024`、`390x844`，并分别覆盖 legacy 7×7 与默认 17×17 场景。
 
-Mobile 只读测试必须验证：
+Mobile preview/import 测试必须验证：
 
-- 点击、双击、长按、拖拽、拖放素材到画布都不能创建或移动实例。
-- 素材卡点击只能查看详情，不能进入待放置状态。
-- 属性字段和层备注编辑入口不可编辑；如可见，必须是 `readOnly` 或 `disabled`。
-- 保存、自动保存、导入覆盖、撤销/重做、删除快捷键、保存快捷键和图片导出快捷路径都不能改变 scene JSON。
-- 执行所有 Mobile 只读交互后，比对 scene JSON 快照必须完全一致。
+- 无本地 scene storage 时只显示“导入字符串”入口，不显示桌面素材栏、建筑层编辑、实例编辑、重置或桌面导出 modal 入口。
+- 有有效本地 scene storage 时显示 inline 下载预览内容，不显示 dialog/backdrop。
+- 自定义导入 modal 包含 textarea、确认、取消和关闭；不得调用系统 `prompt` 或 `confirm`。
+- invalid import 留在 modal 内显示错误，不写 scene storage。
+- lossy import 显示丢弃素材明细，用户二次确认后才导入兼容内容。
+- import cancel/close 不改变 scene，不写 scene storage，不写 UI preferences。
+- import success 写入现有 scene storage，并立即显示 inline 下载预览。
+- 保存、自动保存、撤销/重做、删除快捷键、保存快捷键和图片导出快捷路径都不能触发普通编辑或改变 scene JSON。
 - 恢复校验可以显示错误和定位，但不能自动修复或写回场景。
 - 从桌面缩小到 Mobile 再放大回桌面，不得出现延迟提交、丢失草稿或意外 dirty state。
 
