@@ -1221,4 +1221,5 @@ export const sourcePlaceableAssetNameTranslations: Readonly<Record<number, strin
   2371: "冒险套装",
   2372: "帐篷套装",
   2373: "红色水晶碎片",
+  2374: "藤蔓",
 };

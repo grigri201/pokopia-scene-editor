@@ -16,7 +16,7 @@ import { assetStackingOverrideAssetIds, defaultAssetStacking } from './stacking-
 
 describe('asset catalog', () => {
   it('provides complete static metadata for each seed asset', () => {
-    expect(assetCatalog).toHaveLength(1160);
+    expect(assetCatalog).toHaveLength(1161);
 
     for (const asset of assetCatalog) {
       expect(asset.assetId).not.toBe('');
@@ -92,6 +92,18 @@ describe('asset catalog', () => {
     expect(woodenFloor).toMatchObject({ officialId: '661', sceneCodecOfficialId: '390', name: '木栏杆', category: 'buildings' });
   });
 
+  it('includes local Infipoke-only fallback placeable items', () => {
+    expect(getAssetById('vine')).toMatchObject({
+      officialId: '2374',
+      sceneCodecOfficialId: '2374',
+      name: '藤蔓',
+      englishName: 'Vine',
+      category: 'nature',
+      thumbnailUrl: '/assets/pokopia_image_sources/item_portraits/1220-vine.png',
+      thumbnailAlt: '藤蔓缩略图',
+    });
+  });
+
   it('sorts the catalog by official item number from low to high', () => {
     const officialIds = assetCatalog.map((asset) => Number(asset.officialId));
 
@@ -106,6 +118,8 @@ describe('asset catalog', () => {
     expect(getAssetById('cooking-stove')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('wooden-bench')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
     expect(getAssetById('curved-eave')?.footprint).toEqual({ length: 2, width: 1, height: 1 });
+    expect(getAssetById('canoe')?.footprint).toEqual({ length: 2, width: 1, height: 1 });
+    expect(getAssetById('firepit')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
     expect(getAssetById('large-boulder')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
     expect(getAssetById('bread-oven')?.footprint).toEqual({ length: 1, width: 1, height: 2 });
     expect(assetFootprintOverrideAssetIds.every((assetId) => getAssetById(assetId))).toBe(true);

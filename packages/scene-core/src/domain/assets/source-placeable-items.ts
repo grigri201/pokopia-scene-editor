@@ -142,6 +142,7 @@ export const sourcePlaceableAssetItems = [
   {"id":746,"sourceNumber":122,"name":"Duckweed","slug":"duckweed","menuCategory":"Nature","sourceCategory":"自然","tags":[],"favoriteCategoryIds":[],"imageFileName":"0124-duckweed.png"},
   {"id":2042,"sourceNumber":123,"name":"Flowering Duckweed","slug":"flowering-duckweed","menuCategory":"Nature","sourceCategory":"自然","tags":[],"favoriteCategoryIds":[],"imageFileName":"0125-flowering-duckweed.png"},
   {"id":1374,"sourceNumber":124,"name":"Dense vines","slug":"dense-vines","menuCategory":"Nature","sourceCategory":"自然","tags":[],"favoriteCategoryIds":[],"imageFileName":"0126-dense-vines.png"},
+  {"id":2374,"name":"Vine","slug":"vine","menuCategory":"Nature","tags":[],"favoriteCategoryIds":[],"imageFileName":"1220-vine.png"},
   {"id":1303,"sourceNumber":125,"name":"Moss","slug":"moss","menuCategory":"Nature","sourceCategory":"自然","tags":[],"favoriteCategoryIds":[],"imageFileName":"0127-moss.png"},
   {"id":1375,"sourceNumber":126,"name":"Fern","slug":"fern","menuCategory":"Nature","sourceCategory":"自然","tags":[],"favoriteCategoryIds":[],"imageFileName":"0128-fern.png"},
   {"id":1376,"sourceNumber":127,"name":"Leppa tree","slug":"leppa-tree","menuCategory":"Nature","sourceCategory":"自然","tags":[],"favoriteCategoryIds":[],"imageFileName":"0129-leppa-tree.png"},
