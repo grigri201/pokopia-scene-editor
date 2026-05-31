@@ -1,5 +1,5 @@
 # generated: 2026-05-31T16:34:56+0800
-# last_updated: 2026-05-31T17:00:00+0800
+# last_updated: 2026-05-31T19:41:23+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -26,11 +26,10 @@
 # WORKFLOW NOTES:
 # ===============
 # - Epic 1-13 are completed and archived.
-# - Epic 14 is approved and active as backlog.
-# - Story 14.1-14.4 are backlog until story files are created.
+# - Epic 14 is complete; all Epic 14 stories are done.
 
 generated: 2026-05-31T16:34:56+0800
-last_updated: 2026-05-31T17:00:00+0800
+last_updated: 2026-05-31T19:41:23+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -48,19 +47,19 @@ archived_completed_history:
 
 development_status:
   epic_14:
-    status: backlog
+    status: done
     title: Mobile 导入与下载预览模式重写
     proposal: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-31-mobile-import-preview.md
     stories:
       14-1-mobile-preview-mode-planning-and-state-contract:
-        status: backlog
+        status: done
         title: Mobile Preview Mode 规划与状态契约
       14-2-export-preview-shared-content-and-mobile-inline-rendering:
-        status: backlog
+        status: done
         title: ExportPreview 内容拆分并支持 mobile inline 渲染
       14-3-custom-scene-string-import-modal-and-mobile-storage:
-        status: backlog
+        status: done
         title: 自定义导入字符串 modal 与 mobile 导入落盘
       14-4-mobile-preview-import-regression-tests-and-browser-verification:
-        status: backlog
+        status: done
         title: Mobile preview/import 回归测试与浏览器验证

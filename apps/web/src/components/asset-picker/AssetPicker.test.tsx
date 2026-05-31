@@ -1,7 +1,11 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { assetCatalog, assetPageSize } from '@pokopia-scene-editor/scene-core';
 import { readUiPreferencesFromStorage, uiPreferencesStorageKey } from '../../io';
 import { AssetPicker } from './AssetPicker';
+
+const totalAssetCount = assetCatalog.length;
+const totalAssetPages = Math.ceil(totalAssetCount / assetPageSize);
 
 describe('AssetPicker', () => {
   beforeEach(() => {
@@ -26,8 +30,8 @@ describe('AssetPicker', () => {
     );
 
     expect(screen.getByRole('heading', { name: '素材' })).toBeVisible();
-    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('1160 results');
-    expect(screen.getByLabelText('Asset page status')).toHaveTextContent('1 / 116');
+    expect(screen.getByLabelText('Asset result count')).toHaveTextContent(`${totalAssetCount} results`);
+    expect(screen.getByLabelText('Asset page status')).toHaveTextContent(`1 / ${totalAssetPages}`);
     expect(screen.getAllByRole('article')).toHaveLength(10);
     expect(screen.queryByText(/Showing first/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument();
@@ -71,14 +75,14 @@ describe('AssetPicker', () => {
     );
 
     expect(screen.getAllByRole('article')).toHaveLength(10);
-    expect(screen.getByLabelText('Asset page status')).toHaveTextContent('1 / 116');
+    expect(screen.getByLabelText('Asset page status')).toHaveTextContent(`1 / ${totalAssetPages}`);
     expect(screen.getByLabelText('Previous asset page')).toBeDisabled();
     expect(screen.getByLabelText('Next asset page')).toBeEnabled();
 
     fireEvent.click(screen.getByLabelText('Next asset page'));
 
     expect(screen.getAllByRole('article')).toHaveLength(10);
-    expect(screen.getByLabelText('Asset page status')).toHaveTextContent('2 / 116');
+    expect(screen.getByLabelText('Asset page status')).toHaveTextContent(`2 / ${totalAssetPages}`);
     expect(screen.getByLabelText('Previous asset page')).toBeEnabled();
     expect(queryAssetSelectButton('wooden-fencing')).toBeNull();
     expect(queryAssetSelectButton('sturdy-stick')).toBeNull();

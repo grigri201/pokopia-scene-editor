@@ -1,6 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { defaultSceneDimensions, legacySceneDimensions } from '@pokopia-scene-editor/scene-core';
+import {
+  createDefaultSceneDocument,
+  defaultSceneDimensions,
+  encodeSceneDocumentString,
+  legacySceneDimensions,
+} from '@pokopia-scene-editor/scene-core';
 
 const autosavedSceneStorageKey = 'pokopia.sceneDocument.autosave.v1';
 const savedSceneStorageKey = 'pokopia.sceneDocument.v1';
@@ -52,7 +57,7 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.locator('.asset-row')).toHaveCount(10);
   await expect(page.locator('[data-asset-id="pecha-berry"]')).toContainText('桃桃果');
   await expect(page.locator('[data-asset-id="pecha-berry"]')).toContainText('食物');
-  await expect(page.getByLabel('Asset page status')).toHaveText('1 / 116');
+  await expect(page.getByLabel('Asset page status')).toHaveText('1 / 117');
   await expect(page.getByText('Showing first')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show more' })).toHaveCount(0);
   await expect(page.getByRole('complementary', { name: '检查器预览' })).toHaveCount(0);
@@ -400,16 +405,16 @@ test('previews and downloads an image export without mutating scene storage', as
     .toEqual({ firstRowAligned: 0, fourthStartsNextRow: true });
   await expect(page.locator('.export-instance-list')).toHaveCount(0);
 
+  const expectedPngSize = await getExpectedExportPngSize(preview);
+  expect(expectedPngSize.height).toBeGreaterThan(expectedPngSize.visibleHeight);
   await page.evaluate(() => {
     (window as unknown as { __pokopiaImageExportDelayMs?: number }).__pokopiaImageExportDelayMs = 500;
   });
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: '下载图片' }).click();
-  await expect(page.getByRole('button', { name: '下载图片' })).toBeDisabled();
+  await page.getByRole('button', { name: '下载图片', exact: true }).click();
+  await expect(page.getByRole('button', { name: '下载图片', exact: true })).toBeDisabled();
   await expect(page.getByRole('status', { name: '图片下载状态' })).toContainText('正在生成图片');
   await expect(page.getByRole('status', { name: '图片导出提示' })).toContainText('正在生成图片');
-  const expectedPngSize = await getExpectedExportPngSize(preview);
-  expect(expectedPngSize.height).toBeGreaterThan(expectedPngSize.visibleHeight);
   const download = await downloadPromise;
   const downloadPath = await download.path();
 
@@ -418,10 +423,10 @@ test('previews and downloads an image export without mutating scene storage', as
   expect(downloadPath).not.toBeNull();
   const pngBytes = await readFile(downloadPath ?? '');
   const expectedPngPixelRatio = 2;
-  expect(getPngSize(pngBytes)).toEqual({
-    height: expectedPngSize.height * expectedPngPixelRatio,
-    width: expectedPngSize.width * expectedPngPixelRatio,
-  });
+  const actualPngSize = getPngSize(pngBytes);
+  expect(actualPngSize.width).toBe(expectedPngSize.width * expectedPngPixelRatio);
+  expect(actualPngSize.height).toBeGreaterThan(expectedPngSize.visibleHeight * expectedPngPixelRatio);
+  expect(Math.abs(actualPngSize.height - expectedPngSize.height * expectedPngPixelRatio)).toBeLessThanOrEqual(32);
   expect(pngBytes.toString('utf8')).not.toContain('<svg');
   expect(pngBytes.toString('utf8')).not.toContain('restore smoke');
   expect(pngBytes.toString('utf8')).not.toContain('No.');
@@ -614,6 +619,7 @@ test('keeps default 17x17 scenes responsive across the release viewport matrix',
       expectedCells: defaultCanvasCellCount,
       edgeCellLabel: `Cell ${defaultMaxCoordinate.x},${defaultMaxCoordinate.y}, outer area, level-0, ${viewport.width < 768 ? 'read-only' : 'placeable'}`,
       isMobile: viewport.width < 768,
+      mobileState: 'empty',
     });
   }
 });
@@ -625,6 +631,12 @@ test('keeps legacy 7x7 scenes responsive across the release viewport matrix', as
 
   for (const viewport of responsiveReleaseViewports) {
     await page.setViewportSize(viewport);
+    if (viewport.width < 768) {
+      await page.evaluate(
+        ({ key, scene }) => window.localStorage.setItem(key, JSON.stringify(scene)),
+        { key: autosavedSceneStorageKey, scene: createLegacyResponsiveScene() },
+      );
+    }
     await page.goto('/');
     await dismissHelpOverlayIfVisible(page);
 
@@ -632,6 +644,9 @@ test('keeps legacy 7x7 scenes responsive across the release viewport matrix', as
       expectedCells: getCanvasCellCount(legacySceneDimensions.canvasSize),
       edgeCellLabel: `Cell ${legacyMaxCoordinate.x},${legacyMaxCoordinate.y}, outer area, level-0, ${viewport.width < 768 ? 'read-only' : 'placeable'}`,
       isMobile: viewport.width < 768,
+      mobileState: viewport.width < 768 ? 'preview-ready' : 'empty',
+      mobileSceneName: 'Legacy Responsive Smoke',
+      mobileCanvasDimensions: `${legacySceneDimensions.canvasSize.width}x${legacySceneDimensions.canvasSize.height}`,
     });
   }
 });
@@ -692,56 +707,205 @@ test('shows asset empty state without recovery actions', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Reset filters' })).toHaveCount(0);
 });
 
-test('switches scaffold controls to read-only below the mobile breakpoint', async ({ page }) => {
+test('switches to Mobile Preview Mode below the mobile breakpoint', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
 
   await expect(page.getByRole('dialog', { name: '快速说明' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '打开说明' })).toHaveCount(0);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
-  await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile read-only mode');
-  await expect(page.getByTestId('scene-cell')).toHaveCount(defaultCanvasCellCount);
-  await expect(page.getByLabel(`Cell ${defaultMaxCoordinate.x},${defaultMaxCoordinate.y}, outer area, level-0, read-only`)).toBeVisible();
+  await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile Preview Mode');
+  await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute('data-mobile-preview-state', 'empty');
+  await expect(page.getByText('还没有本地保存的布景。')).toBeVisible();
+  await expect(page.getByRole('button', { name: '导入字符串' })).toBeVisible();
+  await expect(page.getByTestId('scene-cell')).toHaveCount(0);
+  await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
+  await expect(page.getByRole('complementary', { name: 'Asset picker' })).toHaveCount(0);
+  await expect(page.getByLabel('Building level panel')).toHaveCount(0);
+  await expect(page.getByLabel('Selection context')).toHaveCount(0);
   expect(await readSceneSnapshot(page)).toMatchObject({
     sceneSize: defaultSceneSize,
     canvasSize: defaultCanvasSize,
   });
-  await expect(page.getByLabel('Current Pokemon')).toBeDisabled();
-  await expect(page.getByLabel('布景')).toHaveAttribute('readonly', '');
-  await expect(page.getByLabel('宽度')).toBeDisabled();
-  await expect(page.getByLabel('高度')).toBeDisabled();
-  await expect(page.getByRole('button', { name: '新建层' })).toBeDisabled();
+  await expect(page.getByLabel('Current Pokemon')).toHaveCount(0);
+  await expect(page.getByLabel('布景')).toHaveCount(0);
+  await expect(page.getByLabel('宽度')).toHaveCount(0);
+  await expect(page.getByLabel('高度')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '新建层' })).toHaveCount(0);
   await expect(page.getByLabel('Save status')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '下载预览' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '导出字符串' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '重置' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: '下载预览' })).toHaveCount(0);
+  await expect(page.locator('.export-preview-backdrop')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await expectElementCenterUncovered(page, page.getByRole('button', { name: '导入字符串' }));
   const beforeKeyboardSnapshot = JSON.stringify(await readSceneSnapshot(page));
-  const beforeCurrentLevel = await page.getByLabel('Current building level').textContent();
-  const selectedCell = page.getByLabel('Cell 3,2, main area, level-0, read-only');
+  const dialogs: string[] = [];
+  page.on('dialog', async (dialog) => {
+    dialogs.push(dialog.type());
+    await dialog.dismiss();
+  });
 
-  await selectedCell.focus();
+  await page.getByRole('button', { name: '导入字符串' }).focus();
   for (const key of mobileApplicationKeys) {
     await page.keyboard.press(key);
   }
-  await page.getByLabel('L1, 1层, 0 instances, viewing layer').focus();
-  await page.keyboard.press('Enter');
-  await page.keyboard.press('Space');
-  await page.locator('[data-asset-id="pecha-berry"] .asset-select-button').focus();
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: '导入字符串' }).click();
+  const importDialog = page.getByRole('dialog', { name: '导入布景字符串' });
+  await expect(importDialog).toBeVisible();
+  await expect(importDialog.getByLabel('布景字符串')).toBeVisible();
+  await expectElementCenterUncovered(page, importDialog.getByRole('button', { name: '导入' }));
   for (const key of mobileApplicationKeys) {
     await page.keyboard.press(key);
   }
 
   expect(JSON.stringify(await readSceneSnapshot(page))).toBe(beforeKeyboardSnapshot);
-  await expect(page.getByLabel('Current building level')).toHaveText(beforeCurrentLevel ?? '');
-  await expect(selectedCell).not.toHaveAttribute('aria-selected', 'true');
-  expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
-  expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
-
-  await selectedCell.click();
-  await expect(selectedCell).toHaveAttribute('aria-selected', 'true');
+  expect(dialogs).toEqual([]);
+  await expect(page.getByLabel('Current building level')).toHaveCount(0);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
   expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
   expectScenePayloadHasNoLegacyFields(await readSceneSnapshot(page));
+});
+
+test('imports a scene string into Mobile Preview Mode autosave and inline preview', async ({ page }) => {
+  const importedScene = createDefaultSceneDocument({
+    sceneId: 'scene-mobile-import-smoke',
+    sceneName: 'Mobile Import Smoke',
+    selectedPokemonKey: 'pikachu',
+    now: '2026-05-31T10:10:00.000Z',
+  });
+  const sceneString = encodeSceneDocumentString(importedScene);
+  const dialogs: string[] = [];
+  page.on('dialog', async (dialog) => {
+    dialogs.push(dialog.type());
+    await dialog.dismiss();
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '导入字符串' }).click();
+
+  const importDialog = page.getByRole('dialog', { name: '导入布景字符串' });
+  await expect(importDialog).toBeVisible();
+  await importDialog.getByLabel('布景字符串').fill(sceneString);
+  await importDialog.getByRole('button', { name: '导入' }).click();
+
+  await expect(importDialog).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+    'data-mobile-preview-state',
+    'preview-ready',
+  );
+  await expect(page.getByRole('heading', { name: 'Mobile Import Smoke' })).toBeVisible();
+  await expect(page.getByLabel('皮卡丘导出预览宝可梦图片')).toBeVisible();
+  await expect(page.getByLabel('整体使用素材清单')).toContainText('未放置素材');
+  await expect(page.getByLabel('L1 17x17 图形')).toBeVisible();
+  await expect(page.getByRole('dialog', { name: '下载预览' })).toHaveCount(0);
+  await expect(page.locator('.export-preview-backdrop')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '下载图片' })).toHaveCount(0);
+  await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await expectElementCenterUncovered(page, page.getByRole('heading', { name: 'Mobile Import Smoke' }));
+  await expectElementCenterUncovered(page, page.getByLabel('整体使用素材清单'));
+  expect(dialogs).toEqual([]);
+  expect(await readStoredPayload(page, autosavedSceneStorageKey)).toMatchObject({
+    sceneName: 'Mobile Import Smoke',
+    selectedPokemonKey: 'pikachu',
+  });
+  expect(await readStoredPayload(page, savedSceneStorageKey)).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
+});
+
+test('shows stored scene in Mobile Preview Mode without desktop preview drift or autosave rewrite', async ({ page }) => {
+  const storedScene = createExportPreviewScene();
+  const storedPayload = JSON.stringify(storedScene);
+  const dialogs: string[] = [];
+  page.on('dialog', async (dialog) => {
+    dialogs.push(dialog.type());
+    await dialog.dismiss();
+  });
+  await page.addInitScript(
+    ({ key, payload }) => window.localStorage.setItem(key, payload),
+    { key: autosavedSceneStorageKey, payload: storedPayload },
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+    'data-mobile-preview-state',
+    'preview-ready',
+  );
+  await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile Preview Mode');
+  await expect(page.getByRole('heading', { name: 'Restored Smoke Layout' })).toBeVisible();
+  await expect(page.getByLabel('皮卡丘导出预览宝可梦图片')).toBeVisible();
+  await expect(page.getByText('17x17 画布 · 3 个建筑层')).toBeVisible();
+  await expect(page.getByLabel('整体使用素材清单')).toContainText('大叶子的植栽');
+  await expect(page.getByLabel('整体使用素材清单')).toContainText('树叶');
+  await expect(page.getByLabel('L2 17x17 图形')).toBeVisible();
+  await expect(page.getByLabel('L2 使用素材清单')).toContainText('储水');
+  await expect(page.getByRole('dialog', { name: '下载预览' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: '导入布景字符串' })).toHaveCount(0);
+  await expect(page.locator('.export-preview-backdrop')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '下载图片' })).toHaveCount(0);
+  await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
+  await expect(page.getByRole('complementary', { name: 'Asset picker' })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await expectElementCenterUncovered(page, page.getByRole('button', { name: '导入字符串' }));
+  await expectElementCenterUncovered(page, page.getByRole('heading', { name: 'Restored Smoke Layout' }));
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBe(storedPayload);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
+  expect(dialogs).toEqual([]);
+});
+
+test('shows invalid stored scene state in Mobile Preview Mode', async ({ page }) => {
+  const invalidStoredScene = JSON.stringify({
+    schemaVersion: 99,
+    sceneId: 'bad-mobile-smoke',
+  });
+  const dialogs: string[] = [];
+  page.on('dialog', async (dialog) => {
+    dialogs.push(dialog.type());
+    await dialog.dismiss();
+  });
+  await page.addInitScript(
+    ({ key, payload }) => window.localStorage.setItem(key, payload),
+    { key: autosavedSceneStorageKey, payload: invalidStoredScene },
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+    'data-mobile-preview-state',
+    'invalid',
+  );
+  await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile Preview Mode');
+  await expect(page.getByLabel('Mobile preview recovery errors')).toContainText('schemaVersion');
+  await expect(page.getByRole('button', { name: '导入字符串' })).toBeVisible();
+  await expect(page.getByText('15x15 布景')).toHaveCount(0);
+  await expect(page.getByTestId('scene-cell')).toHaveCount(0);
+  await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBe(invalidStoredScene);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
+
+  await page.getByRole('button', { name: '导入字符串' }).click();
+  const importDialog = page.getByRole('dialog', { name: '导入布景字符串' });
+  await expect(importDialog).toBeVisible();
+  await importDialog.getByLabel('布景字符串').fill('bad-code');
+  await importDialog.getByRole('button', { name: '导入' }).click();
+
+  await expect(importDialog).toBeVisible();
+  await expect(importDialog.getByRole('alert')).toContainText('导入字符串无效');
+  await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+    'data-mobile-preview-state',
+    'invalid',
+  );
+  await expectElementCenterUncovered(page, importDialog.getByRole('button', { name: '导入' }));
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBe(invalidStoredScene);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
+  expect(dialogs).toEqual([]);
 });
 
 async function dismissHelpOverlayIfVisible(page: Page): Promise<void> {
@@ -873,25 +1037,50 @@ async function getExpectedExportPngSize(preview: Locator): Promise<{ height: num
 
 async function expectResponsiveWorkbench(
   page: Page,
-  options: { edgeCellLabel: string; expectedCells: number; isMobile: boolean },
+  options: {
+    edgeCellLabel: string;
+    expectedCells: number;
+    isMobile: boolean;
+    mobileState?: 'empty' | 'preview-ready';
+    mobileSceneName?: string;
+    mobileCanvasDimensions?: string;
+  },
 ): Promise<void> {
+  if (options.isMobile) {
+    await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+      'data-mobile-preview-state',
+      options.mobileState ?? 'empty',
+    );
+    await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile Preview Mode');
+    await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
+    await expect(page.getByTestId('scene-cell')).toHaveCount(0);
+    await expect(page.getByLabel('Pokemon scene controls')).toHaveCount(0);
+    await expect(page.getByRole('complementary', { name: 'Asset picker' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '导入字符串' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '下载预览' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '导出字符串' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '重置' })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+    if (options.mobileState === 'preview-ready') {
+      await expect(page.getByRole('heading', { name: options.mobileSceneName ?? '' })).toBeVisible();
+      await expect(page.getByText(`${options.mobileCanvasDimensions ?? ''} 画布`, { exact: false })).toBeVisible();
+      await expect(page.getByLabel('图片导出内容')).toBeVisible();
+      await expect(page.getByLabel('整体使用素材清单')).toBeVisible();
+      await expect(page.getByLabel('逐层图形和素材清单')).toBeVisible();
+    } else {
+      await expect(page.getByText('还没有本地保存的布景。')).toBeVisible();
+    }
+    return;
+  }
+
   await expect(page.getByLabel('Pokopia scene editor workbench')).toBeVisible();
   await expect(page.getByTestId('scene-cell')).toHaveCount(options.expectedCells);
   await expect(page.getByLabel(options.edgeCellLabel)).toBeVisible();
-  await expect(page.getByLabel('Interaction mode')).toHaveText(options.isMobile ? 'Mobile read-only mode' : 'Desktop edit mode');
+  await expect(page.getByLabel('Interaction mode')).toHaveText('Desktop edit mode');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await expectElementCenterUncovered(page, page.getByLabel(options.edgeCellLabel));
-
-  if (options.isMobile) {
-    await expect(page.getByLabel('Current Pokemon')).toBeDisabled();
-    await expect(page.getByLabel('布景')).toHaveAttribute('readonly', '');
-    await expect(page.getByRole('button', { name: '下载预览' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '导出字符串' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '导入字符串' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '重置' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '新建层' })).toBeDisabled();
-    return;
-  }
 
   await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();

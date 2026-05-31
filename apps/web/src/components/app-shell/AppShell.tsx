@@ -81,6 +81,12 @@ import {
   type HelpGuideSnapshot,
   type HelpGuideTargetKey,
 } from './help-guide';
+import { MobilePreviewMode } from './mobile-preview-mode';
+import { resolveMobilePreviewState } from './mobile-preview-state';
+import {
+  SceneStringImportModal,
+  type SceneStringImportSubmitResult,
+} from '../scene-string-import-modal/scene-string-import-modal';
 
 const replacementConfirmationWindowMs = 15_000;
 const toastAutoDismissMs = 3_000;
@@ -107,7 +113,9 @@ export function AppShell() {
     initialSceneState.recoveryErrors,
   );
   const [recoveryStatus, setRecoveryStatus] = useState<RecoveryStatus>(
-    initialSceneState.recoveryErrors.length > 0 ? 'error' : 'idle',
+    initialInteractionMode === 'readOnly'
+      ? 'idle'
+      : initialSceneState.recoveryErrors.length > 0 ? 'error' : 'idle',
   );
   const [locale, setLocale] = useState<Locale>(initialUiPreferences.locale);
   const autosaveReadyRef = useRef(false);
@@ -133,6 +141,8 @@ export function AppShell() {
   const [imageDownloadPending, setImageDownloadPending] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(initialViewportWidth);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(initialInteractionMode);
+  const [sceneStringImportModalOpen, setSceneStringImportModalOpen] = useState(false);
+  const hasEnteredEditModeRef = useRef(initialInteractionMode === 'edit');
   const [helpOverlayOpen, setHelpOverlayOpen] = useState(
     initialInteractionMode === 'edit' &&
       initialViewportWidth >= helpOverlayMinimumWidth &&
@@ -147,6 +157,13 @@ export function AppShell() {
   const exportPreviewOpen = exportPreviewSummary !== null;
   const helpOverlayAvailable = !isReadOnly && viewportWidth >= helpOverlayMinimumWidth;
   const helpOverlayVisible = helpOverlayOpen && helpOverlayAvailable;
+  const mobilePreviewState = isReadOnly
+    ? resolveMobilePreviewState(
+        getBrowserStorage(),
+        locale,
+        hasEnteredEditModeRef.current ? scene : null,
+      )
+    : null;
   const toastStackVisible = recoveryStatus !== 'idle' || notificationToasts.length > 0;
   const helpGuideLayouts = helpGuideSnapshot ? getHelpGuideLayouts(helpGuideSnapshot) : {};
   const activeBuildingLevelId = isReadOnly
@@ -308,6 +325,12 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
+    if (!isReadOnly) {
+      hasEnteredEditModeRef.current = true;
+    }
+  }, [isReadOnly]);
+
+  useEffect(() => {
     return () => {
       for (const timer of notificationToastTimersRef.current.values()) {
         window.clearTimeout(timer);
@@ -391,6 +414,10 @@ export function AppShell() {
     }
 
     const blockReadOnlyApplicationKey = (event: KeyboardEvent) => {
+      if (sceneStringImportModalOpen) {
+        return;
+      }
+
       if (!isMobileReadOnlyApplicationKey(event)) {
         return;
       }
@@ -402,7 +429,7 @@ export function AppShell() {
 
     window.addEventListener('keydown', blockReadOnlyApplicationKey, { capture: true });
     return () => window.removeEventListener('keydown', blockReadOnlyApplicationKey, { capture: true });
-  }, [isReadOnly]);
+  }, [isReadOnly, sceneStringImportModalOpen]);
 
   useEffect(() => {
     if (!isLocalPreviewHost(window.location.hostname)) {
@@ -1031,64 +1058,128 @@ export function AppShell() {
     }
   };
 
-  const importSceneString = () => {
-    if (isReadOnly) {
-      return;
-    }
+  const openSceneStringImportModal = () => {
+    setSceneStringImportModalOpen(true);
+  };
 
-    const sceneString = window.prompt(t(locale, 'sceneStringImportPrompt'));
-    if (!sceneString?.trim()) {
-      return;
-    }
+  const closeSceneStringImportModal = () => {
+    setSceneStringImportModalOpen(false);
+  };
 
-    const decoded = decodeSceneDocumentStringWithLossyRecovery(sceneString, getCurrentIsoTimestamp());
-    if (!decoded.ok) {
-      setRecoveryErrors(decoded.errors);
-      setRecoveryStatus('error');
-      showNotificationToast({
-        id: 'scene-string',
-        tone: 'error',
-        title: t(locale, 'sceneStringToastTitle'),
-        message: t(locale, 'sceneStringInvalid'),
-      });
-      return;
-    }
-
-    const droppedTileDetails = decoded.droppedTileInstances.map((droppedInstance) =>
-      formatDroppedTileInstance(droppedInstance, locale),
-    );
-    const confirmed = window.confirm(
-      droppedTileDetails.length > 0
-        ? t(locale, 'sceneStringImportLossConfirm', {
-            count: droppedTileDetails.length,
-            details: droppedTileDetails.map((detail) => `- ${detail}`).join('\n'),
-          })
-        : t(locale, 'sceneStringImportConfirm'),
-    );
-    if (!confirmed) {
+  const cancelSceneStringImportModal = () => {
+    setSceneStringImportModalOpen(false);
+    if (!isReadOnly) {
       showNotificationToast({
         id: 'scene-string',
         tone: 'info',
         title: t(locale, 'sceneStringToastTitle'),
         message: t(locale, 'sceneStringImportCanceled'),
       });
-      return;
+    }
+  };
+
+  const submitSceneStringImport = (
+    sceneString: string,
+    options: { allowLossy: boolean },
+  ): SceneStringImportSubmitResult => {
+    const decoded = decodeSceneDocumentStringWithLossyRecovery(sceneString.trim(), getCurrentIsoTimestamp());
+    if (!decoded.ok) {
+      if (!isReadOnly) {
+        setRecoveryErrors(decoded.errors);
+        setRecoveryStatus('error');
+        showNotificationToast({
+          id: 'scene-string',
+          tone: 'error',
+          title: t(locale, 'sceneStringToastTitle'),
+          message: t(locale, 'sceneStringInvalid'),
+        });
+      }
+      return { status: 'invalid', errors: decoded.errors };
     }
 
-    const appliedRecovery = applyRecoveredSceneDocument(scene, decoded.payload, {
+    const droppedTileDetails = decoded.droppedTileInstances.map((droppedInstance) =>
+      formatDroppedTileInstance(droppedInstance, locale),
+    );
+    if (droppedTileDetails.length > 0 && !options.allowLossy) {
+      return { status: 'lossy', droppedTileDetails };
+    }
+
+    const baseScene = isReadOnly && mobilePreviewState?.status === 'preview-ready'
+      ? mobilePreviewState.scene
+      : scene;
+    const appliedRecovery = applyRecoveredSceneDocument(baseScene, decoded.payload, {
       interactionMode,
       source: 'confirmed-user',
     });
     if (!appliedRecovery.ok) {
-      setRecoveryErrors(appliedRecovery.errors);
-      setRecoveryStatus('error');
+      if (!isReadOnly) {
+        setRecoveryErrors(appliedRecovery.errors);
+        setRecoveryStatus('error');
+        showNotificationToast({
+          id: 'scene-string',
+          tone: 'error',
+          title: t(locale, 'sceneStringToastTitle'),
+          message: t(locale, 'sceneStringInvalid'),
+        });
+      }
+      return { status: 'invalid', errors: appliedRecovery.errors };
+    }
+
+    if (isReadOnly) {
+      try {
+        buildImageExportSummary(appliedRecovery.scene, locale);
+      } catch {
+        const message = t(locale, 'sceneStringImportPreviewFailed');
+        showNotificationToast({
+          id: 'scene-string',
+          tone: 'error',
+          title: t(locale, 'sceneStringToastTitle'),
+          message,
+        });
+        return { status: 'storage-error', message };
+      }
+
+      const storage = getBrowserStorage();
+      if (!storage) {
+        const message = t(locale, 'sceneStringImportStorageUnavailable');
+        showNotificationToast({
+          id: 'scene-string',
+          tone: 'error',
+          title: t(locale, 'sceneStringToastTitle'),
+          message,
+        });
+        return { status: 'storage-error', message };
+      }
+
+      try {
+        writeSceneDocumentToStorage(storage, appliedRecovery.scene, 'autosave');
+      } catch {
+        const message = t(locale, 'sceneStringImportStorageFailed');
+        showNotificationToast({
+          id: 'scene-string',
+          tone: 'error',
+          title: t(locale, 'sceneStringToastTitle'),
+          message,
+        });
+        return { status: 'storage-error', message };
+      }
+
+      setScene(appliedRecovery.scene);
+      setRecoveryErrors([]);
+      setRecoveryStatus('idle');
+      dismissNotificationToast('autosave');
       showNotificationToast({
         id: 'scene-string',
-        tone: 'error',
+        tone: droppedTileDetails.length > 0 ? 'warning' : 'success',
         title: t(locale, 'sceneStringToastTitle'),
-        message: t(locale, 'sceneStringInvalid'),
+        message: droppedTileDetails.length > 0
+          ? t(locale, 'sceneStringImportedWithLosses', {
+              count: droppedTileDetails.length,
+              details: droppedTileDetails.join('；'),
+            })
+          : t(locale, 'sceneStringImported'),
       });
-      return;
+      return { status: 'success' };
     }
 
     setScene(appliedRecovery.scene);
@@ -1110,6 +1201,7 @@ export function AppShell() {
           })
         : t(locale, 'sceneStringImported'),
     });
+    return { status: 'success' };
   };
 
   const openExportPreview = () => {
@@ -1132,6 +1224,10 @@ export function AppShell() {
   const closeExportPreview = () => {
     setExportPreviewSummary(null);
     setImageDownloadPending(false);
+  };
+
+  const requestMobileImport = () => {
+    setSceneStringImportModalOpen(true);
   };
 
   const downloadExportImage = async (previewElement: HTMLElement) => {
@@ -1351,7 +1447,7 @@ export function AppShell() {
               <button
                 type="button"
                 className="app-action-button"
-                onClick={importSceneString}
+                onClick={openSceneStringImportModal}
               >
                 {t(locale, 'importSceneString')}
               </button>
@@ -1378,15 +1474,16 @@ export function AppShell() {
               ))}
             </select>
           </label>
-          <button
-            type="button"
-            className="app-action-button app-action-button--danger"
-            title={t(locale, 'resetSceneTitle')}
-            disabled={isReadOnly}
-            onClick={deleteCurrentScene}
-          >
-            {t(locale, 'reset')}
-          </button>
+          {!isReadOnly ? (
+            <button
+              type="button"
+              className="app-action-button app-action-button--danger"
+              title={t(locale, 'resetSceneTitle')}
+              onClick={deleteCurrentScene}
+            >
+              {t(locale, 'reset')}
+            </button>
+          ) : null}
         </div>
       </header>
       {helpOverlayVisible && helpGuideSnapshot ? (
@@ -1607,12 +1704,26 @@ export function AppShell() {
           onDownloadLayerImages={downloadLayeredExportImages}
         />
       ) : null}
-      <section
-        className="workbench-grid"
-        aria-label="Open Design editing workbench"
-        inert={exportPreviewOpen ? true : undefined}
-        aria-hidden={exportPreviewOpen ? true : undefined}
-      >
+      <SceneStringImportModal
+        locale={locale}
+        open={sceneStringImportModalOpen}
+        onCancel={cancelSceneStringImportModal}
+        onClose={closeSceneStringImportModal}
+        onSubmit={submitSceneStringImport}
+      />
+      {mobilePreviewState ? (
+        <MobilePreviewMode
+          locale={locale}
+          state={mobilePreviewState}
+          onImportRequest={requestMobileImport}
+        />
+      ) : (
+        <section
+          className="workbench-grid"
+          aria-label="Open Design editing workbench"
+          inert={exportPreviewOpen ? true : undefined}
+          aria-hidden={exportPreviewOpen ? true : undefined}
+        >
         <div className="workbench-left">
           <PokemonSceneControls
             locale={locale}
@@ -1704,7 +1815,8 @@ export function AppShell() {
           onPlacementRequiresSkillChange={setPlacementRequiresSkill}
           onAssetSelect={selectAsset}
         />
-      </section>
+        </section>
+      )}
     </main>
   );
 }

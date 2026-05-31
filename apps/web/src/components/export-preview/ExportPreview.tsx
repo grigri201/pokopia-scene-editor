@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type KeyboardEvent } from 'react';
+import { forwardRef, useEffect, useRef, type ComponentPropsWithoutRef, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { getAssetById, getPokemonThemeDefinition } from '@pokopia-scene-editor/scene-core';
 import { defaultLocale, getPokemonDisplay, t, type Locale } from '../../i18n';
 import type {
@@ -31,6 +31,13 @@ interface ExportPreviewProps {
   onDownloadLayerImages?: (previewElement: HTMLElement) => void | Promise<void>;
 }
 
+interface ExportPreviewContentProps extends Omit<ComponentPropsWithoutRef<'section'>, 'children'> {
+  actions?: ReactNode;
+  locale?: Locale;
+  summary: ImageExportSummary;
+  variant?: 'dialog' | 'inline';
+}
+
 export function ExportPreview({
   locale = defaultLocale,
   summary,
@@ -44,15 +51,6 @@ export function ExportPreview({
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const isDownloadDisabled = downloadDisabled || !onDownloadImage;
   const isLayerDownloadDisabled = downloadDisabled || !onDownloadLayerImages;
-  const selectedPokemon = getPokemonThemeDefinition(summary.selectedPokemonKey);
-  const selectedPokemonName = getPokemonDisplay(selectedPokemon, locale);
-  const materialColorByAssetId = createMaterialColorMap(summary.overallMaterials);
-  const overallUsageItems = createUsageItems(summary.overallMaterials, summary.overallSkills);
-  const canvasBuildingLayersKey = summary.layers.length === 1 ? 'canvasBuildingLayer' : 'canvasBuildingLayers';
-  const pokemonTitleImageStyle = {
-    '--export-pokemon-background': selectedPokemon.background,
-    '--export-pokemon-accent': selectedPokemon.accent,
-  } as CSSProperties;
 
   useEffect(() => {
     const previouslyFocusedElement = document.activeElement instanceof HTMLElement
@@ -114,34 +112,18 @@ export function ExportPreview({
 
   return (
     <div className="export-preview-backdrop">
-      <section
+      <ExportPreviewContent
         ref={dialogRef}
-        className="export-preview"
+        variant="dialog"
+        locale={locale}
+        summary={summary}
         role="dialog"
         aria-modal="true"
         aria-label={t(locale, 'imageExportPreview')}
         tabIndex={-1}
         onKeyDown={handleDialogKeyDown}
-      >
-        <header className="export-preview__header">
-          <div className="export-preview__title">
-            <span
-              className="export-preview__pokemon-title-image"
-              aria-label={t(locale, 'pokemonExportImage', { name: selectedPokemonName })}
-              style={pokemonTitleImageStyle}
-            >
-              <img src={selectedPokemon.portraitUrl} alt={t(locale, 'pokemonImageAlt', { name: selectedPokemonName })} />
-            </span>
-            <div>
-              <h2>{summary.sceneName}</h2>
-              <p>{t(locale, canvasBuildingLayersKey, {
-                width: summary.canvasSize.width,
-                height: summary.canvasSize.height,
-                count: summary.layers.length,
-              })}</p>
-            </div>
-          </div>
-          <div className="export-preview__actions" data-image-export-exclude="true">
+        actions={(
+          <>
             <button
               type="button"
               className="app-action-button"
@@ -179,48 +161,100 @@ export function ExportPreview({
                 {downloadStatus}
               </p>
             ) : null}
-          </div>
-        </header>
-        <section className="export-preview__body" aria-label={t(locale, 'imageExportContent')}>
-          <section
-            className="export-preview__summary"
-            aria-label={t(locale, 'overallMaterialsList')}
-            data-image-export-page="overall"
-            data-image-export-file-part="overall"
-          >
-            <h3>{t(locale, 'overallMaterials')}</h3>
-            {overallUsageItems.length > 0 ? (
-              <UsageList items={overallUsageItems} />
-            ) : (
-              <p className="export-preview__empty">{t(locale, 'noMaterialsPlaced')}</p>
-            )}
-          </section>
-
-          <section
-            className="export-preview__layers"
-            aria-label={t(locale, 'exportLayerGraphicsAndMaterials')}
-            data-image-export-layer-container="true"
-          >
-            {summary.layers.map((layer) => (
-              <LayerPreview
-                key={layer.id}
-                locale={locale}
-                layer={layer}
-                canvasSize={summary.canvasSize}
-                materialColorByAssetId={materialColorByAssetId}
-              />
-            ))}
-          </section>
-        </section>
-        <footer className="export-preview__footer">
-          <span className="export-preview__pokokit-logo" aria-label={t(locale, 'pokokitColorLogo')}>
-            pokokit
-          </span>
-        </footer>
-      </section>
+          </>
+        )}
+      />
     </div>
   );
 }
+
+export const ExportPreviewContent = forwardRef<HTMLElement, ExportPreviewContentProps>(function ExportPreviewContent({
+  actions = null,
+  className,
+  locale = defaultLocale,
+  summary,
+  variant = 'inline',
+  ...sectionProps
+}, ref) {
+  const selectedPokemon = getPokemonThemeDefinition(summary.selectedPokemonKey);
+  const selectedPokemonName = getPokemonDisplay(selectedPokemon, locale);
+  const materialColorByAssetId = createMaterialColorMap(summary.overallMaterials);
+  const overallUsageItems = createUsageItems(summary.overallMaterials, summary.overallSkills);
+  const canvasBuildingLayersKey = summary.layers.length === 1 ? 'canvasBuildingLayer' : 'canvasBuildingLayers';
+  const pokemonTitleImageStyle = {
+    '--export-pokemon-background': selectedPokemon.background,
+    '--export-pokemon-accent': selectedPokemon.accent,
+  } as CSSProperties;
+
+  return (
+    <section
+      ref={ref}
+      className={['export-preview', `export-preview--${variant}`, className].filter(Boolean).join(' ')}
+      {...sectionProps}
+    >
+      <header className="export-preview__header">
+        <div className="export-preview__title">
+          <span
+            className="export-preview__pokemon-title-image"
+            aria-label={t(locale, 'pokemonExportImage', { name: selectedPokemonName })}
+            style={pokemonTitleImageStyle}
+          >
+            <img src={selectedPokemon.portraitUrl} alt={t(locale, 'pokemonImageAlt', { name: selectedPokemonName })} />
+          </span>
+          <div>
+            <h2>{summary.sceneName}</h2>
+            <p>{t(locale, canvasBuildingLayersKey, {
+              width: summary.canvasSize.width,
+              height: summary.canvasSize.height,
+              count: summary.layers.length,
+            })}</p>
+          </div>
+        </div>
+        {actions ? (
+          <div className="export-preview__actions" data-image-export-exclude="true">
+            {actions}
+          </div>
+        ) : null}
+      </header>
+      <section className="export-preview__body" aria-label={t(locale, 'imageExportContent')}>
+        <section
+          className="export-preview__summary"
+          aria-label={t(locale, 'overallMaterialsList')}
+          data-image-export-page="overall"
+          data-image-export-file-part="overall"
+        >
+          <h3>{t(locale, 'overallMaterials')}</h3>
+          {overallUsageItems.length > 0 ? (
+            <UsageList items={overallUsageItems} />
+          ) : (
+            <p className="export-preview__empty">{t(locale, 'noMaterialsPlaced')}</p>
+          )}
+        </section>
+
+        <section
+          className="export-preview__layers"
+          aria-label={t(locale, 'exportLayerGraphicsAndMaterials')}
+          data-image-export-layer-container="true"
+        >
+          {summary.layers.map((layer) => (
+            <LayerPreview
+              key={layer.id}
+              locale={locale}
+              layer={layer}
+              canvasSize={summary.canvasSize}
+              materialColorByAssetId={materialColorByAssetId}
+            />
+          ))}
+        </section>
+      </section>
+      <footer className="export-preview__footer">
+        <span className="export-preview__pokokit-logo" aria-label={t(locale, 'pokokitColorLogo')}>
+          pokokit
+        </span>
+      </footer>
+    </section>
+  );
+});
 
 function getFocusableElements(root: HTMLElement | null): HTMLElement[] {
   if (!root) {

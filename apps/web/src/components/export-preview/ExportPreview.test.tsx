@@ -18,7 +18,7 @@ import {
   type SceneDocument,
 } from '@pokopia-scene-editor/scene-core';
 import { unsafeAngleText, unsafeImageText, unsafeScriptText } from '../../test/fixtures/unsafe-text';
-import { ExportPreview } from './ExportPreview';
+import { ExportPreview, ExportPreviewContent } from './ExportPreview';
 
 describe('ExportPreview', () => {
   it('renders the title, overall materials, layer graphics, layer materials and empty layers', () => {
@@ -160,6 +160,51 @@ describe('ExportPreview', () => {
     expect(screen.getByLabelText('Layer graphics and material lists')).toBeVisible();
     expect(screen.getByLabelText('pokokit color logo')).toHaveTextContent('pokokit');
     expect(screen.getByLabelText('Image export content')).not.toHaveTextContent(/[一-龥]/);
+  });
+
+  it('renders the shared export content inline without dialog, backdrop or download controls', () => {
+    const scene = createPreviewScene();
+    const summary = buildImageExportSummary(scene);
+
+    render(<ExportPreviewContent summary={summary} />);
+
+    expect(screen.queryByRole('dialog', { name: '下载预览' })).not.toBeInTheDocument();
+    expect(document.querySelector('.export-preview-backdrop')).toBeNull();
+    expect(document.querySelector('[aria-modal]')).toBeNull();
+    expect(screen.queryByRole('button', { name: '下载图片' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '按层下载图片' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '关闭' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: unsafeScriptText })).toBeVisible();
+    expect(screen.getByLabelText('百变怪导出预览宝可梦图片')).toBeVisible();
+    expect(screen.getByText(`${scene.canvasSize.width}x${scene.canvasSize.height} 画布 · ${scene.buildingLevels.length} 个建筑层`)).toBeVisible();
+    expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('大叶子的植栽');
+    expect(screen.getByLabelText('逐层图形和素材清单')).toBeVisible();
+    expect(screen.getByLabelText('L2 17x17 图形').querySelectorAll('.export-layer-cell')).toHaveLength(289);
+    expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('大叶子的植栽');
+    expect(screen.getByLabelText('L2 层备注')).toHaveTextContent(unsafeAngleText);
+    expect(screen.getByLabelText('pokokit 彩色 logo')).toHaveTextContent('pokokit');
+  });
+
+  it('keeps desktop modal and inline content in parity for the same scene summary', () => {
+    const scene = createPreviewScene();
+    const summary = buildImageExportSummary(scene);
+
+    const { unmount } = render(<ExportPreview summary={summary} downloadDisabled onClose={vi.fn()} />);
+    const desktopSnapshot = collectSharedExportContentSnapshot(scene);
+
+    expect(screen.getByRole('dialog', { name: '下载预览' })).toHaveAttribute('aria-modal', 'true');
+    expect(screen.getByRole('button', { name: '下载图片' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '按层下载图片' })).toBeVisible();
+
+    unmount();
+    render(<ExportPreviewContent summary={summary} />);
+
+    expect(collectSharedExportContentSnapshot(scene)).toEqual(desktopSnapshot);
+    expect(screen.queryByRole('dialog', { name: '下载预览' })).not.toBeInTheDocument();
+    expect(document.querySelector('.export-preview-backdrop')).toBeNull();
+    expect(document.querySelector('[aria-modal]')).toBeNull();
+    expect(screen.queryByRole('button', { name: '下载图片' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '按层下载图片' })).not.toBeInTheDocument();
   });
 
   it('uses a singular English layer summary for one-layer exports', () => {
@@ -469,6 +514,44 @@ function createPreviewScene() {
       }),
     ],
   };
+}
+
+function collectSharedExportContentSnapshot(scene: SceneDocument): Record<string, number | string> {
+  const content = screen.getByLabelText('图片导出内容');
+  const dimensions = `${scene.canvasSize.width}x${scene.canvasSize.height} 画布 · ${scene.buildingLevels.length} 个建筑层`;
+
+  expect(screen.getByRole('heading', { name: unsafeScriptText })).toBeVisible();
+  expect(screen.getByLabelText('百变怪导出预览宝可梦图片')).toBeVisible();
+  expect(screen.getByText(dimensions)).toBeVisible();
+  expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('大叶子的植栽');
+  expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('树叶');
+  expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('储水');
+  expect(screen.getByLabelText('逐层图形和素材清单')).toBeVisible();
+  expect(screen.getByLabelText('L2 17x17 图形')).toBeVisible();
+  expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('大叶子的植栽');
+  expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('树叶');
+  expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('储水');
+  expect(screen.getByLabelText('L2 层备注')).toHaveTextContent(unsafeAngleText);
+  expect(screen.getByLabelText('L2 层备注')).toHaveTextContent(unsafeImageText);
+  expect(screen.getByLabelText('pokokit 彩色 logo')).toHaveTextContent('pokokit');
+  expect(content.querySelector('script')).toBeNull();
+  expect(content.querySelector('img[src="x"]')).toBeNull();
+
+  return {
+    dimensions: screen.getByText(dimensions).textContent ?? '',
+    footer: normalizeSnapshotText(screen.getByLabelText('pokokit 彩色 logo').textContent ?? ''),
+    heading: screen.getByRole('heading', { name: unsafeScriptText }).textContent ?? '',
+    layerGraphicCells: screen.getByLabelText('L2 17x17 图形').querySelectorAll('.export-layer-cell').length,
+    layerMaterials: normalizeSnapshotText(screen.getByLabelText('L2 使用素材清单').textContent ?? ''),
+    layerNotes: normalizeSnapshotText(screen.getByLabelText('L2 层备注').textContent ?? ''),
+    layersLabel: screen.getByLabelText('逐层图形和素材清单').getAttribute('aria-label') ?? '',
+    overallMaterials: normalizeSnapshotText(screen.getByLabelText('整体使用素材清单').textContent ?? ''),
+    pokemonImage: screen.getByLabelText('百变怪导出预览宝可梦图片').getAttribute('aria-label') ?? '',
+  };
+}
+
+function normalizeSnapshotText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 const manyMaterialAssetIds = [

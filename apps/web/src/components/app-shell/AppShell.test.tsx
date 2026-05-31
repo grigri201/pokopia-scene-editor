@@ -222,19 +222,18 @@ describe('AppShell scene storage integration', () => {
       selectedCoordinate: { x: 4, y: 4 },
       now: '2026-05-23T09:20:00.000Z',
     });
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(
-      encodeSceneDocumentString({
-        ...importedScene,
-        workspaceState: {
-          ...importedScene.workspaceState,
-          selectedAssetId: 'leafy-plant',
-        },
-      }),
-    );
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const sceneString = encodeSceneDocumentString({
+      ...importedScene,
+      workspaceState: {
+        ...importedScene.workspaceState,
+        selectedAssetId: 'leafy-plant',
+      },
+    });
+    const promptSpy = vi.spyOn(window, 'prompt');
+    const confirmSpy = vi.spyOn(window, 'confirm');
 
     render(<AppShell />);
-    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+    submitSceneStringImport(sceneString);
 
     await waitFor(() => {
       expect(screen.getByLabelText('布景')).toHaveValue('导入庭院');
@@ -251,8 +250,8 @@ describe('AppShell scene storage integration', () => {
         selectedCoordinate: { x: 4, y: 4 },
       },
     });
-    expect(promptSpy).toHaveBeenCalledWith('粘贴布景字符串。导入会替换当前布景。');
-    expect(confirmSpy).toHaveBeenCalledWith('导入会替换当前布景。继续导入？');
+    expect(promptSpy).not.toHaveBeenCalled();
+    expect(confirmSpy).not.toHaveBeenCalled();
   });
 
   it('imports remaining scene string content and reports dropped incompatible materials', async () => {
@@ -264,11 +263,17 @@ describe('AppShell scene storage integration', () => {
       '0.f.C0.0._._._;1.f.6L.0._._._',
       '_',
     ].join('~');
-    vi.spyOn(window, 'prompt').mockReturnValue(lossySceneString);
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const promptSpy = vi.spyOn(window, 'prompt');
+    const confirmSpy = vi.spyOn(window, 'confirm');
 
     render(<AppShell />);
-    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+    const dialog = submitSceneStringImport(lossySceneString);
+
+    expect(within(dialog).getByText(/丢弃 1 个不兼容素材/)).toBeVisible();
+    expect(within(dialog).getByText(/地基（7,2）木地板/)).toBeVisible();
+    expect(readSceneSnapshot()).not.toContain('bread-oven');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '继续导入剩余部分' }));
 
     await waitFor(() => {
       const toast = screen.getByRole('status', { name: '字符串提示' });
@@ -276,9 +281,8 @@ describe('AppShell scene storage integration', () => {
       expect(toast).toHaveTextContent('地基（7,2）木地板');
       expect(toast).toHaveTextContent('素材层 面包窑');
     });
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('丢弃 1 个不兼容素材'));
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('地基（7,2）木地板'));
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('继续导入剩余部分？'));
+    expect(promptSpy).not.toHaveBeenCalled();
+    expect(confirmSpy).not.toHaveBeenCalled();
     expect(JSON.parse(readSceneSnapshot()).tileInstances).toEqual([
       expect.objectContaining({
         assetId: 'bread-oven',
@@ -289,15 +293,18 @@ describe('AppShell scene storage integration', () => {
   });
 
   it('keeps the current scene when importing an invalid scene string', () => {
-    vi.spyOn(window, 'prompt').mockReturnValue('bad-code');
+    const promptSpy = vi.spyOn(window, 'prompt');
     const confirmSpy = vi.spyOn(window, 'confirm');
 
     render(<AppShell />);
     const beforeSnapshot = readSceneSnapshot();
-    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+    const dialog = submitSceneStringImport('bad-code');
 
     expect(readSceneSnapshot()).toBe(beforeSnapshot);
+    expect(promptSpy).not.toHaveBeenCalled();
     expect(confirmSpy).not.toHaveBeenCalled();
+    expect(dialog).toBeVisible();
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('导入字符串无效');
     expect(screen.getByRole('alert', { name: '字符串提示' })).toHaveTextContent(
       '导入字符串无效',
     );
@@ -306,10 +313,9 @@ describe('AppShell scene storage integration', () => {
 
   it('auto-dismisses recovery toast after three seconds', () => {
     vi.useFakeTimers();
-    vi.spyOn(window, 'prompt').mockReturnValue('bad-code');
 
     render(<AppShell />);
-    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+    submitSceneStringImport('bad-code');
 
     expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'error');
 
@@ -322,10 +328,9 @@ describe('AppShell scene storage integration', () => {
 
   it('pauses recovery toast auto-dismiss while hovered', () => {
     vi.useFakeTimers();
-    vi.spyOn(window, 'prompt').mockReturnValue('bad-code');
 
     render(<AppShell />);
-    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+    submitSceneStringImport('bad-code');
     const toast = screen.getByLabelText('Recovery toast');
 
     fireEvent.mouseEnter(toast);
@@ -347,10 +352,8 @@ describe('AppShell scene storage integration', () => {
   });
 
   it('closes recovery toast immediately from the close button', () => {
-    vi.spyOn(window, 'prompt').mockReturnValue('bad-code');
-
     render(<AppShell />);
-    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+    submitSceneStringImport('bad-code');
     const toast = screen.getByLabelText('Recovery toast');
 
     fireEvent.click(within(toast).getByRole('button', { name: '关闭' }));
@@ -629,16 +632,308 @@ describe('AppShell scene storage integration', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:image-export-pending');
   }, 20_000);
 
-  it('hides the export action on mobile read-only without writing scene storage', () => {
+  it('renders mobile empty preview mode without desktop workbench or storage writes', () => {
     setViewportWidth(390);
+    const promptSpy = vi.spyOn(window, 'prompt');
+    const confirmSpy = vi.spyOn(window, 'confirm');
 
     render(<AppShell />);
     const beforeSnapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
 
+    expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+      'data-mobile-preview-state',
+      'empty',
+    );
+    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile Preview Mode');
+    expect(screen.getByText('还没有本地保存的布景。')).toBeVisible();
+    expect(screen.getByRole('button', { name: '导入字符串' })).toBeVisible();
     expect(screen.queryByRole('button', { name: '下载预览' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '导出字符串' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '导入字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '重置' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Open Design editing workbench')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('scene-canvas')).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Asset picker' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Building level panel')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Selection context')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+
+    const dialog = screen.getByRole('dialog', { name: '导入布景字符串' });
+    expect(dialog).toBeVisible();
+    expect(within(dialog).getByLabelText('布景字符串')).toBeVisible();
+    expect(promptSpy).not.toHaveBeenCalled();
+    expect(confirmSpy).not.toHaveBeenCalled();
     expect((window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.()).toBe(beforeSnapshot);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  });
+
+  it('imports a mobile scene string into autosave and shows the shared inline preview', async () => {
+    setViewportWidth(390);
+    const importedScene = createDefaultSceneDocument({
+      sceneId: 'scene-mobile-import',
+      sceneName: 'Mobile Imported Garden',
+      selectedPokemonKey: 'pikachu',
+      now: '2026-05-31T10:00:00.000Z',
+    });
+    const promptSpy = vi.spyOn(window, 'prompt');
+    const confirmSpy = vi.spyOn(window, 'confirm');
+
+    render(<AppShell />);
+    submitSceneStringImport(encodeSceneDocumentString(importedScene));
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+        'data-mobile-preview-state',
+        'preview-ready',
+      );
+      expect(screen.getByRole('heading', { name: 'Mobile Imported Garden' })).toBeVisible();
+    });
+    expect(screen.getByLabelText('皮卡丘导出预览宝可梦图片')).toBeVisible();
+    expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('未放置素材');
+    expect(screen.getByLabelText('L1 17x17 图形')).toBeVisible();
+    expect(screen.queryByRole('dialog', { name: '导入布景字符串' })).not.toBeInTheDocument();
+    expect(promptSpy).not.toHaveBeenCalled();
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+    expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}')).toMatchObject({
+      sceneName: 'Mobile Imported Garden',
+      selectedPokemonKey: 'pikachu',
+    });
+  });
+
+  it('keeps mobile invalid imports in the modal without storage or scene changes', () => {
+    setViewportWidth(390);
+    const promptSpy = vi.spyOn(window, 'prompt');
+    const confirmSpy = vi.spyOn(window, 'confirm');
+
+    render(<AppShell />);
+    const beforeSnapshot = readSceneSnapshot();
+    const dialog = submitSceneStringImport('bad-code');
+
+    expect(dialog).toBeVisible();
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('导入字符串无效');
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+    expect(promptSpy).not.toHaveBeenCalled();
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  });
+
+  it('requires mobile lossy confirmation before writing autosave and supports lossy cancel', async () => {
+    setViewportWidth(390);
+    const lossySceneString = [
+      'PSE2',
+      'F.F.1',
+      'Lossy Mobile.0.0._._',
+      '0.%E7%B4%A0%E6%9D%90%E5%B1%82;1.%E5%9C%B0%E5%9F%BA',
+      '0.f.C0.0._._._;1.f.6L.0._._._',
+      '_',
+    ].join('~');
+
+    render(<AppShell />);
+    let dialog = submitSceneStringImport(lossySceneString);
+
+    expect(within(dialog).getByText(/丢弃 1 个不兼容素材/)).toBeVisible();
+    expect(within(dialog).getByText(/地基（7,2）木地板/)).toBeVisible();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }));
+
+    expect(screen.queryByRole('dialog', { name: '导入布景字符串' })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+
+    dialog = submitSceneStringImport(lossySceneString);
+    fireEvent.click(within(dialog).getByRole('button', { name: '继续导入剩余部分' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+        'data-mobile-preview-state',
+        'preview-ready',
+      );
+      expect(screen.getByRole('heading', { name: 'Lossy Mobile' })).toBeVisible();
+    });
+    expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}').tileInstances).toEqual([
+      expect.objectContaining({
+        assetId: 'bread-oven',
+      }),
+    ]);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  });
+
+  it('clears stale lossy confirmation when the import textarea changes', async () => {
+    setViewportWidth(390);
+    const initialLossySceneString = [
+      'PSE2',
+      'F.F.1',
+      'Initial Lossy Mobile.0.0._._',
+      '0.%E7%B4%A0%E6%9D%90%E5%B1%82;1.%E5%9C%B0%E5%9F%BA',
+      '0.f.C0.0._._._;1.f.6L.0._._._',
+      '_',
+    ].join('~');
+    const editedLossySceneString = [
+      'PSE2',
+      'F.F.1',
+      'Edited Lossy Mobile.0.0._._',
+      '0.%E7%B4%A0%E6%9D%90%E5%B1%82;1.%E5%9C%B0%E5%9F%BA',
+      '0.f.C0.0._._._;1.f.6L.0._._._',
+      '_',
+    ].join('~');
+
+    render(<AppShell />);
+    const dialog = submitSceneStringImport(initialLossySceneString);
+
+    expect(within(dialog).getByText(/丢弃 1 个不兼容素材/)).toBeVisible();
+    expect(within(dialog).getByRole('button', { name: '继续导入剩余部分' })).toBeVisible();
+
+    fireEvent.change(within(dialog).getByLabelText('布景字符串'), {
+      target: { value: editedLossySceneString },
+    });
+
+    expect(within(dialog).queryByText(/丢弃 1 个不兼容素材/)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: '导入' })).toBeVisible();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '导入' }));
+
+    expect(within(dialog).getByText(/丢弃 1 个不兼容素材/)).toBeVisible();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '继续导入剩余部分' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Edited Lossy Mobile' })).toBeVisible();
+    });
+    expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}')).toMatchObject({
+      sceneName: 'Edited Lossy Mobile',
+    });
+  });
+
+  it('keeps mobile import modal open when autosave storage writes fail', () => {
+    setViewportWidth(390);
+    const originalSetItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function setItemDouble(
+      this: Storage,
+      key,
+      value,
+    ) {
+      if (key === autosavedSceneStorageKey) {
+        throw new Error('Mobile import autosave failed.');
+      }
+
+      return originalSetItem.call(this, key, value);
+    });
+    const importedScene = createDefaultSceneDocument({
+      sceneId: 'scene-mobile-import-storage-failure',
+      sceneName: 'Storage Failure Import',
+      selectedPokemonKey: 'pikachu',
+      now: '2026-05-31T10:05:00.000Z',
+    });
+
+    render(<AppShell />);
+    const dialog = submitSceneStringImport(encodeSceneDocumentString(importedScene));
+
+    expect(dialog).toBeVisible();
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('写入本地自动保存失败');
+    expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+      'data-mobile-preview-state',
+      'empty',
+    );
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  });
+
+  it('supports Escape close and focus containment in the import modal without storage writes', async () => {
+    setViewportWidth(390);
+
+    render(<AppShell />);
+    const dialog = openSceneStringImportModal();
+    const closeButton = within(dialog).getByRole('button', { name: '关闭' });
+    const importButton = within(dialog).getByRole('button', { name: '导入' });
+
+    await waitFor(() => {
+      expect(closeButton).toHaveFocus();
+    });
+
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(importButton).toHaveFocus();
+
+    fireEvent.keyDown(dialog, { key: 'Tab' });
+    expect(closeButton).toHaveFocus();
+
+    fireEvent.change(within(dialog).getByLabelText('布景字符串'), {
+      target: { value: encodeSceneDocumentString(createDefaultSceneDocument({ sceneName: 'Escape Import' })) },
+    });
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog', { name: '导入布景字符串' })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  });
+
+  it('keeps mobile cancel and close side-effect free', () => {
+    setViewportWidth(390);
+
+    render(<AppShell />);
+    const beforeSnapshot = readSceneSnapshot();
+
+    let dialog = openSceneStringImportModal();
+    fireEvent.change(within(dialog).getByLabelText('布景字符串'), {
+      target: { value: encodeSceneDocumentString(createDefaultSceneDocument({ sceneName: 'Canceled Mobile Import' })) },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }));
+
+    expect(screen.queryByRole('dialog', { name: '导入布景字符串' })).not.toBeInTheDocument();
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+
+    dialog = openSceneStringImportModal();
+    fireEvent.change(within(dialog).getByLabelText('布景字符串'), {
+      target: { value: encodeSceneDocumentString(createDefaultSceneDocument({ sceneName: 'Closed Mobile Import' })) },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: '关闭' }));
+
+    expect(screen.queryByRole('dialog', { name: '导入布景字符串' })).not.toBeInTheDocument();
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  });
+
+  it('uses the current desktop draft when resizing into mobile preview before storage is available', async () => {
+    writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
+
+    render(<AppShell />);
+
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Unsaved Mobile Draft' } });
+    window.localStorage.clear();
+    setViewportWidth(390);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile Preview Mode');
+      expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+        'data-mobile-preview-state',
+        'preview-ready',
+      );
+      expect(screen.getByRole('heading', { name: 'Unsaved Mobile Draft' })).toBeVisible();
+    });
+    expect(screen.getByText('17x17 画布 · 1 个建筑层')).toBeVisible();
+    expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('未放置素材');
+    expect(screen.getByLabelText('L1 17x17 图形')).toBeVisible();
+    expect(screen.getByLabelText('pokokit 彩色 logo')).toHaveTextContent('pokokit');
+    expect(screen.queryByRole('dialog', { name: '下载预览' })).not.toBeInTheDocument();
+    expect(document.querySelector('.export-preview-backdrop')).toBeNull();
+    expect(screen.queryByRole('button', { name: '下载图片' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Open Design editing workbench')).not.toBeInTheDocument();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
@@ -769,11 +1064,12 @@ describe('AppShell scene storage integration', () => {
     expect(document.querySelector('b')).toBeNull();
   });
 
-  it('shows current-layer notes on mobile read-only without dirtying scene storage', () => {
+  it('shows stored scene summary on mobile without dirtying scene storage', () => {
     setViewportWidth(390);
     const storedScene = createDefaultSceneDocument({
       sceneId: 'scene-readonly-notes',
       sceneName: 'Mobile Notes',
+      selectedPokemonKey: 'pikachu',
       now: '2026-05-16T08:30:00.000Z',
     });
     writeSceneDocumentToStorage(
@@ -793,9 +1089,21 @@ describe('AppShell scene storage integration', () => {
 
     render(<AppShell />);
 
-    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
-    expect(screen.getByLabelText('No selected grid cell')).toBeVisible();
-    expect(screen.getByLabelText('当前层备注列表')).toHaveTextContent('<b>只读备注</b>');
+    expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+      'data-mobile-preview-state',
+      'preview-ready',
+    );
+    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile Preview Mode');
+    expect(screen.getByRole('heading', { name: 'Mobile Notes' })).toBeVisible();
+    expect(screen.getByLabelText('皮卡丘导出预览宝可梦图片')).toBeVisible();
+    expect(screen.getByText('17x17 画布 · 1 个建筑层')).toBeVisible();
+    expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('未放置素材');
+    expect(screen.getByLabelText('L1 17x17 图形')).toBeVisible();
+    expect(screen.getByLabelText('L1 层备注')).toHaveTextContent('<b>只读备注</b>');
+    expect(screen.queryByRole('dialog', { name: '下载预览' })).not.toBeInTheDocument();
+    expect(document.querySelector('.export-preview-backdrop')).toBeNull();
+    expect(screen.queryByLabelText('No selected grid cell')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('当前层备注列表')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('新增当前层备注')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /添加备注|编辑第|删除第/ })).not.toBeInTheDocument();
     expect(document.querySelector('b')).toBeNull();
@@ -1353,13 +1661,15 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
-  it('keeps mobile view-only mode from writing scene storage', () => {
+  it('keeps mobile preview mode from writing scene storage', () => {
     setViewportWidth(390);
 
     render(<AppShell />);
 
-    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
+    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile Preview Mode');
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Pokemon scene controls')).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Asset picker' })).not.toBeInTheDocument();
     expectNoSaveStatus();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
@@ -1369,20 +1679,15 @@ describe('AppShell scene storage integration', () => {
     setViewportWidth(390);
 
     render(<AppShell />);
-    await waitFor(() => expect(readSceneSnapshot()).toContain('"sceneName":"15x15 布景"'));
+    await waitFor(() => expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile Preview Mode'));
     const beforeSnapshot = readSceneSnapshot();
     const globalKeyHandler = vi.fn();
     window.addEventListener('keydown', globalKeyHandler);
 
-    const cell = screen.getByLabelText(/Cell 3,2, main area, level-0, read-only$/);
-    const levelRow = screen.getByLabelText('L1, 1层, 0 instances, viewing layer');
-    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
-    if (!assetButton) {
-      throw new Error('Expected pecha-berry asset button.');
-    }
+    const importButton = screen.getByRole('button', { name: '导入字符串' });
 
     try {
-      for (const target of [cell, levelRow, assetButton, document]) {
+      for (const target of [importButton, document]) {
         for (const keyEvent of mobileApplicationKeyEvents) {
           fireEvent.keyDown(target, keyEvent);
         }
@@ -1393,18 +1698,26 @@ describe('AppShell scene storage integration', () => {
     } finally {
       window.removeEventListener('keydown', globalKeyHandler);
     }
-    expect(screen.getByLabelText('Current building level')).toHaveTextContent('Current L1');
-    expect(cell).not.toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByLabelText('Current building level')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('scene-cell')).not.toBeInTheDocument();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
   });
 
-  it('keeps mobile view-only stacking inspection from modifying the scene', async () => {
+  it('builds the mobile preview summary from valid storage without opening a dialog', async () => {
     setViewportWidth(390);
     const sourceStackingScene = createStackingPlateFoodScene();
     const stackingScene = {
       ...sourceStackingScene,
       sceneName: 'Mobile Stacking View',
+      buildingLevels: sourceStackingScene.buildingLevels.map((level, index) => index === 0
+        ? {
+            ...level,
+            notes: [
+              { id: 'mobile-export-note', text: unsafeAngleText },
+            ],
+          }
+        : level),
       workspaceState: {
         ...sourceStackingScene.workspaceState,
         selectedCoordinate: { x: 2, y: 2 },
@@ -1414,12 +1727,24 @@ describe('AppShell scene storage integration', () => {
 
     render(<AppShell />);
 
-    await waitFor(() => expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode'));
+    await waitFor(() => expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile Preview Mode'));
     const beforeSnapshot = readSceneSnapshot();
-    const stackedCell = screen.getByLabelText(/Cell 2,2, main area, level-0, read-only, 苹野果, stacked 苹野果 on 盘子/);
 
-    expect(stackedCell).toBeVisible();
-    fireEvent.click(stackedCell);
+    expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+      'data-mobile-preview-state',
+      'preview-ready',
+    );
+    expect(screen.getByRole('heading', { name: 'Mobile Stacking View' })).toBeVisible();
+    expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('苹野果');
+    expect(screen.getByLabelText('逐层图形和素材清单')).toBeVisible();
+    expect(screen.getByLabelText('L1 7x7 图形')).toBeVisible();
+    expect(screen.getByLabelText('L1 使用素材清单')).toHaveTextContent('苹野果');
+    expect(screen.getByLabelText('L1 层备注')).toHaveTextContent(unsafeAngleText);
+    expect(screen.queryByRole('dialog', { name: '下载预览' })).not.toBeInTheDocument();
+    expect(document.querySelector('.export-preview-backdrop')).toBeNull();
+    expect(document.querySelector('[aria-modal]')).toBeNull();
+    expect(screen.queryByRole('button', { name: '下载图片' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('scene-cell')).not.toBeInTheDocument();
 
     expect(readSceneSnapshot()).toBe(beforeSnapshot);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
@@ -1448,7 +1773,7 @@ describe('AppShell scene storage integration', () => {
 
     render(<AppShell />);
 
-    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
+    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile Preview Mode');
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toContain('displayOptions');
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
@@ -1465,8 +1790,8 @@ describe('AppShell scene storage integration', () => {
     setViewportWidth(390);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
-      expect(screen.getByTestId('scene-canvas')).not.toHaveAttribute('data-keyboard-coordinate');
+      expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile Preview Mode');
+      expect(screen.queryByTestId('scene-canvas')).not.toBeInTheDocument();
     });
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
@@ -1529,65 +1854,69 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
-  it('restores saved scene during read-only startup without autosaving', () => {
+  it('enters preview-ready mobile state from valid storage without autosaving', () => {
     setViewportWidth(390);
+    const storedScene = createDefaultSceneDocument({
+      sceneId: 'scene-readonly-recovery',
+      sceneName: 'Mobile Restored Recovery',
+      selectedPokemonKey: 'pikachu',
+      now: '2026-05-16T08:30:00.000Z',
+    });
     writeSceneDocumentToStorage(
       window.localStorage,
-      createDefaultSceneDocument({
-        sceneId: 'scene-readonly-recovery',
-        sceneName: 'Mobile Restored Recovery',
-        selectedPokemonKey: 'pikachu',
-        now: '2026-05-16T08:30:00.000Z',
-      }),
+      storedScene,
       'autosave',
     );
+    const beforeAutosave = window.localStorage.getItem(autosavedSceneStorageKey);
 
     render(<AppShell />);
 
-    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
+    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile Preview Mode');
+    expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+      'data-mobile-preview-state',
+      'preview-ready',
+    );
     expect(screen.queryByLabelText('Recovery toast')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('布景')).toHaveValue('Mobile Restored Recovery');
-    expect(screen.getByLabelText('Current Pokemon')).toHaveValue('皮卡丘');
+    expect(screen.getByRole('heading', { name: 'Mobile Restored Recovery' })).toBeVisible();
+    expect(screen.getByLabelText('皮卡丘导出预览宝可梦图片')).toBeVisible();
+    expect(screen.getByText('17x17 画布 · 1 个建筑层')).toBeVisible();
+    expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('未放置素材');
+    expect(screen.getByLabelText('L1 17x17 图形')).toBeVisible();
+    expect(screen.queryByRole('dialog', { name: '下载预览' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('布景')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Current Pokemon')).not.toBeInTheDocument();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
-    expect(window.localStorage.getItem(autosavedSceneStorageKey)).not.toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(beforeAutosave);
     expectNoSaveStatus();
   });
 
-  it('retries and restores valid scene data in read-only mode', async () => {
+  it('enters invalid mobile state from invalid storage without default-scene success or storage writes', () => {
     setViewportWidth(390);
+    const beforePayload = JSON.stringify({
+      schemaVersion: 99,
+      sceneId: 'bad-readonly-recovery',
+    });
     window.localStorage.setItem(
       autosavedSceneStorageKey,
-      JSON.stringify({
-        schemaVersion: 99,
-        sceneId: 'bad-readonly-recovery',
-      }),
+      beforePayload,
     );
 
     render(<AppShell />);
 
-    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile read-only mode');
-    expect(screen.getByLabelText('Recovery toast')).toBeVisible();
-    expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
-
-    writeSceneDocumentToStorage(
-      window.localStorage,
-      createDefaultSceneDocument({
-        sceneId: 'scene-readonly-retry-recovery',
-        sceneName: 'Mobile Retry Recovery',
-        selectedPokemonKey: 'pikachu',
-        now: '2026-05-16T08:30:00.000Z',
-      }),
-      'autosave',
+    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile Preview Mode');
+    expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+      'data-mobile-preview-state',
+      'invalid',
     );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-
-    await waitFor(() => {
-      expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'success');
-      expect(screen.getByLabelText('布景')).toHaveValue('Mobile Retry Recovery');
-      expect(screen.getByLabelText('Current Pokemon')).toHaveValue('皮卡丘');
-      expectNoSaveStatus();
-    });
+    expect(screen.queryByLabelText('Recovery toast')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Mobile preview recovery errors')).toHaveTextContent('schemaVersion');
+    expect(screen.getByRole('button', { name: '导入字符串' })).toBeVisible();
+    expect(screen.queryByText('15x15 布景')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('布景')).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(beforePayload);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+    expectNoSaveStatus();
   });
 
   it('renders unsafe RecoveryError values as text and preserves scene state after cancel', async () => {
@@ -1694,6 +2023,21 @@ function readSceneSnapshot(): string {
   }
 
   return snapshot;
+}
+
+function openSceneStringImportModal(): HTMLElement {
+  fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+  return screen.getByRole('dialog', { name: '导入布景字符串' });
+}
+
+function submitSceneStringImport(sceneString: string): HTMLElement {
+  const dialog = openSceneStringImportModal();
+  fireEvent.change(within(dialog).getByLabelText('布景字符串'), {
+    target: { value: sceneString },
+  });
+  fireEvent.click(within(dialog).getByRole('button', { name: '导入' }));
+
+  return dialog;
 }
 
 const mobileApplicationKeyEvents = [
