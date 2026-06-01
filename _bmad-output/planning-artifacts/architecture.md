@@ -126,7 +126,15 @@ Mobile import 是一个显式 replacement flow，不是普通编辑能力。普�
 
 `ExportPreview` 必须拆出共享 content/presentation 层，desktop modal wrapper 与 mobile inline wrapper 共享同一 scene-derived 内容。Desktop 继续使用 modal/backdrop/focus trap/download controls；mobile inline surface 不使用 `aria-modal`、不 trap focus、不遮挡页面。
 
-另有 63 条 Non-Functional Requirements，核心架构约束包括：
+### Approved Course Correction - 2026-06-01 `scene_id` URL 即时访问导入
+
+本 Architecture 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-01-scene-id-url-import.md` 增加 Epic 15。新增 browser-only remote scene import adapter：`apps/web` 读取 `window.location.search` 中的 `scene_id`、解析 remote endpoint、执行 fetch、解析响应中的 scene string，并把字符串交给现有 scene string import pipeline。
+
+Production endpoint 是 `https://scene-api.pokokit.com/api/scenes/{id}`。Local dev endpoint 应走 Vite dev proxy 或本地 adapter，由 dev server 向上游附带 `Origin: "https://scene-editor.pokokit.com"`；browser client 不应手写 `Origin` header。Proxy 配置、endpoint resolution 和 production/direct endpoint 行为必须用 tests 锁定。
+
+该 adapter 不属于 `packages/scene-core`，因为它依赖 browser URL、fetch 和环境判断。`scene-core` 继续只提供 DOM-free decode、recovery、schema、export summary 和规则派生。本次继续保持 `SceneDocument v1`，不新增 `scene_id` 字段、不保存 remote source、不保存 derived footprint/stacking/dimension state。
+
+另有 69 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
 - 预览切换需要在 300ms 内完成首个可见更新；素材搜索筛选 1000 个素材以内需要在 200ms 内返回可见结果。
@@ -1105,6 +1113,16 @@ Mobile import string
         -> buildImageExportSummary
         -> inline export preview content
         -> no UI preference write and no derived-state persistence
+
+Remote scene_id startup
+        -> parse window.location.search scene_id
+        -> resolve endpoint: production scene API or local dev proxy
+        -> fetch scene string without client-side Origin header
+        -> decodeSceneDocumentStringWithLossyRecovery
+        -> applyRecoveredSceneDocument with explicit remote import source
+        -> desktop: replace current editable scene
+        -> mobile: write autosave slot and render inline export preview
+        -> no UI preference write, no scene_id field, no derived-state persistence
 
 Image export download
         -> use same export render data as preview

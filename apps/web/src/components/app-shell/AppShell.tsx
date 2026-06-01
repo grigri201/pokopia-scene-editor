@@ -39,12 +39,15 @@ import {
   createLayeredImageExportFiles,
   decodeSceneDocumentStringWithLossyRecovery,
   encodeSceneDocumentString,
+  fetchRemoteSceneString,
+  getSceneIdFromSearch,
   getUiPreferencesStorage,
   readLatestSceneDocumentFromStorage,
   readUiPreferencesFromStorage,
   savedSceneStorageKey,
   writeHelpOverlayDismissedPreferenceToStorage,
   type RecoveryError,
+  type RemoteSceneFetchResult,
   writeLocalePreferenceToStorage,
   writeSceneDocumentToStorage,
 } from '../../io';
@@ -82,7 +85,7 @@ import {
   type HelpGuideTargetKey,
 } from './help-guide';
 import { MobilePreviewMode } from './mobile-preview-mode';
-import { resolveMobilePreviewState } from './mobile-preview-state';
+import { resolveMobilePreviewState, type MobilePreviewState } from './mobile-preview-state';
 import {
   SceneStringImportModal,
   type SceneStringImportSubmitResult,
@@ -99,6 +102,41 @@ interface NotificationToast {
   tone: NotificationToastTone;
   title: string;
   message: string;
+}
+
+type SceneStringImportSource = 'manual' | 'remote-scene-id';
+
+type RemoteSceneImportState =
+  | {
+      status: 'idle';
+    }
+  | {
+      status: 'loading';
+      sceneId: string;
+    }
+  | {
+      status: 'success';
+      sceneId: string;
+    }
+  | {
+      status: 'error';
+      errors?: RecoveryError[];
+      message: string;
+      sceneId?: string;
+    }
+  | {
+      status: 'lossy-confirmation';
+      droppedTileDetails: string[];
+      sceneId: string;
+      sceneString: string;
+    };
+
+interface SceneStringImportContext {
+  interactionMode: InteractionMode;
+  isReadOnly: boolean;
+  locale: Locale;
+  mobilePreviewState: MobilePreviewState | null;
+  scene: SceneDocument;
 }
 
 export function AppShell() {
@@ -142,6 +180,10 @@ export function AppShell() {
   const [viewportWidth, setViewportWidth] = useState(initialViewportWidth);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(initialInteractionMode);
   const [sceneStringImportModalOpen, setSceneStringImportModalOpen] = useState(false);
+  const [remoteSceneImportState, setRemoteSceneImportState] = useState<RemoteSceneImportState>(() =>
+    createInitialRemoteSceneImportState(window.location.search),
+  );
+  const remoteSceneImportRequestIdRef = useRef(0);
   const hasEnteredEditModeRef = useRef(initialInteractionMode === 'edit');
   const [helpOverlayOpen, setHelpOverlayOpen] = useState(
     initialInteractionMode === 'edit' &&
@@ -157,13 +199,24 @@ export function AppShell() {
   const exportPreviewOpen = exportPreviewSummary !== null;
   const helpOverlayAvailable = !isReadOnly && viewportWidth >= helpOverlayMinimumWidth;
   const helpOverlayVisible = helpOverlayOpen && helpOverlayAvailable;
+  const remoteMobilePreviewState = isReadOnly
+    ? getRemoteMobilePreviewState(remoteSceneImportState)
+    : null;
   const mobilePreviewState = isReadOnly
-    ? resolveMobilePreviewState(
+    ? remoteMobilePreviewState ?? resolveMobilePreviewState(
         getBrowserStorage(),
         locale,
         hasEnteredEditModeRef.current ? scene : null,
       )
     : null;
+  const sceneStringImportContextRef = useRef<SceneStringImportContext | null>(null);
+  sceneStringImportContextRef.current = {
+    interactionMode,
+    isReadOnly,
+    locale,
+    mobilePreviewState,
+    scene,
+  };
   const toastStackVisible = recoveryStatus !== 'idle' || notificationToasts.length > 0;
   const helpGuideLayouts = helpGuideSnapshot ? getHelpGuideLayouts(helpGuideSnapshot) : {};
   const activeBuildingLevelId = isReadOnly
@@ -1078,62 +1131,77 @@ export function AppShell() {
     }
   };
 
-  const submitSceneStringImport = (
+  const applySceneStringImport = (
     sceneString: string,
-    options: { allowLossy: boolean },
+    options: { allowLossy: boolean; source: SceneStringImportSource },
   ): SceneStringImportSubmitResult => {
+    const importContext = sceneStringImportContextRef.current ?? {
+      interactionMode,
+      isReadOnly,
+      locale,
+      mobilePreviewState,
+      scene,
+    };
+    const activeLocale = importContext.locale;
     const decoded = decodeSceneDocumentStringWithLossyRecovery(sceneString.trim(), getCurrentIsoTimestamp());
+    const toastTitle = options.source === 'remote-scene-id'
+      ? t(activeLocale, 'remoteSceneImportToastTitle')
+      : t(activeLocale, 'sceneStringToastTitle');
     if (!decoded.ok) {
-      if (!isReadOnly) {
+      if (!importContext.isReadOnly) {
         setRecoveryErrors(decoded.errors);
         setRecoveryStatus('error');
         showNotificationToast({
-          id: 'scene-string',
+          id: options.source === 'remote-scene-id' ? 'remote-scene-import' : 'scene-string',
           tone: 'error',
-          title: t(locale, 'sceneStringToastTitle'),
-          message: t(locale, 'sceneStringInvalid'),
+          title: toastTitle,
+          message: options.source === 'remote-scene-id'
+            ? t(activeLocale, 'remoteSceneImportInvalidSceneString')
+            : t(activeLocale, 'sceneStringInvalid'),
         });
       }
       return { status: 'invalid', errors: decoded.errors };
     }
 
     const droppedTileDetails = decoded.droppedTileInstances.map((droppedInstance) =>
-      formatDroppedTileInstance(droppedInstance, locale),
+      formatDroppedTileInstance(droppedInstance, activeLocale),
     );
     if (droppedTileDetails.length > 0 && !options.allowLossy) {
       return { status: 'lossy', droppedTileDetails };
     }
 
-    const baseScene = isReadOnly && mobilePreviewState?.status === 'preview-ready'
-      ? mobilePreviewState.scene
-      : scene;
+    const baseScene = importContext.isReadOnly && importContext.mobilePreviewState?.status === 'preview-ready'
+      ? importContext.mobilePreviewState.scene
+      : importContext.scene;
     const appliedRecovery = applyRecoveredSceneDocument(baseScene, decoded.payload, {
-      interactionMode,
+      interactionMode: importContext.interactionMode,
       source: 'confirmed-user',
     });
     if (!appliedRecovery.ok) {
-      if (!isReadOnly) {
+      if (!importContext.isReadOnly) {
         setRecoveryErrors(appliedRecovery.errors);
         setRecoveryStatus('error');
         showNotificationToast({
-          id: 'scene-string',
+          id: options.source === 'remote-scene-id' ? 'remote-scene-import' : 'scene-string',
           tone: 'error',
-          title: t(locale, 'sceneStringToastTitle'),
-          message: t(locale, 'sceneStringInvalid'),
+          title: toastTitle,
+          message: options.source === 'remote-scene-id'
+            ? t(activeLocale, 'remoteSceneImportInvalidSceneString')
+            : t(activeLocale, 'sceneStringInvalid'),
         });
       }
       return { status: 'invalid', errors: appliedRecovery.errors };
     }
 
-    if (isReadOnly) {
+    if (importContext.isReadOnly) {
       try {
-        buildImageExportSummary(appliedRecovery.scene, locale);
+        buildImageExportSummary(appliedRecovery.scene, activeLocale);
       } catch {
-        const message = t(locale, 'sceneStringImportPreviewFailed');
+        const message = t(activeLocale, 'sceneStringImportPreviewFailed');
         showNotificationToast({
-          id: 'scene-string',
+          id: options.source === 'remote-scene-id' ? 'remote-scene-import' : 'scene-string',
           tone: 'error',
-          title: t(locale, 'sceneStringToastTitle'),
+          title: toastTitle,
           message,
         });
         return { status: 'storage-error', message };
@@ -1141,11 +1209,11 @@ export function AppShell() {
 
       const storage = getBrowserStorage();
       if (!storage) {
-        const message = t(locale, 'sceneStringImportStorageUnavailable');
+        const message = t(activeLocale, 'sceneStringImportStorageUnavailable');
         showNotificationToast({
-          id: 'scene-string',
+          id: options.source === 'remote-scene-id' ? 'remote-scene-import' : 'scene-string',
           tone: 'error',
-          title: t(locale, 'sceneStringToastTitle'),
+          title: toastTitle,
           message,
         });
         return { status: 'storage-error', message };
@@ -1154,11 +1222,11 @@ export function AppShell() {
       try {
         writeSceneDocumentToStorage(storage, appliedRecovery.scene, 'autosave');
       } catch {
-        const message = t(locale, 'sceneStringImportStorageFailed');
+        const message = t(activeLocale, 'sceneStringImportStorageFailed');
         showNotificationToast({
-          id: 'scene-string',
+          id: options.source === 'remote-scene-id' ? 'remote-scene-import' : 'scene-string',
           tone: 'error',
-          title: t(locale, 'sceneStringToastTitle'),
+          title: toastTitle,
           message,
         });
         return { status: 'storage-error', message };
@@ -1169,15 +1237,17 @@ export function AppShell() {
       setRecoveryStatus('idle');
       dismissNotificationToast('autosave');
       showNotificationToast({
-        id: 'scene-string',
+        id: options.source === 'remote-scene-id' ? 'remote-scene-import' : 'scene-string',
         tone: droppedTileDetails.length > 0 ? 'warning' : 'success',
-        title: t(locale, 'sceneStringToastTitle'),
+        title: toastTitle,
         message: droppedTileDetails.length > 0
-          ? t(locale, 'sceneStringImportedWithLosses', {
+          ? t(activeLocale, 'sceneStringImportedWithLosses', {
               count: droppedTileDetails.length,
               details: droppedTileDetails.join('；'),
             })
-          : t(locale, 'sceneStringImported'),
+          : options.source === 'remote-scene-id'
+            ? t(activeLocale, 'remoteSceneImportLoaded')
+            : t(activeLocale, 'sceneStringImported'),
       });
       return { status: 'success' };
     }
@@ -1191,18 +1261,174 @@ export function AppShell() {
     setSelectedInstanceId(null);
     replacementConfirmationExpiresAtRef.current = 0;
     showNotificationToast({
-      id: 'scene-string',
+      id: options.source === 'remote-scene-id' ? 'remote-scene-import' : 'scene-string',
       tone: droppedTileDetails.length > 0 ? 'warning' : 'success',
-      title: t(locale, 'sceneStringToastTitle'),
+      title: toastTitle,
       message: droppedTileDetails.length > 0
-        ? t(locale, 'sceneStringImportedWithLosses', {
+        ? t(activeLocale, 'sceneStringImportedWithLosses', {
             count: droppedTileDetails.length,
             details: droppedTileDetails.join('；'),
           })
-        : t(locale, 'sceneStringImported'),
+        : options.source === 'remote-scene-id'
+          ? t(activeLocale, 'remoteSceneImportLoaded')
+          : t(activeLocale, 'sceneStringImported'),
     });
     return { status: 'success' };
   };
+
+  const submitSceneStringImport = (
+    sceneString: string,
+    options: { allowLossy: boolean },
+  ): SceneStringImportSubmitResult => {
+    const result = applySceneStringImport(sceneString, { ...options, source: 'manual' });
+
+    if (result.status === 'lossy') {
+      remoteSceneImportRequestIdRef.current += 1;
+    }
+
+    if (result.status === 'success') {
+      remoteSceneImportRequestIdRef.current += 1;
+      dismissNotificationToast('remote-scene-import');
+      setRemoteSceneImportState({ status: 'idle' });
+    }
+
+    return result;
+  };
+
+  const handleRemoteSceneString = (
+    sceneId: string,
+    sceneString: string,
+    options: { allowLossy: boolean },
+  ) => {
+    const result = applySceneStringImport(sceneString, { ...options, source: 'remote-scene-id' });
+
+    if (result.status === 'success') {
+      setRemoteSceneImportState({ status: 'success', sceneId });
+      return;
+    }
+
+    if (result.status === 'lossy') {
+      setRemoteSceneImportState({
+        status: 'lossy-confirmation',
+        droppedTileDetails: result.droppedTileDetails,
+        sceneId,
+        sceneString,
+      });
+      return;
+    }
+
+    if (result.status === 'storage-error') {
+      setRemoteSceneImportState({
+        status: 'error',
+        message: result.message,
+        sceneId,
+      });
+      return;
+    }
+
+    setRemoteSceneImportState({
+      status: 'error',
+      errors: result.errors,
+      message: t(locale, 'remoteSceneImportInvalidSceneString'),
+      sceneId,
+    });
+  };
+
+  const runRemoteSceneImport = async () => {
+    const requestId = remoteSceneImportRequestIdRef.current + 1;
+    remoteSceneImportRequestIdRef.current = requestId;
+    const query = getSceneIdFromSearch(window.location.search);
+
+    if (query.status === 'no-scene-id') {
+      setRemoteSceneImportState({ status: 'idle' });
+      return;
+    }
+
+    if (query.status === 'invalid-query') {
+      setRemoteSceneImportState({
+        status: 'error',
+        message: t(locale, 'remoteSceneImportInvalidQuery'),
+        sceneId: query.sceneId,
+      });
+      return;
+    }
+
+    setRemoteSceneImportState({ status: 'loading', sceneId: query.sceneId });
+    const result = await fetchRemoteSceneString(window.location.search);
+
+    if (remoteSceneImportRequestIdRef.current !== requestId) {
+      return;
+    }
+
+    handleRemoteSceneFetchResult(result);
+  };
+
+  const handleRemoteSceneFetchResult = (result: RemoteSceneFetchResult) => {
+    switch (result.status) {
+      case 'no-scene-id':
+        setRemoteSceneImportState({ status: 'idle' });
+        return;
+      case 'invalid-query':
+        setRemoteSceneImportState({
+          status: 'error',
+          message: t(locale, 'remoteSceneImportInvalidQuery'),
+          sceneId: result.sceneId,
+        });
+        return;
+      case 'success':
+        handleRemoteSceneString(result.sceneId, result.sceneString, { allowLossy: false });
+        return;
+      case 'not-found':
+        setRemoteSceneImportState({
+          status: 'error',
+          message: t(locale, 'remoteSceneImportNotFound', { sceneId: result.sceneId }),
+          sceneId: result.sceneId,
+        });
+        return;
+      case 'invalid-response':
+        setRemoteSceneImportState({
+          status: 'error',
+          message: t(locale, 'remoteSceneImportInvalidResponse'),
+          sceneId: result.sceneId,
+        });
+        return;
+      case 'network-error':
+        setRemoteSceneImportState({
+          status: 'error',
+          message: t(locale, 'remoteSceneImportNetworkError'),
+          sceneId: result.sceneId,
+        });
+    }
+  };
+
+  const confirmRemoteLossyImport = () => {
+    if (remoteSceneImportState.status !== 'lossy-confirmation') {
+      return;
+    }
+
+    handleRemoteSceneString(remoteSceneImportState.sceneId, remoteSceneImportState.sceneString, {
+      allowLossy: true,
+    });
+  };
+
+  const cancelRemoteLossyImport = () => {
+    setRemoteSceneImportState({
+      status: 'error',
+      message: t(locale, 'remoteSceneImportCanceled'),
+      sceneId: remoteSceneImportState.status === 'lossy-confirmation'
+        ? remoteSceneImportState.sceneId
+        : undefined,
+    });
+  };
+
+  useEffect(() => {
+    const query = getSceneIdFromSearch(window.location.search);
+    if (query.status === 'no-scene-id') {
+      return;
+    }
+
+    void runRemoteSceneImport();
+  }, []);
 
   const openExportPreview = () => {
     try {
@@ -1486,6 +1712,16 @@ export function AppShell() {
           ) : null}
         </div>
       </header>
+      {!isReadOnly && isRemoteSceneImportNoticeVisible(remoteSceneImportState) ? (
+        <RemoteSceneImportStatus
+          locale={locale}
+          state={remoteSceneImportState}
+          onImportRequest={openSceneStringImportModal}
+          onLossyCancel={cancelRemoteLossyImport}
+          onLossyConfirm={confirmRemoteLossyImport}
+          onRetry={runRemoteSceneImport}
+        />
+      ) : null}
       {helpOverlayVisible && helpGuideSnapshot ? (
         <div
           className="help-guide-backdrop"
@@ -1716,6 +1952,9 @@ export function AppShell() {
           locale={locale}
           state={mobilePreviewState}
           onImportRequest={requestMobileImport}
+          onRemoteLossyCancel={cancelRemoteLossyImport}
+          onRemoteLossyConfirm={confirmRemoteLossyImport}
+          onRemoteRetry={runRemoteSceneImport}
         />
       ) : (
         <section
@@ -1819,6 +2058,168 @@ export function AppShell() {
       )}
     </main>
   );
+}
+
+function createInitialRemoteSceneImportState(search: string): RemoteSceneImportState {
+  const query = getSceneIdFromSearch(search);
+
+  if (query.status === 'no-scene-id') {
+    return { status: 'idle' };
+  }
+
+  if (query.status === 'invalid-query') {
+    return {
+      status: 'loading',
+      sceneId: query.sceneId ?? 'scene_id',
+    };
+  }
+
+  return {
+    status: 'loading',
+    sceneId: query.sceneId,
+  };
+}
+
+function getRemoteMobilePreviewState(state: RemoteSceneImportState): MobilePreviewState | null {
+  if (state.status === 'loading') {
+    return {
+      status: 'remote-loading',
+      sceneId: state.sceneId,
+    };
+  }
+
+  if (state.status === 'error') {
+    return {
+      status: 'remote-error',
+      errors: state.errors,
+      message: state.message,
+    };
+  }
+
+  if (state.status === 'lossy-confirmation') {
+    return {
+      status: 'remote-lossy',
+      droppedTileDetails: state.droppedTileDetails,
+    };
+  }
+
+  return null;
+}
+
+function isRemoteSceneImportNoticeVisible(
+  state: RemoteSceneImportState,
+): state is Exclude<RemoteSceneImportState, { status: 'idle' | 'success' }> {
+  return state.status === 'loading' || state.status === 'error' || state.status === 'lossy-confirmation';
+}
+
+function RemoteSceneImportStatus({
+  locale,
+  onImportRequest,
+  onLossyCancel,
+  onLossyConfirm,
+  onRetry,
+  state,
+}: {
+  locale: Locale;
+  onImportRequest: () => void;
+  onLossyCancel: () => void;
+  onLossyConfirm: () => void;
+  onRetry: () => void;
+  state: Exclude<RemoteSceneImportState, { status: 'idle' | 'success' }>;
+}) {
+  const isAlert = state.status === 'error' || state.status === 'lossy-confirmation';
+  const ariaLabel = state.status === 'lossy-confirmation'
+    ? t(locale, 'remoteSceneImportLossyTitle')
+    : isAlert
+      ? t(locale, 'remoteSceneImportErrorTitle')
+      : t(locale, 'remoteSceneImportLoadingTitle');
+
+  return (
+    <section
+      className={`remote-scene-import-status remote-scene-import-status--${state.status}`}
+      role={isAlert ? 'alert' : 'status'}
+      aria-label={ariaLabel}
+    >
+      <div>
+        <p className="eyebrow">{t(locale, 'remoteSceneImportToastTitle')}</p>
+        <h2>{getRemoteSceneImportStatusTitle(state, locale)}</h2>
+        <p>{getRemoteSceneImportStatusMessage(state, locale)}</p>
+        {state.status === 'error' && state.errors?.length ? (
+          <ul aria-label={t(locale, 'recoveryDetails')}>
+            {state.errors.map((error, index) => (
+              <li key={`${error.fieldPath}-${index}`}>
+                <strong>{error.fieldPath}</strong>
+                <span>{error.reason}</span>
+                <span>{t(locale, 'expected')}: {error.expected}</span>
+                <span>{t(locale, 'actual')}: {error.actual}</span>
+                <span>{error.recoveryAction}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {state.status === 'lossy-confirmation' ? (
+          <ul aria-label={t(locale, 'remoteSceneImportLossyDetails')}>
+            {state.droppedTileDetails.map((detail) => (
+              <li key={detail}>{detail}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+      <div className="remote-scene-import-status__actions">
+        {state.status === 'loading' || state.status === 'error' ? (
+          <button type="button" className="app-action-button" onClick={onRetry}>
+            {t(locale, 'remoteSceneImportRetry')}
+          </button>
+        ) : null}
+        {state.status === 'lossy-confirmation' ? (
+          <>
+            <button type="button" className="app-action-button" onClick={onLossyCancel}>
+              {t(locale, 'remoteSceneImportCancelAction')}
+            </button>
+            <button type="button" className="app-action-button" onClick={onLossyConfirm}>
+              {t(locale, 'remoteSceneImportLossyConfirmAction')}
+            </button>
+          </>
+        ) : (
+          <button type="button" className="app-action-button" onClick={onImportRequest}>
+            {t(locale, 'remoteSceneImportManualAction')}
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function getRemoteSceneImportStatusTitle(
+  state: Exclude<RemoteSceneImportState, { status: 'idle' | 'success' }>,
+  locale: Locale,
+): string {
+  if (state.status === 'loading') {
+    return t(locale, 'remoteSceneImportLoadingTitle');
+  }
+
+  if (state.status === 'lossy-confirmation') {
+    return t(locale, 'remoteSceneImportLossyTitle');
+  }
+
+  return t(locale, 'remoteSceneImportErrorTitle');
+}
+
+function getRemoteSceneImportStatusMessage(
+  state: Exclude<RemoteSceneImportState, { status: 'idle' | 'success' }>,
+  locale: Locale,
+): string {
+  if (state.status === 'loading') {
+    return t(locale, 'remoteSceneImportLoading', { sceneId: state.sceneId });
+  }
+
+  if (state.status === 'lossy-confirmation') {
+    return t(locale, 'remoteSceneImportLossySummary', {
+      count: state.droppedTileDetails.length,
+    });
+  }
+
+  return state.message;
 }
 
 interface InitialSceneState {

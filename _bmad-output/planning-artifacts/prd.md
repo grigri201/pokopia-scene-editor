@@ -128,6 +128,14 @@ Mobile 允许用户通过显式“导入字符串”操作替换当前本地布�
 
 `SceneDocument v1`、PSE1/PSE2 短字符串 codec、footprint/stacking/dimension 派生规则和 export summary contract 继续保持。本次变更只调整 mobile surface、导入 UI 和 export preview 的承载方式：desktop 继续使用 modal 下载预览，mobile 使用页面内 inline preview。
 
+### Approved Course Correction - 2026-06-01 `scene_id` URL 即时访问导入
+
+本 PRD 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-01-scene-id-url-import.md` 增加 Epic 15。用户打开带 `?scene_id={id}` query 的 scene editor URL 时，Web app 会请求 scene API，取得可导入的布景字符串，并复用现有 PSE scene string decode/recovery/import pipeline 自动显示该布景。
+
+该入口是“导入字符串的远程来源”，不新增账号、云同步、公开方案库、在线编辑服务或 SceneDocument schema 字段。`SceneDocument v1`、PSE1/PSE2 codec、footprint/stacking/dimension 派生规则和 export summary contract 继续保持。
+
+本地调试时，因为 scene API Origin 限制，dev server/proxy 需要向上游带 `Origin: "https://scene-editor.pokokit.com"`；生产环境 browser fetch 不手写该 header。远程加载失败、无效响应、无效 scene string 和 lossy recovery 都必须给出可恢复反馈，不能静默把默认 scene 当作远程 scene 成功显示。
+
 ### What Makes This Special
 
 本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：默认中心 15×15 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、受控承载/叠放、素材实例级技能标记，以及完整 17×17 预览。
@@ -513,6 +521,16 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR115: Mobile inline preview 与 desktop 下载预览必须共享同一 scene-derived 内容，包括标题、Pokemon、canvas dimensions、整体素材清单、逐层图形、逐层素材清单、层备注、footprint/stacking 表达、安全文本和 i18n。
 - FR116: Mobile 仍不得提供素材放置、删除、旋转、染色、技能编辑、建筑层编辑、层备注编辑、撤销/重做、JSON 文件导入/导出、分享链接、云同步或账号。
 
+### Remote Scene ID Import
+
+- FR117: 当 URL 带有 `scene_id` query 时，Web app 必须在 startup 读取该 id，并请求 scene API 获取可导入的布景字符串；没有 `scene_id` 时现有 localStorage/default startup 行为不变。
+- FR118: Remote import 必须请求 `https://scene-api.pokokit.com/api/scenes/{id}` 的 production endpoint；`id` 必须安全拼接或编码，不能允许 path 注入。
+- FR119: Remote import 成功取得 scene string 后必须复用现有 `decodeSceneDocumentStringWithLossyRecovery()`、`applyRecoveredSceneDocument()` 和 scene string import pipeline；不得创建第二套 decode/recovery 逻辑。
+- FR120: Desktop remote import 成功后必须显示可编辑工作台中的导入 scene；Mobile remote import 成功后必须显示 inline 下载预览，并按现有 mobile import 规则写入 autosave slot。
+- FR121: Remote fetch error、not found、invalid API response、invalid scene string 和 recovery failure 不得静默展示默认 scene 成功状态；系统必须显示可恢复错误，并保留用户可执行的手动导入或重试路径。
+- FR122: Remote lossy recovery 不得无提示丢弃素材；必须列出 dropped material details，并要求用户确认后才应用兼容内容。
+- FR123: `scene_id` 是 URL/import source，不是 SceneDocument 字段；不得写入 `SceneDocument v1`、UI preferences、export summary 或任何 footprint/stacking derived state。
+
 ### Scene Worker, MCP & Codex Skill
 
 Superseded by Epic 13.3 on 2026-05-30: FR69-FR76 are historical requirements only and are no longer active backlog for this repository. Future API/MCP/Worker/skill projects must use the external handoff and depend on file-installed `@pokopia-scene-editor/scene-core` instead of restoring `apps/worker` or `.agents/skills/pokopia-scene-worker`.
@@ -585,6 +603,12 @@ Superseded by Epic 13.3 on 2026-05-30: FR69-FR76 are historical requirements onl
 - NFR22: 在 768px 以下宽度下，页面进入 Mobile Preview Mode；390×844 视口下不得出现控件重叠，且有本地布景时 scene name、Pokemon、canvas dimensions、整体素材清单和逐层图形必须可访问；无本地布景时“导入字符串”入口必须可访问。
 - NFR56: Mobile import modal 必须有可访问名称，确认、取消和关闭按钮必须可通过键盘和屏幕阅读器识别；关闭和取消不得改变 scene 或写 storage。
 - NFR57: Playwright/mobile smoke 必须覆盖 390×844 下 no-storage import path、stored-scene inline preview path、invalid import、无编辑控件和无布局重叠。
+- NFR58: Remote scene id startup 必须有 loading、success、error 和 lossy confirmation 状态；状态反馈必须可访问，不能只依赖颜色。
+- NFR59: `scene_id` 存在时，remote import loading/success/failure state 必须优先于 localStorage/default scene 成功展示；失败不得把默认 scene 标记为 remote import success。
+- NFR60: Local dev 不得依赖 browser `fetch` 手写 `Origin` header；必须通过 Vite dev proxy 或本地 adapter 在 server-side upstream request 中设置 `Origin: "https://scene-editor.pokokit.com"`。Production browser fetch 不手写 Origin header。
+- NFR61: Remote import adapter 和 AppShell tests 必须使用 mocked fetch/route，不依赖 live `scene-api.pokokit.com`，并分别覆盖 dev proxy endpoint 与 production endpoint 行为。
+- NFR62: Remote import 必须保持 web-only/browser IO 边界；`packages/scene-core` 不得新增 `window`、URL、fetch、Vite env 或 dev proxy 依赖。
+- NFR63: Playwright smoke 必须覆盖 desktop `?scene_id=fixture` 自动导入和 mobile 390×844 `?scene_id=fixture` 自动导入，验证成功显示、错误状态、无桌面编辑控件和刷新后的 autosave recovery。
 - NFR23: 画布网格应保持固定宽高比；素材搜索结果、筛选项、上下文/属性字段、建筑层列表或预览检查器内容变化时，单格尺寸变化不得超过 1px。
 
 ### Security & Data Safety

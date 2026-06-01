@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import {
   createDefaultSceneDocument,
   defaultSceneDimensions,
@@ -816,6 +816,136 @@ test('imports a scene string into Mobile Preview Mode autosave and inline previe
   expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
 });
 
+test('imports a remote scene_id into the desktop workbench with mocked production API', async ({ page }) => {
+  const remoteScene = createRemoteImportScene('Remote Desktop Smoke');
+  const remoteCalls = await mockRemoteSceneApi(page, {
+    fixture: {
+      sceneString: encodeSceneDocumentString(remoteScene),
+    },
+  });
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/?scene_id=fixture');
+  await dismissHelpOverlayIfVisible(page);
+
+  await expect(page.getByLabel('Pokopia scene editor workbench')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: '布景' })).toHaveValue('Remote Desktop Smoke');
+  await expect(page.getByLabel('Current Pokemon')).toHaveValue('皮卡丘');
+  expect(remoteCalls).toEqual(['fixture']);
+
+  const snapshot = await readSceneSnapshot(page);
+  expect(snapshot).toMatchObject({
+    sceneName: 'Remote Desktop Smoke',
+    selectedPokemonKey: 'pikachu',
+  });
+  expect(Array.isArray(snapshot.tileInstances) ? snapshot.tileInstances.length : 0).toBeGreaterThan(0);
+  expectScenePayloadHasNoLegacyFields(snapshot);
+
+  await page.getByRole('button', { name: '下载预览' }).click();
+
+  await expect(page.getByRole('dialog', { name: '下载预览' })).toBeVisible();
+  await expect(page.getByLabel('皮卡丘导出预览宝可梦图片')).toBeVisible();
+  await expect(page.getByLabel('整体使用素材清单')).toContainText('木栏杆');
+  await expect(page.getByLabel('整体使用素材清单')).toContainText('树叶');
+});
+
+test('shows a recoverable desktop remote scene_id failure without silent default success', async ({ page }) => {
+  await mockRemoteSceneApi(page, {
+    missing: {
+      status: 404,
+    },
+  });
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/?scene_id=missing');
+  await dismissHelpOverlayIfVisible(page);
+
+  await expect(page.getByRole('alert', { name: '远程布景无法导入' })).toContainText('没有找到远程布景 missing');
+  await expect(page.getByRole('button', { name: '手动导入字符串' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: '布景' })).toHaveValue('15x15 布景');
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('imports a remote scene_id into Mobile Preview Mode autosave and persists without the query', async ({ page }) => {
+  const remoteScene = createRemoteImportScene('Remote Mobile Smoke');
+  const remoteCalls = await mockRemoteSceneApi(page, {
+    fixture: {
+      sceneString: encodeSceneDocumentString(remoteScene),
+    },
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?scene_id=fixture');
+
+  await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+    'data-mobile-preview-state',
+    'preview-ready',
+  );
+  await expect(page.getByRole('heading', { name: 'Remote Mobile Smoke' })).toBeVisible();
+  await expect(page.getByLabel('皮卡丘导出预览宝可梦图片')).toBeVisible();
+  await expect(page.getByLabel('整体使用素材清单')).toContainText('木栏杆');
+  await expect(page.getByLabel('L2 使用素材清单')).toContainText('树叶');
+  await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
+  await expect(page.getByRole('complementary', { name: 'Asset picker' })).toHaveCount(0);
+  await expect(page.getByLabel('Building level panel')).toHaveCount(0);
+  await expect(page.getByLabel('Selection context')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '下载预览' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '导出字符串' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '重置' })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect(await readStoredPayload(page, autosavedSceneStorageKey)).toMatchObject({
+    sceneName: 'Remote Mobile Smoke',
+    selectedPokemonKey: 'pikachu',
+  });
+  expect(await readStoredPayload(page, savedSceneStorageKey)).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
+  expect(remoteCalls).toEqual(['fixture']);
+
+  await page.goto('/');
+
+  await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+    'data-mobile-preview-state',
+    'preview-ready',
+  );
+  await expect(page.getByRole('heading', { name: 'Remote Mobile Smoke' })).toBeVisible();
+  expect(remoteCalls).toEqual(['fixture']);
+});
+
+test('shows mobile remote scene_id failure without desktop controls or storage writes', async ({ page }) => {
+  await mockRemoteSceneApi(page, {
+    missing: {
+      status: 404,
+    },
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?scene_id=missing');
+
+  await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+    'data-mobile-preview-state',
+    'remote-error',
+  );
+  await expect(page.getByRole('alert')).toContainText('没有找到远程布景 missing');
+  await expect(page.getByRole('button', { name: '导入字符串' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: '导入布景字符串' })).toHaveCount(0);
+  await expect(page.locator('.scene-string-import-backdrop')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '布景说明预览' })).toHaveCount(0);
+  await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
+  await expect(page.getByRole('complementary', { name: 'Asset picker' })).toHaveCount(0);
+  await expect(page.getByLabel('Building level panel')).toHaveCount(0);
+  await expect(page.getByLabel('Selection context')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '下载预览' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '导出字符串' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '重置' })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await expectElementCenterUncovered(page, page.getByRole('button', { name: '导入字符串' }));
+  expect(await readStoredPayload(page, autosavedSceneStorageKey)).toBeNull();
+  expect(await readStoredPayload(page, savedSceneStorageKey)).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
+});
+
 test('shows stored scene in Mobile Preview Mode without desktop preview drift or autosave rewrite', async ({ page }) => {
   const storedScene = createExportPreviewScene();
   const storedPayload = JSON.stringify(storedScene);
@@ -939,6 +1069,67 @@ async function readStoredPayload(page: Page, key: string): Promise<Record<string
     const rawPayload = window.localStorage.getItem(storageKey);
     return rawPayload ? JSON.parse(rawPayload) : null;
   }, key) as Promise<Record<string, unknown> | null>;
+}
+
+interface MockRemoteSceneHandler {
+  responseId?: string;
+  sceneString?: string;
+  status?: number;
+}
+
+async function mockRemoteSceneApi(
+  page: Page,
+  handlers: Record<string, MockRemoteSceneHandler>,
+): Promise<string[]> {
+  const calls: string[] = [];
+  const routeRemoteScene = async (route: Route) => {
+    const requestUrl = new URL(route.request().url());
+    const sceneId = decodeURIComponent(requestUrl.pathname.split('/').at(-1) ?? '');
+    const handler = handlers[sceneId];
+    calls.push(sceneId);
+
+    if (!handler || handler.status === 404) {
+      await fulfillRemoteSceneJson(route, 404, {
+        error: {
+          code: 'scene_not_found',
+        },
+      });
+      return;
+    }
+
+    if (handler.status && handler.status !== 200) {
+      await fulfillRemoteSceneJson(route, handler.status, {
+        error: {
+          code: 'remote_error',
+        },
+      });
+      return;
+    }
+
+    await fulfillRemoteSceneJson(route, 200, {
+      id: handler.responseId ?? sceneId,
+      meta: {
+        name: 'Remote fixture',
+      },
+      pse: handler.sceneString ?? '',
+    });
+  };
+
+  await page.route('https://scene-api.pokokit.com/api/scenes/*', routeRemoteScene);
+  await page.route('**/api/remote-scenes/*', routeRemoteScene);
+
+  return calls;
+}
+
+async function fulfillRemoteSceneJson(route: Route, status: number, payload: unknown): Promise<void> {
+  await route.fulfill({
+    status,
+    headers: {
+      'access-control-allow-origin': '*',
+      'content-type': 'application/json; charset=utf-8',
+    },
+    body: JSON.stringify(payload),
+  });
 }
 
 async function getStoredTileCount(page: Page): Promise<number> {
@@ -1173,6 +1364,16 @@ const mobileApplicationKeys = [
   'Meta+S',
   'Control+S',
 ] as const;
+
+function createRemoteImportScene(sceneName: string) {
+  return createDefaultSceneDocument({
+    includeOpenDesignDemo: true,
+    now: '2026-06-01T02:40:00.000Z',
+    sceneId: 'scene-remote-import-smoke',
+    sceneName,
+    selectedPokemonKey: 'pikachu',
+  });
+}
 
 function createEditableScene() {
   const now = '2026-05-16T10:20:00.000Z';
