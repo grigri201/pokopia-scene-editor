@@ -113,6 +113,96 @@ describe('building layer edit command', () => {
     expect(sameCurrent.ok && sameCurrent.scene).toBe(scene);
   });
 
+  it('reorders building layers by display order without changing stable references', () => {
+    const baseScene = createDefaultSceneDocument({ sceneId: 'scene-test', now });
+    const scene = {
+      ...baseScene,
+      buildingLevels: [
+        { ...createBuildingLevel(0), notes: [{ id: 'note-ground', text: 'ground note' }] },
+        createBuildingLevel(1),
+        { ...createBuildingLevel(2), name: '屋顶层' },
+      ],
+      workspaceState: {
+        ...baseScene.workspaceState,
+        currentBuildingLevelId: 'level-2',
+      },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-roof',
+          assetId: 'brick-roof-decoration',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-2',
+        }),
+      ],
+      skillMarkers: [
+        {
+          coordinate: { x: 1, y: 1 },
+          areaType: 'main' as const,
+          buildingLevelId: 'level-0',
+          skillType: '树叶' as const,
+          skillNote: 'keep marker ref',
+        },
+      ],
+    };
+
+    const reordered = editBuildingLayer(scene, {
+      type: 'reorder',
+      levelIds: ['level-0', 'level-2', 'level-1'],
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(reordered.ok).toBe(true);
+    if (!reordered.ok) {
+      throw new Error('Expected reorder success.');
+    }
+    expect(reordered.scene.buildingLevels).toEqual([
+      { id: 'level-1', levelNumber: 0, name: '2层', notes: [] },
+      { id: 'level-2', levelNumber: 1, name: '屋顶层', notes: [] },
+      { id: 'level-0', levelNumber: 2, name: '1层', notes: [{ id: 'note-ground', text: 'ground note' }] },
+    ]);
+    expect(reordered.scene.workspaceState.currentBuildingLevelId).toBe('level-2');
+    expect(reordered.scene.tileInstances[0]?.buildingLevelId).toBe('level-2');
+    expect(reordered.scene.skillMarkers[0]?.buildingLevelId).toBe('level-0');
+    expect(reordered.scene.metadata.updatedAt).toBe(now);
+  });
+
+  it('does not dirty no-op layer reorder commands and rejects invalid orders', () => {
+    const scene = {
+      ...createDefaultSceneDocument({ sceneId: 'scene-test', now: '2026-05-16T08:00:00.000Z' }),
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
+    };
+
+    const noOp = editBuildingLayer(scene, {
+      type: 'reorder',
+      levelIds: ['level-2', 'level-1', 'level-0'],
+      interactionMode: 'edit',
+      now,
+    });
+    const duplicate = editBuildingLayer(scene, {
+      type: 'reorder',
+      levelIds: ['level-2', 'level-2', 'level-0'],
+      interactionMode: 'edit',
+      now,
+    });
+    const missing = editBuildingLayer(scene, {
+      type: 'reorder',
+      levelIds: ['level-2', 'missing-level', 'level-0'],
+      interactionMode: 'edit',
+      now,
+    });
+
+    expect(noOp.ok && noOp.scene).toBe(scene);
+    expect(duplicate.ok).toBe(false);
+    if (!duplicate.ok) {
+      expect(duplicate.reason).toBe('invalid-order');
+    }
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) {
+      expect(missing.reason).toBe('invalid-order');
+    }
+  });
+
   it('copies a building layer with preserved instance fields and new ids', () => {
     const scene = {
       ...createDefaultSceneDocument({ sceneId: 'scene-test', now }),

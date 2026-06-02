@@ -136,6 +136,12 @@ Mobile 允许用户通过显式“导入字符串”操作替换当前本地布�
 
 本地调试时，因为 scene API Origin 限制，dev server/proxy 需要向上游带 `Origin: "https://scene-editor.pokokit.com"`；生产环境 browser fetch 不手写该 header。远程加载失败、无效响应、无效 scene string 和 lossy recovery 都必须给出可恢复反馈，不能静默把默认 scene 当作远程 scene 成功显示。
 
+### Approved Course Correction - 2026-06-02 建筑层拖动排序
+
+本 PRD 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-02-building-layer-reorder.md` 增加 Epic 16，用于在 desktop/tablet 编辑工作台的左侧建筑层面板中支持拖动排序。拖动过程中显示目标顺序预览；拖动完成后，系统通过现有 command layer 提交新的建筑层顺序，并由现有 autosave 链路自动保存。
+
+`SceneDocument v1` 继续保持。排序只重排现有 `buildingLevels[].levelNumber`，不新增排序字段、z-index、层级历史或 `SceneDocument v2`。`buildingLevels[].id`、层名、层备注、素材实例引用和技能标记引用必须保持稳定。Mobile preview/import surface 仍不提供建筑层编辑能力。
+
 ### What Makes This Special
 
 本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：默认中心 15×15 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、受控承载/叠放、素材实例级技能标记，以及完整 17×17 预览。

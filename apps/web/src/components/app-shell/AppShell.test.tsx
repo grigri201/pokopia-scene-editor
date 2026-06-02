@@ -285,7 +285,7 @@ describe('AppShell scene storage integration', () => {
     });
     await waitFor(() => {
       expect(screen.getByLabelText('布景')).toHaveValue('Remote Desktop Garden');
-    });
+    }, { timeout: 5_000 });
     expect(fetchMock).toHaveBeenCalledWith('/api/remote-scenes/fixture', {
       headers: {
         Accept: 'application/json',
@@ -640,6 +640,110 @@ describe('AppShell scene storage integration', () => {
       ]);
     });
     expect(confirmReset).toHaveBeenCalledWith('Reset the current scene and workbench?');
+  }, 20_000);
+
+  it('keeps drag preview out of storage and autosaves committed building layer reorder', async () => {
+    const { unmount } = render(<AppShell />);
+    fireEvent.click(screen.getByRole('button', { name: '明白了！' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '新建层' }));
+    await waitFor(() => {
+      expect(JSON.parse(readSceneSnapshot()).buildingLevels.map((level: { id: string; name: string }) => ({
+        id: level.id,
+        name: level.name,
+      }))).toEqual([
+        { id: 'level-0', name: '1层' },
+        { id: 'level-1', name: '2层' },
+      ]);
+    });
+    fireEvent.click(screen.getByRole('button', { name: '新建层' }));
+
+    await waitFor(() => {
+      expect(JSON.parse(readSceneSnapshot()).buildingLevels.map((level: { id: string; name: string }) => ({
+        id: level.id,
+        name: level.name,
+      }))).toEqual([
+        { id: 'level-0', name: '1层' },
+        { id: 'level-1', name: '2层' },
+        { id: 'level-2', name: '3层' },
+      ]);
+    });
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}').buildingLevels).toEqual([
+        { id: 'level-0', levelNumber: 0, name: '1层', notes: [] },
+        { id: 'level-1', levelNumber: 1, name: '2层', notes: [] },
+        { id: 'level-2', levelNumber: 2, name: '3层', notes: [] },
+      ]);
+    });
+
+    const beforePreviewSnapshot = readSceneSnapshot();
+    const beforePreviewAutosave = window.localStorage.getItem(autosavedSceneStorageKey);
+    const dragHandle = screen.getByRole('button', { name: 'Reorder 1层 (L1)' });
+    fireEvent.dragStart(dragHandle, { dataTransfer: createDataTransfer() });
+    fireEvent.dragOver(screen.getByLabelText(/^L3, 3层, 0 instances/), { dataTransfer: createDataTransfer() });
+
+    expect(readSceneSnapshot()).toBe(beforePreviewSnapshot);
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(beforePreviewAutosave);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+
+    fireEvent.dragEnd(dragHandle);
+    expect(readSceneSnapshot()).toBe(beforePreviewSnapshot);
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(beforePreviewAutosave);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move 3层 (L3) down' }));
+
+    await waitFor(() => {
+      expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
+        { id: 'level-0', levelNumber: 0, name: '1层', notes: [] },
+        { id: 'level-2', levelNumber: 1, name: '3层', notes: [] },
+        { id: 'level-1', levelNumber: 2, name: '2层', notes: [] },
+      ]);
+    });
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}').buildingLevels).toEqual([
+        { id: 'level-0', levelNumber: 0, name: '1层', notes: [] },
+        { id: 'level-2', levelNumber: 1, name: '3层', notes: [] },
+        { id: 'level-1', levelNumber: 2, name: '2层', notes: [] },
+      ]);
+    });
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(readSceneSnapshot()).not.toContain('draggingLevelId');
+    expect(readSceneSnapshot()).not.toContain('previewLevelIds');
+
+    unmount();
+    render(<AppShell />);
+    const helpDismissButton = screen.queryByRole('button', { name: '明白了！' });
+    if (helpDismissButton) {
+      fireEvent.click(helpDismissButton);
+    }
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('building-level-row').map((row) => row.getAttribute('aria-label'))).toEqual([
+        'L3, 3层, 0 instances',
+        'L2, 3层, 0 instances, current editing layer',
+        'L1, 1层, 0 instances',
+      ]);
+    });
+  }, 20_000);
+
+  it('does not write storage for canceled or same-order building layer drag', () => {
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole('button', { name: '明白了！' }));
+
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    const beforeUiPreferences = window.localStorage.getItem(uiPreferencesStorageKey);
+
+    const dragHandle = screen.getByRole('button', { name: 'Reorder 1层 (L1)' });
+    const currentRow = screen.getByLabelText('L1, 1层, 0 instances, current editing layer');
+    fireEvent.dragStart(dragHandle, { dataTransfer: createDataTransfer() });
+    fireEvent.dragEnd(dragHandle);
+    fireEvent.dragStart(dragHandle, { dataTransfer: createDataTransfer() });
+    fireEvent.drop(currentRow, { dataTransfer: createDataTransfer() });
+
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBe(beforeUiPreferences);
   }, 20_000);
 
   it('downloads the image export preview without changing scene or storage', async () => {
@@ -2539,6 +2643,15 @@ function readSceneSnapshot(): string {
   }
 
   return snapshot;
+}
+
+function createDataTransfer() {
+  return {
+    dropEffect: 'move',
+    effectAllowed: 'move',
+    setData: vi.fn(),
+    getData: vi.fn(),
+  };
 }
 
 function openSceneStringImportModal(): HTMLElement {

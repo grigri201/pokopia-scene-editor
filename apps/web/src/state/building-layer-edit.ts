@@ -10,6 +10,7 @@ export type BuildingLayerEditFailureReason =
   | 'read-only'
   | 'missing-layer'
   | 'missing-note'
+  | 'invalid-order'
   | 'invalid-name'
   | 'invalid-note'
   | 'last-layer'
@@ -37,6 +38,7 @@ export type BuildingLayerEditInput =
   | { type: 'update-note'; levelId: string; noteId: string; text: string; interactionMode: InteractionMode; now: string }
   | { type: 'delete-note'; levelId: string; noteId: string; interactionMode: InteractionMode; now: string }
   | { type: 'rename'; levelId: string; name: string; interactionMode: InteractionMode; now: string }
+  | { type: 'reorder'; levelIds: string[]; interactionMode: InteractionMode; now: string }
   | { type: 'set-current'; levelId: string; interactionMode: InteractionMode; now: string };
 
 export function editBuildingLayer(
@@ -62,6 +64,8 @@ export function editBuildingLayer(
       return deleteLayerNote(scene, input.levelId, input.noteId, input.now);
     case 'rename':
       return renameLayer(scene, input.levelId, input.name, input.now);
+    case 'reorder':
+      return reorderLayers(scene, input.levelIds, input.now);
     case 'set-current':
       if (scene.workspaceState.currentBuildingLevelId === input.levelId) {
         return layerExists(scene, input.levelId)
@@ -72,6 +76,45 @@ export function editBuildingLayer(
         currentBuildingLevelId: input.levelId,
       });
   }
+}
+
+function reorderLayers(scene: SceneDocument, displayOrderLevelIds: string[], now: string): BuildingLayerEditResult {
+  const currentRenderOrder = resequenceBuildingLevels(scene.buildingLevels);
+  if (displayOrderLevelIds.length !== currentRenderOrder.length) {
+    return failure('invalid-order', 'Invalid layer order', 'Drop the layer within the current building level list.');
+  }
+
+  const levelsById = new Map(currentRenderOrder.map((level) => [level.id, level]));
+  const seenLevelIds = new Set<string>();
+  for (const levelId of displayOrderLevelIds) {
+    if (!levelsById.has(levelId) || seenLevelIds.has(levelId)) {
+      return failure('invalid-order', 'Invalid layer order', 'Drop the layer within the current building level list.');
+    }
+    seenLevelIds.add(levelId);
+  }
+
+  const nextRenderOrderIds = [...displayOrderLevelIds].reverse();
+  const currentRenderOrderIds = currentRenderOrder.map((level) => level.id);
+  if (currentRenderOrderIds.every((levelId, index) => levelId === nextRenderOrderIds[index])) {
+    return { ok: true, scene, message: 'Layer order unchanged' };
+  }
+
+  const buildingLevels = nextRenderOrderIds.map((levelId, levelNumber) => ({
+    ...levelsById.get(levelId)!,
+    levelNumber,
+  }));
+
+  return markLayerSceneDirty(
+    {
+      ...scene,
+      buildingLevels,
+      workspaceState: {
+        ...scene.workspaceState,
+      },
+    },
+    now,
+    'Layer order updated',
+  );
 }
 
 function createLayer(scene: SceneDocument, now: string, name?: string): BuildingLayerEditResult {

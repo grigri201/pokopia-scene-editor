@@ -959,6 +959,18 @@ export function AppShell() {
     );
   };
 
+  const reorderBuildingLayers = (levelIds: string[]) => {
+    handleBuildingLayerResult(
+      editBuildingLayer(scene, {
+        type: 'reorder',
+        levelIds,
+        interactionMode,
+        now: getCurrentIsoTimestamp(),
+      }),
+      { showSuccessToast: false },
+    );
+  };
+
   const addLayerNote = (levelId: string, text: string) => {
     if (isReadOnly) {
       return false;
@@ -2000,6 +2012,7 @@ export function AppShell() {
             onRenameLayer={renameBuildingLayer}
             onCopyLayer={copyBuildingLayer}
             onDeleteLayer={deleteBuildingLayer}
+            onReorderLayer={reorderBuildingLayers}
           />
         </div>
         <section

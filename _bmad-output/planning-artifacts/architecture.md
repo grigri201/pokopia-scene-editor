@@ -474,6 +474,7 @@ MVP 使用：
 - `CREATE_LEVEL`
 - `DELETE_LEVEL`
 - `RENAME_LEVEL`
+- `REORDER_LEVELS`
 - `RECOVER_SCENE`
 
 command layer 必须统一检查：
@@ -993,7 +994,7 @@ React components 负责 UI rendering、local UI state 和 dispatching commands�
 - `pokemon-scene-controls/`：顶部 Pokemon 选择和场景 `Name`。
 - `scene-canvas/`：7x7 canvas rendering、hover/selection UI、pointer handler 和桌面可选 keyboard handler，但写操作必须 dispatch command；mobile keyboard handler no-op。
 - `asset-picker/`：右侧浮动素材搜索、分类/喜好/区域/技能筛选、选中素材和本次放置默认技能状态。
-- `building-level-panel/`：左侧建筑层列表、当前层、创建/删除/复制/重命名 command entry；视觉顺序高层到低层，数据顺序仍为 0 层到 n 层。
+- `building-level-panel/`：左侧建筑层列表、当前层、创建/删除/复制/重命名/排序 command entry；视觉顺序高层到低层，数据顺序仍为 0 层到 n 层。拖动中的目标顺序可以作为 component-local preview state；drop 前不得写入 `SceneDocument` 或 autosave。Drop 后排序 command 重排 `buildingLevels[].levelNumber`，保持 level id 和所有引用稳定。
 - `selection-inspector/`：选中实例字段展示和字段 edit command entry。
 - `preview-inspector/`：左下正视图/俯视图、当前层/全部层；不提供网格/边界/技能标记显示选项。
 - `recovery-validator/`：保存/恢复校验错误摘要和 recovery action。

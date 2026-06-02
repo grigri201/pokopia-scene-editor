@@ -12,7 +12,7 @@ inputDocuments:
 
 # pokopia-scene-editor - Active Epic Index
 
-As of 2026-06-01, Epic 15 is the active BMAD planning surface.
+As of 2026-06-02, Epic 16 is the active BMAD planning surface.
 
 Completed planning history is archived here:
 
@@ -128,3 +128,21 @@ Acceptance Criteria:
 - Playwright mobile `390x844` 覆盖 `?scene_id=fixture` 自动导入后显示 inline preview、无桌面编辑控件、刷新后仍可从 storage 读取。
 - Existing Epic 14 mobile manual import tests 继续通过。
 - 验证命令至少包含 focused web tests、web typecheck、web build 和 focused Playwright smoke。
+
+## Epic 16: 建筑层拖动排序
+
+用户可以在左侧建筑层面板中拖动建筑层来调整层级顺序。拖动中显示排序预览；drop 后提交为当前场景事实并自动保存。该能力只作用于 desktop/tablet 编辑工作台，mobile preview/import 仍不提供建筑层编辑。
+
+### Story 16.1: 左侧建筑层拖动排序与自动保存
+
+As a 布景编辑用户, I want 通过拖动左侧建筑层行调整层级顺序, So that 我可以快速修正布景层级而不需要删除重建建筑层。
+
+Acceptance Criteria:
+
+- 左侧建筑层面板为每一层提供可识别的拖动 handle，read-only/mobile 状态禁用排序。
+- 拖动过程中列表显示目标顺序预览；预览状态不写入 `SceneDocument`、autosave、saved storage 或 UI preferences。
+- Drop 完成后通过 command layer 提交排序，重排 `buildingLevels[].levelNumber`，保持 level id、层名、层备注、实例引用和技能标记引用不变。
+- 当前层按 `currentBuildingLevelId` 保持为同一层；排序后 display id 按新的 `levelNumber` 更新。
+- 成功排序后触发现有 autosave，刷新后恢复为新顺序；取消拖动或无变化 drop 不写 storage。
+- 支持键盘可达的排序 fallback，例如上移/下移按钮，并提供清晰 aria label / live announcement。
+- Focused tests 覆盖 domain reorder、read-only no-op、drag preview no persistence、drop autosave、keyboard fallback 和 existing layer create/copy/delete/rename regression。

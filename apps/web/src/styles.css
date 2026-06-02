@@ -2703,8 +2703,8 @@ button:disabled {
 }
 
 .level-row {
-  grid-template-columns: 42px minmax(0, 1fr) auto;
-  grid-template-areas: "code summary actions";
+  grid-template-columns: 28px 42px minmax(0, 1fr) auto;
+  grid-template-areas: "handle code summary actions";
   align-items: start;
   min-height: 68px;
   border-radius: 6px;
@@ -2732,6 +2732,43 @@ button:disabled {
 .level-row--current {
   border-color: #3d7a62;
   box-shadow: inset 4px 0 0 #3d7a62;
+}
+
+.level-row--preview {
+  border-style: dashed;
+}
+
+.level-row--dragging {
+  opacity: 0.62;
+}
+
+.level-drag-handle {
+  grid-area: handle;
+  align-self: start;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0;
+  color: var(--ink-muted);
+  background: color-mix(in srgb, var(--surface-panel) 90%, #fff 10%);
+  cursor: grab;
+}
+
+.level-drag-handle:disabled {
+  cursor: not-allowed;
+}
+
+.level-drag-handle svg {
+  display: block;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
 }
 
 .level-code {
@@ -2824,7 +2861,10 @@ button:disabled {
   grid-area: actions;
   align-self: start;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 6px;
+  width: 66px;
 }
 
 .level-actions button {

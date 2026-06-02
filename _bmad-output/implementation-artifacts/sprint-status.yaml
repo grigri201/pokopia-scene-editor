@@ -1,5 +1,5 @@
 # generated: 2026-05-31T16:34:56+0800
-# last_updated: 2026-06-01T10:18:10+0800
+# last_updated: 2026-06-02T00:00:00+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -27,10 +27,10 @@
 # ===============
 # - Epic 1-13 are completed and archived.
 # - Epic 14 is complete; all Epic 14 stories are done.
-# - Epic 15 is active for scene_id URL immediate import.
+# - Epic 16 is active for building layer drag reorder.
 
 generated: 2026-05-31T16:34:56+0800
-last_updated: 2026-06-01T10:18:10+0800
+last_updated: 2026-06-02T00:00:00+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -78,3 +78,11 @@ development_status:
       15-3-remote-import-regression-tests-and-browser-smoke:
         status: done
         title: Remote import 回归测试与浏览器验证
+  epic_16:
+    status: done
+    title: 建筑层拖动排序
+    proposal: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-02-building-layer-reorder.md
+    stories:
+      16-1-building-layer-drag-reorder-and-autosave:
+        status: done
+        title: 左侧建筑层拖动排序与自动保存
