@@ -279,6 +279,58 @@ describe('asset placement command', () => {
     expect(result.scene.tileInstances.map((instance) => instance.instanceId)).toEqual(['tile-plate', 'tile-food']);
   });
 
+  it('requires replacement confirmation instead of self-stacking a stackable asset', () => {
+    const selectedScene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'frame', 'edit', now);
+    const sceneWithFrame = {
+      ...selectedScene,
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-frame-existing',
+          assetId: 'frame',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const preview = getAssetPlacementPreview(sceneWithFrame, { x: 2, y: 2 }, 'edit', false);
+    const result = placeSelectedAsset(sceneWithFrame, {
+      coordinate: { x: 2, y: 2 },
+      interactionMode: 'edit',
+      now,
+      instanceId: 'tile-frame-duplicate',
+      requiresSkill: false,
+    });
+    const replaced = placeSelectedAsset(sceneWithFrame, {
+      coordinate: { x: 2, y: 2 },
+      interactionMode: 'edit',
+      now,
+      instanceId: 'tile-frame-replacement',
+      requiresSkill: false,
+      confirmReplace: true,
+    });
+
+    expect(preview?.status).toBe('will-replace');
+    expect(preview?.message).toBe('Will replace 1 item');
+    expect(preview?.overwriteLabel).toBe('Will replace 1 item');
+    expect(preview?.stackingRelations).toEqual([]);
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('Expected self-stacking placement to require replacement.');
+    }
+    expect(result.reason).toBe('replace-confirmation-required');
+    expect(replaced.ok).toBe(true);
+    if (!replaced.ok) {
+      throw new Error('Expected confirmed self-stack replacement success.');
+    }
+    expect(replaced.scene.tileInstances).toEqual([
+      expect.objectContaining({
+        instanceId: 'tile-frame-replacement',
+        assetId: 'frame',
+        coordinate: { x: 2, y: 2 },
+      }),
+    ]);
+  });
+
   it('keeps the base surface when legal stacking is placed inside a replacement confirmation window', () => {
     const selectedScene = selectAsset(createDefaultSceneDocument({ sceneId: 'scene-test', now }), 'leppa-berry', 'edit', now);
     const sceneWithPlate = {

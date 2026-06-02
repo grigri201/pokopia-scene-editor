@@ -2147,6 +2147,53 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
+  it('requires replacement confirmation instead of self-stacking locked stackable assets', async () => {
+    const confirmReplacement = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
+    render(<AppShell />);
+
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '装饰框' } });
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="frame"] .asset-select-button');
+    const cell = screen.getByLabelText('Cell 2,2, main area, level-0, placeable');
+    if (!assetButton) {
+      throw new Error('Expected frame asset button.');
+    }
+
+    fireEvent.doubleClick(assetButton);
+    fireEvent.click(cell);
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.workspaceState.selectedAssetId).toBe('frame');
+      expect(payload.tileInstances).toEqual([
+        expect.objectContaining({
+          assetId: 'frame',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: 'level-0',
+        }),
+      ]);
+      expect(cell).toHaveAttribute('data-instance-count', '1');
+      expect(cell).not.toHaveAttribute('data-stacking-state', 'placed');
+    });
+
+    fireEvent.click(cell);
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.workspaceState.selectedAssetId).toBe('frame');
+      expect(payload.tileInstances).toHaveLength(1);
+      expect(payload.tileInstances[0]).toMatchObject({
+        assetId: 'frame',
+        coordinate: { x: 2, y: 2 },
+        buildingLevelId: 'level-0',
+      });
+      expect(cell).toHaveAttribute('data-instance-count', '1');
+      expect(cell).not.toHaveAttribute('data-stacking-state', 'placed');
+    });
+    expect(confirmReplacement).toHaveBeenCalledTimes(1);
+    expect(confirmReplacement.mock.calls[0]?.[0]).toContain('Will replace 1 item');
+  });
+
   it('prompts once for replacement and reuses confirmation for 15 seconds', async () => {
     const confirmReplacement = vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<AppShell />);

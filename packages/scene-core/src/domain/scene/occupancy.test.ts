@@ -423,6 +423,33 @@ describe('scene occupancy rules', () => {
         }),
       ],
     });
+    const frame = getAssetById('frame')!;
+    const frameScene = {
+      ...createDefaultSceneDocument({ sceneId: 'scene-placement-self-stacking', now }),
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-frame',
+          assetId: 'frame',
+          coordinate: { x: 2, y: 2 },
+          buildingLevelId: stackingContractFixtureIds.level0,
+        }),
+      ],
+    };
+
+    expect(evaluateScenePlacementFootprint(frameScene, {
+      asset: frame,
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: stackingContractFixtureIds.level0,
+    })).toMatchObject({
+      status: 'will-replace',
+      stackingRelations: [],
+      existingInstances: [
+        expect.objectContaining({
+          instanceId: 'tile-frame',
+          assetId: 'frame',
+        }),
+      ],
+    });
     expect(evaluateScenePlacementFootprint({
       ...baseScene,
       tileInstances: [

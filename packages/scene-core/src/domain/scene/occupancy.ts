@@ -455,6 +455,10 @@ function evaluateStackingOverlap(
     return { relation: null, conflict: buildOverlapConflict(buildSubjectCell(subject, occupiedGroups[0].coordinate), baseCell) };
   }
 
+  if (baseCell.assetId === subject.assetId) {
+    return { relation: null, conflict: null };
+  }
+
   if (canStackOnBase(baseAsset, subject.asset)) {
     return {
       relation: {
@@ -479,6 +483,7 @@ function evaluateStackingOverlap(
 
 function canStackOnBase(baseAsset: AssetDefinition, topAsset: AssetDefinition): boolean {
   return (
+    baseAsset.assetId !== topAsset.assetId &&
     baseAsset.stacking.allowsSameLevelOverlap &&
     baseAsset.stacking.allowedTopCategories.includes(topAsset.category)
   );
