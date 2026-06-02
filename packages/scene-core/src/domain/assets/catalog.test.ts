@@ -116,8 +116,11 @@ describe('asset catalog', () => {
     expect(getAssetById('counter')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('mini-bookcase')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('cooking-stove')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
+    expect(getAssetById('cardboard-boxes')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
+    expect(getAssetById('straw-table')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('wooden-bench')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
     expect(getAssetById('curved-eave')?.footprint).toEqual({ length: 2, width: 1, height: 1 });
+    expect(getAssetById('cart')?.footprint).toEqual({ length: 1, width: 3, height: 1 });
     expect(getAssetById('canoe')?.footprint).toEqual({ length: 2, width: 1, height: 1 });
     expect(getAssetById('firepit')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
     expect(getAssetById('large-boulder')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
