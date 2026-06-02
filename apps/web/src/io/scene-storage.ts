@@ -1,6 +1,7 @@
 import {
-  recoverSceneDocument,
+  recoverSceneDocumentWithDroppedTileInstances,
   serializeSceneDocument,
+  type SceneStringDroppedTileInstance,
   type SceneDocument,
   type SceneDocumentV1,
   type SceneDocumentValidationError,
@@ -16,6 +17,7 @@ export interface StoredSceneDocument {
   slot: SceneStorageSlot;
   scene: SceneDocument;
   payload: SceneDocumentV1;
+  droppedTileInstances: readonly SceneStringDroppedTileInstance[];
 }
 
 export interface StoredSceneDocumentFailure {
@@ -79,7 +81,7 @@ export function readSceneDocumentFromStorage(
     };
   }
 
-  const recovered = recoverSceneDocument(parsedPayload);
+  const recovered = recoverSceneDocumentWithDroppedTileInstances(parsedPayload);
 
   if (!recovered.ok) {
     return { ok: false, slot, errors: recovered.errors };
@@ -90,6 +92,7 @@ export function readSceneDocumentFromStorage(
     slot,
     scene: recovered.scene,
     payload: recovered.payload,
+    droppedTileInstances: recovered.droppedTileInstances,
   };
 }
 

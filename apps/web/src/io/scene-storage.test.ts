@@ -4,9 +4,12 @@ import {
   createBuildingLevel,
   createDefaultSceneDocument,
   createFootprintContractScene,
+  createStackingPlateNonFoodScene,
   createTileInstance,
   footprintContractExpected,
   footprintContractFixtureIds,
+  serializeSceneDocument,
+  stackingContractFixtureIds,
   type SceneDocument,
 } from '@pokopia-scene-editor/scene-core';
 import {
@@ -65,6 +68,46 @@ describe('scene storage', () => {
     expect(recovered.scene.sceneName).toBe('Storage 5x5 scene');
     expect(recovered.scene.workspaceState).not.toHaveProperty('saveError');
     expect(recovered.scene.tileInstances).toHaveLength(1);
+  });
+
+  it('recovers local storage by dropping incompatible tile instances and importing remaining content', () => {
+    const scene = createStackingPlateNonFoodScene();
+    const payload = {
+      ...serializeSceneDocument({
+        ...scene,
+        tileInstances: [scene.tileInstances[0]],
+      }),
+      tileInstances: scene.tileInstances,
+    };
+    window.localStorage.setItem(savedSceneStorageKey, JSON.stringify(payload));
+
+    const recovered = readSceneDocumentFromStorage(window.localStorage, 'saved');
+
+    expect(recovered?.ok).toBe(true);
+    if (!recovered?.ok) {
+      throw new Error('Expected stored scene to recover lossily.');
+    }
+    expect(recovered.scene.tileInstances).toEqual([
+      expect.objectContaining({
+        instanceId: stackingContractFixtureIds.plate,
+        assetId: 'plate',
+      }),
+    ]);
+    expect(recovered.payload.tileInstances).toEqual([
+      expect.objectContaining({
+        instanceId: stackingContractFixtureIds.plate,
+        assetId: 'plate',
+      }),
+    ]);
+    expect(recovered.droppedTileInstances).toEqual([
+      expect.objectContaining({
+        instanceId: stackingContractFixtureIds.nonFood,
+        assetId: 'leafy-plant',
+        conflictType: 'unsupported-stack-surface',
+        blockingInstanceId: stackingContractFixtureIds.plate,
+        blockingAssetId: 'plate',
+      }),
+    ]);
   });
 
   it('writes manual saves to saved and autosave slots with identical payloads', () => {

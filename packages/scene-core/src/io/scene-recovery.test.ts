@@ -10,7 +10,11 @@ import {
   stackingContractFixtureIds,
 } from '../domain/scene';
 import { serializeSceneDocument } from './scene-serializer';
-import { applyRecoveredSceneDocument, recoverSceneDocument } from './scene-recovery';
+import {
+  applyRecoveredSceneDocument,
+  recoverSceneDocument,
+  recoverSceneDocumentWithDroppedTileInstances,
+} from './scene-recovery';
 
 describe('scene recovery', () => {
   it('restores a valid SceneDocument v1 payload into editable domain scene state', () => {
@@ -99,6 +103,45 @@ describe('scene recovery', () => {
         }),
       ]),
     );
+  });
+
+  it('lossily recovers compatible payload content by dropping incompatible tile instances', () => {
+    const scene = createStackingPlateNonFoodScene();
+    const payload = {
+      ...serializeSceneDocument({
+        ...scene,
+        tileInstances: [scene.tileInstances[0]],
+      }),
+      tileInstances: scene.tileInstances,
+    };
+
+    const recovered = recoverSceneDocumentWithDroppedTileInstances(payload);
+
+    expect(recovered.ok).toBe(true);
+    if (!recovered.ok) {
+      throw new Error('Expected lossy payload recovery to keep compatible content.');
+    }
+    expect(recovered.scene.tileInstances).toEqual([
+      expect.objectContaining({
+        instanceId: stackingContractFixtureIds.plate,
+        assetId: 'plate',
+      }),
+    ]);
+    expect(recovered.payload.tileInstances).toEqual([
+      expect.objectContaining({
+        instanceId: stackingContractFixtureIds.plate,
+        assetId: 'plate',
+      }),
+    ]);
+    expect(recovered.droppedTileInstances).toEqual([
+      expect.objectContaining({
+        instanceId: stackingContractFixtureIds.nonFood,
+        assetId: 'leafy-plant',
+        conflictType: 'unsupported-stack-surface',
+        blockingInstanceId: stackingContractFixtureIds.plate,
+        blockingAssetId: 'plate',
+      }),
+    ]);
   });
 
   it('returns validation errors without creating a partial scene', () => {

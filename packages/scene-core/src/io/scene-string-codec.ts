@@ -1,6 +1,5 @@
 import {
   assetSkillTypes,
-  getAssetById,
   getAssetIdBySceneCodecOfficialId,
   getAssetSceneCodecOfficialId,
   knownPokemonKeys,
@@ -19,7 +18,11 @@ import {
   type SceneDocument,
   type RotationDegrees,
 } from '../domain/scene';
-import { recoverSceneDocument } from './scene-recovery';
+import {
+  recoverSceneDocument,
+  recoverSceneDocumentWithDroppedTileInstances,
+  type SceneRecoveryLossyResult,
+} from './scene-recovery';
 import { serializeSceneDocument } from './scene-serializer';
 import type { SceneDocumentV1, SceneDocumentValidationError } from './scene-schema';
 
@@ -35,33 +38,7 @@ export type SceneStringDecodeResult =
 
 type SceneStringDecodeFailure = { ok: false; errors: SceneDocumentValidationError[] };
 
-export interface SceneStringDroppedTileInstance {
-  instanceId: string;
-  assetId: string;
-  assetName: string;
-  buildingLevelId: string;
-  buildingLevelName: string;
-  buildingLevelNumber: number | null;
-  coordinate: GridCoordinate;
-  conflictType: NonNullable<SceneDocumentValidationError['conflictType']>;
-  reason: string;
-  coordinates: readonly GridCoordinate[];
-  blockingInstanceId?: string;
-  blockingAssetId?: string;
-  blockingAssetName?: string;
-  blockingBuildingLevelId?: string;
-  blockingBuildingLevelName?: string;
-  blockingBuildingLevelNumber?: number | null;
-}
-
-export type SceneStringLossyDecodeResult =
-  | {
-      ok: true;
-      scene: SceneDocument;
-      payload: SceneDocumentV1;
-      droppedTileInstances: readonly SceneStringDroppedTileInstance[];
-    }
-  | { ok: false; errors: SceneDocumentValidationError[] };
+export type SceneStringLossyDecodeResult = SceneRecoveryLossyResult;
 
 export function encodeSceneDocumentString(scene: SceneDocument): string {
   const payload = serializeSceneDocument({
@@ -241,116 +218,6 @@ function decodeSceneDocumentPayload(value: string, now: string): SceneDocumentV1
       lastSavedAt: now,
       lastAutosavedAt: null,
     },
-  };
-}
-
-function recoverSceneDocumentWithDroppedTileInstances(payload: SceneDocumentV1): SceneStringLossyDecodeResult {
-  let currentPayload = payload;
-  const droppedById = new Map<string, SceneStringDroppedTileInstance>();
-  const maxPasses = payload.tileInstances.length + 1;
-
-  for (let pass = 0; pass < maxPasses; pass += 1) {
-    const recovered = recoverSceneDocument(currentPayload);
-
-    if (recovered.ok) {
-      return {
-        ...recovered,
-        droppedTileInstances: [...droppedById.values()],
-      };
-    }
-
-    const recoverableError = recovered.errors.find((error) =>
-      isRecoverableTileInstanceConflict(error, currentPayload),
-    );
-
-    if (!recoverableError) {
-      return recovered;
-    }
-
-    const instance = currentPayload.tileInstances.find((tileInstance) =>
-      tileInstance.instanceId === recoverableError.instanceId,
-    );
-
-    if (!instance) {
-      return recovered;
-    }
-
-    droppedById.set(
-      recoverableError.instanceId,
-      describeDroppedTileInstance(instance, recoverableError, currentPayload),
-    );
-
-    currentPayload = {
-      ...currentPayload,
-      tileInstances: currentPayload.tileInstances.filter((tileInstance) =>
-        tileInstance.instanceId !== recoverableError.instanceId,
-      ),
-      workspaceState: { ...currentPayload.workspaceState },
-      metadata: { ...currentPayload.metadata },
-    };
-  }
-
-  const recovered = recoverSceneDocument(currentPayload);
-
-  if (recovered.ok) {
-    return {
-      ...recovered,
-      droppedTileInstances: [...droppedById.values()],
-    };
-  }
-
-  return recovered;
-}
-
-function isRecoverableTileInstanceConflict(
-  error: SceneDocumentValidationError,
-  payload: SceneDocumentV1,
-): error is SceneDocumentValidationError & {
-  conflictType: NonNullable<SceneDocumentValidationError['conflictType']>;
-  instanceId: string;
-} {
-  return Boolean(
-    error.conflictType &&
-      error.instanceId &&
-      payload.tileInstances.some((instance) => instance.instanceId === error.instanceId),
-  );
-}
-
-function describeDroppedTileInstance(
-  instance: SceneDocumentV1['tileInstances'][number],
-  error: SceneDocumentValidationError & {
-    conflictType: NonNullable<SceneDocumentValidationError['conflictType']>;
-    instanceId: string;
-  },
-  payload: SceneDocumentV1,
-): SceneStringDroppedTileInstance {
-  const level = payload.buildingLevels.find((candidate) => candidate.id === instance.buildingLevelId);
-  const asset = getAssetById(instance.assetId);
-  const blockingLevel = error.blockingBuildingLevelId
-    ? payload.buildingLevels.find((candidate) => candidate.id === error.blockingBuildingLevelId)
-    : null;
-  const blockingAsset = error.blockingAssetId ? getAssetById(error.blockingAssetId) : null;
-
-  return {
-    instanceId: instance.instanceId,
-    assetId: instance.assetId,
-    assetName: asset?.name ?? instance.assetId,
-    buildingLevelId: instance.buildingLevelId,
-    buildingLevelName: level?.name ?? instance.buildingLevelId,
-    buildingLevelNumber: level?.levelNumber ?? null,
-    coordinate: { x: instance.coordinate.x, y: instance.coordinate.y },
-    conflictType: error.conflictType,
-    reason: error.reason,
-    coordinates: (error.coordinates ?? [instance.coordinate]).map((coordinate) => ({
-      x: coordinate.x,
-      y: coordinate.y,
-    })),
-    blockingInstanceId: error.blockingInstanceId,
-    blockingAssetId: error.blockingAssetId,
-    blockingAssetName: blockingAsset?.name ?? error.blockingAssetId,
-    blockingBuildingLevelId: error.blockingBuildingLevelId,
-    blockingBuildingLevelName: blockingLevel?.name ?? error.blockingBuildingLevelId,
-    blockingBuildingLevelNumber: blockingLevel?.levelNumber ?? null,
   };
 }
 
