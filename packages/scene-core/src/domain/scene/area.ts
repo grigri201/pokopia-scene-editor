@@ -2,7 +2,7 @@ export const sceneSize = 15;
 export const outerPadding = 1;
 export const canvasSize = sceneSize + outerPadding * 2;
 export const minEditableCanvasSize = 6;
-export const maxEditableCanvasSize = 17;
+export const maxEditableCanvasSize = 20;
 
 export type AreaType = 'main' | 'outer';
 
@@ -138,7 +138,7 @@ export function assertSupportedSceneDimensions(dimensions: SceneDimensions): voi
   assertSceneDimensions(dimensions);
 
   if (!isSupportedSceneDimensions(dimensions)) {
-    throw new RangeError('Scene dimensions must use outerPadding 1 and canvas width/height between 6 and 17.');
+    throw new RangeError('Scene dimensions must use outerPadding 1 and canvas width/height between 6 and 20.');
   }
 }
 

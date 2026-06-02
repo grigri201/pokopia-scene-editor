@@ -359,7 +359,7 @@ function getRawDimensionValidationErrors(input: unknown): SceneDocumentValidatio
   } catch (error) {
     return [{
       fieldPath: '$',
-      expected: 'outerPadding 1 and canvas width/height 6..17 scene dimensions',
+      expected: 'outerPadding 1 and canvas width/height 6..20 scene dimensions',
       actual: stringifyActualValue({
         sceneSize: root.sceneSize,
         canvasSize: root.canvasSize,

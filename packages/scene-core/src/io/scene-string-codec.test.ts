@@ -252,7 +252,7 @@ describe('SceneDocument short string codec', () => {
       now: '2026-05-23T09:00:00.000Z',
     });
     const encodedParts = encodeSceneDocumentString(scene).split('~');
-    encodedParts[1] = 'G.G.1';
+    encodedParts[1] = 'J.J.1';
 
     const decoded = decodeSceneDocumentString(encodedParts.join('~'), '2026-05-23T09:30:00.000Z');
 
@@ -262,7 +262,7 @@ describe('SceneDocument short string codec', () => {
     }
     expect(decoded.errors[0]).toMatchObject({
       fieldPath: '$',
-      actual: expect.stringContaining('Scene dimensions must use outerPadding 1 and canvas width/height between 6 and 17.'),
+      actual: expect.stringContaining('Scene dimensions must use outerPadding 1 and canvas width/height between 6 and 20.'),
     });
   });
 
@@ -273,7 +273,7 @@ describe('SceneDocument short string codec', () => {
     }));
     const legacyString = encodeSceneDocumentString(createFootprintContractScene());
     const unsupportedParts = defaultString.split('~');
-    unsupportedParts[1] = 'G.G.1';
+    unsupportedParts[1] = 'J.J.1';
 
     expect(summarizeSceneDocumentStringDimensions(defaultString)).toEqual({
       sceneSize: { width: 15, height: 15 },
@@ -288,8 +288,8 @@ describe('SceneDocument short string codec', () => {
       classification: 'legacy-7x7',
     });
     expect(summarizeSceneDocumentStringDimensions(unsupportedParts.join('~'))).toEqual({
-      sceneSize: { width: 16, height: 16 },
-      canvasSize: { width: 18, height: 18 },
+      sceneSize: { width: 19, height: 19 },
+      canvasSize: { width: 21, height: 21 },
       outerPadding: 1,
       classification: 'unsupported',
     });

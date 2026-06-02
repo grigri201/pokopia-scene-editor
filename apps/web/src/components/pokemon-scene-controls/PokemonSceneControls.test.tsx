@@ -70,6 +70,24 @@ describe('PokemonSceneControls', () => {
     expect(container.querySelector('.scene-size-control legend')).toBeNull();
     expect(screen.getByLabelText('宽度')).toHaveValue(`${defaultCanvasSize.width}`);
     expect(screen.getByLabelText('高度')).toHaveValue(`${defaultCanvasSize.height}`);
+    expect(getSelectOptionValues(screen.getByLabelText('宽度'))).toEqual([
+      '6',
+      '7',
+      '8',
+      '9',
+      '10',
+      '11',
+      '12',
+      '13',
+      '14',
+      '15',
+      '16',
+      '17',
+      '18',
+      '19',
+      '20',
+    ]);
+    expect(getSelectOptionValues(screen.getByLabelText('高度'))).toContain('20');
 
     fireEvent.change(screen.getByLabelText('Current Pokemon'), { target: { value: 'eevee' } });
     fireEvent.mouseDown(screen.getByRole('option', { name: /#280.*伊布.*Eevee/ }));
@@ -200,3 +218,7 @@ const defaultCanvasSize = createDefaultSceneDocument({
   sceneId: 'scene-controls-default-canvas',
   now: '2026-05-16T07:00:00.000Z',
 }).canvasSize;
+
+function getSelectOptionValues(select: HTMLElement): string[] {
+  return Array.from(select.querySelectorAll<HTMLOptionElement>('option')).map((option) => option.value);
+}

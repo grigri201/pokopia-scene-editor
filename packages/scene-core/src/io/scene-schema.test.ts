@@ -311,13 +311,13 @@ describe('SceneDocument v1 schema', () => {
 
     expect(validateSceneDocument({
       ...payload,
-      sceneSize: { width: 16, height: 16 },
-      canvasSize: { width: 18, height: 18 },
+      sceneSize: { width: 19, height: 19 },
+      canvasSize: { width: 21, height: 21 },
     })).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           fieldPath: '$',
-          reason: 'Scene dimensions must use outerPadding 1 and canvas width/height between 6 and 17.',
+          reason: 'Scene dimensions must use outerPadding 1 and canvas width/height between 6 and 20.',
         }),
       ]),
     );

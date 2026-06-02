@@ -167,6 +167,19 @@ describe('scene reducer selection rules', () => {
     expect(resized.metadata.updatedAt).toBe('2026-05-16T08:00:00.000Z');
   });
 
+  it('allows resizing the editable canvas up to 20x20', () => {
+    const scene = createDefaultSceneDocument({
+      sceneId: 'scene-test',
+      now: '2026-05-16T07:00:00.000Z',
+    });
+
+    const resized = resizeSceneCanvas(scene, { width: 20, height: 20 }, 'edit', '2026-05-16T08:00:00.000Z');
+
+    expect(resized.sceneSize).toEqual({ width: 18, height: 18 });
+    expect(resized.canvasSize).toEqual({ width: 20, height: 20 });
+    expect(resized.metadata.updatedAt).toBe('2026-05-16T08:00:00.000Z');
+  });
+
   it('updates scene controls and saved metadata through guarded commands', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-test',
