@@ -825,7 +825,8 @@ describe('AppShell scene storage integration', () => {
       'empty',
     );
     expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile Preview Mode');
-    expect(screen.getByText('还没有本地保存的布景。')).toBeVisible();
+    expect(screen.queryByText('还没有本地保存的布景。')).not.toBeInTheDocument();
+    expect(screen.queryByText('可以导入一个布景字符串来恢复说明预览。')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '导入字符串' })).toBeVisible();
     expect(screen.queryByRole('button', { name: '下载预览' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '导出字符串' })).not.toBeInTheDocument();
@@ -873,6 +874,8 @@ describe('AppShell scene storage integration', () => {
     expect(screen.getByLabelText('皮卡丘导出预览宝可梦图片')).toBeVisible();
     expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('未放置素材');
     expect(screen.getByLabelText('L1 17x17 图形')).toBeVisible();
+    expect(screen.getByRole('button', { name: '下载图片' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '按层下载图片' })).toBeVisible();
     expect(screen.queryByRole('dialog', { name: '导入布景字符串' })).not.toBeInTheDocument();
     expect(promptSpy).not.toHaveBeenCalled();
     expect(confirmSpy).not.toHaveBeenCalled();
@@ -1143,6 +1146,78 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
   });
 
+  it('downloads the mobile inline preview from the shared preview controls', async () => {
+    setViewportWidth(390);
+    let objectUrlIndex = 0;
+    const createObjectURL = vi.fn((blob: Blob) => {
+      void blob;
+      objectUrlIndex += 1;
+      return `blob:mobile-export-${objectUrlIndex}`;
+    });
+    const revokeObjectURL = vi.fn();
+    const downloadLinks: Array<{ href: string; download: string }> = [];
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function clickAnchor(this: HTMLAnchorElement) {
+      downloadLinks.push({
+        href: this.getAttribute('href') ?? this.href,
+        download: this.download,
+      });
+    });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      const width = this.classList.contains('export-preview') ? 590 : 0;
+      const height = this.classList.contains('export-preview') ? 420 : 0;
+
+      return {
+        bottom: height,
+        height,
+        left: 0,
+        right: width,
+        top: 0,
+        width,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      };
+    });
+    const importedScene = createDefaultSceneDocument({
+      sceneId: 'scene-mobile-download',
+      sceneName: 'Mobile Download Garden',
+      selectedPokemonKey: 'pikachu',
+      now: '2026-05-31T10:15:00.000Z',
+    });
+
+    render(<AppShell />);
+    submitSceneStringImport(encodeSceneDocumentString(importedScene));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Mobile Download Garden' })).toBeVisible();
+    });
+    fireEvent.click(screen.getByRole('button', { name: '下载图片' }));
+
+    await waitFor(() => {
+      expect(downloadLinks).toContainEqual({
+        href: 'blob:mobile-export-1',
+        download: 'Mobile-Download-Garden.pokopia-scene.png',
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '按层下载图片' })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '按层下载图片' }));
+
+    await waitFor(() => {
+      expect(downloadLinks).toEqual([
+        { href: 'blob:mobile-export-1', download: 'Mobile-Download-Garden.pokopia-scene.png' },
+        { href: 'blob:mobile-export-2', download: 'Mobile-Download-Garden.overall.pokopia-scene.png' },
+        { href: 'blob:mobile-export-3', download: 'Mobile-Download-Garden.L1.pokopia-scene.png' },
+      ]);
+    });
+    expect(screen.queryByRole('dialog', { name: '下载预览' })).not.toBeInTheDocument();
+    expect(toBlobMock).toHaveBeenCalledTimes(3);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+  }, 20_000);
+
   it('keeps mobile invalid imports in the modal without storage or scene changes', () => {
     setViewportWidth(390);
     const promptSpy = vi.spyOn(window, 'prompt');
@@ -1371,7 +1446,8 @@ describe('AppShell scene storage integration', () => {
     expect(screen.getByLabelText('pokokit 彩色 logo')).toHaveTextContent('pokokit');
     expect(screen.queryByRole('dialog', { name: '下载预览' })).not.toBeInTheDocument();
     expect(document.querySelector('.export-preview-backdrop')).toBeNull();
-    expect(screen.queryByRole('button', { name: '下载图片' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '下载图片' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '按层下载图片' })).toBeVisible();
     expect(screen.queryByLabelText('Open Design editing workbench')).not.toBeInTheDocument();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
@@ -2182,7 +2258,8 @@ describe('AppShell scene storage integration', () => {
     expect(screen.queryByRole('dialog', { name: '下载预览' })).not.toBeInTheDocument();
     expect(document.querySelector('.export-preview-backdrop')).toBeNull();
     expect(document.querySelector('[aria-modal]')).toBeNull();
-    expect(screen.queryByRole('button', { name: '下载图片' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '下载图片' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '按层下载图片' })).toBeVisible();
     expect(screen.queryByTestId('scene-cell')).not.toBeInTheDocument();
 
     expect(readSceneSnapshot()).toBe(beforeSnapshot);

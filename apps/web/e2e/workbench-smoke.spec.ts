@@ -716,7 +716,8 @@ test('switches to Mobile Preview Mode below the mobile breakpoint', async ({ pag
   expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
   await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile Preview Mode');
   await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute('data-mobile-preview-state', 'empty');
-  await expect(page.getByText('还没有本地保存的布景。')).toBeVisible();
+  await expect(page.getByText('还没有本地保存的布景。')).toHaveCount(0);
+  await expect(page.getByText('可以导入一个布景字符串来恢复说明预览。')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '导入字符串' })).toBeVisible();
   await expect(page.getByTestId('scene-cell')).toHaveCount(0);
   await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
@@ -802,8 +803,10 @@ test('imports a scene string into Mobile Preview Mode autosave and inline previe
   await expect(page.getByLabel('L1 17x17 图形')).toBeVisible();
   await expect(page.getByRole('dialog', { name: '下载预览' })).toHaveCount(0);
   await expect(page.locator('.export-preview-backdrop')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '下载图片' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '下载图片', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '按层下载图片' })).toBeVisible();
   await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
+  expect(await getGridColumnCount(page, '.export-preview--inline .export-layer__content')).toBe(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await expectElementCenterUncovered(page, page.getByRole('heading', { name: 'Mobile Import Smoke' }));
   await expectElementCenterUncovered(page, page.getByLabel('整体使用素材清单'));
@@ -976,9 +979,11 @@ test('shows stored scene in Mobile Preview Mode without desktop preview drift or
   await expect(page.getByRole('dialog', { name: '下载预览' })).toHaveCount(0);
   await expect(page.getByRole('dialog', { name: '导入布景字符串' })).toHaveCount(0);
   await expect(page.locator('.export-preview-backdrop')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '下载图片' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '下载图片', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '按层下载图片' })).toBeVisible();
   await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toHaveCount(0);
+  expect(await getGridColumnCount(page, '.export-preview--inline .export-layer__content')).toBe(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await expectElementCenterUncovered(page, page.getByRole('button', { name: '导入字符串' }));
   await expectElementCenterUncovered(page, page.getByRole('heading', { name: 'Restored Smoke Layout' }));
@@ -1152,6 +1157,12 @@ async function getStoredBuildingLevelCount(page: Page): Promise<number> {
   return Array.isArray(payload?.buildingLevels) ? payload.buildingLevels.length : -1;
 }
 
+async function getGridColumnCount(page: Page, selector: string): Promise<number> {
+  return page.locator(selector).first().evaluate((element) =>
+    getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length,
+  );
+}
+
 async function getCellBorderStyle(
   page: Page,
   coordinate: string,
@@ -1261,7 +1272,8 @@ async function expectResponsiveWorkbench(
       await expect(page.getByLabel('整体使用素材清单')).toBeVisible();
       await expect(page.getByLabel('逐层图形和素材清单')).toBeVisible();
     } else {
-      await expect(page.getByText('还没有本地保存的布景。')).toBeVisible();
+      await expect(page.getByText('还没有本地保存的布景。')).toHaveCount(0);
+      await expect(page.getByText('可以导入一个布景字符串来恢复说明预览。')).toHaveCount(0);
     }
     return;
   }

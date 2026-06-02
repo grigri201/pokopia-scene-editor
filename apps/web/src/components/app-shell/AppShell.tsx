@@ -1456,8 +1456,12 @@ export function AppShell() {
     setSceneStringImportModalOpen(true);
   };
 
-  const downloadExportImage = async (previewElement: HTMLElement) => {
-    if (!exportPreviewSummary || imageDownloadPending) {
+  const downloadExportImage = async (
+    previewElement: HTMLElement,
+    summaryOverride?: ImageExportSummary,
+  ) => {
+    const targetSummary = summaryOverride ?? exportPreviewSummary;
+    if (!targetSummary || imageDownloadPending) {
       return;
     }
 
@@ -1475,7 +1479,7 @@ export function AppShell() {
       await waitForPlaywrightImageExportDelay();
       const exportFile = await createImageExportFile({
         previewElement,
-        sceneName: exportPreviewSummary.sceneName,
+        sceneName: targetSummary.sceneName,
       });
       objectUrl = URL.createObjectURL(exportFile.blob);
       downloadLink = document.createElement('a');
@@ -1507,8 +1511,12 @@ export function AppShell() {
     }
   };
 
-  const downloadLayeredExportImages = async (previewElement: HTMLElement) => {
-    if (!exportPreviewSummary || imageDownloadPending) {
+  const downloadLayeredExportImages = async (
+    previewElement: HTMLElement,
+    summaryOverride?: ImageExportSummary,
+  ) => {
+    const targetSummary = summaryOverride ?? exportPreviewSummary;
+    if (!targetSummary || imageDownloadPending) {
       return;
     }
 
@@ -1526,7 +1534,7 @@ export function AppShell() {
       await waitForPlaywrightImageExportDelay();
       const exportFiles = await createLayeredImageExportFiles({
         previewElement,
-        sceneName: exportPreviewSummary.sceneName,
+        sceneName: targetSummary.sceneName,
       });
       downloadLink = document.createElement('a');
       downloadLink.rel = 'noopener';
@@ -1949,8 +1957,16 @@ export function AppShell() {
       />
       {mobilePreviewState ? (
         <MobilePreviewMode
+          downloadDisabled={imageDownloadPending}
+          downloadStatus={imageDownloadPending ? t(locale, 'imagePreparing') : null}
           locale={locale}
           state={mobilePreviewState}
+          onDownloadImage={mobilePreviewState.status === 'preview-ready'
+            ? (previewElement) => downloadExportImage(previewElement, mobilePreviewState.summary)
+            : undefined}
+          onDownloadLayerImages={mobilePreviewState.status === 'preview-ready'
+            ? (previewElement) => downloadLayeredExportImages(previewElement, mobilePreviewState.summary)
+            : undefined}
           onImportRequest={requestMobileImport}
           onRemoteLossyCancel={cancelRemoteLossyImport}
           onRemoteLossyConfirm={confirmRemoteLossyImport}

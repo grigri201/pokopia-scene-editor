@@ -1,9 +1,14 @@
+import { useRef } from 'react';
 import { t, type Locale } from '../../i18n';
 import { ExportPreviewContent } from '../export-preview/ExportPreview';
 import type { MobilePreviewState } from './mobile-preview-state';
 
 interface MobilePreviewModeProps {
+  downloadDisabled?: boolean;
+  downloadStatus?: string | null;
   locale: Locale;
+  onDownloadImage?: (previewElement: HTMLElement) => void | Promise<void>;
+  onDownloadLayerImages?: (previewElement: HTMLElement) => void | Promise<void>;
   state: MobilePreviewState;
   onImportRequest: () => void;
   onRemoteLossyCancel?: () => void;
@@ -12,32 +17,89 @@ interface MobilePreviewModeProps {
 }
 
 export function MobilePreviewMode({
+  downloadDisabled = false,
+  downloadStatus = null,
   locale,
+  onDownloadImage,
+  onDownloadLayerImages,
   state,
   onImportRequest,
   onRemoteLossyCancel,
   onRemoteLossyConfirm,
   onRemoteRetry,
 }: MobilePreviewModeProps) {
+  const importOnly = state.status === 'empty' && state.reason !== 'storage-unavailable';
+  const previewRef = useRef<HTMLElement | null>(null);
+
+  const handleDownloadImage = () => {
+    if (previewRef.current) {
+      void onDownloadImage?.(previewRef.current);
+    }
+  };
+
+  const handleDownloadLayerImages = () => {
+    if (previewRef.current) {
+      void onDownloadLayerImages?.(previewRef.current);
+    }
+  };
+
   return (
     <section
-      className="mobile-preview-mode"
+      className={`mobile-preview-mode${importOnly ? ' mobile-preview-mode--import-only' : ''}`}
       aria-label={t(locale, 'mobilePreviewMode')}
       data-mobile-preview-state={state.status}
     >
       <span className="sr-only status-pill" aria-label="Interaction mode">
         {t(locale, 'mobilePreviewMode')}
       </span>
-      <div className="mobile-preview-mode__header">
-        <p className="eyebrow">{t(locale, 'mobilePreviewMode')}</p>
-        <h1>{getMobilePreviewTitle(state, locale)}</h1>
-      </div>
+      {importOnly ? null : (
+        <div className="mobile-preview-mode__header">
+          <p className="eyebrow">{t(locale, 'mobilePreviewMode')}</p>
+          <h1>{getMobilePreviewTitle(state, locale)}</h1>
+        </div>
+      )}
 
       {state.status === 'preview-ready' ? (
         <div className="mobile-preview-mode__inline-preview">
-          <ExportPreviewContent locale={locale} summary={state.summary} />
+          <ExportPreviewContent
+            ref={previewRef}
+            locale={locale}
+            summary={state.summary}
+            actions={(
+              <>
+                <button
+                  type="button"
+                  className="app-action-button"
+                  data-image-export-exclude="true"
+                  disabled={downloadDisabled || !onDownloadImage}
+                  onClick={handleDownloadImage}
+                >
+                  {t(locale, 'downloadImage')}
+                </button>
+                <button
+                  type="button"
+                  className="app-action-button"
+                  data-image-export-exclude="true"
+                  disabled={downloadDisabled || !onDownloadLayerImages}
+                  onClick={handleDownloadLayerImages}
+                >
+                  {t(locale, 'downloadLayerImages')}
+                </button>
+                {downloadStatus ? (
+                  <p
+                    className="export-preview__download-status"
+                    role="status"
+                    aria-label={t(locale, 'imageDownloadStatus')}
+                    data-image-export-exclude="true"
+                  >
+                    {downloadStatus}
+                  </p>
+                ) : null}
+              </>
+            )}
+          />
         </div>
-      ) : (
+      ) : importOnly ? null : (
         <MobilePreviewNotice
           locale={locale}
           state={state}

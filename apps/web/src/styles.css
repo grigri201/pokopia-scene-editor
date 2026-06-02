@@ -281,6 +281,16 @@ button:disabled {
   box-shadow: 0 12px 24px rgba(64, 45, 38, 0.14);
 }
 
+.mobile-preview-mode--import-only {
+  align-content: center;
+  gap: 0;
+  min-height: max(180px, calc(100dvh - 88px));
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .mobile-preview-mode__header {
   display: grid;
   gap: 6px;
@@ -3557,6 +3567,11 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .export-preview--inline .export-layer__content {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
   .export-layer__details {
     padding-top: 0;
   }
@@ -3650,6 +3665,17 @@ button:disabled {
     padding: 12px;
   }
 
+  .export-preview--inline .export-preview__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .export-preview--inline .export-preview__download-status {
+    grid-column: 1 / -1;
+    text-align: center;
+  }
+
   .export-preview--inline .export-preview__summary .export-material-list,
   .export-preview--inline .export-layer__materials .export-material-list--with-thumbs {
     grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
@@ -3657,6 +3683,7 @@ button:disabled {
 
   .export-preview--inline .export-layer-grid-frame {
     width: min(100%, 258px);
+    padding: 8px;
   }
 
   .workbench-grid {
