@@ -37,7 +37,7 @@ const assetFootprintOverridesByAssetId: Readonly<Record<string, AssetFootprint>>
   'large-round-rug': { length: 2, width: 2, height: 1 },
   'lace-rug': { length: 3, width: 3, height: 1 },
   'large-narrow-rug': { length: 1, width: 2, height: 1 },
-  'large-square-rug': { length: 3, width: 3, height: 1 },
+  'large-square-rug': { length: 4, width: 4, height: 1 },
   'log-bed': { length: 2, width: 1, height: 1 },
   'wooden-bed': { length: 2, width: 2, height: 1 },
   'big-storage-box': { length: 1, width: 2, height: 1 },
