@@ -130,6 +130,7 @@ describe('asset catalog', () => {
   });
 
   it('applies audited large rug footprint overrides', () => {
+    expect(getAssetById('small-narrow-rug')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
     expect(getAssetById('oblong-rug')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
     expect(getAssetById('large-narrow-rug')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
     expect(getAssetById('large-round-rug')?.footprint).toEqual({ length: 2, width: 2, height: 1 });

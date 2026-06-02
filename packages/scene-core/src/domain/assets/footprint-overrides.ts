@@ -32,6 +32,7 @@ const assetFootprintOverridesByAssetId: Readonly<Record<string, AssetFootprint>>
   'beach-chair': { length: 2, width: 1, height: 1 },
   'plain-sofa': { length: 1, width: 2, height: 1 },
   'garden-bench': { length: 1, width: 2, height: 1 },
+  'small-narrow-rug': { length: 1, width: 2, height: 1 },
   'oblong-rug': { length: 1, width: 2, height: 1 },
   'large-round-rug': { length: 2, width: 2, height: 1 },
   'lace-rug': { length: 3, width: 3, height: 1 },
