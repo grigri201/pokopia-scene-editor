@@ -678,19 +678,22 @@ describe('AppShell scene storage integration', () => {
 
     const beforePreviewSnapshot = readSceneSnapshot();
     const beforePreviewAutosave = window.localStorage.getItem(autosavedSceneStorageKey);
-    const dragHandle = screen.getByRole('button', { name: 'Reorder 1层 (L1)' });
-    fireEvent.dragStart(dragHandle, { dataTransfer: createDataTransfer() });
-    fireEvent.dragOver(screen.getByLabelText(/^L3, 3层, 0 instances/), { dataTransfer: createDataTransfer() });
+    const sourceRow = screen.getByLabelText('L3, 3层, 0 instances, current editing layer');
+    mockBuildingLevelRowRects();
+    fireEvent.dragStart(sourceRow, { dataTransfer: createDataTransfer() });
+    fireDragOver(screen.getByRole('list', { name: 'Building levels high to low' }), 120);
 
     expect(readSceneSnapshot()).toBe(beforePreviewSnapshot);
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(beforePreviewAutosave);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
 
-    fireEvent.dragEnd(dragHandle);
+    fireEvent.dragEnd(sourceRow);
     expect(readSceneSnapshot()).toBe(beforePreviewSnapshot);
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(beforePreviewAutosave);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Move 3层 (L3) down' }));
+    mockBuildingLevelRowRects();
+    fireEvent.dragStart(sourceRow, { dataTransfer: createDataTransfer() });
+    fireDrop(screen.getByRole('list', { name: 'Building levels high to low' }), 120);
 
     await waitFor(() => {
       expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
@@ -734,11 +737,10 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     const beforeUiPreferences = window.localStorage.getItem(uiPreferencesStorageKey);
 
-    const dragHandle = screen.getByRole('button', { name: 'Reorder 1层 (L1)' });
     const currentRow = screen.getByLabelText('L1, 1层, 0 instances, current editing layer');
-    fireEvent.dragStart(dragHandle, { dataTransfer: createDataTransfer() });
-    fireEvent.dragEnd(dragHandle);
-    fireEvent.dragStart(dragHandle, { dataTransfer: createDataTransfer() });
+    fireEvent.dragStart(currentRow, { dataTransfer: createDataTransfer() });
+    fireEvent.dragEnd(currentRow);
+    fireEvent.dragStart(currentRow, { dataTransfer: createDataTransfer() });
     fireEvent.drop(currentRow, { dataTransfer: createDataTransfer() });
 
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
@@ -2652,6 +2654,37 @@ function createDataTransfer() {
     setData: vi.fn(),
     getData: vi.fn(),
   };
+}
+
+function fireDragOver(element: HTMLElement, clientY: number) {
+  fireDragEvent(element, 'dragover', clientY);
+}
+
+function fireDrop(element: HTMLElement, clientY: number) {
+  fireDragEvent(element, 'drop', clientY);
+}
+
+function fireDragEvent(element: HTMLElement, eventType: 'dragover' | 'drop', clientY: number) {
+  const event = new Event(eventType, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'clientY', { value: clientY });
+  Object.defineProperty(event, 'dataTransfer', { value: createDataTransfer() });
+  fireEvent(element, event);
+}
+
+function mockBuildingLevelRowRects(): void {
+  screen.getAllByTestId('building-level-row').forEach((row, index) => {
+    row.getBoundingClientRect = vi.fn(() => ({
+      bottom: index * 70 + 60,
+      height: 60,
+      left: 0,
+      right: 320,
+      top: index * 70,
+      width: 320,
+      x: 0,
+      y: index * 70,
+      toJSON: () => ({}),
+    }));
+  });
 }
 
 function openSceneStringImportModal(): HTMLElement {

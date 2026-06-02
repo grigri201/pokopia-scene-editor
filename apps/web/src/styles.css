@@ -2703,8 +2703,8 @@ button:disabled {
 }
 
 .level-row {
-  grid-template-columns: 28px 42px minmax(0, 1fr) auto;
-  grid-template-areas: "handle code summary actions";
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-areas: "code summary actions";
   align-items: start;
   min-height: 68px;
   border-radius: 6px;
@@ -2715,6 +2715,14 @@ button:disabled {
 .level-row:focus-visible {
   outline: 2px solid rgba(37, 111, 104, 0.72);
   outline-offset: 2px;
+}
+
+.level-row[draggable="true"] {
+  cursor: grab;
+}
+
+.level-row[draggable="true"]:active {
+  cursor: grabbing;
 }
 
 .level-row button {
@@ -2740,35 +2748,6 @@ button:disabled {
 
 .level-row--dragging {
   opacity: 0.62;
-}
-
-.level-drag-handle {
-  grid-area: handle;
-  align-self: start;
-  display: inline-grid;
-  place-items: center;
-  width: 24px;
-  height: 30px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 0;
-  color: var(--ink-muted);
-  background: color-mix(in srgb, var(--surface-panel) 90%, #fff 10%);
-  cursor: grab;
-}
-
-.level-drag-handle:disabled {
-  cursor: not-allowed;
-}
-
-.level-drag-handle svg {
-  display: block;
-  width: 15px;
-  height: 15px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 3;
-  stroke-linecap: round;
 }
 
 .level-code {

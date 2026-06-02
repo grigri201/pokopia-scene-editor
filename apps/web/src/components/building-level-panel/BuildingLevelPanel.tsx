@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { maxBuildingLevels, type BuildingLevelContext } from '@pokopia-scene-editor/scene-core';
 import { defaultLocale, t, type Locale } from '../../i18n';
 
@@ -37,6 +37,8 @@ export function BuildingLevelPanel({
   const [levelNames, setLevelNames] = useState<Record<string, string>>({});
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
   const [draggingLevelId, setDraggingLevelId] = useState<string | null>(null);
+  const draggingLevelIdRef = useRef<string | null>(null);
+  const listElementRef = useRef<HTMLDivElement | null>(null);
   const [previewLevelIds, setPreviewLevelIds] = useState<string[] | null>(null);
   const [reorderAnnouncement, setReorderAnnouncement] = useState('');
   const orderedLevels = useMemo(() => {
@@ -71,19 +73,9 @@ export function BuildingLevelPanel({
     if (previewLevelIds.length !== levels.length || previewLevelIds.some((levelId) => !levelIds.has(levelId))) {
       setPreviewLevelIds(null);
       setDraggingLevelId(null);
+      draggingLevelIdRef.current = null;
     }
   }, [levels, previewLevelIds]);
-
-  const getCurrentDisplayOrder = () => orderedLevels.map((level) => level.id);
-
-  const previewReorder = (sourceLevelId: string, targetLevelId: string) => {
-    if (readOnly || sourceLevelId === targetLevelId) {
-      return;
-    }
-
-    const nextOrder = moveLevelId(getCurrentDisplayOrder(), sourceLevelId, targetLevelId);
-    setPreviewLevelIds(nextOrder);
-  };
 
   const announceReorder = (announcement: string) => {
     setReorderAnnouncement('');
@@ -94,6 +86,7 @@ export function BuildingLevelPanel({
     const currentOrder = levels.map((level) => level.id);
     setPreviewLevelIds(null);
     setDraggingLevelId(null);
+    draggingLevelIdRef.current = null;
     if (levelIds.length !== currentOrder.length || levelIds.every((levelId, index) => levelId === currentOrder[index])) {
       return;
     }
@@ -102,7 +95,7 @@ export function BuildingLevelPanel({
     announceReorder(announcement);
   };
 
-  const handleDragStart = (event: DragEvent<HTMLButtonElement>, levelId: string) => {
+  const handleDragStart = (event: DragEvent<HTMLElement>, levelId: string) => {
     if (readOnly) {
       event.preventDefault();
       return;
@@ -110,52 +103,118 @@ export function BuildingLevelPanel({
 
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', levelId);
+    draggingLevelIdRef.current = levelId;
     setDraggingLevelId(levelId);
     setPreviewLevelIds(levels.map((level) => level.id));
   };
 
-  const handleDragOver = (event: DragEvent<HTMLElement>, targetLevelId: string) => {
-    if (!draggingLevelId || readOnly) {
+  const handleRowDragStart = (event: DragEvent<HTMLElement>, levelId: string) => {
+    if (isInteractiveLevelControl(event.target)) {
+      event.preventDefault();
+      return;
+    }
+
+    handleDragStart(event, levelId);
+  };
+
+  const getPointerDisplayOrder = (
+    clientY: number,
+    sourceLevelId: string,
+    listElement: HTMLElement | null,
+  ): string[] => {
+    const rows = Array.from(listElement?.querySelectorAll<HTMLElement>('[data-testid="building-level-row"]') ?? []);
+    const visibleOrder = rows.map((row) => row.dataset.levelId).filter((levelId): levelId is string => Boolean(levelId));
+    const nextOrder = (visibleOrder.length === levels.length ? visibleOrder : levels.map((level) => level.id))
+      .filter((levelId) => levelId !== sourceLevelId);
+    let insertIndex = nextOrder.length;
+
+    for (const row of rows) {
+      const rowLevelId = row.dataset.levelId;
+      if (!rowLevelId || rowLevelId === sourceLevelId) {
+        continue;
+      }
+
+      const rowIndex = nextOrder.indexOf(rowLevelId);
+      if (rowIndex < 0) {
+        continue;
+      }
+
+      const rowRect = row.getBoundingClientRect();
+      if (clientY < rowRect.top + rowRect.height / 2) {
+        insertIndex = rowIndex;
+        break;
+      }
+    }
+
+    nextOrder.splice(insertIndex, 0, sourceLevelId);
+    return nextOrder;
+  };
+
+  const handleListDragOver = (event: DragEvent<HTMLElement>) => {
+    const activeDraggingLevelId = draggingLevelIdRef.current;
+    if (!activeDraggingLevelId || readOnly) {
       return;
     }
 
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
-    previewReorder(draggingLevelId, targetLevelId);
+    setPreviewLevelIds(getPointerDisplayOrder(event.clientY, activeDraggingLevelId, event.currentTarget));
   };
 
-  const handleDrop = (event: DragEvent<HTMLElement>, targetLevelId: string) => {
-    if (!draggingLevelId || readOnly) {
+  const handleListDrop = (event: DragEvent<HTMLElement>) => {
+    const activeDraggingLevelId = draggingLevelIdRef.current;
+    if (!activeDraggingLevelId || readOnly) {
       return;
     }
 
     event.preventDefault();
-    const nextOrder = moveLevelId(levels.map((level) => level.id), draggingLevelId, targetLevelId);
+    const nextOrder = getPointerDisplayOrder(event.clientY, activeDraggingLevelId, event.currentTarget);
     commitReorder(nextOrder, t(locale, 'layerReorderDropped'));
   };
 
   const handleDragEnd = () => {
     setDraggingLevelId(null);
+    draggingLevelIdRef.current = null;
     setPreviewLevelIds(null);
   };
 
-  const moveLayerByKeyboard = (levelId: string, direction: 'up' | 'down') => {
-    if (readOnly) {
+  useEffect(() => {
+    if (!draggingLevelId || readOnly) {
       return;
     }
 
-    const currentOrder = levels.map((level) => level.id);
-    const currentIndex = currentOrder.indexOf(levelId);
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= currentOrder.length) {
-      return;
-    }
+    const handleWindowDragOver = (event: globalThis.DragEvent) => {
+      const activeDraggingLevelId = draggingLevelIdRef.current;
+      if (!activeDraggingLevelId) {
+        return;
+      }
 
-    const nextOrder = [...currentOrder];
-    const [movedLevelId] = nextOrder.splice(currentIndex, 1);
-    nextOrder.splice(targetIndex, 0, movedLevelId);
-    commitReorder(nextOrder, t(locale, direction === 'up' ? 'layerMovedUp' : 'layerMovedDown'));
-  };
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'move';
+      }
+      setPreviewLevelIds(getPointerDisplayOrder(event.clientY, activeDraggingLevelId, listElementRef.current));
+    };
+
+    const handleWindowDrop = (event: globalThis.DragEvent) => {
+      const activeDraggingLevelId = draggingLevelIdRef.current;
+      if (!activeDraggingLevelId) {
+        return;
+      }
+
+      event.preventDefault();
+      const nextOrder = getPointerDisplayOrder(event.clientY, activeDraggingLevelId, listElementRef.current);
+      commitReorder(nextOrder, t(locale, 'layerReorderDropped'));
+    };
+
+    window.addEventListener('dragover', handleWindowDragOver);
+    window.addEventListener('drop', handleWindowDrop);
+
+    return () => {
+      window.removeEventListener('dragover', handleWindowDragOver);
+      window.removeEventListener('drop', handleWindowDrop);
+    };
+  }, [draggingLevelId, levels, locale, readOnly]);
 
   const selectLevelFromRow = (levelId: string, target: EventTarget | null) => {
     if (isInteractiveLevelControl(target)) {
@@ -210,9 +269,16 @@ export function BuildingLevelPanel({
           </span>
         </div>
       ) : null}
-      <div className="level-list" role="list" aria-label={t(locale, 'buildingLevelsHighToLow')}>
+      <div
+        ref={listElementRef}
+        className="level-list"
+        role="list"
+        aria-label={t(locale, 'buildingLevelsHighToLow')}
+        onDragOver={handleListDragOver}
+        onDrop={handleListDrop}
+      >
         <span className="sr-only" aria-live="polite">{reorderAnnouncement}</span>
-        {orderedLevels.map((level, index) => (
+        {orderedLevels.map((level) => (
           <article
             className={[
               'level-row',
@@ -234,26 +300,13 @@ export function BuildingLevelPanel({
             data-current={level.current}
             data-dragging={draggingLevelId === level.id}
             tabIndex={0}
+            draggable={!readOnly}
             key={level.id}
             onClick={(event: MouseEvent<HTMLElement>) => selectLevelFromRow(level.id, event.target)}
             onKeyDown={(event) => handleRowKeyDown(event, level.id)}
-            onDragOver={(event) => handleDragOver(event, level.id)}
-            onDrop={(event) => handleDrop(event, level.id)}
+            onDragStart={(event) => handleRowDragStart(event, level.id)}
+            onDragEnd={handleDragEnd}
           >
-            <button
-              type="button"
-              className="level-drag-handle has-icon-tooltip"
-              aria-label={t(locale, 'reorderLayer', { name: level.name, displayId: level.displayId })}
-              data-disabled-reason={readOnly ? 'read-only' : 'available'}
-              data-tooltip={t(locale, 'reorderLayerTooltip')}
-              title={t(locale, 'reorderLayerTooltip')}
-              disabled={readOnly}
-              draggable={!readOnly}
-              onDragStart={(event) => handleDragStart(event, level.id)}
-              onDragEnd={handleDragEnd}
-            >
-              <DragHandleIcon />
-            </button>
             <span className="level-code">{level.displayId}</span>
             <div className="level-summary">
               <label>
@@ -290,30 +343,6 @@ export function BuildingLevelPanel({
             <div className="level-actions" aria-label={t(locale, 'layerActions', { name: level.name })}>
               <button
                 type="button"
-                className="level-action-button level-action-button--reorder has-icon-tooltip"
-                disabled={readOnly || index === 0}
-                data-disabled-reason={readOnly ? 'read-only' : index === 0 ? 'edge' : 'available'}
-                data-tooltip={t(locale, 'moveLayerUpTooltip')}
-                aria-label={`${t(locale, 'moveLayerUp', { name: level.name, displayId: level.displayId })}${readOnly ? ' disabled in read-only mode' : ''}`}
-                title={t(locale, 'moveLayerUpTooltip')}
-                onClick={() => moveLayerByKeyboard(level.id, 'up')}
-              >
-                <MoveUpIcon />
-              </button>
-              <button
-                type="button"
-                className="level-action-button level-action-button--reorder has-icon-tooltip"
-                disabled={readOnly || index === orderedLevels.length - 1}
-                data-disabled-reason={readOnly ? 'read-only' : index === orderedLevels.length - 1 ? 'edge' : 'available'}
-                data-tooltip={t(locale, 'moveLayerDownTooltip')}
-                aria-label={`${t(locale, 'moveLayerDown', { name: level.name, displayId: level.displayId })}${readOnly ? ' disabled in read-only mode' : ''}`}
-                title={t(locale, 'moveLayerDownTooltip')}
-                onClick={() => moveLayerByKeyboard(level.id, 'down')}
-              >
-                <MoveDownIcon />
-              </button>
-              <button
-                type="button"
                 className="level-action-button level-action-button--copy has-icon-tooltip"
                 disabled={readOnly || layerLimitReached}
                 data-disabled-reason={layerLimitReached ? 'max-layers' : readOnly ? 'read-only' : 'available'}
@@ -341,50 +370,6 @@ export function BuildingLevelPanel({
         ))}
       </div>
     </aside>
-  );
-}
-
-function moveLevelId(levelIds: string[], sourceLevelId: string, targetLevelId: string): string[] {
-  const sourceIndex = levelIds.indexOf(sourceLevelId);
-  const targetIndex = levelIds.indexOf(targetLevelId);
-  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
-    return levelIds;
-  }
-
-  const nextLevelIds = [...levelIds];
-  const [movedLevelId] = nextLevelIds.splice(sourceIndex, 1);
-  nextLevelIds.splice(targetIndex, 0, movedLevelId);
-  return nextLevelIds;
-}
-
-function DragHandleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M9 6h.01" />
-      <path d="M15 6h.01" />
-      <path d="M9 12h.01" />
-      <path d="M15 12h.01" />
-      <path d="M9 18h.01" />
-      <path d="M15 18h.01" />
-    </svg>
-  );
-}
-
-function MoveUpIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M12 19V5" />
-      <path d="M6 11l6-6 6 6" />
-    </svg>
-  );
-}
-
-function MoveDownIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M12 5v14" />
-      <path d="M18 13l-6 6-6-6" />
-    </svg>
   );
 }
 

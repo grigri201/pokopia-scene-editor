@@ -16,6 +16,10 @@ const multiLevelScene = {
   ...scene,
   buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
 };
+const sixLevelScene = {
+  ...scene,
+  buildingLevels: Array.from({ length: 6 }, (_, levelNumber) => createBuildingLevel(levelNumber)),
+};
 
 describe('BuildingLevelPanel', () => {
   it('renders the Open Design building levels from high to low', () => {
@@ -34,7 +38,8 @@ describe('BuildingLevelPanel', () => {
     expect(rows).toHaveLength(3);
     expect(rows.map((row) => row.dataset.displayId)).toEqual(['L3', 'L2', 'L1']);
     expect(rows.map((row) => row.dataset.current)).toEqual(['false', 'false', 'true']);
-    expect(screen.getByRole('button', { name: 'Reorder 3层 (L3)' })).toBeEnabled();
+    expect(rows.map((row) => row.getAttribute('draggable'))).toEqual(['true', 'true', 'true']);
+    expect(screen.queryByRole('button', { name: /Reorder/ })).not.toBeInTheDocument();
     expect(screen.getByDisplayValue('1层')).toBeVisible();
     expect(screen.getAllByLabelText(/^Rename /)).toHaveLength(3);
     expect(screen.getByLabelText('Rename 3层')).toBeEnabled();
@@ -51,14 +56,15 @@ describe('BuildingLevelPanel', () => {
       'Mobile View-only Mode · Layer edits disabled',
     );
     expect(screen.getByRole('button', { name: '新建层' })).toBeDisabled();
-    expect(within(currentRow).getAllByRole('button')).toHaveLength(5);
-    expect(within(standbyRow).getAllByRole('button')).toHaveLength(5);
+    expect(currentRow).toHaveAttribute('draggable', 'false');
+    expect(within(currentRow).getAllByRole('button')).toHaveLength(2);
+    expect(within(standbyRow).getAllByRole('button')).toHaveLength(2);
     expect(within(currentRow).queryByRole('button', { name: /View 1层/ })).not.toBeInTheDocument();
     expect(within(currentRow).queryByRole('button', { name: /Hide 1层/ })).not.toBeInTheDocument();
     expect(within(currentRow).queryByRole('button', { name: /Lock 1层/ })).not.toBeInTheDocument();
     expect(within(currentRow).getByRole('button', { name: /Copy 1层.*read-only mode/ })).toBeDisabled();
     expect(within(currentRow).getByRole('button', { name: /Delete 1层.*read-only mode/ })).toBeDisabled();
-    expect(within(currentRow).getByRole('button', { name: /Reorder 1层/ })).toBeDisabled();
+    expect(within(currentRow).queryByRole('button', { name: /Reorder 1层/ })).not.toBeInTheDocument();
     for (const keyEvent of readOnlyApplicationKeyEvents) {
       fireEvent.keyDown(standbyRow, keyEvent);
     }
@@ -106,7 +112,7 @@ describe('BuildingLevelPanel', () => {
     const deleteButton = within(standbyRow).getByRole('button', { name: /Delete 2层 \(L2\)/ });
 
     fireEvent.click(screen.getByRole('button', { name: '新建层' }));
-    expect(within(standbyRow).getAllByRole('button')).toHaveLength(5);
+    expect(within(standbyRow).getAllByRole('button')).toHaveLength(2);
     expect(copyButton.querySelector('svg')).not.toBeNull();
     expect(copyButton).toHaveAttribute('data-tooltip', '复制建筑层');
     expect(copyButton).not.toHaveTextContent('C');
@@ -130,16 +136,15 @@ describe('BuildingLevelPanel', () => {
     const props = defaultProps();
     render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(multiLevelScene)} readOnly={false} />);
 
-    const dragHandle = screen.getByRole('button', { name: 'Reorder 1层 (L1)' });
-    fireEvent.dragStart(dragHandle, { dataTransfer: createDataTransfer() });
-    fireEvent.dragOver(screen.getByLabelText('L3, 3层, 0 instances'), { dataTransfer: createDataTransfer() });
+    mockRowRects();
+    const sourceRow = screen.getByLabelText('L1, 1层, 0 instances, current editing layer');
+    fireEvent.dragStart(sourceRow, { dataTransfer: createDataTransfer() });
+    fireDragOver(screen.getByRole('list', { name: 'Building levels high to low' }), 1);
 
     expect(screen.getAllByTestId('building-level-row').map((row) => row.dataset.displayId)).toEqual(['L1', 'L3', 'L2']);
     expect(props.onReorderLayer).not.toHaveBeenCalled();
 
-    fireEvent.drop(screen.getByLabelText('L3, 3层, 0 instances'), {
-      dataTransfer: createDataTransfer(),
-    });
+    fireDrop(screen.getByRole('list', { name: 'Building levels high to low' }), 1);
 
     expect(props.onReorderLayer).toHaveBeenCalledWith(['level-0', 'level-2', 'level-1']);
   });
@@ -148,22 +153,96 @@ describe('BuildingLevelPanel', () => {
     const props = defaultProps();
     render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(multiLevelScene)} readOnly={false} />);
 
-    const dragHandle = screen.getByRole('button', { name: 'Reorder 1层 (L1)' });
-    fireEvent.dragStart(dragHandle, { dataTransfer: createDataTransfer() });
-    fireEvent.drop(screen.getByLabelText('L3, 3层, 0 instances'), {
+    mockRowRects();
+    fireEvent.dragStart(screen.getByLabelText('L1, 1层, 0 instances, current editing layer'), {
       dataTransfer: createDataTransfer(),
     });
+    fireDrop(screen.getByRole('list', { name: 'Building levels high to low' }), 1);
 
     expect(props.onReorderLayer).toHaveBeenCalledWith(['level-0', 'level-2', 'level-1']);
   });
 
-  it('supports keyboard-accessible layer reorder controls', () => {
+  it('commits a layer dropped between two rows', () => {
+    const props = defaultProps();
+    render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(sixLevelScene)} readOnly={false} />);
+
+    mockRowRects();
+    fireEvent.dragStart(screen.getByLabelText('L6, 6层, 0 instances'), {
+      dataTransfer: createDataTransfer(),
+    });
+    fireDragOver(screen.getByRole('list', { name: 'Building levels high to low' }), 205);
+
+    expect(screen.getAllByTestId('building-level-row').map((row) => row.dataset.displayId)).toEqual([
+      'L5',
+      'L4',
+      'L6',
+      'L3',
+      'L2',
+      'L1',
+    ]);
+
+    mockRowRects();
+    fireDrop(screen.getByRole('list', { name: 'Building levels high to low' }), 205);
+
+    expect(props.onReorderLayer).toHaveBeenCalledWith([
+      'level-4',
+      'level-3',
+      'level-5',
+      'level-2',
+      'level-1',
+      'level-0',
+    ]);
+  });
+
+  it('commits window drops beyond the list edges to the top or bottom position', () => {
     const props = defaultProps();
     render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(multiLevelScene)} readOnly={false} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Move 3层 (L3) down' }));
+    mockRowRects();
+    fireEvent.dragStart(screen.getByLabelText('L1, 1层, 0 instances, current editing layer'), {
+      dataTransfer: createDataTransfer(),
+    });
+    fireWindowDragOver(-40);
 
-    expect(props.onReorderLayer).toHaveBeenCalledWith(['level-1', 'level-2', 'level-0']);
+    expect(screen.getAllByTestId('building-level-row').map((row) => row.dataset.displayId)).toEqual(['L1', 'L3', 'L2']);
+
+    fireWindowDrop(-40);
+
+    expect(props.onReorderLayer).toHaveBeenCalledWith(['level-0', 'level-2', 'level-1']);
+
+    props.onReorderLayer.mockClear();
+    mockRowRects();
+    fireEvent.dragStart(screen.getByLabelText('L3, 3层, 0 instances'), {
+      dataTransfer: createDataTransfer(),
+    });
+    fireWindowDragOver(1000);
+
+    expect(screen.getAllByTestId('building-level-row').map((row) => row.dataset.displayId)).toEqual(['L2', 'L1', 'L3']);
+
+    fireWindowDrop(1000);
+
+    expect(props.onReorderLayer).toHaveBeenCalledWith(['level-1', 'level-0', 'level-2']);
+  });
+
+  it('allows dragging the row surface while preserving interactive row controls', () => {
+    const props = defaultProps();
+    render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(multiLevelScene)} readOnly={false} />);
+
+    mockRowRects();
+    fireEvent.dragStart(screen.getByLabelText('L1, 1层, 0 instances, current editing layer'), {
+      dataTransfer: createDataTransfer(),
+    });
+    fireDrop(screen.getByRole('list', { name: 'Building levels high to low' }), 1);
+
+    expect(props.onReorderLayer).toHaveBeenCalledWith(['level-0', 'level-2', 'level-1']);
+
+    props.onReorderLayer.mockClear();
+    fireEvent.dragStart(screen.getByLabelText('Rename 1层'), {
+      dataTransfer: createDataTransfer(),
+    });
+    fireDrop(screen.getByRole('list', { name: 'Building levels high to low' }), 1);
+
+    expect(props.onReorderLayer).not.toHaveBeenCalled();
   });
 
   it('selects a building level from the row surface without hijacking row controls', () => {
@@ -247,6 +326,45 @@ function createDataTransfer() {
     setData: vi.fn(),
     getData: vi.fn(),
   };
+}
+
+function fireDragOver(element: HTMLElement, clientY: number) {
+  fireDragEvent(element, 'dragover', clientY);
+}
+
+function fireDrop(element: HTMLElement, clientY: number) {
+  fireDragEvent(element, 'drop', clientY);
+}
+
+function fireWindowDragOver(clientY: number) {
+  fireDragEvent(window, 'dragover', clientY);
+}
+
+function fireWindowDrop(clientY: number) {
+  fireDragEvent(window, 'drop', clientY);
+}
+
+function fireDragEvent(target: HTMLElement | Window, eventType: 'dragover' | 'drop', clientY: number) {
+  const event = new Event(eventType, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'clientY', { value: clientY });
+  Object.defineProperty(event, 'dataTransfer', { value: createDataTransfer() });
+  fireEvent(target, event);
+}
+
+function mockRowRects() {
+  screen.getAllByTestId('building-level-row').forEach((row, index) => {
+    row.getBoundingClientRect = vi.fn(() => ({
+      bottom: index * 70 + 60,
+      height: 60,
+      left: 0,
+      right: 320,
+      top: index * 70,
+      width: 320,
+      x: 0,
+      y: index * 70,
+      toJSON: () => ({}),
+    }));
+  });
 }
 
 const readOnlyApplicationKeyEvents = [
