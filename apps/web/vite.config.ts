@@ -4,6 +4,12 @@ import { createReadStream, cpSync, existsSync, mkdirSync, rmSync, statSync } fro
 import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig } from 'vite';
+import {
+  getRemoteSceneDevProxyRequestHeaders,
+  remoteSceneApiBaseUrl,
+  remoteSceneDevProxyContextPattern,
+  rewriteRemoteSceneDevProxyPath,
+} from './src/io/remote-scene-import-config';
 
 const configDir = dirname(fileURLToPath(import.meta.url));
 const sceneCoreSourceEntry = resolve(configDir, '../../packages/scene-core/src/index.ts');
@@ -63,6 +69,22 @@ export default defineConfig({
               priority: 10,
             },
           ],
+        },
+      },
+    },
+  },
+  server: {
+    proxy: {
+      [remoteSceneDevProxyContextPattern]: {
+        target: remoteSceneApiBaseUrl,
+        changeOrigin: true,
+        rewrite: rewriteRemoteSceneDevProxyPath,
+        configure(proxy) {
+          proxy.on('proxyReq', (proxyRequest) => {
+            for (const [headerName, headerValue] of Object.entries(getRemoteSceneDevProxyRequestHeaders())) {
+              proxyRequest.setHeader(headerName, headerValue);
+            }
+          });
         },
       },
     },

@@ -29,6 +29,7 @@ vi.setConfig({ testTimeout: 15_000 });
 
 describe('AppShell scene storage integration', () => {
   beforeEach(() => {
+    window.history.replaceState(null, '', '/');
     window.localStorage.clear();
     setViewportWidth(1280);
     toBlobMock.mockReset();
@@ -252,6 +253,185 @@ describe('AppShell scene storage integration', () => {
     });
     expect(promptSpy).not.toHaveBeenCalled();
     expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not fetch a remote scene when scene_id is absent', () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
+  });
+
+  it('imports a remote scene_id into the desktop workbench without prompt or confirm', async () => {
+    window.history.replaceState(null, '', '/?scene_id=fixture');
+    const promptSpy = vi.spyOn(window, 'prompt');
+    const confirmSpy = vi.spyOn(window, 'confirm');
+    const remoteScene = createDefaultSceneDocument({
+      sceneId: 'scene-remote-desktop',
+      sceneName: 'Remote Desktop Garden',
+      selectedPokemonKey: 'pikachu',
+      now: '2026-06-01T01:00:00.000Z',
+    });
+    const fetchMock = vi.fn(async () => remoteSceneResponse('fixture', encodeSceneDocumentString(remoteScene)));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText('布景')).toHaveValue('Remote Desktop Garden');
+    });
+    expect(fetchMock).toHaveBeenCalledWith('/api/remote-scenes/fixture', {
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+    expect(promptSpy).not.toHaveBeenCalled();
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert', { name: '远程布景无法导入' })).not.toBeInTheDocument();
+  });
+
+  it('shows a desktop remote import error for invalid responses without storage writes', async () => {
+    window.history.replaceState(null, '', '/?scene_id=broken');
+    const fetchMock = vi.fn(async () => remoteSceneResponse('broken', ''));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    const alert = await screen.findByRole('alert', { name: '远程布景无法导入' });
+    expect(alert).toHaveTextContent('远程布景响应无效');
+    expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+  });
+
+  it('shows a desktop remote import error for missing remote scenes without storage writes', async () => {
+    window.history.replaceState(null, '', '/?scene_id=missing');
+    const fetchMock = vi.fn(async () => remoteSceneErrorResponse(404));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    const alert = await screen.findByRole('alert', { name: '远程布景无法导入' });
+    expect(alert).toHaveTextContent('没有找到远程布景 missing');
+    expect(screen.getByRole('button', { name: '手动导入字符串' })).toBeVisible();
+    expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+  });
+
+  it('shows a desktop remote import error for network failures without storage writes', async () => {
+    window.history.replaceState(null, '', '/?scene_id=offline');
+    const fetchMock = vi.fn(async () => {
+      throw new Error('network unavailable');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    const alert = await screen.findByRole('alert', { name: '远程布景无法导入' });
+    expect(alert).toHaveTextContent('远程布景加载失败');
+    expect(screen.getByRole('button', { name: '手动导入字符串' })).toBeVisible();
+    expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+  });
+
+  it('clears stale desktop remote errors after manual fallback import succeeds', async () => {
+    window.history.replaceState(null, '', '/?scene_id=missing');
+    const manualScene = createDefaultSceneDocument({
+      sceneId: 'scene-desktop-manual-fallback',
+      sceneName: 'Desktop Manual Fallback',
+      selectedPokemonKey: 'pikachu',
+      now: '2026-06-01T02:00:00.000Z',
+    });
+    const fetchMock = vi.fn(async () => remoteSceneErrorResponse(404));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    await screen.findByRole('alert', { name: '远程布景无法导入' });
+    submitSceneStringImport(encodeSceneDocumentString(manualScene));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert', { name: '远程布景无法导入' })).not.toBeInTheDocument();
+      expect(screen.getByLabelText('布景')).toHaveValue('Desktop Manual Fallback');
+    });
+    expect(screen.getByLabelText('Current Pokemon')).toHaveValue('皮卡丘');
+  });
+
+  it('dismisses stale invalid remote string toasts after manual fallback import succeeds', async () => {
+    window.history.replaceState(null, '', '/?scene_id=bad-string');
+    const manualScene = createDefaultSceneDocument({
+      sceneId: 'scene-desktop-manual-after-invalid-remote',
+      sceneName: 'Desktop Manual After Invalid Remote',
+      selectedPokemonKey: 'pikachu',
+      now: '2026-06-01T02:05:00.000Z',
+    });
+    const fetchMock = vi.fn(async () => remoteSceneResponse('bad-string', 'bad-code'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    await screen.findByRole('alert', { name: '远程布景导入' });
+    await screen.findByRole('alert', { name: '远程布景无法导入' });
+    submitSceneStringImport(encodeSceneDocumentString(manualScene));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert', { name: '远程布景导入' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('alert', { name: '远程布景无法导入' })).not.toBeInTheDocument();
+      expect(screen.getByLabelText('布景')).toHaveValue('Desktop Manual After Invalid Remote');
+    });
+  });
+
+  it('keeps the remote recovery state when manual fallback still needs lossy confirmation', async () => {
+    window.history.replaceState(null, '', '/?scene_id=missing');
+    const lossySceneString = [
+      'PSE2',
+      'F.F.1',
+      'Manual Lossy Fallback.0.0._._',
+      '0.%E7%B4%A0%E6%9D%90%E5%B1%82;1.%E5%9C%B0%E5%9F%BA',
+      '0.f.C0.0._._._;1.f.6L.0._._._',
+      '_',
+    ].join('~');
+    const fetchMock = vi.fn(async () => remoteSceneErrorResponse(404));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    const remoteAlert = await screen.findByRole('alert', { name: '远程布景无法导入' });
+    expect(remoteAlert).toHaveTextContent('没有找到远程布景 missing');
+    const dialog = submitSceneStringImport(lossySceneString);
+
+    expect(within(dialog).getByText(/丢弃 1 个不兼容素材/)).toBeVisible();
+    expect(screen.getByRole('alert', { name: '远程布景无法导入' })).toBeVisible();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: '导入布景字符串' })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('alert', { name: '远程布景无法导入' })).toBeVisible();
+    expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
+  });
+
+  it('shows a desktop remote import error for invalid scene strings without treating default as success', async () => {
+    window.history.replaceState(null, '', '/?scene_id=bad-string');
+    const fetchMock = vi.fn(async () => remoteSceneResponse('bad-string', 'bad-code'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    const alert = await screen.findByRole('alert', { name: '远程布景无法导入' });
+    expect(alert).toHaveTextContent('远程布景字符串无效');
+    expect(alert).toHaveTextContent('Unable to decode scene string.');
+    expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
   });
 
   it('imports remaining scene string content and reports dropped incompatible materials', async () => {
@@ -702,6 +882,265 @@ describe('AppShell scene storage integration', () => {
       sceneName: 'Mobile Imported Garden',
       selectedPokemonKey: 'pikachu',
     });
+  });
+
+  it('imports a mobile remote scene_id into autosave and inline preview without desktop controls', async () => {
+    setViewportWidth(390);
+    window.history.replaceState(null, '', '/?scene_id=mobile-fixture');
+    const remoteScene = createDefaultSceneDocument({
+      sceneId: 'scene-mobile-remote',
+      sceneName: 'Mobile Remote Garden',
+      selectedPokemonKey: 'pikachu',
+      now: '2026-06-01T01:10:00.000Z',
+    });
+    const fetchMock = vi.fn(async () => remoteSceneResponse('mobile-fixture', encodeSceneDocumentString(remoteScene)));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+        'data-mobile-preview-state',
+        'preview-ready',
+      );
+      expect(screen.getByRole('heading', { name: 'Mobile Remote Garden' })).toBeVisible();
+    });
+    expect(screen.getByLabelText('皮卡丘导出预览宝可梦图片')).toBeVisible();
+    expect(screen.queryByLabelText('Open Design editing workbench')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '下载预览' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导出字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '重置' })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+    expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}')).toMatchObject({
+      sceneName: 'Mobile Remote Garden',
+      selectedPokemonKey: 'pikachu',
+    });
+  });
+
+  it('shows mobile remote failure with manual import entry and no default success preview', async () => {
+    setViewportWidth(390);
+    window.history.replaceState(null, '', '/?scene_id=missing');
+    const fetchMock = vi.fn(async () => remoteSceneErrorResponse(404));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+        'data-mobile-preview-state',
+        'remote-error',
+      );
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent('没有找到远程布景 missing');
+    expect(screen.getByRole('button', { name: '导入字符串' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: '布景说明预览' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Open Design editing workbench')).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+  });
+
+  it('recovers mobile remote failure through manual import and shows the imported preview', async () => {
+    setViewportWidth(390);
+    window.history.replaceState(null, '', '/?scene_id=missing');
+    const manualScene = createDefaultSceneDocument({
+      sceneId: 'scene-mobile-manual-fallback',
+      sceneName: 'Mobile Manual Fallback',
+      selectedPokemonKey: 'pikachu',
+      now: '2026-06-01T02:10:00.000Z',
+    });
+    const fetchMock = vi.fn(async () => remoteSceneErrorResponse(404));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+        'data-mobile-preview-state',
+        'remote-error',
+      );
+    });
+    submitSceneStringImport(encodeSceneDocumentString(manualScene));
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+        'data-mobile-preview-state',
+        'preview-ready',
+      );
+      expect(screen.getByRole('heading', { name: 'Mobile Manual Fallback' })).toBeVisible();
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}')).toMatchObject({
+      sceneName: 'Mobile Manual Fallback',
+      selectedPokemonKey: 'pikachu',
+    });
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+  });
+
+  it('keeps pending remote fetches from overwriting mobile manual fallback import', async () => {
+    setViewportWidth(390);
+    window.history.replaceState(null, '', '/?scene_id=slow');
+    const manualScene = createDefaultSceneDocument({
+      sceneId: 'scene-mobile-manual-before-remote',
+      sceneName: 'Mobile Manual Before Remote',
+      selectedPokemonKey: 'pikachu',
+      now: '2026-06-01T02:20:00.000Z',
+    });
+    const remoteScene = createDefaultSceneDocument({
+      sceneId: 'scene-remote-late',
+      sceneName: 'Late Remote Scene',
+      selectedPokemonKey: 'ditto',
+      now: '2026-06-01T02:30:00.000Z',
+    });
+    let resolveFetch: (response: Response) => void = () => undefined;
+    let resolveRemoteJsonConsumed: () => void = () => undefined;
+    const remoteJsonConsumed = new Promise<void>((resolve) => {
+      resolveRemoteJsonConsumed = resolve;
+    });
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+        'data-mobile-preview-state',
+        'remote-loading',
+      );
+    });
+    submitSceneStringImport(encodeSceneDocumentString(manualScene));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Mobile Manual Before Remote' })).toBeVisible();
+    });
+
+    const lateResponse = remoteSceneResponse('slow', encodeSceneDocumentString(remoteScene));
+    vi.spyOn(lateResponse, 'json').mockImplementation(async () => {
+      resolveRemoteJsonConsumed();
+      return {
+        id: 'slow',
+        meta: {
+          name: 'Remote fixture',
+        },
+        pse: encodeSceneDocumentString(remoteScene),
+      };
+    });
+    await act(async () => {
+      resolveFetch(lateResponse);
+      await remoteJsonConsumed;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Mobile Manual Before Remote' })).toBeVisible();
+      expect(screen.queryByRole('heading', { name: 'Late Remote Scene' })).not.toBeInTheDocument();
+    });
+    expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}')).toMatchObject({
+      sceneName: 'Mobile Manual Before Remote',
+      selectedPokemonKey: 'pikachu',
+    });
+  });
+
+  it('applies a pending desktop remote fetch with current mobile context after resize', async () => {
+    window.history.replaceState(null, '', '/?scene_id=slow-mobile');
+    const remoteScene = createDefaultSceneDocument({
+      sceneId: 'scene-remote-after-resize',
+      sceneName: 'Remote After Resize',
+      selectedPokemonKey: 'pikachu',
+      now: '2026-06-01T02:35:00.000Z',
+    });
+    let resolveFetch: (response: Response) => void = () => undefined;
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    await screen.findByRole('status', { name: '正在加载远程布景' });
+
+    setViewportWidth(390);
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+        'data-mobile-preview-state',
+        'remote-loading',
+      );
+    });
+
+    await act(async () => {
+      resolveFetch(remoteSceneResponse('slow-mobile', encodeSceneDocumentString(remoteScene)));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+        'data-mobile-preview-state',
+        'preview-ready',
+      );
+      expect(screen.getByRole('heading', { name: 'Remote After Resize' })).toBeVisible();
+    });
+    expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}')).toMatchObject({
+      sceneName: 'Remote After Resize',
+      selectedPokemonKey: 'pikachu',
+    });
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+  });
+
+  it('requires remote lossy confirmation before mobile autosave and supports cancel', async () => {
+    setViewportWidth(390);
+    window.history.replaceState(null, '', '/?scene_id=lossy-remote');
+    const lossySceneString = [
+      'PSE2',
+      'F.F.1',
+      'Remote Lossy Mobile.0.0._._',
+      '0.%E7%B4%A0%E6%9D%90%E5%B1%82;1.%E5%9C%B0%E5%9F%BA',
+      '0.f.C0.0._._._;1.f.6L.0._._._',
+      '_',
+    ].join('~');
+    const fetchMock = vi.fn(async () => remoteSceneResponse('lossy-remote', lossySceneString));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+        'data-mobile-preview-state',
+        'remote-lossy',
+      );
+    });
+    expect(screen.getByText(/远程布景包含 1 个不兼容素材/)).toBeVisible();
+    expect(screen.getByText(/地基（7,2）木地板/)).toBeVisible();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: '取消远程导入' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('远程导入已取消');
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: '重试远程加载' }));
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+        'data-mobile-preview-state',
+        'remote-lossy',
+      );
+    });
+    fireEvent.click(screen.getByRole('button', { name: '继续导入剩余部分' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Remote Lossy Mobile' })).toBeVisible();
+    });
+    expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}').tileInstances).toEqual([
+      expect.objectContaining({
+        assetId: 'bread-oven',
+      }),
+    ]);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
   });
 
   it('keeps mobile invalid imports in the modal without storage or scene changes', () => {
@@ -2038,6 +2477,33 @@ function submitSceneStringImport(sceneString: string): HTMLElement {
   fireEvent.click(within(dialog).getByRole('button', { name: '导入' }));
 
   return dialog;
+}
+
+function remoteSceneResponse(sceneId: string, sceneString: string): Response {
+  return new Response(JSON.stringify({
+    id: sceneId,
+    meta: {
+      name: 'Remote fixture',
+    },
+    pse: sceneString,
+  }), {
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+    },
+  });
+}
+
+function remoteSceneErrorResponse(status: number): Response {
+  return new Response(JSON.stringify({
+    error: {
+      code: status === 404 ? 'scene_not_found' : 'remote_error',
+    },
+  }), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+    },
+  });
 }
 
 const mobileApplicationKeyEvents = [

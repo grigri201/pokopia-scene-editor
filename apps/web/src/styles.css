@@ -214,6 +214,61 @@ button:disabled {
   color: var(--color-error);
 }
 
+.remote-scene-import-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  max-width: 1100px;
+  margin: 12px auto 0;
+  border: 1px solid rgba(37, 111, 104, 0.32);
+  border-radius: 8px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--surface-panel) 94%, #fff 6%);
+  box-shadow: 0 10px 20px rgba(64, 45, 38, 0.1);
+}
+
+.remote-scene-import-status h2,
+.remote-scene-import-status p {
+  margin: 0;
+}
+
+.remote-scene-import-status h2 {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.remote-scene-import-status ul {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.remote-scene-import-status li {
+  display: grid;
+  gap: 3px;
+  border: 1px solid color-mix(in srgb, var(--color-error) 36%, var(--line));
+  border-radius: 6px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--color-error) 7%, #fff 93%);
+  overflow-wrap: anywhere;
+}
+
+.remote-scene-import-status__actions,
+.mobile-preview-mode__remote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.remote-scene-import-status--error,
+.remote-scene-import-status--lossy-confirmation {
+  border-color: color-mix(in srgb, var(--color-error) 45%, var(--line));
+}
+
 .mobile-preview-mode {
   display: grid;
   gap: 18px;
@@ -270,6 +325,16 @@ button:disabled {
   padding: 10px;
   background: color-mix(in srgb, var(--color-error) 8%, #fff 92%);
   overflow-wrap: anywhere;
+}
+
+.mobile-preview-mode__secondary-action {
+  min-height: 36px;
+  border: 1px solid rgba(37, 111, 104, 0.38);
+  border-radius: 6px;
+  padding: 0 12px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.62);
+  font-weight: 900;
 }
 
 .mobile-preview-mode__inline-preview {

@@ -15,6 +15,19 @@ export type MobilePreviewState =
       reason: 'no-stored-scene' | 'storage-unavailable';
     }
   | {
+      status: 'remote-loading';
+      sceneId: string;
+    }
+  | {
+      status: 'remote-error';
+      message: string;
+      errors?: RecoveryError[];
+    }
+  | {
+      status: 'remote-lossy';
+      droppedTileDetails: string[];
+    }
+  | {
       status: 'preview-ready';
       scene: SceneDocument;
       summary: ImageExportSummary;

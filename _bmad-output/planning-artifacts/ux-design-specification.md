@@ -100,6 +100,14 @@ Mobile inline preview 的内容必须与 desktop “下载预览”一致，包�
 
 Mobile 导入必须使用自定义 modal，不使用系统输入框或系统确认框。modal 提供粘贴 textarea、确认、取消和关闭按钮；invalid string 留在 modal 内显示错误；存在 lossy recovery 时列出丢弃素材并要求二次确认。导入成功后 mobile 页面直接进入 inline preview，不弹出下载预览层。Mobile 仍不提供任何编辑器能力。
 
+### Approved Course Correction - 2026-06-01 `scene_id` URL 即时访问导入
+
+本 UX 规格已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-01-scene-id-url-import.md` 增加 Epic 15。带 `?scene_id={id}` 的 URL 是即时访问入口：页面打开后先加载远程布景字符串，成功后自动显示该布景。该入口不新增 landing page、账号、方案库或云同步 UI。
+
+Desktop 上，remote import 成功后进入现有可编辑工作台；加载中和失败状态应通过可访问 status/toast/recovery surface 明确反馈。Mobile 上，`scene_id` 优先于本地 storage 成功展示；remote import 成功后直接进入 inline 下载预览，失败时显示错误和“导入字符串”入口，不把默认 scene 当作成功导入。
+
+远程 scene string 如果需要 lossy recovery，必须向用户列出将丢弃的素材，并要求确认后再应用兼容内容。取消或失败不得写 scene storage、UI preferences 或改变当前 scene。
+
 ### Target Users
 
 目标用户包括 Pokopia 布景创作者和素材库维护者。布景创作者需要把灵感或搭建方案整理成可复现、可继续编辑、可分享的数据；素材库维护者需要维护素材名称、分类、标签、适用区域、技能需求、footprint、承载/叠放规则、缩略图和筛选信息，让创作者能快速找到正确素材。
@@ -725,16 +733,16 @@ MVP 采用桌面优先 Web App。`1280px+` 使用完整三栏工作台：左侧�
 
 `768-1279px` 保留编辑能力，但压缩布局：素材库与检查器可改为抽屉、标签页或单侧面板。当前素材、选中格子、当前楼层、技能状态必须一键可达。
 
-`<768px` 进入 **Mobile Preview Mode**。Mobile 不是简化编辑器，也不再展示完整只读工作台。它只承担两个任务：读取本地保存布景并以内联下载预览形式展示；无记录时允许通过自定义导入 modal 粘贴布景字符串。禁止放置、移动、旋转、删除、修改属性、修改楼层、新增/编辑/删除层备注、切换技能状态、撤销/重做、批量清空和任何普通编辑行为。
+`<768px` 进入 **Mobile Preview Mode**。Mobile 不是简化编辑器，也不再展示完整只读工作台。它只承担三个任务：读取本地保存布景并以内联下载预览形式展示；无记录时允许通过自定义导入 modal 粘贴布景字符串；URL 带有 `scene_id` 时优先加载远程布景字符串并显示 inline 预览。禁止放置、移动、旋转、删除、修改属性、修改楼层、新增/编辑/删除层备注、切换技能状态、撤销/重做、批量清空和任何普通编辑行为。
 
-Mobile 有本地有效布景时，页面主体就是 inline 下载预览内容；无本地布景时，页面主体是空状态和“导入字符串”按钮。Mobile 上编辑入口不渲染；导入是唯一允许替换本地布景记录的显式流程。
+Mobile 有 `scene_id` 时，remote loading/success/error state 优先于本地有效布景展示。没有 `scene_id` 且有本地有效布景时，页面主体就是 inline 下载预览内容；无本地布景时，页面主体是空状态和“导入字符串”按钮。Mobile 上编辑入口不渲染；手动导入和 remote import 是唯一允许替换本地布景记录的显式流程。
 
 ### Breakpoint Strategy
 
 - `1280px+`: 完整三栏工作台，无横向滚动。
 - `1024-1279px`: 紧凑桌面/平板横屏，缩窄侧栏，保持画布稳定。
 - `768-1023px`: 平板布局，一次展示一个辅助面板，但仍允许编辑。
-- `<768px`: Mobile Preview Mode，不渲染完整工作台；有本地布景则显示 inline 下载预览，无本地布景则显示导入入口。
+- `<768px`: Mobile Preview Mode，不渲染完整工作台；有 `scene_id` 时优先加载远程布景；无 `scene_id` 且有本地布景则显示 inline 下载预览；无本地布景则显示导入入口。
 - `390x844`: 必测目标，确认无控件重叠，且任何编辑路径都不可触发。
 
 从桌面缩小到 Mobile 时，如果已有未保存编辑，必须保留草稿；Mobile surface 读取当前可用 scene/storage 并显示 inline 下载预览，不得触发普通 autosave 或编辑 command。从 Mobile 放大回桌面后恢复编辑能力，不能丢失桌面 scene state。
@@ -765,6 +773,9 @@ Mobile preview/import 测试必须验证：
 - lossy import 显示丢弃素材明细，用户二次确认后才导入兼容内容。
 - import cancel/close 不改变 scene，不写 scene storage，不写 UI preferences。
 - import success 写入现有 scene storage，并立即显示 inline 下载预览。
+- `?scene_id=fixture` desktop 自动导入成功后显示可编辑工作台中的远程布景，失败时显示可恢复错误。
+- `?scene_id=fixture` mobile 390×844 自动导入成功后显示 inline 下载预览并写 autosave；失败时显示错误和“导入字符串”入口，不显示默认 scene 成功状态。
+- remote import lossy recovery 必须列出 dropped materials 并二次确认；用户取消不写 storage、不改变 scene。
 - 保存、自动保存、撤销/重做、删除快捷键、保存快捷键和图片导出快捷路径都不能触发普通编辑或改变 scene JSON。
 - 恢复校验可以显示错误和定位，但不能自动修复或写回场景。
 - 从桌面缩小到 Mobile 再放大回桌面，不得出现延迟提交、丢失草稿或意外 dirty state。
