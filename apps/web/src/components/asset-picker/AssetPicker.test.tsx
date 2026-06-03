@@ -137,6 +137,38 @@ describe('AssetPicker', () => {
     expect(onAssetSelect).toHaveBeenLastCalledWith('pecha-berry', 'continuous');
   });
 
+  it('shows a pre-placement rotate button for non-1x1 assets only', () => {
+    const onPlacementRotationChange = vi.fn();
+
+    render(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId="wooden-bench"
+        placementRotationDegrees={90}
+        selectedPokemonKey="ditto"
+        currentBuildingLevelName="主体道具"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
+        onPlacementRotationChange={onPlacementRotationChange}
+        onAssetSelect={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '木长椅' } });
+
+    const rotateButton = screen.getByRole('button', { name: '旋转待放置素材 90 度：木长椅' });
+    expect(rotateButton).toHaveAttribute('aria-pressed', 'true');
+    expect(rotateButton).toHaveAttribute('data-rotation', '90');
+
+    fireEvent.click(rotateButton);
+
+    expect(onPlacementRotationChange).toHaveBeenCalledWith('wooden-bench');
+
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '苹野果' } });
+
+    expect(screen.queryByRole('button', { name: /旋转待放置素材/ })).not.toBeInTheDocument();
+  });
+
   it('renders continuous asset selection differently from single selection', () => {
     render(
       <AssetPicker
@@ -215,7 +247,7 @@ describe('AssetPicker', () => {
     expect(onPlacementRequiresSkillChange).toHaveBeenCalledWith(true);
   });
 
-  it('filters by search query and current Pokemon favorites', () => {
+  it('filters by search query without the removed favorite-only toggle', () => {
     render(
       <AssetPicker
         readOnly={false}
@@ -228,10 +260,7 @@ describe('AssetPicker', () => {
       />,
     );
 
-    fireEvent.click(screen.getByLabelText('Show favorite assets'));
-    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('193 results');
-    expect(queryAssetSelectButton('leppa-berry')).toBeNull();
-    expect(queryAssetSelectButton('stepping-stones')).toBeNull();
+    expect(screen.queryByLabelText('Show favorite assets')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '木长椅' } });
     expect(screen.getByLabelText('Asset result count')).toHaveTextContent('1 results');
@@ -241,7 +270,6 @@ describe('AssetPicker', () => {
     expect(screen.getByLabelText('Asset result count')).toHaveTextContent('1 results');
     expect(getAssetSelectButton('wooden-bench')).toBeVisible();
 
-    fireEvent.click(screen.getByLabelText('Show favorite assets'));
     fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'Leppa Berry' } });
     expect(screen.getByLabelText('Asset result count')).toHaveTextContent('1 results');
     expect(getAssetSelectButton('leppa-berry')).toHaveTextContent('苹野果');
@@ -251,7 +279,7 @@ describe('AssetPicker', () => {
     expect(getAssetSelectButton('leppa-berry')).toBeVisible();
   });
 
-  it('persists compact query, category, and favorite filters separately from scene state', () => {
+  it('persists compact query and category filters separately from scene state', () => {
     const { unmount } = render(
       <AssetPicker
         readOnly={false}
@@ -266,13 +294,12 @@ describe('AssetPicker', () => {
 
     fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '屋顶' } });
     fireEvent.click(within(screen.getByRole('group', { name: 'Asset category filters' })).getByRole('button', { name: '建筑' }));
-    fireEvent.click(screen.getByLabelText('Show favorite assets'));
 
-    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('3 results');
+    expect(screen.queryByLabelText('Show favorite assets')).not.toBeInTheDocument();
     expect(readUiPreferencesFromStorage(window.localStorage).assetFilters).toEqual({
       query: '屋顶',
       category: 'buildings',
-      favoriteOnly: true,
+      favoriteOnly: false,
     });
 
     unmount();
@@ -291,10 +318,9 @@ describe('AssetPicker', () => {
     expect(screen.getByLabelText('Search assets')).toHaveValue('屋顶');
     expect(within(screen.getByRole('group', { name: 'Asset category filters' })).getByRole('button', { name: '建筑' }))
       .toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByLabelText('Show favorite assets')).toBeChecked();
+    expect(screen.queryByLabelText('Show favorite assets')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset area filter')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset skill filter')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('3 results');
   });
 
   it('drops restored legacy area and skill filters from UI preferences', () => {
@@ -357,7 +383,7 @@ describe('AssetPicker', () => {
     expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument();
   });
 
-  it('does not offer favorite-specific empty-state recovery actions', () => {
+  it('does not offer empty-state recovery actions', () => {
     render(
       <AssetPicker
         readOnly={false}
@@ -370,7 +396,7 @@ describe('AssetPicker', () => {
       />,
     );
 
-    fireEvent.click(screen.getByLabelText('Show favorite assets'));
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'missing asset' } });
     fireEvent.click(screen.getByRole('button', { name: '建筑' }));
 
     expect(screen.getByLabelText('No matching assets')).toBeVisible();
@@ -397,7 +423,7 @@ describe('AssetPicker', () => {
     expect(getAssetSelectButton('pecha-berry')).toBeEnabled();
     expect(screen.queryByLabelText('Current placement asset')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Search assets')).toHaveAttribute('readonly');
-    expect(screen.getByLabelText('Show favorite assets')).toBeDisabled();
+    expect(screen.queryByLabelText('Show favorite assets')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset advanced filters')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset area filter')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset skill filter')).not.toBeInTheDocument();

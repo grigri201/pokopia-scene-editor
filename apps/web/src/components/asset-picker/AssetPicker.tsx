@@ -9,6 +9,7 @@ import {
   type AssetDefinition,
   type AssetFilterState,
   type PokemonKey,
+  type RotationDegrees,
 } from '@pokopia-scene-editor/scene-core';
 import {
   defaultLocale,
@@ -31,7 +32,9 @@ interface AssetPickerProps {
   selectedPokemonKey: PokemonKey;
   currentBuildingLevelName: string;
   placementRequiresSkill: boolean;
+  placementRotationDegrees?: RotationDegrees;
   onPlacementRequiresSkillChange: (requiresSkill: boolean) => void;
+  onPlacementRotationChange?: (assetId: string) => void;
   onAssetSelect: (assetId: string, placementMode: AssetSelectionMode) => void;
 }
 
@@ -44,7 +47,9 @@ export function AssetPicker({
   selectedAssetMode = 'single',
   selectedPokemonKey,
   placementRequiresSkill,
+  placementRotationDegrees = 0,
   onPlacementRequiresSkillChange,
+  onPlacementRotationChange,
   onAssetSelect,
 }: AssetPickerProps) {
   const assetPickerId = useId();
@@ -134,16 +139,6 @@ export function AssetPicker({
     <aside className="panel asset-picker" aria-label={t(locale, 'assetPicker')}>
       <div className="asset-picker__header">
         <h2>{t(locale, 'assets')}</h2>
-        <label className="favorite-toggle">
-          <input
-            type="checkbox"
-            aria-label={t(locale, 'showFavoriteAssets')}
-            checked={filters.favoriteOnly}
-            disabled={readOnly}
-            onChange={(event) => updateFilters({ favoriteOnly: event.target.checked })}
-          />
-          {t(locale, 'favoriteOnly')}
-        </label>
         <span
           className="asset-count"
           role="status"
@@ -214,6 +209,7 @@ export function AssetPicker({
           const selectedContinuously = selected && selectedAssetMode === 'continuous';
           const ids = getAssetRowIds(assetPickerId, asset.assetId);
           const assetDisplay = getAssetDisplay(asset, locale);
+          const rotatable = isRotatableBeforePlacement(asset);
 
           return (
             <article
@@ -227,6 +223,7 @@ export function AssetPicker({
               data-asset-id={asset.assetId}
               data-selected={selected}
               data-selection-mode={selected ? selectedAssetMode : 'none'}
+              data-placement-rotation={selected ? placementRotationDegrees : 0}
               key={asset.assetId}
             >
               <button
@@ -249,6 +246,21 @@ export function AssetPicker({
                   No. {asset.officialId}
                 </span>
               </button>
+              {rotatable ? (
+                <button
+                  type="button"
+                  className="asset-rotate-button has-icon-tooltip"
+                  aria-label={t(locale, 'rotatePlacementAsset', { name: assetDisplay.name })}
+                  aria-pressed={selected && placementRotationDegrees !== 0}
+                  data-rotation={selected ? placementRotationDegrees : 0}
+                  data-tooltip={t(locale, 'rotate90')}
+                  title={t(locale, 'rotatePlacementAsset', { name: assetDisplay.name })}
+                  disabled={readOnly}
+                  onClick={() => onPlacementRotationChange?.(asset.assetId)}
+                >
+                  <RotateAssetIcon />
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="sr-only"
@@ -269,6 +281,19 @@ export function AssetPicker({
         <AssetDetail locale={locale} asset={viewedAsset} selectedPokemonKey={selectedPokemonKey} />
       </div>
     </aside>
+  );
+}
+
+function isRotatableBeforePlacement(asset: AssetDefinition): boolean {
+  return asset.footprint.length !== 1 || asset.footprint.width !== 1;
+}
+
+function RotateAssetIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4.9 7.4h7.2a4.7 4.7 0 0 1 4.7 4.7v5" />
+      <path d="m14.1 14.4 2.7 2.7 2.7-2.7" />
+    </svg>
   );
 }
 

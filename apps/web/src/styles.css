@@ -1626,7 +1626,7 @@ button:disabled {
 
 .workbench-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 380px) minmax(520px, 1fr) 300px;
+  grid-template-columns: minmax(260px, clamp(280px, 26vw, 380px)) minmax(0, 1fr) minmax(250px, clamp(260px, 22vw, 300px));
   gap: 10px;
   align-items: stretch;
   max-width: none;
@@ -1649,7 +1649,7 @@ button:disabled {
   top: auto;
   align-self: start;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 16px;
   min-height: 0;
   height: 100%;
@@ -1672,6 +1672,7 @@ button:disabled {
 
 .panel {
   min-width: 0;
+  min-height: 0;
   padding: 14px;
 }
 
@@ -1710,16 +1711,20 @@ button:disabled {
 }
 
 .canvas-stage {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
   gap: 12px;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
   border: 0;
   padding: 0 0 2px;
   background: transparent;
   box-shadow: none;
+  overflow: hidden;
 }
 
 .canvas-stage h1 {
@@ -2277,23 +2282,41 @@ button:disabled {
 .canvas-bottom-panels {
   align-self: center;
   display: block;
+  flex: 1 1 auto;
   width: min(72vh, 660px, 100%);
+  min-height: 0;
   margin-left: 0;
+  overflow: hidden;
 }
 
 .canvas-bottom-panels .selection-inspector {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
   width: 100%;
+  height: 100%;
   max-width: none;
   min-width: 0;
+  min-height: 0;
   margin: 0;
-  display: block;
 }
 
 .canvas-bottom-panels .current-selection-bar {
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  align-content: center;
+  justify-items: start;
+}
+
+.canvas-bottom-panels .layer-notes-panel {
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  margin-top: 0;
+  overflow: hidden;
 }
 
 .canvas-bottom-panels .current-selection-bar--empty {
@@ -2309,6 +2332,8 @@ button:disabled {
   flex: 0 0 auto;
   display: inline-flex;
   width: auto;
+  max-width: 100%;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -2514,7 +2539,7 @@ button:disabled {
 }
 
 .layer-notes-panel__header {
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -2536,12 +2561,22 @@ button:disabled {
   line-height: 1.35;
 }
 
+.layer-notes-empty {
+  order: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
 .layer-note-form,
 .layer-note-edit-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: stretch;
+}
+
+.layer-note-form {
+  order: 2;
 }
 
 .layer-note-form textarea,
@@ -2559,6 +2594,13 @@ button:disabled {
   font: inherit;
   font-size: 12px;
   line-height: 1.35;
+}
+
+.layer-note-form textarea {
+  min-height: 34px;
+  max-height: 34px;
+  resize: none;
+  line-height: 1.2;
 }
 
 .layer-note-form button,
@@ -2602,9 +2644,11 @@ button:disabled {
 }
 
 .layer-note-list {
+  order: 1;
   display: grid;
   gap: 6px;
-  max-block-size: min(34vh, 260px);
+  min-height: 0;
+  max-block-size: none;
   margin: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -2646,6 +2690,10 @@ button:disabled {
   .selection-inspector {
     grid-template-columns: 1fr;
   }
+
+  .canvas-bottom-panels .selection-inspector {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 420px) {
@@ -2663,9 +2711,9 @@ button:disabled {
 .level-list {
   align-content: start;
   min-height: 0;
-  overflow-x: hidden;
+  overflow-x: clip;
   overflow-y: auto;
-  padding-right: 2px;
+  padding-right: 0;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
@@ -2703,10 +2751,12 @@ button:disabled {
 }
 
 .level-row {
+  box-sizing: border-box;
   grid-template-columns: 42px minmax(0, 1fr) auto;
   grid-template-areas: "code summary actions";
   align-items: start;
   min-height: 68px;
+  width: 100%;
   border-radius: 6px;
   padding: 10px 8px;
   cursor: pointer;
@@ -2727,6 +2777,11 @@ button:disabled {
 
 .level-row button {
   cursor: pointer;
+}
+
+.level-row .has-icon-tooltip::before,
+.level-row .has-icon-tooltip::after {
+  content: none;
 }
 
 .level-row input {
@@ -2770,6 +2825,7 @@ button:disabled {
   display: grid;
   gap: 2px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .level-summary label {
@@ -2794,6 +2850,7 @@ button:disabled {
   cursor: text;
   font-size: 14px;
   font-weight: 800;
+  text-overflow: ellipsis;
 }
 
 .level-summary input:focus {
@@ -2840,13 +2897,15 @@ button:disabled {
   grid-area: actions;
   align-self: start;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: 6px;
+  min-width: 66px;
   width: 66px;
 }
 
 .level-actions button {
+  box-sizing: border-box;
   display: inline-grid;
   place-items: center;
   width: 30px;
@@ -2879,16 +2938,17 @@ button:disabled {
 
 .asset-picker {
   display: grid;
-  align-content: start;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
   gap: 10px;
   min-height: 0;
   height: 100%;
+  min-width: 0;
   overflow: hidden;
 }
 
 .asset-picker__header {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
 }
@@ -3035,7 +3095,7 @@ button:disabled {
 }
 
 .asset-row {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   min-width: 0;
   min-height: 54px;
@@ -3071,7 +3131,7 @@ button:disabled {
 
 .asset-select-button {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 52px;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -3104,8 +3164,9 @@ button:disabled {
 .asset-row__meta {
   min-width: 0;
   overflow: hidden;
+  overflow-wrap: anywhere;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .asset-row__body strong {
@@ -3128,6 +3189,7 @@ button:disabled {
 }
 
 .asset-row__official-id {
+  grid-column: 3;
   align-self: center;
   justify-self: end;
   min-width: 0;
@@ -3136,6 +3198,38 @@ button:disabled {
   font-size: 11px;
   text-align: right;
   white-space: nowrap;
+}
+
+.asset-rotate-button {
+  align-self: center;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0;
+  color: var(--ink-muted);
+  background: var(--surface);
+}
+
+.asset-rotate-button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--color-selected-cell) 70%, var(--line));
+  color: var(--color-selected-cell);
+  background: color-mix(in srgb, var(--color-selected-cell) 10%, #fffefb);
+}
+
+.asset-rotate-button svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .asset-list {

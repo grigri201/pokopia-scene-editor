@@ -58,11 +58,10 @@ describe('AppShell scene storage integration', () => {
     const dialog = screen.getByRole('dialog', { name: '快速说明' });
 
     expect(within(dialog).getByText('这里可以新增层和选中层。')).toBeVisible();
-    expect(within(dialog).getByText('可以勾选只显示宝可梦喜欢的素材。')).toBeVisible();
     expect(within(dialog).getByText('单击选中素材，双击锁定可以多次放置。')).toBeVisible();
     expect(within(dialog).getByText('这里可以修改布景和选择当前宝可梦。')).toBeVisible();
-    expect(document.querySelectorAll('.help-guide-spotlight')).toHaveLength(4);
-    expect(document.querySelectorAll('.help-guide-arrow')).toHaveLength(4);
+    expect(document.querySelectorAll('.help-guide-spotlight')).toHaveLength(3);
+    expect(document.querySelectorAll('.help-guide-arrow')).toHaveLength(3);
     expect(within(dialog).queryByRole('button', { name: '下一步' })).not.toBeInTheDocument();
 
     expect(within(dialog).queryByRole('button', { name: '关闭说明' })).not.toBeInTheDocument();
@@ -134,7 +133,6 @@ describe('AppShell scene storage integration', () => {
     const dialog = screen.getByRole('dialog', { name: 'Quick guide' });
 
     expect(within(dialog).getByText('Use the building layers panel to add a new layer or select the active layer.')).toBeVisible();
-    expect(within(dialog).getByText('Use Favorites only to show assets liked by the current Pokemon.')).toBeVisible();
     expect(within(dialog).getByText('Click an asset to select it, or double-click to lock it for repeated placement.')).toBeVisible();
     expect(within(dialog).getByText('Use the upper-left controls to choose another Pokemon or rename the scene.')).toBeVisible();
     expect(within(dialog).getByRole('button', { name: 'Got it!' })).toBeVisible();
@@ -2286,11 +2284,54 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
+  it('rotates a wide asset before placement from the asset list', async () => {
+    render(<AppShell />);
+
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '木长椅' } });
+    fireEvent.click(screen.getByRole('button', { name: '旋转待放置素材 90 度：木长椅' }));
+    fireEvent.mouseEnter(screen.getByLabelText('Cell 2,3, main area, level-0, placeable'));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Cell 2,3, main area, level-0, placeable, placement preview anchor/)).toHaveAttribute(
+        'data-placement-preview',
+        'anchor',
+      );
+      expect(screen.getByLabelText(/Cell 3,3, main area, level-0, placeable, placement preview footprint/)).toHaveAttribute(
+        'data-placement-preview',
+        'occupied',
+      );
+      expect(screen.getByLabelText('Cell 2,4, main area, level-0, placeable')).toHaveAttribute(
+        'data-placement-preview',
+        'none',
+      );
+    });
+
+    fireEvent.click(screen.getByLabelText(/Cell 2,3, main area, level-0, placeable, placement preview anchor/));
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toHaveLength(1);
+      expect(payload.tileInstances[0]).toMatchObject({
+        assetId: 'wooden-bench',
+        coordinate: { x: 2, y: 3 },
+        rotationDegrees: 90,
+      });
+      expect(payload.workspaceState.selectedAssetId).toBeNull();
+      expect(screen.getByLabelText(/Cell 3,3, main area, level-0, placeable, occupied by 木长椅 anchor 2,3/)).toHaveAttribute(
+        'data-footprint-role',
+        'occupied',
+      );
+      expect(screen.getByLabelText('Cell 2,4, main area, level-0, placeable')).toHaveAttribute(
+        'data-footprint-role',
+        'none',
+      );
+    });
+  });
+
   it('stores asset filter preferences separately without dirtying or polluting autosaved SceneDocument payloads', async () => {
     render(<AppShell />);
 
     fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '屋顶' } });
-    fireEvent.click(screen.getByLabelText('Show favorite assets'));
 
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).not.toBeNull();
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).not.toContain('displayOptions');

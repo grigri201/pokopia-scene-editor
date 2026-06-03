@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { type AssetSkillType, type PokemonKey } from '@pokopia-scene-editor/scene-core';
+import { type AssetSkillType, type PokemonKey, type RotationDegrees } from '@pokopia-scene-editor/scene-core';
 import { AssetPicker, type AssetSelectionMode } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
 import { PokemonSceneControls } from '../pokemon-scene-controls/PokemonSceneControls';
@@ -171,6 +171,7 @@ export function AppShell() {
   const [hoveredCoordinate, setHoveredCoordinate] = useState<GridCoordinate | null>(null);
   const [focusedCoordinate, setFocusedCoordinate] = useState<GridCoordinate | null>(null);
   const [placementRequiresSkill, setPlacementRequiresSkill] = useState(false);
+  const [placementRotationDegrees, setPlacementRotationDegrees] = useState<RotationDegrees>(0);
   const [assetSelectionMode, setAssetSelectionMode] = useState<AssetSelectionMode>('single');
   const [placementFeedback, setPlacementFeedback] = useState<AssetPlacementPreview | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
@@ -244,7 +245,7 @@ export function AppShell() {
   const targetContext = targetCoordinate ? getCellContext(scene, targetCoordinate, activeBuildingLevelId) : null;
   const selectedAssetId = scene.workspaceState.selectedAssetId;
   const targetPlacementPreview = targetCoordinate
-    ? getAssetPlacementPreview(scene, targetCoordinate, interactionMode, placementRequiresSkill, 0)
+    ? getAssetPlacementPreview(scene, targetCoordinate, interactionMode, placementRequiresSkill, placementRotationDegrees)
     : placementFeedback;
   const commitSceneEdit = (nextScene: SceneDocument, currentScene = scene) => {
     if (nextScene === currentScene) {
@@ -666,6 +667,7 @@ export function AppShell() {
     }
 
     setPlacementRequiresSkill(false);
+    setPlacementRotationDegrees(0);
     setPlacementFeedback(null);
     setAssetSelectionMode(mode);
 
@@ -687,6 +689,25 @@ export function AppShell() {
     });
   };
 
+  const rotatePlacementAsset = (assetId: string) => {
+    if (isReadOnly) {
+      return;
+    }
+
+    setPlacementRequiresSkill(false);
+    setPlacementFeedback(null);
+    setAssetSelectionMode('single');
+    setPlacementRotationDegrees((currentRotation) =>
+      assetId === scene.workspaceState.selectedAssetId ? getNextPlacementRotation(currentRotation) : 90,
+    );
+    dispatch({
+      type: 'set-selected-asset',
+      assetId,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+  };
+
   const placeCurrentAsset = (coordinate: GridCoordinate) => {
     const canReplaceWithoutPrompt = replacementConfirmationExpiresAtRef.current > Date.now();
     const result = placeSelectedAsset(scene, {
@@ -696,7 +717,7 @@ export function AppShell() {
       instanceId: createTileInstanceId(),
       requiresSkill: placementRequiresSkill,
       confirmReplace: canReplaceWithoutPrompt,
-      rotationDegrees: 0,
+      rotationDegrees: placementRotationDegrees,
     });
 
     if (result.ok) {
@@ -723,7 +744,7 @@ export function AppShell() {
         instanceId: createTileInstanceId(),
         requiresSkill: placementRequiresSkill,
         confirmReplace: true,
-        rotationDegrees: 0,
+        rotationDegrees: placementRotationDegrees,
       });
 
       if (confirmedResult.ok) {
@@ -746,6 +767,7 @@ export function AppShell() {
     }
 
     setAssetSelectionMode('single');
+    setPlacementRotationDegrees(0);
     commitSceneEdit({
       ...nextScene,
       workspaceState: {
@@ -2080,7 +2102,9 @@ export function AppShell() {
           selectedPokemonKey={scene.selectedPokemonKey}
           currentBuildingLevelName={currentBuildingLevel?.name ?? t(locale, 'noBuildingLayer')}
           placementRequiresSkill={placementRequiresSkill}
+          placementRotationDegrees={placementRotationDegrees}
           onPlacementRequiresSkillChange={setPlacementRequiresSkill}
+          onPlacementRotationChange={rotatePlacementAsset}
           onAssetSelect={selectAsset}
         />
         </section>
@@ -2107,6 +2131,22 @@ function createInitialRemoteSceneImportState(search: string): RemoteSceneImportS
     status: 'loading',
     sceneId: query.sceneId,
   };
+}
+
+function getNextPlacementRotation(rotationDegrees: RotationDegrees): RotationDegrees {
+  if (rotationDegrees === 0) {
+    return 90;
+  }
+
+  if (rotationDegrees === 90) {
+    return 180;
+  }
+
+  if (rotationDegrees === 180) {
+    return 270;
+  }
+
+  return 0;
 }
 
 function getRemoteMobilePreviewState(state: RemoteSceneImportState): MobilePreviewState | null {

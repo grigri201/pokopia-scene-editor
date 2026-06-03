@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 
-export type HelpGuideTargetKey = 'layers' | 'asset-favorites' | 'assets' | 'scene-controls';
+export type HelpGuideTargetKey = 'layers' | 'assets' | 'scene-controls';
 
 export interface HelpGuideTarget {
   key: HelpGuideTargetKey;
@@ -8,7 +8,6 @@ export interface HelpGuideTarget {
   arrowSelector: string;
   messageKey:
     | 'helpOverlayLayers'
-    | 'helpOverlayFavoriteAssets'
     | 'helpOverlayAssets'
     | 'helpOverlaySceneControls';
 }
@@ -38,12 +37,6 @@ export const helpGuideTargets: HelpGuideTarget[] = [
     selector: '.level-panel',
     arrowSelector: '.level-row--current input',
     messageKey: 'helpOverlayLayers',
-  },
-  {
-    key: 'asset-favorites',
-    selector: '.asset-picker .favorite-toggle',
-    arrowSelector: '.asset-picker .favorite-toggle input',
-    messageKey: 'helpOverlayFavoriteAssets',
   },
   {
     key: 'assets',
@@ -102,11 +95,6 @@ function getHelpGuideLayout(
     noteTop = targetRect.top + 128;
   }
 
-  if (targetKey === 'asset-favorites') {
-    noteLeft = targetRect.left - noteWidth - 170;
-    noteTop = targetRect.top + 78;
-  }
-
   if (targetKey === 'assets') {
     noteLeft = targetRect.left - noteWidth - 116;
     noteTop = targetRect.top + 172;
@@ -159,10 +147,6 @@ function getHelpGuideNoteArrowAnchorX(
 function getHelpGuideRightArrowAnchorX(targetKey: HelpGuideTargetKey, noteWidth: number): number {
   if (targetKey === 'assets') {
     return Math.min(noteWidth - 8, 292);
-  }
-
-  if (targetKey === 'asset-favorites') {
-    return Math.min(noteWidth - 8, 304);
   }
 
   return noteWidth - 8;
