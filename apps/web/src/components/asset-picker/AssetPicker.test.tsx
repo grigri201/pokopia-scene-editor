@@ -1,7 +1,12 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assetCatalog, assetPageSize } from '@pokopia-scene-editor/scene-core';
-import { readUiPreferencesFromStorage, uiPreferencesStorageKey } from '../../io';
+import {
+  assetStagingPreferencesStorageKey,
+  readAssetStagingPreferencesFromStorage,
+  readUiPreferencesFromStorage,
+  uiPreferencesStorageKey,
+} from '../../io';
 import { AssetPicker } from './AssetPicker';
 
 const totalAssetCount = assetCatalog.length;
@@ -323,6 +328,257 @@ describe('AssetPicker', () => {
     expect(screen.queryByLabelText('Asset skill filter')).not.toBeInTheDocument();
   });
 
+  it('stages dragged assets in collapsed mode with dedupe, recent-three display, delete, and select', () => {
+    const onAssetSelect = vi.fn();
+    const stagedAssetIds = assetCatalog.slice(0, 4).map((asset) => asset.assetId);
+
+    render(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId={null}
+        selectedPokemonKey="ditto"
+        currentBuildingLevelName="主体道具"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
+        onAssetSelect={onAssetSelect}
+      />,
+    );
+
+    for (const assetId of stagedAssetIds) {
+      dragAssetToStaging(assetId);
+    }
+
+    expect(readAssetStagingPreferencesFromStorage(window.localStorage)).toEqual({
+      schemaVersion: 1,
+      stagedAssetIds: [...stagedAssetIds].reverse(),
+      expanded: false,
+    });
+    expect(screen.getByLabelText('素材暂存数量')).toHaveTextContent('4 个暂存');
+    expect(getCollapsedStagedAssetIds()).toEqual([
+      stagedAssetIds[3],
+      stagedAssetIds[2],
+      stagedAssetIds[1],
+    ]);
+
+    dragAssetToStaging(stagedAssetIds[1]);
+
+    expect(readAssetStagingPreferencesFromStorage(window.localStorage).stagedAssetIds).toEqual([
+      stagedAssetIds[1],
+      stagedAssetIds[3],
+      stagedAssetIds[2],
+      stagedAssetIds[0],
+    ]);
+    expect(getCollapsedStagedAssetIds()).toEqual([
+      stagedAssetIds[1],
+      stagedAssetIds[3],
+      stagedAssetIds[2],
+    ]);
+
+    onAssetSelect.mockClear();
+    fireEvent.click(getCollapsedStagedCard(stagedAssetIds[3]).querySelector<HTMLButtonElement>('.asset-staging-card__remove')!);
+    expect(onAssetSelect).not.toHaveBeenCalled();
+    expect(readAssetStagingPreferencesFromStorage(window.localStorage).stagedAssetIds).toEqual([
+      stagedAssetIds[1],
+      stagedAssetIds[2],
+      stagedAssetIds[0],
+    ]);
+
+    fireEvent.click(getCollapsedStagedCard(stagedAssetIds[1]).querySelector<HTMLButtonElement>('.asset-staging-card__select')!);
+    expect(onAssetSelect).toHaveBeenCalledWith(stagedAssetIds[1], 'single');
+  });
+
+  it('expands staged assets with shared row selection state, continuous selection, rotation, and persistence', () => {
+    const onAssetSelect = vi.fn();
+    const onPlacementRotationChange = vi.fn();
+    window.localStorage.setItem(
+      assetStagingPreferencesStorageKey,
+      JSON.stringify({
+        schemaVersion: 1,
+        stagedAssetIds: ['missing-asset', 'wooden-bench', 'pecha-berry', 'wooden-bench'],
+        expanded: false,
+      }),
+    );
+
+    render(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId="wooden-bench"
+        selectedAssetMode="continuous"
+        placementRotationDegrees={90}
+        selectedPokemonKey="ditto"
+        currentBuildingLevelName="主体道具"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
+        onPlacementRotationChange={onPlacementRotationChange}
+        onAssetSelect={onAssetSelect}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '展开素材暂存区' }));
+
+    expect(screen.getByLabelText('素材暂存区')).toHaveClass('asset-staging--expanded');
+    expect(screen.getByRole('complementary', { name: 'Asset picker' })).toHaveClass('asset-picker--staging-expanded');
+    expect(document.querySelector('.asset-catalog-panel')).toHaveAttribute('data-staging-expanded', 'true');
+    expect(readAssetStagingPreferencesFromStorage(window.localStorage)).toEqual({
+      schemaVersion: 1,
+      stagedAssetIds: ['wooden-bench', 'pecha-berry'],
+      expanded: true,
+    });
+
+    const benchRow = getExpandedStagedRow('wooden-bench');
+    expect(screen.getByLabelText('全部暂存素材')).toHaveClass('asset-staging__list');
+    expect(screen.getByLabelText('全部暂存素材')).toHaveAttribute('data-asset-list', 'staging');
+    expect(benchRow).toHaveAttribute('data-selection-mode', 'continuous');
+    expect(benchRow).toHaveAttribute('data-placement-rotation', '90');
+    expect(benchRow).toHaveClass('asset-row--selected');
+    expect(benchRow).toHaveClass('asset-row--continuous');
+
+    fireEvent.click(within(benchRow).getByRole('button', { name: '旋转待放置素材 90 度：木长椅' }));
+    expect(onPlacementRotationChange).toHaveBeenCalledWith('wooden-bench');
+
+    fireEvent.doubleClick(getExpandedStagedRow('pecha-berry').querySelector<HTMLButtonElement>('.asset-select-button')!);
+    expect(onAssetSelect).toHaveBeenLastCalledWith('pecha-berry', 'continuous');
+
+    fireEvent.click(getExpandedStagedRow('pecha-berry').querySelector<HTMLButtonElement>('.asset-staging-row__remove')!);
+    expect(readAssetStagingPreferencesFromStorage(window.localStorage).stagedAssetIds).toEqual(['wooden-bench']);
+
+    fireEvent.click(screen.getByRole('button', { name: '收起素材暂存区' }));
+    expect(readAssetStagingPreferencesFromStorage(window.localStorage).expanded).toBe(false);
+  }, 15_000);
+
+  it('restores UI-written staging order and expanded state after remount while filtering unknown assets', () => {
+    const stagedAssetIds = assetCatalog.slice(0, 2).map((asset) => asset.assetId);
+    const { unmount } = render(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId={null}
+        selectedPokemonKey="ditto"
+        currentBuildingLevelName="主体道具"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
+        onAssetSelect={() => undefined}
+      />,
+    );
+
+    dragAssetToStaging(stagedAssetIds[0]);
+    dragAssetToStaging(stagedAssetIds[1]);
+    fireEvent.click(screen.getByRole('button', { name: '展开素材暂存区' }));
+    unmount();
+    window.localStorage.setItem(
+      assetStagingPreferencesStorageKey,
+      JSON.stringify({
+        schemaVersion: 1,
+        stagedAssetIds: ['missing-asset', stagedAssetIds[1], stagedAssetIds[0], stagedAssetIds[1]],
+        expanded: true,
+      }),
+    );
+
+    render(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId={null}
+        selectedPokemonKey="ditto"
+        currentBuildingLevelName="主体道具"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
+        onAssetSelect={() => undefined}
+      />,
+    );
+
+    expect(screen.getByLabelText('素材暂存区')).toHaveClass('asset-staging--expanded');
+    expect(getExpandedStagedAssetIds()).toEqual([stagedAssetIds[1], stagedAssetIds[0]]);
+    expect(readAssetStagingPreferencesFromStorage(window.localStorage)).toEqual({
+      schemaVersion: 1,
+      stagedAssetIds: [stagedAssetIds[1], stagedAssetIds[0]],
+      expanded: true,
+    });
+  });
+
+  it('ignores external text drops and unknown custom asset payloads', () => {
+    render(
+      <AssetPicker
+        readOnly={false}
+        selectedAssetId={null}
+        selectedPokemonKey="ditto"
+        currentBuildingLevelName="主体道具"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
+        onAssetSelect={() => undefined}
+      />,
+    );
+
+    const textOnlyTransfer = createDataTransferDouble();
+    textOnlyTransfer.setData('text/plain', 'pecha-berry');
+    fireEvent.dragOver(screen.getByLabelText('素材暂存区'), { dataTransfer: textOnlyTransfer });
+    fireEvent.drop(screen.getByLabelText('素材暂存区'), { dataTransfer: textOnlyTransfer });
+    expect(window.localStorage.getItem(assetStagingPreferencesStorageKey)).toBeNull();
+
+    const unknownCustomTransfer = createDataTransferDouble();
+    unknownCustomTransfer.setData('application/x-pokopia-asset-id', 'missing-asset');
+    fireEvent.dragOver(screen.getByLabelText('素材暂存区'), { dataTransfer: unknownCustomTransfer });
+    fireEvent.drop(screen.getByLabelText('素材暂存区'), { dataTransfer: unknownCustomTransfer });
+    expect(window.localStorage.getItem(assetStagingPreferencesStorageKey)).toBeNull();
+  });
+
+  it('guards staging writes and callbacks in read-only mode without normalizing stored staging data', () => {
+    const onAssetSelect = vi.fn();
+    const rawStagingPreferences = JSON.stringify({
+      schemaVersion: 1,
+      stagedAssetIds: ['missing-asset', 'pecha-berry', 'pecha-berry'],
+      expanded: false,
+    });
+    window.localStorage.setItem(assetStagingPreferencesStorageKey, rawStagingPreferences);
+
+    render(
+      <AssetPicker
+        readOnly
+        selectedAssetId="pecha-berry"
+        selectedPokemonKey="ditto"
+        currentBuildingLevelName="主体道具"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
+        onAssetSelect={onAssetSelect}
+      />,
+    );
+
+    expect(getCollapsedStagedAssetIds()).toEqual(['pecha-berry']);
+    fireEvent.click(getCollapsedStagedCard('pecha-berry').querySelector<HTMLButtonElement>('.asset-staging-card__select')!);
+    fireEvent.click(getCollapsedStagedCard('pecha-berry').querySelector<HTMLButtonElement>('.asset-staging-card__remove')!);
+    dragAssetToStaging(assetCatalog[1].assetId);
+
+    expect(onAssetSelect).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(assetStagingPreferencesStorageKey)).toBe(rawStagingPreferences);
+  }, 15_000);
+
+  it('disables expanded staged rows in read-only mode without normalizing stored staging data', () => {
+    const onAssetSelect = vi.fn();
+    const rawStagingPreferences = JSON.stringify({
+      schemaVersion: 1,
+      stagedAssetIds: ['missing-asset', 'wooden-bench', 'wooden-bench'],
+      expanded: true,
+    });
+    window.localStorage.setItem(assetStagingPreferencesStorageKey, rawStagingPreferences);
+
+    render(
+      <AssetPicker
+        readOnly
+        selectedAssetId="wooden-bench"
+        selectedPokemonKey="ditto"
+        currentBuildingLevelName="主体道具"
+        placementRequiresSkill={false}
+        onPlacementRequiresSkillChange={() => undefined}
+        onAssetSelect={onAssetSelect}
+      />,
+    );
+
+    expect(screen.getByLabelText('素材暂存区')).toHaveClass('asset-staging--expanded');
+    expect(getExpandedStagedRow('wooden-bench').querySelector<HTMLButtonElement>('.asset-select-button')).toBeDisabled();
+    expect(getExpandedStagedRow('wooden-bench').querySelector<HTMLButtonElement>('.asset-rotate-button')).toBeDisabled();
+    expect(getExpandedStagedRow('wooden-bench').querySelector<HTMLButtonElement>('.asset-staging-row__remove')).toBeDisabled();
+    expect(window.localStorage.getItem(assetStagingPreferencesStorageKey)).toBe(rawStagingPreferences);
+    expect(onAssetSelect).not.toHaveBeenCalled();
+  }, 15_000);
+
   it('drops restored legacy area and skill filters from UI preferences', () => {
     window.localStorage.setItem(
       uiPreferencesStorageKey,
@@ -476,6 +732,73 @@ function getAssetRow(assetId: string): HTMLElement {
   }
 
   return row;
+}
+
+function getCollapsedStagedCard(assetId: string): HTMLElement {
+  const card = screen
+    .getByLabelText('最近暂存素材')
+    .querySelector<HTMLElement>(`[data-asset-id="${assetId}"]`);
+  if (!card) {
+    throw new Error(`Expected ${assetId} collapsed staged card.`);
+  }
+
+  return card;
+}
+
+function getExpandedStagedRow(assetId: string): HTMLElement {
+  const row = screen
+    .getByLabelText('全部暂存素材')
+    .querySelector<HTMLElement>(`[data-asset-id="${assetId}"][data-asset-source="staging"]`);
+  if (!row) {
+    throw new Error(`Expected ${assetId} expanded staged row.`);
+  }
+
+  return row;
+}
+
+function getCollapsedStagedAssetIds(): string[] {
+  return Array.from(screen.getByLabelText('最近暂存素材').querySelectorAll<HTMLElement>('[data-asset-id]'))
+    .map((element) => element.dataset.assetId ?? '');
+}
+
+function getExpandedStagedAssetIds(): string[] {
+  return Array.from(
+    screen
+      .getByLabelText('全部暂存素材')
+      .querySelectorAll<HTMLElement>('[data-asset-source="staging"][data-asset-id]'),
+  ).map((element) => element.dataset.assetId ?? '');
+}
+
+function dragAssetToStaging(assetId: string): void {
+  const dataTransfer = createDataTransferDouble();
+  fireEvent.dragStart(getAssetRow(assetId), { dataTransfer });
+  fireEvent.drop(screen.getByLabelText('素材暂存区'), { dataTransfer });
+}
+
+function createDataTransferDouble(): DataTransfer {
+  const payload = new Map<string, string>();
+
+  return {
+    dropEffect: 'none',
+    effectAllowed: 'all',
+    files: [] as unknown as FileList,
+    items: [] as unknown as DataTransferItemList,
+    get types() {
+      return Array.from(payload.keys());
+    },
+    clearData: (format?: string) => {
+      if (format) {
+        payload.delete(format);
+        return;
+      }
+      payload.clear();
+    },
+    getData: (format: string) => payload.get(format) ?? '',
+    setData: (format: string, data: string) => {
+      payload.set(format, data);
+    },
+    setDragImage: () => undefined,
+  };
 }
 
 function queryAssetSelectButton(assetId: string): HTMLButtonElement | null {

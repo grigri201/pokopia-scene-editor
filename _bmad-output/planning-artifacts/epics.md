@@ -9,11 +9,12 @@ inputDocuments:
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-31-mobile-import-preview.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-01-scene-id-url-import.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-pokopia-data-extraction.md
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-asset-staging-area.md
 ---
 
 # pokopia-scene-editor - Active Epic Index
 
-As of 2026-06-04, Epic 17 is the active BMAD planning surface.
+As of 2026-06-04, Epic 18 is complete.
 
 Completed planning history is archived here:
 
@@ -212,3 +213,63 @@ Acceptance Criteria:
 - 给出 slug/id compatibility checklist，特别覆盖 scene string codec 和 legacy aliases。
 - 两个 consumer 的 docs 指向 `pokopia-data`，不再把本地 generated source 作为扩展入口。
 - 明确部署仍由各 consumer 项目独立执行；data package 不直接部署 Web。
+
+## Epic 18: 素材暂存区与快速候选素材选择
+
+Status: done.
+
+在 `apps/web` desktop/tablet 编辑工作台中，用户可以把素材区域中的素材拖入上方“素材暂存区”，形成一个不按类型分组的本地持久化候选列表。折叠时暂存区只展示最近 3 个素材和总数；展开时暂存区占据素材面板 80% 高度，素材区域下沉到 20%，并以与素材区相同的方式展示所有暂存素材、选择状态和旋转按钮。该能力不改变 `SceneDocument v1`，不进入 PSE 导出字符串，不渲染到 mobile preview/import surface，不修改 asset catalog 数据源。
+
+### Story 18.1: Course Correction 同步与素材暂存区契约
+
+As a 维护者, I want PRD、Architecture、UX、Epics 和 tracker 明确素材暂存区的本地 UI 存储边界, So that 后续实现不会把暂存状态误写入 scene schema、导出字符串或 catalog。
+
+Acceptance Criteria:
+
+- PRD 新增素材暂存区 functional requirements。
+- Architecture 新增 `asset-picker/` 暂存区 component/state boundary。
+- UX Design Specification 新增素材暂存区折叠/展开交互规格。
+- Epics 新增 Epic 18 和 stories。
+- sprint-status 新增 Epic 18 tracker entries。
+- 明确本次只新增本地 UI 存储，不改 `SceneDocument v1`、PSE string、scene autosave payload、scene saved payload、export summary 或 `packages/scene-core` catalog。
+
+### Story 18.2: 折叠暂存区、拖入与删除
+
+As a 布景编辑用户, I want 从素材列表拖动素材到暂存区并在折叠状态看到最近 3 个素材, So that 我可以快速保留候选素材而不丢失当前搜索上下文。
+
+Acceptance Criteria:
+
+- 素材区域上方显示“素材暂存区”。
+- 用户可从素材列表拖动素材到暂存区；desktop/tablet read-only 不允许写入暂存区；mobile preview/import 不渲染暂存区。
+- 暂存区按 `assetId` 去重；重复拖入同一素材只移动到最近位置。
+- 折叠状态只显示最后放入的 3 个素材和暂存区总数。
+- 每个暂存素材只显示缩略图、名称和右上角删除按钮；删除只移出暂存区，不删除 scene 中已放置素材。
+- 折叠暂存素材点击后可选择为待放置素材，并沿用现有 selected/continuous placement state。
+- 拖入、删除和折叠/展开写入本地 UI 存储；不得写 `SceneDocument`、scene autosave slot、scene saved slot、PSE 导出字符串或 export summary。
+
+### Story 18.3: 展开暂存区与素材区 80/20 布局
+
+As a 布景编辑用户, I want 展开暂存区后像素材区一样浏览和操作所有候选素材, So that 我可以在候选列表中继续选择、连续放置和旋转大素材。
+
+Acceptance Criteria:
+
+- 暂存区底部提供向下箭头展开入口；展开后提供可访问的收起入口。
+- 展开时暂存区占据 Asset Picker 内容高度约 80%，素材区域占据约 20%；布局不得导致搜索框、分类筛选、分页或素材行重叠。
+- 展开暂存区显示所有暂存素材，使用与素材区一致的素材行/card 视觉、当前选中状态、连续放置状态和非 1x1 素材旋转按钮。
+- 暂存区不按 category/type 分组，不显示分类 tab；所有暂存素材在一个可滚动列表中按最近顺序排列。
+- 展开暂存区的选择和旋转通过既有 `onAssetSelect`、`onPlacementRotationChange` callbacks 生效；不得新增 scene write path。
+- 在 1280x720 desktop 和 768-1279px tablet 单列布局下，展开状态不遮挡画布、建筑层面板或当前选择检查器。
+
+### Story 18.4: 回归测试与浏览器验证
+
+As a 维护者, I want 素材暂存区有 focused tests 和 layout smoke, So that 它不会破坏素材搜索、分页、旋转、连续放置、autosave 或 mobile preview。
+
+Acceptance Criteria:
+
+- AssetPicker component tests 覆盖拖入、去重、最近 3 个显示、总数、删除、折叠点击选择、展开 80/20 class/state、展开列表滚动、旋转按钮和 read-only guard。
+- AppShell integration tests 覆盖从素材暂存区选择/旋转后，画布放置使用正确 `assetId` 和 `rotationDegrees`。
+- Tests 明确断言暂存区拖入、删除、展开/收起会写入本地 UI 存储，但不写 scene autosave storage、不改变 `SceneDocument` payload、不改变 PSE 导出字符串。
+- Tests 覆盖刷新/重新挂载后从本地存储恢复暂存素材顺序和展开/折叠状态，并过滤未知 `assetId`。
+- Existing AssetPicker search/filter/pagination tests、pre-placement rotate tests、continuous selection tests 继续通过。
+- Mobile tests 明确 `<768px` 不渲染素材暂存区、暂存区展开/收起入口、暂存删除按钮、暂存旋转按钮或素材编辑控件，并且不需要读取/恢复暂存区本地存储。
+- Playwright/browser smoke 覆盖 desktop 1280x720 展开状态和 tablet 1000px 左右布局，验证没有重叠且素材区仍可滚动。

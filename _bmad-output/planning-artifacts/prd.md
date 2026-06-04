@@ -148,6 +148,12 @@ Mobile 允许用户通过显式“导入字符串”操作替换当前本地布�
 
 `SceneDocument v1` 继续保持。旧 PSE1/PSE2、旧 autosave、`assetId`、`sceneCodecOfficialId` 和 `legacyOfficialIds` 兼容性不得回退。终端用户 Web 行为不变。后续新增 Pokopia 基础数据应优先进入 `pokopia-data`，再由 `scene-core` 和 `pokopia-color-pattern` 作为 consumer 引用；recommendation ranking、editor-specific placement rules 和 Web runtime packaging 不作为基础 data package 的首轮职责。
 
+### Approved Course Correction - 2026-06-04 素材暂存区
+
+本 PRD 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-asset-staging-area.md` 增加 Epic 18，用于在 `apps/web` desktop/tablet 编辑工作台的素材区域上方提供一个素材暂存区。用户可以从素材列表拖动素材到暂存区，折叠状态下查看最近 3 个暂存素材和总数，并可移除单个素材；展开状态下暂存区占据素材面板主要高度，使用与素材区一致的素材行展示、选择和旋转交互。
+
+`SceneDocument v1` 继续保持。素材暂存区是本地持久化的候选素材选择状态，可写入 UI preferences 或独立 localStorage key，但不得写入 `SceneDocument`、scene autosave slot、scene saved slot、PSE 字符串、export summary、footprint/stacking derived state 或 `packages/scene-core`。Mobile Preview Mode 不渲染素材暂存区，也不需要读取、恢复或写入暂存区本地存储。
+
 ### What Makes This Special
 
 本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：默认中心 15×15 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、受控承载/叠放、素材实例级技能标记，以及完整 17×17 预览。
@@ -442,6 +448,13 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR34: 用户可以查看素材详情，详情至少包含素材 ID、名称、分类、标签、适用区域、喜好状态、默认技能需求、footprint、承载/叠放能力、是否可染色和缩略图；所有素材均视为可旋转，MVP 不展示旧式通用可叠放开关。
 - FR35: 素材维护者可以为素材维护分类、标签、适用区域、喜好状态、默认技能需求、可染色性、footprint、承载/叠放 surface metadata 和缩略图地址；MVP 不维护可旋转性差异或自由叠放开关。
 - FR59: 用户可以只显示当前 Pokemon 喜好的素材，筛选结果计数应保持稳定宽度并通过可访问方式更新。
+- FR124: `apps/web` desktop/tablet 编辑工作台的素材区域上方必须提供“素材暂存区”，允许用户从素材列表拖动素材进入暂存区；desktop/tablet read-only 不得允许写入暂存区或触发 scene edit command。
+- FR125: 暂存区折叠状态必须显示最后放入的 3 个素材和暂存区素材总数；每个暂存素材只显示缩略图、名称和右上角删除按钮。删除只移出暂存区，不删除 scene 中已放置素材。
+- FR126: 暂存区底部必须提供展开入口。点击后暂存区占据素材面板约 80% 高度，原素材区域下沉并占据约 20% 高度；展开状态必须可滚动且有可访问的收起入口。
+- FR127: 暂存区展开后必须用与素材区一致的素材行/card 视觉和主要交互展示所有暂存素材，包括点击选择、连续放置表达、当前选中状态和非 1x1 素材的旋转按钮；暂存区不按 category/type 分组。
+- FR128: 暂存区状态必须写入本地存储，至少保留暂存 `assetId` 顺序和展开/折叠状态；本地存储读取失败、版本不匹配或包含未知素材时必须安全回退或过滤。
+- FR129: 暂存区状态不得写入 `SceneDocument v1`、scene autosave slot、scene saved slot、scene string codec、PSE 导出字符串、export summary 或任何 `scene-core` 领域状态。
+- FR130: `<768px` Mobile Preview Mode 不得渲染素材暂存区、暂存区展开/收起入口、暂存删除按钮或暂存旋转按钮；mobile 不需要读取、恢复或写入暂存区 localStorage。
 
 ### Asset Footprint & Occupancy Rules
 
@@ -590,6 +603,8 @@ Superseded by Epic 13.3 on 2026-05-30: FR69-FR76 are historical requirements onl
 - NFR52: 新尺寸短字符串必须避免与 legacy PSE1 7x7 字符串歧义；解码错误必须说明 codec/version 或 dimensions 问题，并给出重新导出或使用完整 JSON 的修复方向。
 - NFR53: Mobile 导入成功只能写入现有 scene storage，不得写 UI preferences，不得保存 `ImageExportSummary`、footprint/stacking derived state 或任何下载预览专用状态。
 - NFR54: Mobile inline preview 和 desktop download preview 必须共用同一内容组件或等价共享渲染路径，防止素材清单、逐层图形、层备注或安全文本表达漂移。
+- NFR64: 素材暂存区本地存储必须与 scene saved/autosave storage 分离；暂存区读取或写入失败不得阻止 SceneDocument recovery、autosave、导出预览或短字符串 encode/decode。
+- NFR65: 暂存区本地存储恢复时必须过滤未知 `assetId`、重复项、错误 schema 和不可解析内容；恢复结果不得写回 `SceneDocument v1`、PSE 字符串、export summary 或 `scene-core`。
 
 ### Usability
 
@@ -613,6 +628,7 @@ Superseded by Epic 13.3 on 2026-05-30: FR69-FR76 are historical requirements onl
 - NFR20: MVP 应支持发布时 Chrome、Edge、Safari 和 Firefox 的最新两个稳定大版本；发布验收必须在这些浏览器中完成核心创建、编辑、预览、保存/自动保存和重新打开流程。
 - NFR21: 在 1280px 及以上桌面宽度下，右侧浮动素材栏、中央尺寸驱动画布、左侧建筑层面板、左下双预览检查器和顶部场景控制必须同时可见或可通过一次点击切换显示；默认 17×17 画布可采用内部滚动或缩放，但页面不得出现横向滚动条。
 - NFR22: 在 768px 以下宽度下，页面进入 Mobile Preview Mode；390×844 视口下不得出现控件重叠，且有本地布景时 scene name、Pokemon、canvas dimensions、整体素材清单和逐层图形必须可访问；无本地布景时“导入字符串”入口必须可访问。
+- NFR66: 素材暂存区只在 `apps/web` desktop/tablet 编辑工作台渲染；`<768px` Mobile Preview Mode 不得渲染暂存区，也不需要读取、恢复或写入暂存区 localStorage。
 - NFR56: Mobile import modal 必须有可访问名称，确认、取消和关闭按钮必须可通过键盘和屏幕阅读器识别；关闭和取消不得改变 scene 或写 storage。
 - NFR57: Playwright/mobile smoke 必须覆盖 390×844 下 no-storage import path、stored-scene inline preview path、invalid import、无编辑控件和无布局重叠。
 - NFR58: Remote scene id startup 必须有 loading、success、error 和 lossy confirmation 状态；状态反馈必须可访问，不能只依赖颜色。

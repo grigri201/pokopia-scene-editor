@@ -3,6 +3,7 @@ import { toBlob } from 'html-to-image';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultSceneDocument, createStackingPlateFoodScene, createTileInstance } from '@pokopia-scene-editor/scene-core';
 import {
+  assetStagingPreferencesStorageKey,
   autosavedSceneStorageKey,
   encodeSceneDocumentString,
   savedSceneStorageKey,
@@ -2356,6 +2357,66 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
   });
 
+  it('stages assets without autosave, then selects and rotates staged assets for placement', async () => {
+    render(<AppShell />);
+
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '木长椅' } });
+    dragAssetToStaging('wooden-bench');
+
+    expect(window.localStorage.getItem(assetStagingPreferencesStorageKey)).toContain('wooden-bench');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+
+    fireEvent.click(getCollapsedStagedCard('wooden-bench').querySelector<HTMLButtonElement>('.asset-staging-card__select')!);
+    fireEvent.click(screen.getByRole('button', { name: '展开素材暂存区' }));
+    fireEvent.click(within(getExpandedStagedRow('wooden-bench')).getByRole('button', { name: '旋转待放置素材 90 度：木长椅' }));
+    fireEvent.mouseEnter(screen.getByLabelText('Cell 2,3, main area, level-0, placeable'));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Cell 2,3, main area, level-0, placeable, placement preview anchor/)).toHaveAttribute(
+        'data-placement-preview',
+        'anchor',
+      );
+      expect(screen.getByLabelText(/Cell 3,3, main area, level-0, placeable, placement preview footprint/)).toHaveAttribute(
+        'data-placement-preview',
+        'occupied',
+      );
+    });
+
+    fireEvent.click(screen.getByLabelText(/Cell 2,3, main area, level-0, placeable, placement preview anchor/));
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toHaveLength(1);
+      expect(payload.tileInstances[0]).toMatchObject({
+        assetId: 'wooden-bench',
+        coordinate: { x: 2, y: 3 },
+        rotationDegrees: 90,
+      });
+    });
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+  }, 15_000);
+
+  it('keeps asset staging storage isolated from scene storage for drag, delete, expand, and collapse', () => {
+    render(<AppShell />);
+
+    const beforeSnapshot = readSceneSnapshot();
+    const beforeSceneString = encodeSceneDocumentString(JSON.parse(beforeSnapshot));
+    dragAssetToStaging('pecha-berry');
+    dragAssetToStaging('leppa-berry');
+    fireEvent.click(screen.getByRole('button', { name: '展开素材暂存区' }));
+    fireEvent.click(screen.getByRole('button', { name: '收起素材暂存区' }));
+    fireEvent.click(getCollapsedStagedCard('pecha-berry').querySelector<HTMLButtonElement>('.asset-staging-card__remove')!);
+
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+    expect(encodeSceneDocumentString(JSON.parse(readSceneSnapshot()))).toBe(beforeSceneString);
+    expect(window.localStorage.getItem(assetStagingPreferencesStorageKey)).toContain('leppa-berry');
+    expect(window.localStorage.getItem(assetStagingPreferencesStorageKey)).not.toContain('pecha-berry');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  });
+
   it('does not expose undo or redo scene history controls', async () => {
     render(<AppShell />);
 
@@ -2380,6 +2441,28 @@ describe('AppShell scene storage integration', () => {
     expect(screen.queryByLabelText('Pokemon scene controls')).not.toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: 'Asset picker' })).not.toBeInTheDocument();
     expectNoSaveStatus();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+  });
+
+  it('does not render or normalize asset staging while starting in mobile read-only mode', () => {
+    setViewportWidth(390);
+    const rawStagingPreferences = JSON.stringify({
+      schemaVersion: 1,
+      stagedAssetIds: ['missing-asset', 'wooden-bench', 'wooden-bench'],
+      expanded: 'yes',
+    });
+    window.localStorage.setItem(assetStagingPreferencesStorageKey, rawStagingPreferences);
+
+    render(<AppShell />);
+
+    expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile Preview Mode');
+    expect(screen.queryByRole('complementary', { name: 'Asset picker' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('素材暂存区')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '展开素材暂存区' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /移出暂存区/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /旋转待放置素材/ })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(assetStagingPreferencesStorageKey)).toBe(rawStagingPreferences);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
   });
@@ -2736,12 +2819,51 @@ function readSceneSnapshot(): string {
 }
 
 function createDataTransfer() {
+  const payload = new Map<string, string>();
+
   return {
     dropEffect: 'move',
     effectAllowed: 'move',
-    setData: vi.fn(),
-    getData: vi.fn(),
+    setData: vi.fn((format: string, data: string) => {
+      payload.set(format, data);
+    }),
+    getData: vi.fn((format: string) => payload.get(format) ?? ''),
   };
+}
+
+function dragAssetToStaging(assetId: string): void {
+  const assetRow = document.querySelector<HTMLElement>(
+    `[data-asset-id="${assetId}"][data-asset-source="catalog"]`,
+  );
+  if (!assetRow) {
+    throw new Error(`Expected ${assetId} catalog row.`);
+  }
+
+  const dataTransfer = createDataTransfer();
+  fireEvent.dragStart(assetRow, { dataTransfer });
+  fireEvent.drop(screen.getByLabelText('素材暂存区'), { dataTransfer });
+}
+
+function getCollapsedStagedCard(assetId: string): HTMLElement {
+  const card = screen
+    .getByLabelText('最近暂存素材')
+    .querySelector<HTMLElement>(`[data-asset-id="${assetId}"]`);
+  if (!card) {
+    throw new Error(`Expected ${assetId} collapsed staged card.`);
+  }
+
+  return card;
+}
+
+function getExpandedStagedRow(assetId: string): HTMLElement {
+  const row = screen
+    .getByLabelText('全部暂存素材')
+    .querySelector<HTMLElement>(`[data-asset-id="${assetId}"][data-asset-source="staging"]`);
+  if (!row) {
+    throw new Error(`Expected ${assetId} expanded staged row.`);
+  }
+
+  return row;
 }
 
 function fireDragOver(element: HTMLElement, clientY: number) {

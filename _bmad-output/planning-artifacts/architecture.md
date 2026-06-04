@@ -142,6 +142,12 @@ Production endpoint 是 `https://scene-api.pokokit.com/api/scenes/{id}`。Local 
 
 `../pokopia-color-pattern` 从 `pokopia-data` 消费 compact item、Pokemon、color 和 asset manifest 基础数据，并继续拥有 recommendation ranking、routing、SSG 和 color-pattern-specific UI projections。图片资产首轮只迁移 manifest/metadata 边界，runtime image copy/deploy 仍由各 consumer 负责。跨项目验证顺序应为 `pokopia-data` validate/build -> scene editor scene-core tests/build -> scene editor web build -> color pattern validate/build。
 
+### Approved Course Correction - 2026-06-04 素材暂存区
+
+本 Architecture 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-asset-staging-area.md` 增加 Epic 18。素材暂存区属于 `apps/web` desktop/tablet Asset Picker UI state，用于保存候选 `assetId` 列表和展开/折叠状态。它需要通过 UI preferences 或独立 localStorage key 本地持久化，但不属于 mobile preview/import surface、`SceneDocument v1`、scene saved/autosave storage、`packages/scene-core`、asset catalog source、scene string codec 或 export summary。
+
+实现应优先在 `apps/web/src/components/asset-picker/` 内拆分可复用的 asset row/card presentation，以便素材结果区和展开后的暂存区共享视觉与选择/旋转 wiring。`apps/web/src/components/app-shell/` 只负责传入当前 selected asset、placement mode、rotation handlers、desktop read-only guard 和 mobile absence guard。拖拽进入暂存区、删除暂存项和展开/收起可以写入本地 UI 存储；不得 dispatch scene write command，也不得触发 scene autosave。
+
 另有 69 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
@@ -665,6 +671,7 @@ type Result<T, E> =
 - `skillType` 在未设置时使用 `null`，已设置时只允许 `树叶`、`耕地`、`储水`；`skillNote` 使用空字符串。
 - `selectedAssetId`、`selectedCoordinate`、`dyeColor`、`skillType` 这类可空字段必须以显式 `null` 表达空状态，不允许缺失字段。
 - `schemaVersion` 必须存在，MVP 使用 `1`。本次尺寸扩展不改变 JSON shape；短字符串可使用 codec revision 表达 dimensions，但不得伪装成 legacy PSE1。
+- 素材暂存区 `assetId` 顺序和展开/折叠状态只属于 web UI preference 或独立 localStorage key，不属于 `SceneDocument` JSON、scene autosave payload、scene saved payload、scene string codec、PSE 导出字符串或 export summary。
 
 Recovery error 统一结构：
 
@@ -1001,7 +1008,7 @@ React components 负责 UI rendering、local UI state 和 dispatching commands�
 - `app-shell/`：Open Design 工作台 layout、interaction mode wiring。
 - `pokemon-scene-controls/`：顶部 Pokemon 选择和场景 `Name`。
 - `scene-canvas/`：7x7 canvas rendering、hover/selection UI、pointer handler 和桌面可选 keyboard handler，但写操作必须 dispatch command；mobile keyboard handler no-op。
-- `asset-picker/`：右侧浮动素材搜索、分类/喜好/区域/技能筛选、选中素材和本次放置默认技能状态。
+- `asset-picker/`：右侧浮动素材搜索、分类/喜好/区域/技能筛选、素材暂存区、暂存区拖入/删除/展开状态、选中素材和本次放置默认技能状态。暂存区只在 desktop/tablet edit surface 渲染，保存 UI-only `assetId` 顺序和展开状态，并通过 UI preferences 或独立 localStorage key 持久化；展开后复用素材结果行/card presentation，点击/双击选择和旋转仍通过既有 `onAssetSelect`、`onPlacementRotationChange` callback 进入 AppShell，不得直接修改 `SceneDocument`。
 - `building-level-panel/`：左侧建筑层列表、当前层、创建/删除/复制/重命名/排序 command entry；视觉顺序高层到低层，数据顺序仍为 0 层到 n 层。拖动中的目标顺序可以作为 component-local preview state；drop 前不得写入 `SceneDocument` 或 autosave。Drop 后排序 command 重排 `buildingLevels[].levelNumber`，保持 level id 和所有引用稳定。
 - `selection-inspector/`：选中实例字段展示和字段 edit command entry。
 - `preview-inspector/`：左下正视图/俯视图、当前层/全部层；不提供网格/边界/技能标记显示选项。
@@ -1015,7 +1022,7 @@ MVP web app 不使用 service/repository/database layer。跨组件业务操作�
 
 - `packages/scene-core/src/*` 定义可共享的业务规则、SceneDocument schema、serializer/recovery、selectors、asset filtering、footprint/occupancy helpers、default scene generation 和 export summary JSON。
 - `apps/web/src/state/*` 是浏览器 UI 的 scene write boundary。
-- `apps/web/src/io/*` 保留浏览器专属 IO，例如 localStorage scene storage、UI preferences 和 `html-to-image` 图片下载。
+- `apps/web/src/io/*` 保留浏览器专属 IO，例如 localStorage scene storage、UI preferences、素材暂存区本地存储和 `html-to-image` 图片下载。
 - `apps/web/src/components/*` 只消费 state、selectors、command dispatcher 和 view options。
 - `apps/web/src/theme/*` 只处理视觉 tokens，不参与 scene business rules。
 - `apps/worker/src/*` 只做 HTTP/MCP adapter、request validation、result envelope、headers/cache、安全和日志脱敏。
@@ -1027,7 +1034,7 @@ MVP web app 不使用 service/repository/database layer。跨组件业务操作�
 - FR1-FR7 Scene & Canvas Model：`packages/scene-core/src/domain/scene/`、`apps/web/src/components/scene-canvas/`。
 - FR8-FR18 Asset Placement & Editing：`packages/scene-core/src/domain/scene/`、`apps/web/src/state/`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/selection-inspector/`；FR13/14/15/17/18 已从 MVP 删除。
 - FR19-FR27 Building Level Management：`packages/scene-core/src/domain/scene/levels.ts`、`apps/web/src/state/`、`apps/web/src/components/building-level-panel/`；FR25/26 已从 MVP 删除。
-- FR28-FR35 and FR59 Asset Catalog & Selection：`packages/scene-core/src/domain/assets/`、`apps/web/src/components/asset-picker/`。
+- FR28-FR35, FR59, and FR124-FR130 Asset Catalog & Selection：`packages/scene-core/src/domain/assets/`、`apps/web/src/components/asset-picker/`、`apps/web/src/io/` UI preference storage。素材暂存区只消费 catalog `assetId` 和 presentation 数据，不改变 catalog source、SceneDocument schema、scene string codec 或 export summary。
 - FR36-FR40 and FR60-FR62 Ditto Skill / Instance Visual State：`apps/web/src/state/`、`packages/scene-core/src/domain/scene/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/scene-canvas/`。
 - FR41-FR47 and FR63 Preview：`packages/scene-core/src/domain/scene/selectors.ts`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/scene-canvas/`；FR43/47 已从 MVP 删除。
 - FR48-FR49 Properties：`apps/web/src/components/selection-inspector/`、`packages/scene-core/src/domain/scene/selectors.ts`、`apps/web/src/state/`。
@@ -1058,7 +1065,7 @@ UI components communicate through props/context and dispatch typed commands. Bus
 component event -> command dispatcher -> command guard -> domain helper -> reducer -> scene state -> selectors -> UI
 ```
 
-View-only state such as hover cell, selected panel tab, zoom/pan, asset search/filter/favorite-only, preview mode and current viewed level can live in React state and may be persisted in a separate localStorage UI-preferences namespace, but must not mutate `SceneDocument` and must not appear in autosave/export payloads.
+View-only state such as hover cell, selected panel tab, zoom/pan, asset search/filter/favorite-only, asset staging order/expanded state, preview mode and current viewed level can live in React state and may be persisted in a separate localStorage UI-preferences namespace or dedicated UI-only localStorage key, but must not mutate `SceneDocument` and must not appear in autosave/export payloads or PSE scene strings.
 
 **External Integrations**
 
@@ -1066,7 +1073,7 @@ MVP web app has no required external service integrations. Browser APIs used:
 
 - localStorage or equivalent local scene storage adapter for MVP autosave and reopen.
 - localStorage scene storage adapter for mobile startup restore and explicit mobile import persistence.
-- localStorage UI-preferences namespace for asset search/filter/favorite-only; this namespace is explicitly outside SceneDocument.
+- localStorage UI-preferences namespace for asset search/filter/favorite-only and web-only asset staging; this namespace is explicitly outside SceneDocument, scene storage, PSE/export strings, export summary and mobile preview/import state.
 - File input / drag-and-drop for future explicit import, outside current MVP UI.
 - Canvas/SVG/Blob URL/download for current image export, browser-only and outside any backend integration.
 - `matchMedia` or resize observation for interaction mode, routed through a shared `interaction-mode` helper.

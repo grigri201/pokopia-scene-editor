@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import {
+  assetCatalog,
   createDefaultSceneDocument,
   defaultSceneDimensions,
   encodeSceneDocumentString,
@@ -10,6 +11,8 @@ import {
 const autosavedSceneStorageKey = 'pokopia.sceneDocument.autosave.v1';
 const savedSceneStorageKey = 'pokopia.sceneDocument.v1';
 const uiPreferencesStorageKey = 'pokopia.uiPreferences.v1';
+const assetStagingPreferencesStorageKey = 'pokopia.assetStaging.v1';
+const smokeStagedAssetIds = assetCatalog.slice(0, 12).map((asset) => asset.assetId);
 const densePreviewAssetIds = ['wooden-fencing', 'leafy-plant', 'stepping-stones', 'ditto-doll', 'stone-brick-wall', 'brick-roof-decoration'];
 const densePreviewSkillTypes = ['树叶', '耕地', '储水'];
 const defaultSceneSize = defaultSceneDimensions.sceneSize;
@@ -206,6 +209,77 @@ test('autosaves SceneDocument v1 without UI-only state or manual save entrypoint
   expectScenePayloadHasNoLegacyFields(autosavedPayload);
   await expect(page.getByRole('button', { name: 'Save scene' })).toHaveCount(0);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
+});
+
+test('keeps expanded asset staging layout usable on desktop and tablet', async ({ page }) => {
+  await page.addInitScript(({ stagedAssetIds, stagingKey, uiKey }) => {
+    window.localStorage.setItem(
+      stagingKey,
+      JSON.stringify({
+        schemaVersion: 1,
+        stagedAssetIds,
+        expanded: true,
+      }),
+    );
+    window.localStorage.setItem(
+      uiKey,
+      JSON.stringify({
+        schemaVersion: 1,
+        assetFilters: {
+          query: '',
+          category: 'all',
+          favoriteOnly: false,
+        },
+        locale: 'zh-CN',
+        helpOverlayDismissed: true,
+      }),
+    );
+  }, {
+    stagedAssetIds: smokeStagedAssetIds,
+    stagingKey: assetStagingPreferencesStorageKey,
+    uiKey: uiPreferencesStorageKey,
+  });
+
+  for (const viewport of [
+    { label: 'desktop', width: 1280, height: 720 },
+    { label: 'short desktop', width: 1280, height: 600 },
+    { label: 'tablet', width: 1000, height: 720 },
+    { label: 'short tablet', width: 1000, height: 600 },
+    { label: 'tablet edge', width: 768, height: 720 },
+  ]) {
+    await test.step(`${viewport.label} ${viewport.width}x${viewport.height}`, async () => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto('/');
+
+      const assetPicker = page.getByRole('complementary', { name: 'Asset picker' });
+      await expect(assetPicker).toHaveClass(/asset-picker--staging-expanded/);
+      await expect(page.getByRole('region', { name: '素材暂存区' })).toHaveAttribute('data-expanded', 'true');
+      await expect(page.getByLabel('全部暂存素材').locator('[data-asset-source="staging"]')).toHaveCount(smokeStagedAssetIds.length);
+      await expect(page.getByLabel('Asset results')).toBeVisible();
+      await expect(page.getByLabel('Asset page status')).toBeVisible();
+
+      await expect
+        .poll(() => getExpandedAssetStagingLayoutMetrics(page))
+        .toMatchObject({
+          stagingBeforeCatalog: true,
+          pickerClearOfCanvas: true,
+          pickerClearOfLeftPanel: true,
+          pickerClearOfSelectionInspector: true,
+          pickerClearOfCanvasBottomPanels: true,
+          paginationClearOfStaging: true,
+          paginationVisible: true,
+          searchClearOfStaging: true,
+          filtersClearOfStaging: true,
+          assetListScrollable: true,
+          stagingListScrollable: true,
+        });
+      const requiresStrictStagingRatio = viewport.label === 'desktop' || viewport.label === 'tablet';
+      const minimumStagingToCatalogRatio = requiresStrictStagingRatio ? 2.75 : 1.25;
+      await expect
+        .poll(async () => (await getExpandedAssetStagingLayoutMetrics(page)).stagingToCatalogRatio)
+        .toBeGreaterThan(minimumStagingToCatalogRatio);
+    });
+  }
 });
 
 test('restores autosaved SceneDocument v1 on desktop startup', async ({ page }) => {
@@ -1233,6 +1307,68 @@ async function getExpectedExportPngSize(preview: Locator): Promise<{ height: num
       height: Math.ceil(box.height + bodyOverflowHeight),
       visibleHeight: Math.ceil(box.height),
       width: Math.ceil(Math.max(box.width, element.scrollWidth)),
+    };
+  });
+}
+
+async function getExpandedAssetStagingLayoutMetrics(
+  page: Page,
+): Promise<{
+  assetListScrollable: boolean;
+  filtersClearOfStaging: boolean;
+  paginationClearOfStaging: boolean;
+  paginationVisible: boolean;
+  pickerClearOfCanvasBottomPanels: boolean;
+  pickerClearOfCanvas: boolean;
+  pickerClearOfLeftPanel: boolean;
+  pickerClearOfSelectionInspector: boolean;
+  searchClearOfStaging: boolean;
+  stagingBeforeCatalog: boolean;
+  stagingListScrollable: boolean;
+  stagingToCatalogRatio: number;
+}> {
+  return page.evaluate(() => {
+    const getRect = (selector: string): DOMRect | null =>
+      document.querySelector<HTMLElement>(selector)?.getBoundingClientRect() ?? null;
+    const overlaps = (first: DOMRect | null, second: DOMRect | null): boolean => {
+      if (!first || !second) {
+        return false;
+      }
+
+      return (
+        first.left < second.right - 1 &&
+        first.right > second.left + 1 &&
+        first.top < second.bottom - 1 &&
+        first.bottom > second.top + 1
+      );
+    };
+
+    const picker = getRect('.asset-picker');
+    const staging = getRect('.asset-staging');
+    const catalog = getRect('.asset-catalog-panel');
+    const search = getRect('.asset-search');
+    const filters = getRect('.asset-category-tabs');
+    const canvas = getRect('.scene-canvas');
+    const leftPanel = getRect('.workbench-left');
+    const pagination = getRect('.asset-pagination');
+    const selectionInspector = getRect('.selection-inspector');
+    const canvasBottomPanels = getRect('.canvas-bottom-panels');
+    const assetList = document.querySelector<HTMLElement>('.asset-list');
+    const stagingList = document.querySelector<HTMLElement>('.asset-staging__list');
+
+    return {
+      assetListScrollable: Boolean(assetList && assetList.scrollHeight > assetList.clientHeight + 1),
+      filtersClearOfStaging: !overlaps(filters, staging),
+      paginationClearOfStaging: !overlaps(pagination, staging),
+      paginationVisible: Boolean(pagination && pagination.width > 0 && pagination.height > 0),
+      pickerClearOfCanvasBottomPanels: !overlaps(picker, canvasBottomPanels),
+      pickerClearOfCanvas: !overlaps(picker, canvas),
+      pickerClearOfLeftPanel: !overlaps(picker, leftPanel),
+      pickerClearOfSelectionInspector: !overlaps(picker, selectionInspector),
+      searchClearOfStaging: !overlaps(search, staging),
+      stagingBeforeCatalog: Boolean(staging && catalog && staging.bottom <= catalog.top + 1),
+      stagingListScrollable: Boolean(stagingList && stagingList.scrollHeight > stagingList.clientHeight + 1),
+      stagingToCatalogRatio: staging && catalog && catalog.height > 0 ? staging.height / catalog.height : 0,
     };
   });
 }

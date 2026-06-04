@@ -1,5 +1,5 @@
 # generated: 2026-05-31T16:34:56+0800
-# last_updated: 2026-06-04T23:00:00+0800
+# last_updated: 2026-06-04T18:08:33+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -28,10 +28,10 @@
 # - Epic 1-13 are completed and archived.
 # - Epic 14 is complete; all Epic 14 stories are done.
 # - Epic 16 is complete.
-# - Epic 17 is active for Pokopia data extraction and consumer migration.
+# - Epic 18 is complete.
 
 generated: 2026-05-31T16:34:56+0800
-last_updated: 2026-06-04T23:00:00+0800
+last_updated: 2026-06-04T18:08:33+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -107,3 +107,20 @@ development_status:
       17-5-cross-project-release-gate-and-extension-entry:
         status: done
         title: 跨项目 Release Gate 与数据扩展入口
+  epic_18:
+    status: done
+    title: 素材暂存区与快速候选素材选择
+    proposal: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-asset-staging-area.md
+    stories:
+      18-1-course-correction-sync-and-asset-staging-contract:
+        status: done
+        title: Course Correction 同步与素材暂存区契约
+      18-2-collapsed-asset-staging-drag-drop-and-delete:
+        status: done
+        title: 折叠暂存区、拖入与删除
+      18-3-expanded-asset-staging-layout-and-rotation:
+        status: done
+        title: 展开暂存区与素材区 80/20 布局
+      18-4-asset-staging-regression-tests-and-browser-smoke:
+        status: done
+        title: 回归测试与浏览器验证
