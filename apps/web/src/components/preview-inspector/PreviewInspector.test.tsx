@@ -322,7 +322,7 @@ describe('PreviewInspector', () => {
       const baseSlot = split?.querySelector('[data-stacking-role="base"]');
 
       expect(split).toHaveClass('preview-stacking-split--base-hidden');
-      expect(split).toHaveAttribute('data-stacking-base-footprint', '2x2x1');
+      expect(split).toHaveAttribute('data-stacking-base-footprint', '4x4x1');
       expect(split).toHaveAttribute('data-stacking-top-footprint', '1x1x1');
       expect(split).toHaveAttribute('data-stacking-base-visibility', 'hidden');
       expect(split).toHaveAttribute('data-stacking-split-axis', 'block');

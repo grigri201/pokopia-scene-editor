@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const distRoot = resolve(repoRoot, 'packages/scene-core/dist');
 const fromSpecifierPattern = /(from\s+['"])(\.[^'"]+)(['"])/g;
+const pokemonDeclarationPath = resolve(distRoot, 'domain/assets/pokemon.d.ts');
+const pokemonDataPath = resolve(repoRoot, '../pokopia-data/dist/data/pokemon.json');
 
 for (const declarationFile of listDeclarationFiles(distRoot)) {
   const source = readFileSync(declarationFile, 'utf8');
@@ -14,6 +16,20 @@ for (const declarationFile of listDeclarationFiles(distRoot)) {
 
   if (nextSource !== source) {
     writeFileSync(declarationFile, nextSource);
+  }
+}
+
+if (existsSync(pokemonDeclarationPath)) {
+  const source = readFileSync(pokemonDeclarationPath, 'utf8');
+  const pokemonData = JSON.parse(readFileSync(pokemonDataPath, 'utf8'));
+  const pokemonKeyUnion = pokemonData.pokemon.map((pokemon) => JSON.stringify(pokemon.key)).join(' | ');
+  const nextSource = source.replace(
+    "import { pokemonData } from 'pokopia-data';\nexport type PokemonKey = (typeof pokemonData.pokemon)[number]['key'];",
+    `export type PokemonKey = ${pokemonKeyUnion};`,
+  );
+
+  if (nextSource !== source) {
+    writeFileSync(pokemonDeclarationPath, nextSource);
   }
 }
 

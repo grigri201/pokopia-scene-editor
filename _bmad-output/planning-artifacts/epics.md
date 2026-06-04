@@ -8,11 +8,12 @@ inputDocuments:
   - _bmad-output/archive/2026-05-31/planning-artifacts/epics-13-completed.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-05-31-mobile-import-preview.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-01-scene-id-url-import.md
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-pokopia-data-extraction.md
 ---
 
 # pokopia-scene-editor - Active Epic Index
 
-As of 2026-06-02, Epic 16 is the active BMAD planning surface.
+As of 2026-06-04, Epic 17 is the active BMAD planning surface.
 
 Completed planning history is archived here:
 
@@ -131,6 +132,8 @@ Acceptance Criteria:
 
 ## Epic 16: 建筑层拖动排序
 
+Status: done.
+
 用户可以在左侧建筑层面板中拖动建筑层来调整层级顺序。拖动中显示排序预览；drop 后提交为当前场景事实并自动保存。该能力只作用于 desktop/tablet 编辑工作台，mobile preview/import 仍不提供建筑层编辑。
 
 ### Story 16.1: 左侧建筑层拖动排序与自动保存
@@ -146,3 +149,66 @@ Acceptance Criteria:
 - 成功排序后触发现有 autosave，刷新后恢复为新顺序；取消拖动或无变化 drop 不写 storage。
 - 支持键盘可达的排序 fallback，例如上移/下移按钮，并提供清晰 aria label / live announcement。
 - Focused tests 覆盖 domain reorder、read-only no-op、drag preview no persistence、drop autosave、keyboard fallback 和 existing layer create/copy/delete/rename regression。
+
+## Epic 17: Pokopia Data 独立项目抽取与 Consumer 迁移
+
+把 Pokopia 基础 item/Pokemon 数据从 `pokopia-scene-editor` 和 `../pokopia-color-pattern` 中抽取到新的 sibling project `../pokopia-data`，并让两个 consumer 通过明确 package contract 使用同一份基础数据。首轮迁移不改变终端用户 UI，不改变 `SceneDocument v1`，不破坏旧 PSE1/PSE2、旧 autosave、`assetId`、`sceneCodecOfficialId` 或 `legacyOfficialIds` 兼容。
+
+### Story 17.1: Course Correction 同步与 Data Ownership 定义
+
+As a 维护者, I want 同步 PRD、Architecture、Epics 和 sprint-status 的 data ownership, So that 后续实现不会继续在两个项目里扩展重复数据源。
+
+Acceptance Criteria:
+
+- PRD 新增 2026-06-04 course correction。
+- Architecture 新增 `pokopia-data` / `scene-core` / `pokopia-color-pattern` ownership boundary。
+- Epics 新增 Epic 17，tracker 新增 Story 17.1-17.5。
+- `docs/data-source-of-truth.md` 更新为跨项目数据来源说明。
+- 明确本次不改 `SceneDocument v1`；如未来必须改 schema，需要单独 course correction。
+
+### Story 17.2: 创建 `../pokopia-data` 项目与基础 Contract
+
+As a data consumer developer, I want 一个可安装的 `pokopia-data` package, So that scene editor 和 color pattern 可以读取同一份 Pokopia 基础数据。
+
+Acceptance Criteria:
+
+- 在 sibling directory 创建 `../pokopia-data`，包含 package manifest、TypeScript config、schema/types、generation scripts、fixtures/tests。
+- 导入当前两项目的基础源数据，生成 normalized item/Pokemon/color/asset manifest outputs。
+- Data package 提供 ESM exports 和 JSON exports；外部 consumer 不需要编译 data project 源码。
+- Validation 覆盖 item count、Pokemon count、slug uniqueness、id uniqueness、asset reference existence、schema version、size budget。
+- 不引入 scene editor UI、React、SceneDocument、recommendation ranking 或 color pattern routing 依赖。
+
+### Story 17.3: `scene-core` 改为消费 `pokopia-data`
+
+As a scene editor maintainer, I want `scene-core` 从 `pokopia-data` 读取基础数据, So that 编辑器 catalog 不再维护重复 item/Pokemon snapshots。
+
+Acceptance Criteria:
+
+- `packages/scene-core` 新增对 `pokopia-data` 的 package dependency。
+- `source-placeable-items.ts`、`source-pokemon-preferences.ts`、`source-pokemon-portraits.ts` 等基础数据改为由 data exports 生成或直接消费。
+- `assetCatalog` 输出的 `assetId`、`officialId`、`sceneCodecOfficialId`、`legacyOfficialIds`、name、category、thumbnailUrl 与迁移前兼容。
+- Footprint/stacking overrides 首轮保留在 `scene-core`，并继续通过现有 catalog tests 锁定。
+- 旧 PSE1/PSE2 codec tests、asset catalog tests、web build 和 file-install smoke 通过。
+
+### Story 17.4: `pokopia-color-pattern` 改为消费 `pokopia-data`
+
+As a color pattern maintainer, I want color pattern 的 compact item / Pokemon index 基础输入来自 `pokopia-data`, So that 推荐和静态页生成不再复制基础数据抓取/解析逻辑。
+
+Acceptance Criteria:
+
+- color pattern scripts 从 `pokopia-data` 读取 item/Pokemon/color/asset manifest 基础数据。
+- `generated/data/compact-items.json`、`pokemon-index.json`、`item-colors.json` 的 public schema 尽量保持；必要字段变更需明确 schema version bump。
+- recommendation generation、route validation、SSG、dist validation 和 hydrate smoke 不回退。
+- Recommendation-specific overrides 和 ranking logic 仍留在 color pattern，不迁入基础 data package。
+
+### Story 17.5: 跨项目 Release Gate 与数据扩展入口
+
+As a 维护者, I want 一个跨项目验证和扩展流程, So that 后续新增 Pokopia 数据只需要改 `pokopia-data` 并能证明两个 consumer 未回退。
+
+Acceptance Criteria:
+
+- 定义标准验证顺序：`pokopia-data` validate/build -> scene editor scene-core tests/build -> scene editor web build -> color pattern validate/build。
+- 增加数据扩展文档：新增 item、Pokemon、translation、preference、color override、asset reference 的入口和检查命令。
+- 给出 slug/id compatibility checklist，特别覆盖 scene string codec 和 legacy aliases。
+- 两个 consumer 的 docs 指向 `pokopia-data`，不再把本地 generated source 作为扩展入口。
+- 明确部署仍由各 consumer 项目独立执行；data package 不直接部署 Web。

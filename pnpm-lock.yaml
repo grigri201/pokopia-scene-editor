@@ -66,6 +66,9 @@ importers:
       esbuild:
         specifier: 0.27.3
         version: 0.27.3
+      pokopia-data:
+        specifier: file:../../../pokopia-data
+        version: file:../pokopia-data
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -920,6 +923,10 @@ packages:
     resolution: {integrity: sha512-hheHdokM8cdqCb0lcE3s+zT4t4W+vvjpGxsZlDnikarzx8tSzMebh3UiFtgqwFwnTnjYQcsyMF8ei2mCO/tpeA==}
     engines: {node: '>=18'}
     hasBin: true
+
+  pokopia-data@file:../pokopia-data:
+    resolution: {directory: ../pokopia-data, type: directory}
+    engines: {node: '>=22'}
 
   postcss@8.5.15:
     resolution: {integrity: sha512-FfR8sjd4em2T6fb3I2MwAJU7HWVMr9zba+enmQeeWFfCbm+UOC/0X4DS8XtpUTMwWMGbjKYP7xjfNekzyGmB3A==}
@@ -1893,6 +1900,8 @@ snapshots:
       playwright-core: 1.60.0
     optionalDependencies:
       fsevents: 2.3.2
+
+  pokopia-data@file:../pokopia-data: {}
 
   postcss@8.5.15:
     dependencies:

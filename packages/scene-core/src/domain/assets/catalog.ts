@@ -1,8 +1,11 @@
 import { isKnownPokemonKey, type PokemonKey } from './pokemon';
 import { getPokopiaAssetUrl } from './asset-base-url';
-import { sourcePlaceableAssetNameTranslations } from './source-placeable-item-translations';
-import { sourcePlaceableAssetItems, type SourcePlaceableAssetItem } from './source-placeable-items';
-import { sourceItemPreferenceTerms, sourcePokemonPreferences } from './source-pokemon-preferences';
+import {
+  itemsData,
+  preferencesData,
+  translationsData,
+  type PokopiaItemRecord,
+} from 'pokopia-data';
 import { assetFootprintOverrideAssetIds, getAssetFootprint, type AssetFootprint } from './footprint-overrides';
 import { assetStackingOverrideAssetIds, getAssetStacking, type AssetStackingMetadata } from './stacking-overrides';
 
@@ -133,13 +136,13 @@ const preferenceTermAliases: Record<string, string> = {
 };
 
 const itemPreferenceTermsBySlug = new Map<string, readonly string[]>(
-  sourceItemPreferenceTerms.map((entry) => [entry.slug, normalizePreferenceTerms(entry.preferenceTerms)]),
+  preferencesData.itemPreferenceTerms.map((entry) => [entry.slug, normalizePreferenceTerms(entry.preferenceTerms)]),
 );
 
 const pokemonPreferenceEntries: readonly {
   key: PokemonKey;
   preferenceTerms: readonly string[];
-}[] = sourcePokemonPreferences.flatMap((entry) =>
+}[] = preferencesData.pokemon.flatMap((entry) =>
   isKnownPokemonKey(entry.key)
     ? [
         {
@@ -150,17 +153,17 @@ const pokemonPreferenceEntries: readonly {
     : [],
 );
 
-export const assetCatalog: readonly AssetDefinition[] = sourcePlaceableAssetItems
+export const assetCatalog: readonly AssetDefinition[] = itemsData.items
   .filter((sourceItem) => !isFilteredSourcePlaceableItem(sourceItem))
   .map((sourceItem) => buildAssetDefinition(sourceItem))
   .sort(compareAssetsByOfficialId);
 
-function buildAssetDefinition(sourceItem: SourcePlaceableAssetItem): AssetDefinition {
+function buildAssetDefinition(sourceItem: PokopiaItemRecord): AssetDefinition {
   const sceneCodecOfficialId = sourceItem.id.toString().padStart(3, '0');
   const officialId = (sourceItem.sourceNumber ?? sourceItem.displayNumber ?? sourceItem.id).toString().padStart(3, '0');
   const override = seedAssetOverridesByOfficialId[String(sourceItem.id)];
   const assetId = override?.assetId ?? buildGeneratedAssetId(sourceItem.slug, sceneCodecOfficialId);
-  const translatedName = sourcePlaceableAssetNameTranslations[sourceItem.id];
+  const translatedName = translationsData.itemNameById[String(sourceItem.id)];
   const displayName = override?.name ?? translatedName ?? sourceItem.name;
   const legacyOfficialIds = officialId === sceneCodecOfficialId ? [] : [sceneCodecOfficialId];
 
@@ -194,8 +197,8 @@ function buildGeneratedAssetId(slug: string, officialId: string): string {
   return reservedSeedAssetIds.has(slug) ? `${slug}-${officialId}` : slug;
 }
 
-function isFilteredSourcePlaceableItem(sourceItem: SourcePlaceableAssetItem): boolean {
-  const translatedName = sourcePlaceableAssetNameTranslations[sourceItem.id] ?? '';
+function isFilteredSourcePlaceableItem(sourceItem: PokopiaItemRecord): boolean {
+  const translatedName = translationsData.itemNameById[String(sourceItem.id)] ?? '';
   const sourceCategory = sourceItem.sourceCategory ?? '';
   const searchable = `${sourceItem.name} ${sourceItem.slug} ${sourceItem.menuCategory} ${sourceCategory} ${sourceItem.tags.join(' ')} ${sourceItem.sourceTags?.join(' ') ?? ''}`;
 
@@ -209,7 +212,7 @@ function isFilteredSourcePlaceableItem(sourceItem: SourcePlaceableAssetItem): bo
   );
 }
 
-function inferAssetCategory(sourceItem: SourcePlaceableAssetItem): AssetCategory {
+function inferAssetCategory(sourceItem: PokopiaItemRecord): AssetCategory {
   return normalizeSourceAssetCategory(sourceItem.sourceCategory ?? sourceItem.menuCategory);
 }
 
@@ -250,7 +253,7 @@ function normalizeSourceAssetCategory(menuCategory: string): AssetCategory {
   }
 }
 
-function buildSourceAssetTags(sourceItem: SourcePlaceableAssetItem, locale: 'zh-CN' | 'en-US' = 'zh-CN'): readonly string[] {
+function buildSourceAssetTags(sourceItem: PokopiaItemRecord, locale: 'zh-CN' | 'en-US' = 'zh-CN'): readonly string[] {
   const sourceTags = locale === 'zh-CN' && sourceItem.sourceTags ? sourceItem.sourceTags : sourceItem.tags;
   const tagSet = new Set(sourceTags.filter(Boolean).map((tag) => {
     if (locale === 'en-US') {
@@ -263,7 +266,7 @@ function buildSourceAssetTags(sourceItem: SourcePlaceableAssetItem, locale: 'zh-
   return Array.from(tagSet);
 }
 
-function buildSearchKeywords(sourceItem: SourcePlaceableAssetItem, displayName: string): readonly string[] {
+function buildSearchKeywords(sourceItem: PokopiaItemRecord, displayName: string): readonly string[] {
   const officialId = (sourceItem.sourceNumber ?? sourceItem.displayNumber ?? sourceItem.id).toString().padStart(3, '0');
   const keywordSet = new Set([
     displayName,
@@ -280,7 +283,7 @@ function buildSearchKeywords(sourceItem: SourcePlaceableAssetItem, displayName: 
 }
 
 function buildFavoritePokemonKeys(
-  sourceItem: SourcePlaceableAssetItem,
+  sourceItem: PokopiaItemRecord,
   override: AssetCatalogOverride | undefined,
 ): readonly PokemonKey[] {
   const favoritePokemonKeySet = new Set<PokemonKey>(override?.favoritePokemonKeys ?? []);
@@ -330,7 +333,7 @@ function normalizePreferenceTerm(value: string): string {
   return preferenceTermAliases[normalized] ?? normalized;
 }
 
-function inferDyeable(sourceItem: SourcePlaceableAssetItem): boolean {
+function inferDyeable(sourceItem: PokopiaItemRecord): boolean {
   const searchable = `${sourceItem.name} ${sourceItem.slug} ${sourceItem.menuCategory} ${sourceItem.tags.join(' ')}`.toLowerCase();
 
   return searchable.includes('wall') || searchable.includes('floor') || searchable.includes('roof');

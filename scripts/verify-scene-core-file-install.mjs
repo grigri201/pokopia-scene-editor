@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +25,22 @@ for (const requiredFile of [coreDistEntry, coreDistTypes]) {
 const tempDir = mkdtempSync(join(tmpdir(), 'pokopia-scene-core-consumer-'));
 
 try {
+  const packDir = resolve(tempDir, 'pack');
+  mkdirSync(packDir);
+
+  execFileSync('pnpm', ['pack', '--pack-destination', packDir], {
+    cwd: corePackageDir,
+    stdio: 'inherit',
+  });
+
+  const packedPackage = readdirSync(packDir).find((entry) => entry.endsWith('.tgz'));
+
+  if (!packedPackage) {
+    throw new Error(`Unable to find packed scene-core tarball in ${packDir}.`);
+  }
+
+  const packedPackagePath = resolve(packDir, packedPackage);
+
   writeFileSync(
     resolve(tempDir, 'package.json'),
     `${JSON.stringify(
@@ -38,7 +54,7 @@ try {
     )}\n`,
   );
 
-  execFileSync('pnpm', ['add', `file:${corePackageDir}`], {
+  execFileSync('pnpm', ['add', `file:${packedPackagePath}`], {
     cwd: tempDir,
     stdio: 'inherit',
   });

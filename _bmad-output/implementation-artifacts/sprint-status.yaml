@@ -1,5 +1,5 @@
 # generated: 2026-05-31T16:34:56+0800
-# last_updated: 2026-06-02T00:00:00+0800
+# last_updated: 2026-06-04T23:00:00+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -27,10 +27,11 @@
 # ===============
 # - Epic 1-13 are completed and archived.
 # - Epic 14 is complete; all Epic 14 stories are done.
-# - Epic 16 is active for building layer drag reorder.
+# - Epic 16 is complete.
+# - Epic 17 is active for Pokopia data extraction and consumer migration.
 
 generated: 2026-05-31T16:34:56+0800
-last_updated: 2026-06-02T00:00:00+0800
+last_updated: 2026-06-04T23:00:00+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -86,3 +87,23 @@ development_status:
       16-1-building-layer-drag-reorder-and-autosave:
         status: done
         title: 左侧建筑层拖动排序与自动保存
+  epic_17:
+    status: done
+    title: Pokopia Data 独立项目抽取与 Consumer 迁移
+    proposal: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-pokopia-data-extraction.md
+    stories:
+      17-1-course-correction-sync-and-data-ownership:
+        status: done
+        title: Course Correction 同步与 Data Ownership 定义
+      17-2-create-pokopia-data-project-and-base-contract:
+        status: done
+        title: 创建 pokopia-data 项目与基础 Contract
+      17-3-scene-core-consumes-pokopia-data:
+        status: done
+        title: scene-core 改为消费 pokopia-data
+      17-4-color-pattern-consumes-pokopia-data:
+        status: done
+        title: pokopia-color-pattern 改为消费 pokopia-data
+      17-5-cross-project-release-gate-and-extension-entry:
+        status: done
+        title: 跨项目 Release Gate 与数据扩展入口

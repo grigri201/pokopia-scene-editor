@@ -1,7 +1,7 @@
-import { sourcePokemonPortraits } from './source-pokemon-portraits';
+import { pokemonData } from 'pokopia-data';
 import { getPokopiaAssetUrl } from './asset-base-url';
 
-export type PokemonKey = (typeof sourcePokemonPortraits)[number]['key'];
+export type PokemonKey = (typeof pokemonData.pokemon)[number]['key'];
 
 export interface PokemonThemeDefinition {
   key: PokemonKey;
@@ -13,7 +13,7 @@ export interface PokemonThemeDefinition {
   portraitUrl: string;
 }
 
-export const knownPokemonKeys = sourcePokemonPortraits.map((pokemon) => pokemon.key) as readonly PokemonKey[];
+export const knownPokemonKeys = pokemonData.pokemon.map((pokemon) => pokemon.key) as readonly PokemonKey[];
 
 const defaultPokemonTheme = {
   background: '#efe6d5',
@@ -35,7 +35,7 @@ const pokemonThemeOverrides: Partial<Record<PokemonKey, { background: string; ac
   },
 };
 
-export const pokemonThemeCatalog: readonly PokemonThemeDefinition[] = sourcePokemonPortraits.map((pokemon) => {
+export const pokemonThemeCatalog: readonly PokemonThemeDefinition[] = pokemonData.pokemon.map((pokemon) => {
   const theme = pokemonThemeOverrides[pokemon.key] ?? defaultPokemonTheme;
 
   return {

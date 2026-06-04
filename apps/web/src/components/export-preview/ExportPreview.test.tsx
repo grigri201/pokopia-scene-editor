@@ -372,6 +372,7 @@ describe('ExportPreview', () => {
     render(<ExportPreview summary={summary} onClose={vi.fn()} />);
 
     const stackedCell = screen.getByLabelText('1,1: 木长椅 stacked on 长方形小地垫');
+    const baseOverlay = screen.getByTestId(`export-footprint-overlay-${relation.baseInstanceId}`);
     const topOverlay = screen.getByTestId(`export-footprint-overlay-${stackingContractFixtureIds.partialTop}`);
 
     expect(summary.stackingRelations).toEqual([
@@ -388,12 +389,17 @@ describe('ExportPreview', () => {
     expect(stackedCell).toHaveAttribute('data-stacking-base-footprint', formatFootprint(baseInstance.effectiveFootprint));
     expect(stackedCell).toHaveAttribute('data-stacking-top-footprint', formatFootprint(topInstance.effectiveFootprint));
     expect(stackedCell.querySelector('.export-stacking-split')).toHaveAttribute('data-stacking-base-visibility', 'visible');
-    expect(stackedCell).toHaveAttribute('data-stacking-base-render', 'cell');
+    expect(stackedCell).toHaveAttribute('data-stacking-base-render', 'overlay');
     expect(stackedCell).toHaveAttribute('data-stacking-top-render', 'overlay');
+    expect(stackedCell.querySelector('.export-stacking-split')).toHaveAttribute('data-stacking-base-render', 'overlay');
     expect(stackedCell.querySelector('.export-stacking-split')).toHaveAttribute('data-stacking-top-render', 'overlay');
     expect(stackedCell.querySelector('[data-stacking-role="top"]')).toHaveAttribute('data-top-image-visible', 'false');
     expect(stackedCell.querySelector('[data-stacking-role="top"] img')).toBeNull();
-    expect(stackedCell.querySelector('[data-stacking-role="base"] img')).toHaveAttribute('src', expect.stringContaining(relation.baseAssetId));
+    expect(stackedCell.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-base-image-visible', 'false');
+    expect(stackedCell.querySelector('[data-stacking-role="base"] img')).toBeNull();
+    expect(baseOverlay).toHaveAttribute('data-footprint-instance-id', relation.baseInstanceId);
+    expect(baseOverlay).toHaveAttribute('data-effective-footprint', formatFootprint(baseInstance.effectiveFootprint));
+    expect(baseOverlay.querySelector('img')).toHaveAttribute('src', expect.stringContaining(relation.baseAssetId));
     expect(topOverlay).toHaveAttribute('data-footprint-instance-id', relation.topInstanceId);
     expect(topOverlay).toHaveAttribute('data-effective-footprint', formatFootprint(topInstance.effectiveFootprint));
     expect(topOverlay).toHaveAttribute('data-stacking-state', 'placed');

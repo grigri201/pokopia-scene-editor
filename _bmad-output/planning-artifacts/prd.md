@@ -142,6 +142,12 @@ Mobile 允许用户通过显式“导入字符串”操作替换当前本地布�
 
 `SceneDocument v1` 继续保持。排序只重排现有 `buildingLevels[].levelNumber`，不新增排序字段、z-index、层级历史或 `SceneDocument v2`。`buildingLevels[].id`、层名、层备注、素材实例引用和技能标记引用必须保持稳定。Mobile preview/import surface 仍不提供建筑层编辑能力。
 
+### Approved Course Correction - 2026-06-04 Pokopia Data 独立项目抽取
+
+本 PRD 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-pokopia-data-extraction.md` 增加 Epic 17，用于把 Pokopia 基础数据从本仓库和 sibling project `../pokopia-color-pattern` 抽取为新的 sibling project `../pokopia-data`。本仓库继续维护浏览器 Web 工作台与 `scene-core` 领域库；`scene-core` 通过 data package 消费基础 item/Pokemon 数据，并继续负责 SceneDocument v1、codec/recovery、footprint/stacking、occupancy、selectors 和 export summary。
+
+`SceneDocument v1` 继续保持。旧 PSE1/PSE2、旧 autosave、`assetId`、`sceneCodecOfficialId` 和 `legacyOfficialIds` 兼容性不得回退。终端用户 Web 行为不变。后续新增 Pokopia 基础数据应优先进入 `pokopia-data`，再由 `scene-core` 和 `pokopia-color-pattern` 作为 consumer 引用；recommendation ranking、editor-specific placement rules 和 Web runtime packaging 不作为基础 data package 的首轮职责。
+
 ### What Makes This Special
 
 本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：默认中心 15×15 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、受控承载/叠放、素材实例级技能标记，以及完整 17×17 预览。

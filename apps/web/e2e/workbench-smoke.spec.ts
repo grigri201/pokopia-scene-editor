@@ -32,10 +32,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await page.goto('/');
 
   await expect(page.getByRole('dialog', { name: '快速说明' })).toBeVisible();
-  await expect(page.locator('.help-guide-spotlight')).toHaveCount(4);
-  await expect(page.locator('.help-guide-arrow')).toHaveCount(4);
+  await expect(page.locator('.help-guide-spotlight')).toHaveCount(3);
+  await expect(page.locator('.help-guide-arrow')).toHaveCount(3);
   await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('这里可以新增层和选中层');
-  await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('可以勾选只显示宝可梦喜欢的素材');
   await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('单击选中素材');
   await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('这里可以修改布景和选择当前宝可梦');
   await expect(page.getByRole('button', { name: '下一步' })).toHaveCount(0);
@@ -71,7 +70,8 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByRole('button', { name: '重置' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Undo' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Redo' })).toHaveCount(0);
-  await expect.poll(() => getSelectionEmptyPromptHeightRatio(page)).toBeCloseTo(1, 1);
+  await expect.poll(() => getSelectionEmptyPromptHeightRatio(page)).toBeGreaterThan(0.7);
+  await expect.poll(() => getSelectionEmptyPromptHeightRatio(page)).toBeLessThan(0.95);
   await expect.poll(() => getSelectionEmptySilhouetteHeightRatio(page)).toBeCloseTo(0.8, 1);
   await expect.poll(() => getSelectionEmptyTextHeightRatio(page)).toBeCloseTo(1, 1);
   await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveCount(0);

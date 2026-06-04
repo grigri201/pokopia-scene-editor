@@ -11,7 +11,7 @@ import {
 } from './catalog';
 import { assetFootprintOverrideAssetIds } from './footprint-overrides';
 import { knownPokemonKeys } from './pokemon';
-import { sourceItemPreferenceTerms, sourcePokemonPreferences } from './source-pokemon-preferences';
+import { preferencesData } from 'pokopia-data';
 import { assetStackingOverrideAssetIds, defaultAssetStacking } from './stacking-overrides';
 
 describe('asset catalog', () => {
@@ -61,9 +61,11 @@ describe('asset catalog', () => {
     expect(() => assertKnownAssetId('bouldery-badge')).toThrow(RangeError);
     expect(getAssetById('wooden-bench')?.officialId).toBe('277');
     expect(getAssetById('wooden-bench')?.sceneCodecOfficialId).toBe('047');
+    expect(getAssetById('wooden-bench')?.legacyOfficialIds).toEqual(['047']);
     expect(getAssetById('wooden-bench')?.name).toBe('木长椅');
     expect(getAssetById('ditto-doll')?.officialId).toBe('448');
     expect(getAssetById('ditto-doll')?.sceneCodecOfficialId).toBe('979');
+    expect(getAssetById('ditto-doll')?.legacyOfficialIds).toEqual(['979']);
     expect(getAssetById('ditto-doll')?.name).toBe('百变怪玩偶');
   });
 
@@ -74,6 +76,7 @@ describe('asset catalog', () => {
     expect(leppaBerry).toMatchObject({
       officialId: '001',
       sceneCodecOfficialId: '197',
+      legacyOfficialIds: ['197'],
       name: '苹野果',
       tags: ['食物'],
       thumbnailAlt: '苹野果缩略图',
@@ -245,10 +248,10 @@ describe('asset catalog', () => {
   it('uses imported Xzonn preference terms for all Pokemon', () => {
     const abraFavoriteIds = filterAssetsByFavorite(assetCatalog, 'abra', true).map((asset) => asset.assetId);
 
-    expect(sourcePokemonPreferences).toHaveLength(knownPokemonKeys.length);
-    expect(sourcePokemonPreferences.every((entry) => knownPokemonKeys.includes(entry.key))).toBe(true);
-    expect(sourceItemPreferenceTerms).toHaveLength(548);
-    expect(sourcePokemonPreferences.find((entry) => entry.key === 'ditto')?.preferenceTerms).toEqual([]);
+    expect(preferencesData.pokemon).toHaveLength(knownPokemonKeys.length);
+    expect(preferencesData.pokemon.every((entry) => knownPokemonKeys.includes(entry.key))).toBe(true);
+    expect(preferencesData.itemPreferenceTerms).toHaveLength(548);
+    expect(preferencesData.pokemon.find((entry) => entry.key === 'ditto')?.preferenceTerms).toEqual([]);
     expect(abraFavoriteIds).toEqual(expect.arrayContaining(['fluff', 'alarm-clock']));
     expect(abraFavoriteIds).not.toContain('leppa-berry');
   });

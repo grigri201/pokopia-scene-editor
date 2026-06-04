@@ -702,6 +702,8 @@ describe('SceneCanvas', () => {
     const emptyFootprintCell = getRenderedCell(formatCoordinate(nonOverlappedTopCoordinate));
     const stackedSplit = stackedCell.querySelector('.cell-stacking-split');
     const topSlot = stackedSplit?.querySelector('[data-stacking-role="top"]');
+    const baseSlot = stackedSplit?.querySelector('[data-stacking-role="base"]');
+    const baseOverlay = screen.getByTestId(`scene-footprint-overlay-${stacking.relation.baseInstanceId}`);
     const topOverlay = screen.getByTestId(`scene-footprint-overlay-${stacking.relation.topInstanceId}`);
 
     expect(stackedCell).toHaveAttribute('data-stacking-state', 'placed');
@@ -710,14 +712,16 @@ describe('SceneCanvas', () => {
     expect(stackedCell).toHaveAttribute('data-stacking-base-footprint', formatFootprint(stacking.baseInstance.effectiveFootprint));
     expect(stackedCell).toHaveAttribute('data-stacking-top-footprint', formatFootprint(stacking.topInstance.effectiveFootprint));
     expect(stackedCell).toHaveAttribute('data-stacking-base-visibility', 'visible');
-    expect(stackedCell).toHaveAttribute('data-stacking-base-render', 'cell');
+    expect(stackedCell).toHaveAttribute('data-stacking-base-render', 'overlay');
     expect(stackedCell).toHaveAttribute('data-stacking-top-render', 'overlay');
-    expect(stackedSplit).toHaveClass('cell-stacking-split--base-visible');
+    expect(stackedSplit).toHaveClass('cell-stacking-split--base-hidden');
     expect(topSlot).toHaveAttribute('data-asset-id', stacking.relation.topAssetId);
     expect(topSlot).toHaveAttribute('data-top-image-visible', 'false');
     expect(topSlot?.querySelector('img')).toBeNull();
-    expect(stackedSplit?.querySelector('[data-stacking-role="base"]')).toHaveAttribute('data-asset-id', stacking.relation.baseAssetId);
-    expect(stackedSplit?.querySelector('[data-stacking-role="base"] img')).toHaveAttribute('src', expect.stringContaining(stacking.relation.baseAssetId));
+    expect(baseSlot).toHaveAttribute('data-asset-id', stacking.relation.baseAssetId);
+    expect(baseSlot).toHaveAttribute('data-base-image-visible', 'false');
+    expect(baseSlot?.querySelector('img')).toBeNull();
+    expect(baseOverlay.querySelector('img')).toHaveAttribute('src', expect.stringContaining(stacking.relation.baseAssetId));
     expect(topOverlay).toHaveAttribute('data-stacking-role', 'top');
     expect(topOverlay).toHaveAttribute('data-stacking-top-instance-id', stacking.relation.topInstanceId);
     expect(topOverlay).toHaveAttribute('data-effective-footprint', formatFootprint(stacking.topInstance.effectiveFootprint));

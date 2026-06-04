@@ -134,6 +134,14 @@ Production endpoint 是 `https://scene-api.pokokit.com/api/scenes/{id}`。Local 
 
 该 adapter 不属于 `packages/scene-core`，因为它依赖 browser URL、fetch 和环境判断。`scene-core` 继续只提供 DOM-free decode、recovery、schema、export summary 和规则派生。本次继续保持 `SceneDocument v1`，不新增 `scene_id` 字段、不保存 remote source、不保存 derived footprint/stacking/dimension state。
 
+### Approved Course Correction - 2026-06-04 Pokopia Data 独立项目抽取
+
+本 Architecture 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-pokopia-data-extraction.md` 增加 Epic 17。新的 data boundary 是：`../pokopia-data` 作为 Pokopia 基础数据 package，拥有 raw snapshots、normalized item/Pokemon records、translations、preferences、color metadata、body/furniture size metadata、asset manifests、schema validation 和 data generation scripts。
+
+`packages/scene-core` 从 `pokopia-data` 消费基础 item/Pokemon 数据，并把它适配为编辑器 catalog definitions。`scene-core` 仍拥有 `SceneDocument v1`、codec/recovery、editor category mapping、footprint/stacking overrides、occupancy、selectors 和 export summary。首轮不把 footprint/stacking 迁入 `pokopia-data`，避免把编辑器放置规则误升格为基础数据 contract。
+
+`../pokopia-color-pattern` 从 `pokopia-data` 消费 compact item、Pokemon、color 和 asset manifest 基础数据，并继续拥有 recommendation ranking、routing、SSG 和 color-pattern-specific UI projections。图片资产首轮只迁移 manifest/metadata 边界，runtime image copy/deploy 仍由各 consumer 负责。跨项目验证顺序应为 `pokopia-data` validate/build -> scene editor scene-core tests/build -> scene editor web build -> color pattern validate/build。
+
 另有 69 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
