@@ -78,6 +78,7 @@ export function AssetPicker({
     }),
   );
   const draggedCatalogAssetIdRef = useRef<string | null>(null);
+  const assetDragPreviewRef = useRef<HTMLElement | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewedAssetId, setViewedAssetId] = useState<string | null>(selectedAssetId);
   const selectedAsset = getAssetById(selectedAssetId);
@@ -88,6 +89,8 @@ export function AssetPicker({
       .filter((asset): asset is AssetDefinition => asset !== null),
     [assetStaging.stagedAssetIds],
   );
+  const hasStagedAssets = stagedAssets.length > 0;
+  const stagingExpanded = assetStaging.expanded && hasStagedAssets;
   const filterResult = useMemo(
     () => filterAssetCatalog(assetCatalog, filters, selectedPokemonKey, currentPage),
     [filters, currentPage, selectedPokemonKey],
@@ -200,20 +203,38 @@ export function AssetPicker({
     }));
   };
 
-  const handleAssetDragStart = (event: DragEvent<HTMLElement>, assetId: string) => {
+  const clearAssetDragPreview = () => {
+    assetDragPreviewRef.current?.remove();
+    assetDragPreviewRef.current = null;
+  };
+
+  const handleAssetDragStart = (event: DragEvent<HTMLElement>, asset: AssetDefinition) => {
     if (readOnly) {
       event.preventDefault();
       return;
     }
 
-    draggedCatalogAssetIdRef.current = assetId;
+    draggedCatalogAssetIdRef.current = asset.assetId;
     event.dataTransfer.effectAllowed = 'copy';
-    event.dataTransfer.setData(assetDragDataType, assetId);
-    event.dataTransfer.setData('text/plain', assetId);
+    event.dataTransfer.setData(assetDragDataType, asset.assetId);
+    event.dataTransfer.setData('text/plain', asset.assetId);
+
+    const assetDisplay = getAssetDisplay(asset, locale);
+    const dragPreview = createAssetDragPreviewElement(asset, assetDisplay.name);
+    clearAssetDragPreview();
+    assetDragPreviewRef.current = dragPreview;
+    document.body.append(dragPreview);
+    event.dataTransfer.setDragImage(dragPreview, dragPreview.offsetWidth / 2, dragPreview.offsetHeight / 2);
+    window.setTimeout(() => {
+      if (assetDragPreviewRef.current === dragPreview) {
+        clearAssetDragPreview();
+      }
+    }, 0);
   };
 
   const handleAssetDragEnd = () => {
     draggedCatalogAssetIdRef.current = null;
+    clearAssetDragPreview();
   };
 
   const handleAssetStagingDragOver = (event: DragEvent<HTMLElement>) => {
@@ -267,7 +288,7 @@ export function AssetPicker({
         draggable={source === 'catalog' && !readOnly}
         onDragStart={
           source === 'catalog'
-            ? (event) => handleAssetDragStart(event, asset.assetId)
+            ? (event) => handleAssetDragStart(event, asset)
             : undefined
         }
         onDragEnd={source === 'catalog' ? handleAssetDragEnd : undefined}
@@ -289,9 +310,6 @@ export function AssetPicker({
             <span className="asset-row__meta" id={ids.meta}>
               {formatAssetTags(assetDisplay.tags, locale)}
             </span>
-          </span>
-          <span className="asset-row__official-id">
-            No. {asset.officialId}
           </span>
         </button>
         <span className="asset-row__actions">
@@ -336,195 +354,190 @@ export function AssetPicker({
   };
 
   return (
-    <aside
+    <div
       className={[
-        'panel',
-        'asset-picker',
-        assetStaging.expanded ? 'asset-picker--staging-expanded' : '',
+        'asset-sidebar',
+        stagingExpanded ? 'asset-sidebar--staging-expanded' : '',
       ]
         .filter(Boolean)
         .join(' ')}
-      aria-label={t(locale, 'assetPicker')}
     >
-      <div className="asset-picker__header">
-        <h2>{t(locale, 'assets')}</h2>
-        <span
-          className="asset-count"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          aria-label={t(locale, 'assetResultCount')}
-        >
-          {t(locale, 'results', { count: filterResult.filteredCount })}
-        </span>
-      </div>
-      <label className="asset-search">
-        <span className="sr-only">{t(locale, 'searchAssets')}</span>
-        <input
-          aria-label={t(locale, 'searchAssets')}
-          placeholder={t(locale, 'searchPlaceholder')}
-          value={filters.query}
-          readOnly={readOnly}
-          onChange={(event) => updateFilters({ query: event.target.value })}
-        />
-      </label>
-      <fieldset className="asset-category-tabs" aria-label={t(locale, 'assetCategoryFilters')}>
-        <legend className="sr-only">{t(locale, 'category')}</legend>
-        {getCategoryFilterOptions(locale).map((option) => (
-          <button
-            type="button"
-            aria-pressed={filters.category === option.value}
-            disabled={readOnly}
-            onClick={() => updateFilters({ category: option.value })}
-            key={option.value}
-          >
-            {option.label}
-          </button>
-        ))}
-      </fieldset>
-      <PlacementSkillToggle
-        locale={locale}
-        asset={selectedAsset}
-        placementRequiresSkill={placementRequiresSkill}
-        onPlacementRequiresSkillChange={onPlacementRequiresSkillChange}
-        readOnly={readOnly}
-      />
       <section
         className={[
           'asset-staging',
-          assetStaging.expanded ? 'asset-staging--expanded' : '',
-          stagedAssets.length === 0 ? 'asset-staging--empty' : '',
+          stagingExpanded ? 'asset-staging--expanded' : '',
+          hasStagedAssets ? '' : 'asset-staging--empty',
         ]
           .filter(Boolean)
           .join(' ')}
         aria-label={t(locale, 'assetStaging')}
-        data-expanded={assetStaging.expanded}
+        data-expanded={stagingExpanded}
         data-staged-count={stagedAssets.length}
         data-read-only={readOnly}
         onDragOver={handleAssetStagingDragOver}
         onDrop={handleAssetStagingDrop}
       >
-        <div className="asset-staging__header">
-          <h3>{t(locale, 'assetStaging')}</h3>
+        {!hasStagedAssets ? (
+          <div className="asset-staging__placeholder">
+            {t(locale, 'noStagedAssets')}
+          </div>
+        ) : (
+          <>
+            <div className="asset-staging__header">
+              <span
+                className="asset-staging__count"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                aria-label={t(locale, 'assetStagingCountLabel')}
+              >
+                <span className="asset-staging__count-badge">{stagedAssets.length}</span>
+              </span>
+            </div>
+            {stagingExpanded ? (
+              <div
+                className="asset-staging__list"
+                aria-label={t(locale, 'stagedAssetList')}
+                data-asset-list="staging"
+              >
+                {stagedAssets.map((asset) => renderAssetRow(asset, 'staging'))}
+              </div>
+            ) : (
+              <ul className="asset-staging__recent" aria-label={t(locale, 'recentStagedAssets')}>
+                {stagedAssets.slice(0, 3).map((asset) => {
+                  const assetDisplay = getAssetDisplay(asset, locale);
+
+                  return (
+                    <li className="asset-staging-card" data-asset-id={asset.assetId} key={asset.assetId}>
+                      <button
+                        type="button"
+                        className="asset-staging-card__select"
+                        aria-label={assetDisplay.name}
+                        disabled={readOnly}
+                        onClick={() => handleAssetActivation(asset.assetId, 'single')}
+                      >
+                        <img src={asset.thumbnailUrl} alt="" className="asset-staging-card__thumb" />
+                        <span>{assetDisplay.name}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="asset-staging-card__remove"
+                        aria-label={t(locale, 'removeStagedAsset', { name: assetDisplay.name })}
+                        disabled={readOnly}
+                        onClick={() => removeStagedAsset(asset.assetId)}
+                      >
+                        x
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </>
+        )}
+        {hasStagedAssets ? (
+          <button
+            type="button"
+            className="asset-staging__toggle"
+            aria-expanded={stagingExpanded}
+            aria-label={stagingExpanded ? t(locale, 'collapseAssetStaging') : t(locale, 'expandAssetStaging')}
+            disabled={readOnly}
+            onClick={() => setAssetStagingExpanded(!stagingExpanded)}
+          >
+            <span aria-hidden="true">{stagingExpanded ? '^' : 'v'}</span>
+          </button>
+        ) : null}
+      </section>
+      <aside className="panel asset-picker" aria-label={t(locale, 'assetPicker')}>
+        <div className="asset-picker__header">
+          <h2>{t(locale, 'assets')}</h2>
           <span
-            className="asset-staging__count"
+            className="asset-count"
             role="status"
             aria-live="polite"
             aria-atomic="true"
-            aria-label={t(locale, 'assetStagingCountLabel')}
+            aria-label={t(locale, 'assetResultCount')}
           >
-            {t(locale, 'assetStagingCount', { count: stagedAssets.length })}
+            {t(locale, 'results', { count: filterResult.filteredCount })}
           </span>
         </div>
-        {assetStaging.expanded ? (
-          <div
-            className="asset-staging__list"
-            aria-label={t(locale, 'stagedAssetList')}
-            data-asset-list="staging"
-          >
-            {stagedAssets.length > 0 ? (
-              stagedAssets.map((asset) => renderAssetRow(asset, 'staging'))
-            ) : (
-              <AssetStagingEmptyState locale={locale} />
-            )}
-          </div>
-        ) : (
-          <ul className="asset-staging__recent" aria-label={t(locale, 'recentStagedAssets')}>
-            {stagedAssets.length > 0 ? (
-              stagedAssets.slice(0, 3).map((asset) => {
-                const assetDisplay = getAssetDisplay(asset, locale);
-
-                return (
-                  <li className="asset-staging-card" data-asset-id={asset.assetId} key={asset.assetId}>
-                    <button
-                      type="button"
-                      className="asset-staging-card__select"
-                      aria-label={assetDisplay.name}
-                      disabled={readOnly}
-                      onClick={() => handleAssetActivation(asset.assetId, 'single')}
-                    >
-                      <img src={asset.thumbnailUrl} alt="" className="asset-staging-card__thumb" />
-                      <span>{assetDisplay.name}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="asset-staging-card__remove"
-                      aria-label={t(locale, 'removeStagedAsset', { name: assetDisplay.name })}
-                      disabled={readOnly}
-                      onClick={() => removeStagedAsset(asset.assetId)}
-                    >
-                      x
-                    </button>
-                  </li>
-                );
-              })
-            ) : (
-              <li className="asset-staging__empty">
-                {t(locale, 'noStagedAssets')}
-              </li>
-            )}
-          </ul>
-        )}
-        <button
-          type="button"
-          className="asset-staging__toggle"
-          aria-expanded={assetStaging.expanded}
-          aria-label={assetStaging.expanded ? t(locale, 'collapseAssetStaging') : t(locale, 'expandAssetStaging')}
-          disabled={readOnly}
-          onClick={() => setAssetStagingExpanded(!assetStaging.expanded)}
-        >
-          <span aria-hidden="true">{assetStaging.expanded ? '^' : 'v'}</span>
-        </button>
-      </section>
-      <div
-        className={[
-          'asset-catalog-panel',
-          filterResult.pageCount > 1 ? 'asset-catalog-panel--paginated' : 'asset-catalog-panel--single-page',
-        ].join(' ')}
-        data-staging-expanded={assetStaging.expanded}
-      >
-        {filterResult.pageCount > 1 ? (
-          <nav className="asset-pagination" aria-label="Asset pagination">
-            <button
-              type="button"
-              aria-label={t(locale, 'previousAssetPage')}
-              disabled={readOnly || !filterResult.hasPreviousPage}
-              onClick={() => goToAssetPage(filterResult.currentPage - 1)}
+        {!stagingExpanded ? (
+          <>
+            <label className="asset-search">
+              <span className="sr-only">{t(locale, 'searchAssets')}</span>
+              <input
+                aria-label={t(locale, 'searchAssets')}
+                placeholder={t(locale, 'searchPlaceholder')}
+                value={filters.query}
+                readOnly={readOnly}
+                onChange={(event) => updateFilters({ query: event.target.value })}
+              />
+            </label>
+            <fieldset className="asset-category-tabs" aria-label={t(locale, 'assetCategoryFilters')}>
+              <legend className="sr-only">{t(locale, 'category')}</legend>
+              {getCategoryFilterOptions(locale).map((option) => (
+                <button
+                  type="button"
+                  aria-pressed={filters.category === option.value}
+                  disabled={readOnly}
+                  onClick={() => updateFilters({ category: option.value })}
+                  key={option.value}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </fieldset>
+            <PlacementSkillToggle
+              locale={locale}
+              asset={selectedAsset}
+              placementRequiresSkill={placementRequiresSkill}
+              onPlacementRequiresSkillChange={onPlacementRequiresSkillChange}
+              readOnly={readOnly}
+            />
+            <div
+              className={[
+                'asset-catalog-panel',
+                filterResult.pageCount > 1 ? 'asset-catalog-panel--paginated' : 'asset-catalog-panel--single-page',
+              ].join(' ')}
+              data-staging-expanded={assetStaging.expanded}
             >
-              &lt;
-            </button>
-            <span aria-label={t(locale, 'assetPageStatus')}>
-              {filterResult.currentPage} / {filterResult.pageCount}
-            </span>
-            <button
-              type="button"
-              aria-label={t(locale, 'nextAssetPage')}
-              disabled={readOnly || !filterResult.hasNextPage}
-              onClick={() => goToAssetPage(filterResult.currentPage + 1)}
-            >
-              &gt;
-            </button>
-          </nav>
+              {filterResult.pageCount > 1 ? (
+                <nav className="asset-pagination" aria-label="Asset pagination">
+                  <button
+                    type="button"
+                    aria-label={t(locale, 'previousAssetPage')}
+                    disabled={readOnly || !filterResult.hasPreviousPage}
+                    onClick={() => goToAssetPage(filterResult.currentPage - 1)}
+                  >
+                    &lt;
+                  </button>
+                  <span aria-label={t(locale, 'assetPageStatus')}>
+                    {filterResult.currentPage} / {filterResult.pageCount}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={t(locale, 'nextAssetPage')}
+                    disabled={readOnly || !filterResult.hasNextPage}
+                    onClick={() => goToAssetPage(filterResult.currentPage + 1)}
+                  >
+                    &gt;
+                  </button>
+                </nav>
+              ) : null}
+              <div className="asset-list" aria-label={t(locale, 'assetResults')} data-asset-list="catalog">
+                {filterResult.renderedAssets.map((asset) => renderAssetRow(asset, 'catalog'))}
+                {filterResult.filteredCount === 0 ? (
+                  <AssetEmptyState locale={locale} />
+                ) : null}
+              </div>
+            </div>
+          </>
         ) : null}
-        <div className="asset-list" aria-label={t(locale, 'assetResults')} data-asset-list="catalog">
-          {filterResult.renderedAssets.map((asset) => renderAssetRow(asset, 'catalog'))}
-          {filterResult.filteredCount === 0 ? (
-            <AssetEmptyState locale={locale} />
-          ) : null}
+        <div className="sr-only">
+          <AssetDetail locale={locale} asset={viewedAsset} selectedPokemonKey={selectedPokemonKey} />
         </div>
-      </div>
-      <div className="sr-only">
-        <AssetDetail locale={locale} asset={viewedAsset} selectedPokemonKey={selectedPokemonKey} />
-      </div>
-    </aside>
-  );
-}
-
-function AssetStagingEmptyState({ locale }: { locale: Locale }) {
-  return (
-    <section className="asset-staging__empty" aria-label={t(locale, 'noStagedAssets')}>
-      {t(locale, 'noStagedAssets')}
-    </section>
+      </aside>
+    </div>
   );
 }
 
@@ -541,16 +554,23 @@ function RotateAssetIcon() {
   );
 }
 
-function isAssetApplicationKey(event: KeyboardEvent<HTMLButtonElement>): boolean {
-  const normalizedKey = event.key.toLowerCase();
+function createAssetDragPreviewElement(asset: AssetDefinition, assetName: string): HTMLElement {
+  const dragPreview = document.createElement('div');
+  dragPreview.className = 'asset-drag-preview';
+  dragPreview.setAttribute('aria-hidden', 'true');
 
-  return (
-    normalizedKey === 'arrowup' ||
-    normalizedKey === 'arrowdown' ||
-    normalizedKey === 'enter' ||
-    normalizedKey === ' ' ||
-    normalizedKey === 'spacebar'
-  );
+  const thumbnail = document.createElement('img');
+  thumbnail.src = asset.thumbnailUrl;
+  thumbnail.alt = '';
+  thumbnail.className = 'asset-drag-preview__thumb';
+
+  const label = document.createElement('span');
+  label.className = 'asset-drag-preview__label';
+  label.textContent = assetName;
+
+  dragPreview.append(thumbnail, label);
+
+  return dragPreview;
 }
 
 function AssetEmptyState({ locale }: { locale: Locale }) {
@@ -657,6 +677,18 @@ function focusSiblingAsset(currentButton: HTMLButtonElement, offset: number): vo
 
   const nextIndex = (currentIndex + offset + assetButtons.length) % assetButtons.length;
   assetButtons[nextIndex]?.focus();
+}
+
+function isAssetApplicationKey(event: KeyboardEvent<HTMLButtonElement>): boolean {
+  const normalizedKey = event.key.toLowerCase();
+
+  return (
+    normalizedKey === 'arrowup' ||
+    normalizedKey === 'arrowdown' ||
+    normalizedKey === 'enter' ||
+    normalizedKey === ' ' ||
+    normalizedKey === 'spacebar'
+  );
 }
 
 function getCategoryFilterOptions(locale: Locale): readonly { value: AssetCategoryFilter; label: string }[] {

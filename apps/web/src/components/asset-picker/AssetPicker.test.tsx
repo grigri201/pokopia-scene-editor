@@ -34,6 +34,12 @@ describe('AssetPicker', () => {
       />,
     );
 
+    const emptyStaging = screen.getByLabelText('素材暂存区');
+    expect(emptyStaging).toHaveClass('asset-staging--empty');
+    expect(within(emptyStaging).getByText('拖动素材放进背包')).toBeVisible();
+    expect(within(emptyStaging).queryByRole('heading', { name: '素材暂存区' })).not.toBeInTheDocument();
+    expect(within(emptyStaging).queryByLabelText('素材暂存数量')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '展开素材暂存区' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '素材' })).toBeVisible();
     expect(screen.getByLabelText('Asset result count')).toHaveTextContent(`${totalAssetCount} results`);
     expect(screen.getByLabelText('Asset page status')).toHaveTextContent(`1 / ${totalAssetPages}`);
@@ -44,11 +50,10 @@ describe('AssetPicker', () => {
     expect(screen.queryByLabelText('待放置素材控制')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '旋转待放置素材 90 度' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '清除筛选' })).not.toBeInTheDocument();
-    expect(getRenderedOfficialIds()).toEqual(['001', '002', '003', '004', '005', '006', '007', '008', '009', '010']);
     expect(getAssetSelectButton('pecha-berry')).toHaveAttribute('aria-pressed', 'true');
     expect(getAssetRow('pecha-berry')).toHaveAttribute('data-selection-mode', 'single');
     expect(getAssetRow('pecha-berry')).not.toHaveClass('asset-row--continuous');
-    expect(getAssetSelectButton('pecha-berry')).toHaveTextContent('No. 005');
+    expect(getAssetSelectButton('pecha-berry')).not.toHaveTextContent('No.');
     expect(getAssetSelectButton('pecha-berry')).toHaveTextContent('桃桃果');
     expect(getAssetSelectButton('pecha-berry')).not.toHaveTextContent('Pecha Berry');
     expect(getAssetSelectButton('pecha-berry')).toHaveTextContent('食物');
@@ -353,7 +358,7 @@ describe('AssetPicker', () => {
       stagedAssetIds: [...stagedAssetIds].reverse(),
       expanded: false,
     });
-    expect(screen.getByLabelText('素材暂存数量')).toHaveTextContent('4 个暂存');
+    expect(screen.getByLabelText('素材暂存数量')).toHaveTextContent('4');
     expect(getCollapsedStagedAssetIds()).toEqual([
       stagedAssetIds[3],
       stagedAssetIds[2],
@@ -417,8 +422,13 @@ describe('AssetPicker', () => {
     fireEvent.click(screen.getByRole('button', { name: '展开素材暂存区' }));
 
     expect(screen.getByLabelText('素材暂存区')).toHaveClass('asset-staging--expanded');
-    expect(screen.getByRole('complementary', { name: 'Asset picker' })).toHaveClass('asset-picker--staging-expanded');
-    expect(document.querySelector('.asset-catalog-panel')).toHaveAttribute('data-staging-expanded', 'true');
+    expect(document.querySelector('.asset-sidebar')).toHaveClass('asset-sidebar--staging-expanded');
+    expect(screen.getByRole('complementary', { name: 'Asset picker' })).not.toContainElement(screen.getByLabelText('素材暂存区'));
+    expect(screen.getByRole('complementary', { name: 'Asset picker' })).toHaveTextContent(/素材/);
+    expect(screen.getByLabelText('Asset result count')).toHaveTextContent(/\d+ results/);
+    expect(document.querySelector('.asset-catalog-panel')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Search assets')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Asset results')).not.toBeInTheDocument();
     expect(readAssetStagingPreferencesFromStorage(window.localStorage)).toEqual({
       schemaVersion: 1,
       stagedAssetIds: ['wooden-bench', 'pecha-berry'],
@@ -544,7 +554,7 @@ describe('AssetPicker', () => {
     expect(getCollapsedStagedAssetIds()).toEqual(['pecha-berry']);
     fireEvent.click(getCollapsedStagedCard('pecha-berry').querySelector<HTMLButtonElement>('.asset-staging-card__select')!);
     fireEvent.click(getCollapsedStagedCard('pecha-berry').querySelector<HTMLButtonElement>('.asset-staging-card__remove')!);
-    dragAssetToStaging(assetCatalog[1].assetId);
+    dragAssetToStaging(assetCatalog[1].assetId, { expectDragImage: false });
 
     expect(onAssetSelect).not.toHaveBeenCalled();
     expect(window.localStorage.getItem(assetStagingPreferencesStorageKey)).toBe(rawStagingPreferences);
@@ -769,14 +779,22 @@ function getExpandedStagedAssetIds(): string[] {
   ).map((element) => element.dataset.assetId ?? '');
 }
 
-function dragAssetToStaging(assetId: string): void {
+function dragAssetToStaging(assetId: string, options: { expectDragImage?: boolean } = {}): void {
   const dataTransfer = createDataTransferDouble();
   fireEvent.dragStart(getAssetRow(assetId), { dataTransfer });
+  if (options.expectDragImage !== false) {
+    expect(dataTransfer.setDragImage).toHaveBeenCalledWith(
+      expect.objectContaining({ className: 'asset-drag-preview' }),
+      expect.any(Number),
+      expect.any(Number),
+    );
+  }
   fireEvent.drop(screen.getByLabelText('素材暂存区'), { dataTransfer });
 }
 
-function createDataTransferDouble(): DataTransfer {
+function createDataTransferDouble(): DataTransfer & { setDragImage: ReturnType<typeof createSetDragImageMock> } {
   const payload = new Map<string, string>();
+  const setDragImage = createSetDragImageMock();
 
   return {
     dropEffect: 'none',
@@ -797,18 +815,16 @@ function createDataTransferDouble(): DataTransfer {
     setData: (format: string, data: string) => {
       payload.set(format, data);
     },
-    setDragImage: () => undefined,
+    setDragImage,
   };
+}
+
+function createSetDragImageMock() {
+  return vi.fn((_image: Element, _x: number, _y: number): void => undefined);
 }
 
 function queryAssetSelectButton(assetId: string): HTMLButtonElement | null {
   return screen
     .getByLabelText('Asset results')
     .querySelector<HTMLButtonElement>(`[data-asset-id="${assetId}"] .asset-select-button`);
-}
-
-function getRenderedOfficialIds(): string[] {
-  return within(screen.getByLabelText('Asset results'))
-    .getAllByText(/No\. \d+/)
-    .map((element) => element.textContent?.replace('No. ', '') ?? '');
 }

@@ -252,32 +252,33 @@ test('keeps expanded asset staging layout usable on desktop and tablet', async (
       await page.goto('/');
 
       const assetPicker = page.getByRole('complementary', { name: 'Asset picker' });
-      await expect(assetPicker).toHaveClass(/asset-picker--staging-expanded/);
+      await expect(page.locator('.asset-sidebar')).toHaveClass(/asset-sidebar--staging-expanded/);
       await expect(page.getByRole('region', { name: '素材暂存区' })).toHaveAttribute('data-expanded', 'true');
+      await expect(assetPicker.getByRole('region', { name: '素材暂存区' })).toHaveCount(0);
       await expect(page.getByLabel('全部暂存素材').locator('[data-asset-source="staging"]')).toHaveCount(smokeStagedAssetIds.length);
-      await expect(page.getByLabel('Asset results')).toBeVisible();
-      await expect(page.getByLabel('Asset page status')).toBeVisible();
+      await expect(assetPicker.getByRole('heading', { name: '素材' })).toBeVisible();
+      await expect(assetPicker.getByLabel('Asset result count')).toBeVisible();
+      await expect(page.getByLabel('Asset results')).toHaveCount(0);
+      await expect(page.getByLabel('Asset page status')).toHaveCount(0);
+      await expect(page.getByLabel('Search assets')).toHaveCount(0);
+      await expect(page.getByLabel('Asset category filters')).toHaveCount(0);
 
       await expect
         .poll(() => getExpandedAssetStagingLayoutMetrics(page))
         .toMatchObject({
-          stagingBeforeCatalog: true,
+          assetCatalogHidden: true,
+          assetControlsHidden: true,
+          assetPickerHeaderVisible: true,
           pickerClearOfCanvas: true,
           pickerClearOfLeftPanel: true,
           pickerClearOfSelectionInspector: true,
           pickerClearOfCanvasBottomPanels: true,
-          paginationClearOfStaging: true,
-          paginationVisible: true,
-          searchClearOfStaging: true,
-          filtersClearOfStaging: true,
-          assetListScrollable: true,
+          stagingBeforePicker: true,
           stagingListScrollable: true,
         });
-      const requiresStrictStagingRatio = viewport.label === 'desktop' || viewport.label === 'tablet';
-      const minimumStagingToCatalogRatio = requiresStrictStagingRatio ? 2.75 : 1.25;
       await expect
-        .poll(async () => (await getExpandedAssetStagingLayoutMetrics(page)).stagingToCatalogRatio)
-        .toBeGreaterThan(minimumStagingToCatalogRatio);
+        .poll(async () => (await getExpandedAssetStagingLayoutMetrics(page)).stagingToPickerRatio)
+        .toBeGreaterThan(4);
     });
   }
 });
@@ -1314,18 +1315,16 @@ async function getExpectedExportPngSize(preview: Locator): Promise<{ height: num
 async function getExpandedAssetStagingLayoutMetrics(
   page: Page,
 ): Promise<{
-  assetListScrollable: boolean;
-  filtersClearOfStaging: boolean;
-  paginationClearOfStaging: boolean;
-  paginationVisible: boolean;
+  assetCatalogHidden: boolean;
+  assetControlsHidden: boolean;
+  assetPickerHeaderVisible: boolean;
   pickerClearOfCanvasBottomPanels: boolean;
   pickerClearOfCanvas: boolean;
   pickerClearOfLeftPanel: boolean;
   pickerClearOfSelectionInspector: boolean;
-  searchClearOfStaging: boolean;
-  stagingBeforeCatalog: boolean;
+  stagingBeforePicker: boolean;
   stagingListScrollable: boolean;
-  stagingToCatalogRatio: number;
+  stagingToPickerRatio: number;
 }> {
   return page.evaluate(() => {
     const getRect = (selector: string): DOMRect | null =>
@@ -1343,32 +1342,31 @@ async function getExpandedAssetStagingLayoutMetrics(
       );
     };
 
-    const picker = getRect('.asset-picker');
+    const picker = getRect('.asset-sidebar');
     const staging = getRect('.asset-staging');
-    const catalog = getRect('.asset-catalog-panel');
-    const search = getRect('.asset-search');
-    const filters = getRect('.asset-category-tabs');
+    const assetPicker = getRect('.asset-picker');
+    const assetPickerHeader = getRect('.asset-picker__header');
     const canvas = getRect('.scene-canvas');
     const leftPanel = getRect('.workbench-left');
-    const pagination = getRect('.asset-pagination');
     const selectionInspector = getRect('.selection-inspector');
     const canvasBottomPanels = getRect('.canvas-bottom-panels');
-    const assetList = document.querySelector<HTMLElement>('.asset-list');
+    const catalog = document.querySelector<HTMLElement>('.asset-catalog-panel');
+    const search = document.querySelector<HTMLElement>('.asset-search');
+    const filters = document.querySelector<HTMLElement>('.asset-category-tabs');
+    const pagination = document.querySelector<HTMLElement>('.asset-pagination');
     const stagingList = document.querySelector<HTMLElement>('.asset-staging__list');
 
     return {
-      assetListScrollable: Boolean(assetList && assetList.scrollHeight > assetList.clientHeight + 1),
-      filtersClearOfStaging: !overlaps(filters, staging),
-      paginationClearOfStaging: !overlaps(pagination, staging),
-      paginationVisible: Boolean(pagination && pagination.width > 0 && pagination.height > 0),
+      assetCatalogHidden: !catalog,
+      assetControlsHidden: !search && !filters && !pagination,
+      assetPickerHeaderVisible: Boolean(assetPickerHeader && assetPickerHeader.width > 0 && assetPickerHeader.height > 0),
       pickerClearOfCanvasBottomPanels: !overlaps(picker, canvasBottomPanels),
       pickerClearOfCanvas: !overlaps(picker, canvas),
       pickerClearOfLeftPanel: !overlaps(picker, leftPanel),
       pickerClearOfSelectionInspector: !overlaps(picker, selectionInspector),
-      searchClearOfStaging: !overlaps(search, staging),
-      stagingBeforeCatalog: Boolean(staging && catalog && staging.bottom <= catalog.top + 1),
+      stagingBeforePicker: Boolean(staging && assetPicker && staging.bottom <= assetPicker.top + 1),
       stagingListScrollable: Boolean(stagingList && stagingList.scrollHeight > stagingList.clientHeight + 1),
-      stagingToCatalogRatio: staging && catalog && catalog.height > 0 ? staging.height / catalog.height : 0,
+      stagingToPickerRatio: staging && assetPicker && assetPicker.height > 0 ? staging.height / assetPicker.height : 0,
     };
   });
 }
