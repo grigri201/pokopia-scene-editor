@@ -33,11 +33,17 @@ describe('static SEO metadata', () => {
     expect(faviconSvg).toContain('aria-label="Pokopia Scene Editor"');
   });
 
-  it('publishes static cache rules for runtime art and UI artwork', () => {
-    expect(staticHeaders).toContain('/assets/pokopia_image_sources/*');
-    expect(staticHeaders).toContain('Cache-Control: public, max-age=31536000, immutable');
-    expect(staticHeaders).toContain('/assets/asset-thumbnails/*');
+  it('publishes immutable static cache rules for material artwork', () => {
+    expect(staticHeaders).toMatch(
+      /\/assets\/pokopia_image_sources\/\*\n\s+Cache-Control: public, max-age=31536000, immutable/,
+    );
+    expect(staticHeaders).toMatch(
+      /\/assets\/asset-thumbnails\/\*\n\s+Cache-Control: public, max-age=31536000, immutable/,
+    );
+  });
+
+  it('keeps the favicon revalidating after a short browser cache window', () => {
     expect(staticHeaders).toContain('/favicon.svg');
-    expect(staticHeaders).toContain('Cache-Control: public, max-age=604800, must-revalidate');
+    expect(staticHeaders).toMatch(/\/favicon\.svg\n\s+Cache-Control: public, max-age=604800, must-revalidate/);
   });
 });
