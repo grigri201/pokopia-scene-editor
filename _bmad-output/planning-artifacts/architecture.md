@@ -44,12 +44,12 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 当前架构基线覆盖 108 条 Functional Requirements，主要分为：
 
 - Scene & Canvas Model：`SceneDocument v1` 通过 `sceneSize`、`canvasSize` 和 `outerPadding` 表达尺寸；新建场景默认 15x15 主体区、17x17 实际编辑画布、外围 1 圈装饰区，legacy 7x7 数据按自身尺寸恢复。
-- Open Design Workbench Context：顶部 Pokemon/场景名/保存状态、右侧浮动素材栏、中央尺寸驱动画布、左侧建筑层面板和左下双预览检查器。
+- Open Design Workbench Context：顶部预览/导出主入口与文件菜单、右侧素材浏览栏、中央尺寸驱动画布、左侧建筑层主面板和底部紧凑选择检查器；预览/导出通过独立模式承载。
 - Asset Placement & Editing：素材选择、放置、删除、替换、移动、跨建筑层移动、朝向、染色、备注、footprint 占用、跨层阻塞规则和受控承载/叠放规则。
 - Building Level Management：默认 0/1/2 建筑层，层号递增，数据按 0 层到 n 层组织，UI 按 L2/L1/L0 这类高层到低层顺序展示，支持创建、删除、重命名、复制、隐藏、显示、锁定、解锁和当前编辑层。
 - Asset Catalog & Selection：素材列表、缩略图、名称、分类、标签、适用区域、官方 `No.` 素材 ID、Pokemon 喜好、footprint、搜索、筛选、技能条件和素材详情。
 - Ditto Skill / Instance Visual State：放置前默认技能状态、放置后实例级技能标记、`树叶`/`耕地`/`储水` 技能词表、一字技能标签、可染色状态、非默认旋转标记，以及画布/预览标识。
-- Preview：左下 Preview Inspector 同屏展示俯视图和正视图、完整 7x7 展示、主体边界、当前层/全部可见层、网格和技能标记开关。
+- Preview：独立预览/导出模式通过 scene-derived ExportPreview 内容展示整体素材清单、逐层图形、逐层素材清单和层备注；desktop 使用 modal，mobile 使用 inline preview。
 - Properties, Save & Recovery：上下文/检查器字段、保存/自动保存、重新打开、恢复校验、SceneDocument 序列化和字段级错误提示；显式 JSON 导出/导入 UI 后置。
 - Image Export：从 SceneDocument、asset catalog 和 preview/export selectors 派生图片导出摘要、导出预览和图片下载；不修改 scene，不写入 storage。
 - Scene Worker, MCP & Codex Skill：pnpm workspace monorepo、共享 `scene-core`、无状态 Cloudflare Worker HTTP API、Streamable HTTP MCP server、repo-scoped Codex skill 和 Worker/MCP/skill release gates。
@@ -69,7 +69,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - Asset catalog 可保留适用区域元数据和筛选，但 placement command 不得用适用区域阻断放置。
 - 同一建筑层同一坐标不支持堆叠；使用替换/删除语义。
 - 所有素材均支持 `rotationDegrees: 0 | 90 | 180 | 270`，不再维护 canRotate 分支。
-- Preview Inspector 固定不显示网格、主体边界和技能标记，也不持久化这类显示选项。
+- 独立预览/导出模式固定从 SceneDocument 派生，不持久化预览显示选项或 export summary。
 - Mobile View-only Mode 下应用级 keyboard handler 必须 no-op；桌面/平板键盘快捷操作可保留但不是 MVP 强制要求。
 
 ### Approved Course Correction - 2026-05-22
@@ -148,7 +148,15 @@ Production endpoint 是 `https://scene-api.pokokit.com/api/scenes/{id}`。Local 
 
 实现应优先在 `apps/web/src/components/asset-picker/` 内拆分可复用的 asset row/card presentation，以便素材结果区和展开后的暂存区共享视觉与选择/旋转 wiring。`apps/web/src/components/app-shell/` 只负责传入当前 selected asset、placement mode、rotation handlers、desktop read-only guard 和 mobile absence guard。拖拽进入暂存区、删除暂存项和展开/收起可以写入本地 UI 存储；不得 dispatch scene write command，也不得触发 scene autosave。
 
-另有 69 条 Non-Functional Requirements，核心架构约束包括：
+### Approved Course Correction - 2026-06-05 Desktop 工作台 UI/UX 降噪
+
+本 Architecture 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-05-desktop-workbench-decluttering.md` 增加 Epic 19。Desktop 工作台的 active 架构方向从“所有区域常驻展开”调整为“当前建筑层编辑优先”：`apps/web/src/components/app-shell/` 负责顶部文件/分享菜单、独立预览模式入口、场景摘要展开、底部详情展开、素材详情展开和下层影子开关等 UI-only wiring；`pokemon-scene-controls/` 或新 scene summary wrapper 负责摘要/展开表单；`building-level-panel/` 保留 Epic 16 整行拖拽排序；`selection-inspector/` 拆分紧凑快捷栏和可展开详情；`asset-picker/` 把素材详情从 sr-only 改为可见的按需 surface。
+
+旧预览面板不再作为 desktop 编辑工作台常驻组件。Epic 19 实施时应清理该旧 component surface、测试、样式和 i18n 引用，并把 docs/checklist 验收改为独立预览/导出模式。预览内容继续由 `export-preview/` 与 `mobile-preview-mode.tsx` 共享的 scene-derived content 承载；预览/导出不得写 SceneDocument、scene storage、UI preferences 中的 scene facts 或 export summary cache。
+
+`scene-canvas/` 可接收或内部派生 lower-layer ghost projection，用于渲染直接下一层半透明素材参考。Ghost projection 只读取当前 `SceneDocument` 和 asset catalog，按 lower layer footprint、rotation 和 dye 渲染；不改变 `getAssetPlacementPreview()`、occupancy、stacking、replacement confirmation、height blocking 或 command-layer scene writes。点击 ghost 所在格仍走当前层 pointer/keyboard 逻辑。下层影子开关只属于 UI preferences/localStorage，不属于 `SceneDocument v1`、PSE 字符串、export payload、export summary 或 `packages/scene-core` 持久契约。
+
+另有 72 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
 - 预览切换需要在 300ms 内完成首个可见更新；素材搜索筛选 1000 个素材以内需要在 200ms 内返回可见结果。
@@ -161,8 +169,9 @@ Production endpoint 是 `https://scene-api.pokokit.com/api/scenes/{id}`。Local 
 - 基础可访问性目标是 WCAG 2.2 AA，关键状态不能只依赖颜色表达。
 - 1280px 及以上使用完整 Open Design 浮动工作台，768px 以下进入 Mobile Preview Mode；普通编辑命令不得写 scene，只有显式 import flow 可替换本地 scene storage。
 - 默认 17x17 画布可以使用内部缩放、滚动或稳定压缩，但不得破坏格子固定宽高比、坐标可读性、主/外围区语义或移动端只读边界。
+- Desktop 降噪 UI-only state 必须与 scene saved/autosave storage 分离；文件菜单、场景摘要展开、底部详情展开、素材详情和下层影子开关不得进入 SceneDocument、PSE 字符串或 export payload。
 
-Open Design UI 确认了新的工作台形态。架构上应支持一个桌面优先的单页工作台：顶部左侧 Pokemon/场景名/保存状态，右侧浮动 Asset Picker，中央尺寸驱动画布（新建场景默认 17x17），左侧 Building Level Panel，左下 Preview Inspector 同时展示正视图和俯视图。动态 Pokemon 主题只影响外层 shell 和少量强调色，不允许覆盖主体区、外围区、当前层、选中格、技能标记、锁定层、隐藏、警告和错误状态等语义状态色。
+Open Design UI 的当前工作台形态已进入降噪阶段。架构上应支持一个桌面优先的单页工作台：顶部收敛为预览/导出主入口、语言选择和低频文件/危险操作菜单；左侧默认是场景摘要 + Building Level 主面板；中央尺寸驱动画布可显示 UI-only 下层影子；底部是稳定高度的 Selection Inspector 快捷栏和可展开详情；右侧 Asset Picker 以浏览为主并按需打开素材详情。动态 Pokemon 主题只影响外层 shell 和少量强调色，不允许覆盖主体区、外围区、当前层、选中格、技能标记、下层影子、警告和错误状态等语义状态色。
 
 关键架构结论：
 
@@ -196,7 +205,7 @@ Open Design UI 确认了新的工作台形态。架构上应支持一个桌面�
 
 **Vite + React + TypeScript (`react-ts`)**
 
-适合作为默认方案。它提供快速开发服务器、生产构建、React 组件模型和 TypeScript 类型检查，同时保持客户端 SPA 架构简单。适合实现 Open Design 浮动工作台、画布组件、建筑层列表、选中检查器、双预览检查器、command 层和只读模式权限边界。
+适合作为默认方案。它提供快速开发服务器、生产构建、React 组件模型和 TypeScript 类型检查，同时保持客户端 SPA 架构简单。适合实现 Open Design 工作台、画布组件、建筑层列表、选中检查器、独立预览/导出、command 层和只读模式权限边界。
 
 **Vite + Vanilla TypeScript (`vanilla-ts`)**
 
@@ -232,7 +241,7 @@ npm create vite@latest . -- --template react-ts --no-interactive
 
 **UI Framework**
 
-使用 React 构建编辑器组件树。核心组件应围绕 Open Design UI 拆分为 Dynamic Pokemon Theme Shell、Pokemon Scene Controls、Scene Canvas、Asset Picker、Building Level Panel、Selection Inspector、Preview Inspector 和 Recovery Validator。
+使用 React 构建编辑器组件树。核心组件应围绕 Open Design UI 拆分为 Dynamic Pokemon Theme Shell、Pokemon Scene Controls、Scene Canvas、Asset Picker、Building Level Panel、Selection Inspector、Export Preview、Mobile Preview Mode 和 Recovery Validator。
 
 **Build Tooling**
 
@@ -461,7 +470,7 @@ Epic 7/8 新增无状态 service layer 与 shared domain rules：
 - Asset Picker reads asset catalog + selected asset state
 - Building Level Panel reads building levels + current level
 - Selection Inspector reads selected instance and current building level notes derived from scene
-- Preview Inspector derives front/top previews from scene and layer range
+- Independent Preview / Export derives overall materials, per-layer graphics, per-layer materials and layer notes from scene export summary
 - Pokemon Scene Controls read selected Pokemon and scene name
 - Recovery Validator reads schema validation result
 - Image Export Preview reads export summary/render data, including layer notes, derived from SceneDocument and asset catalog
@@ -554,7 +563,7 @@ Completed MVP baseline sequence:
 3. Implement pure domain functions: area calculation, level ordering, selected instance lookup and serialization.
 4. Implement command layer with `interactionMode`, autosave boundaries and recovery validation.
 5. Build Scene Canvas, Asset Picker, Building Level Panel and Selection Inspector against the command layer.
-6. Add Preview Inspector with top-view and basic front-view derived from level order.
+6. Add independent preview/export content with scene-derived overall and per-layer summaries.
 7. Add Recovery Validator, scene storage/serializer and safe text rendering.
 8. Add responsive read-only mode and Playwright coverage.
 
@@ -943,9 +952,9 @@ pokopia-scene-editor/
 │   │   ├── selection-inspector/
 │   │   │   ├── selection-inspector.tsx
 │   │   │   └── selection-inspector.test.tsx
-│   │   ├── preview-inspector/
-│   │   │   ├── preview-inspector.tsx
-│   │   │   └── preview-inspector.test.tsx
+│   │   ├── export-preview/
+│   │   │   ├── export-preview.tsx
+│   │   │   └── export-preview.test.tsx
 │   │   ├── pokemon-scene-controls/
 │   │   │   ├── pokemon-scene-controls.tsx
 │   │   │   └── pokemon-scene-controls.test.tsx
@@ -1005,13 +1014,13 @@ React components 负责 UI rendering、local UI state 和 dispatching commands�
 
 组件边界：
 
-- `app-shell/`：Open Design 工作台 layout、interaction mode wiring。
-- `pokemon-scene-controls/`：顶部 Pokemon 选择和场景 `Name`。
-- `scene-canvas/`：7x7 canvas rendering、hover/selection UI、pointer handler 和桌面可选 keyboard handler，但写操作必须 dispatch command；mobile keyboard handler no-op。
-- `asset-picker/`：右侧浮动素材搜索、分类/喜好/区域/技能筛选、素材暂存区、暂存区拖入/删除/展开状态、选中素材和本次放置默认技能状态。暂存区只在 desktop/tablet edit surface 渲染，保存 UI-only `assetId` 顺序和展开状态，并通过 UI preferences 或独立 localStorage key 持久化；展开后复用素材结果行/card presentation，点击/双击选择和旋转仍通过既有 `onAssetSelect`、`onPlacementRotationChange` callback 进入 AppShell，不得直接修改 `SceneDocument`。
+- `app-shell/`：Desktop 降噪工作台 layout、interaction mode wiring、文件/分享菜单、独立预览模式入口和 UI-only preference wiring。
+- `pokemon-scene-controls/`：场景摘要与展开后的 Pokemon 选择、场景 `Name` 和画布尺寸控件；摘要展开状态不得写 SceneDocument。
+- `scene-canvas/`：17x17/legacy canvas rendering、hover/selection UI、pointer handler、桌面可选 keyboard handler 和 UI-only lower-layer ghost projection，但写操作必须 dispatch command；mobile keyboard handler no-op。Ghost projection 不参与 occupancy、stacking、replacement confirmation、height blocking 或 placement preview 计算。
+- `asset-picker/`：右侧素材搜索、分类/喜好/区域/技能筛选、素材暂存区、素材详情按需 surface、暂存区拖入/删除/展开状态、选中素材和本次放置默认技能状态。暂存区和素材详情状态只在 desktop/tablet edit surface 渲染，保存 UI-only `assetId` 顺序、展开状态或 viewed asset state，并通过 UI preferences 或独立 localStorage key 持久化；点击/双击选择和旋转仍通过既有 `onAssetSelect`、`onPlacementRotationChange` callback 进入 AppShell，不得直接修改 `SceneDocument`。
 - `building-level-panel/`：左侧建筑层列表、当前层、创建/删除/复制/重命名/排序 command entry；视觉顺序高层到低层，数据顺序仍为 0 层到 n 层。拖动中的目标顺序可以作为 component-local preview state；drop 前不得写入 `SceneDocument` 或 autosave。Drop 后排序 command 重排 `buildingLevels[].levelNumber`，保持 level id 和所有引用稳定。
-- `selection-inspector/`：选中实例字段展示和字段 edit command entry。
-- `preview-inspector/`：左下正视图/俯视图、当前层/全部层；不提供网格/边界/技能标记显示选项。
+- `selection-inspector/`：当前选择快捷栏、可展开详情区、选中实例字段展示、层备注和字段 edit command entry。快捷栏高度应稳定，详情展开状态不得写 SceneDocument。
+- `export-preview/`：独立 preview/export mode 的共享内容和 desktop modal 容器；继续与 `mobile-preview-mode.tsx` 共用 scene-derived export content。
 - `recovery-validator/`：保存/恢复校验错误摘要和 recovery action。
 
 **Service Boundaries**
@@ -1034,17 +1043,17 @@ MVP web app 不使用 service/repository/database layer。跨组件业务操作�
 - FR1-FR7 Scene & Canvas Model：`packages/scene-core/src/domain/scene/`、`apps/web/src/components/scene-canvas/`。
 - FR8-FR18 Asset Placement & Editing：`packages/scene-core/src/domain/scene/`、`apps/web/src/state/`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/selection-inspector/`；FR13/14/15/17/18 已从 MVP 删除。
 - FR19-FR27 Building Level Management：`packages/scene-core/src/domain/scene/levels.ts`、`apps/web/src/state/`、`apps/web/src/components/building-level-panel/`；FR25/26 已从 MVP 删除。
-- FR28-FR35, FR59, and FR124-FR130 Asset Catalog & Selection：`packages/scene-core/src/domain/assets/`、`apps/web/src/components/asset-picker/`、`apps/web/src/io/` UI preference storage。素材暂存区只消费 catalog `assetId` 和 presentation 数据，不改变 catalog source、SceneDocument schema、scene string codec 或 export summary。
+- FR28-FR35, FR59, FR124-FR130, and FR135 Asset Catalog & Selection：`packages/scene-core/src/domain/assets/`、`apps/web/src/components/asset-picker/`、`apps/web/src/io/` UI preference storage。素材暂存区和素材详情只消费 catalog `assetId`、metadata 和 presentation 数据，不改变 catalog source、SceneDocument schema、scene string codec 或 export summary。
 - FR36-FR40 and FR60-FR62 Ditto Skill / Instance Visual State：`apps/web/src/state/`、`packages/scene-core/src/domain/scene/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/scene-canvas/`。
-- FR41-FR47 and FR63 Preview：`packages/scene-core/src/domain/scene/selectors.ts`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/scene-canvas/`；FR43/47 已从 MVP 删除。
+- FR41-FR47, FR63, and FR136 Preview：`packages/scene-core/src/domain/scene/selectors.ts`、`apps/web/src/components/export-preview/`、`apps/web/src/components/app-shell/mobile-preview-mode.tsx` 和独立 preview/export mode；FR43/47 已从 MVP 删除，旧预览面板 surface 在 Epic 19 中清理。
 - FR48-FR49 Properties：`apps/web/src/components/selection-inspector/`、`packages/scene-core/src/domain/scene/selectors.ts`、`apps/web/src/state/`。
 - FR50-FR55 Save & Recovery：`packages/scene-core/src/io/scene-schema.ts`、`scene-serializer.ts`、`recover-scene.ts`、`apps/web/src/io/scene-storage.ts`、`apps/web/src/components/recovery-validator/`。
-- FR56-FR58 Open Design Workbench Context：`apps/web/src/components/app-shell/`、`apps/web/src/components/pokemon-scene-controls/`、`apps/web/src/theme/`、`apps/web/src/state/`。
+- FR56-FR58, FR131-FR134, and FR138 Open Design Workbench Context：`apps/web/src/components/app-shell/`、`apps/web/src/components/pokemon-scene-controls/`、`apps/web/src/components/building-level-panel/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/theme/`、`apps/web/src/io/ui-preferences.ts` 和 `apps/web/src/state/`。
 - FR69-FR77 Scene Worker, MCP & Codex Skill：`packages/scene-core/`、`apps/worker/src/routes/`、`apps/worker/src/mcp.ts`、`.agents/skills/pokopia-scene-worker/`、root `package.json` pnpm scripts、`pnpm-workspace.yaml` 和 `apps/worker/wrangler.toml`。
-- FR78-FR86 Asset Footprint & Occupancy Rules：`packages/scene-core/src/domain/assets/catalog.ts`、`packages/scene-core/src/domain/scene/footprint.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/io/scene-schema.ts`、`apps/web/src/state/asset-placement.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
+- FR78-FR86 and FR137 Asset Footprint & Occupancy Rules：`packages/scene-core/src/domain/assets/catalog.ts`、`packages/scene-core/src/domain/scene/footprint.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/io/scene-schema.ts`、`apps/web/src/state/asset-placement.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。下层影子是 web UI projection，不改变 scene-core occupancy helpers。
 - FR87-FR92 Building Level Notes：`packages/scene-core/src/domain/scene/levels.ts`、`packages/scene-core/src/domain/scene/types.ts`、`packages/scene-core/src/io/scene-schema.ts`、`packages/scene-core/src/io/scene-string-codec.ts`、`packages/scene-core/src/domain/scene/export-summary.ts`、`apps/web/src/state/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
-- FR93-FR100 Asset Carrying & Stacking Surface Rules：`packages/scene-core/src/domain/assets/catalog.ts`、`packages/scene-core/src/domain/assets/stacking-overrides.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/domain/scene/stacking.ts`、`packages/scene-core/src/io/scene-schema.ts`、`apps/web/src/state/asset-placement.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
-- FR101-FR108 Scene Size Expansion & Legacy Compatibility：`packages/scene-core/src/domain/scene/area.ts`、dimension helpers、`packages/scene-core/src/io/scene-schema.ts`、`packages/scene-core/src/io/scene-string-codec.ts`、`packages/scene-core/src/domain/scene/selectors.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/domain/scene/export-summary.ts`、`apps/web/src/theme/tokens.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/preview-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
+- FR93-FR100 Asset Carrying & Stacking Surface Rules：`packages/scene-core/src/domain/assets/catalog.ts`、`packages/scene-core/src/domain/assets/stacking-overrides.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/domain/scene/stacking.ts`、`packages/scene-core/src/io/scene-schema.ts`、`apps/web/src/state/asset-placement.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
+- FR101-FR108 Scene Size Expansion & Legacy Compatibility：`packages/scene-core/src/domain/scene/area.ts`、dimension helpers、`packages/scene-core/src/io/scene-schema.ts`、`packages/scene-core/src/io/scene-string-codec.ts`、`packages/scene-core/src/domain/scene/selectors.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/domain/scene/export-summary.ts`、`apps/web/src/theme/tokens.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
 
 **Cross-Cutting Concerns**
 
@@ -1065,7 +1074,7 @@ UI components communicate through props/context and dispatch typed commands. Bus
 component event -> command dispatcher -> command guard -> domain helper -> reducer -> scene state -> selectors -> UI
 ```
 
-View-only state such as hover cell, selected panel tab, zoom/pan, asset search/filter/favorite-only, asset staging order/expanded state, preview mode and current viewed level can live in React state and may be persisted in a separate localStorage UI-preferences namespace or dedicated UI-only localStorage key, but must not mutate `SceneDocument` and must not appear in autosave/export payloads or PSE scene strings.
+View-only state such as hover cell, selected panel tab, zoom/pan, asset search/filter/favorite-only, asset staging order/expanded state, scene summary expanded, inspector details expanded, viewed asset detail, lower-layer ghost enabled, preview mode and current viewed level can live in React state and may be persisted in a separate localStorage UI-preferences namespace or dedicated UI-only localStorage key, but must not mutate `SceneDocument` and must not appear in autosave/export payloads or PSE scene strings.
 
 **External Integrations**
 
@@ -1073,7 +1082,7 @@ MVP web app has no required external service integrations. Browser APIs used:
 
 - localStorage or equivalent local scene storage adapter for MVP autosave and reopen.
 - localStorage scene storage adapter for mobile startup restore and explicit mobile import persistence.
-- localStorage UI-preferences namespace for asset search/filter/favorite-only and web-only asset staging; this namespace is explicitly outside SceneDocument, scene storage, PSE/export strings, export summary and mobile preview/import state.
+- localStorage UI-preferences namespace for asset search/filter/favorite-only, web-only asset staging, scene summary expanded state, inspector details expanded state, viewed asset detail state and lower-layer ghost enabled state; this namespace is explicitly outside SceneDocument, scene storage, PSE/export strings, export summary and mobile preview/import state.
 - File input / drag-and-drop for future explicit import, outside current MVP UI.
 - Canvas/SVG/Blob URL/download for current image export, browser-only and outside any backend integration.
 - `matchMedia` or resize observation for interaction mode, routed through a shared `interaction-mode` helper.
@@ -1089,7 +1098,7 @@ Worker/MCP local integrations:
 ```text
 Asset catalog + SceneDocument
         -> selectors
-        -> Scene Canvas / Selection Inspector / Level Panel / Preview Inspector
+        -> Scene Canvas / Selection Inspector / Level Panel / independent Preview/Export
 
 User command
         -> executeSceneCommand
@@ -1114,6 +1123,12 @@ Image export preview
         -> derive overall material summary and per-layer summaries
         -> render export image preview
         -> no SceneDocument mutation and no storage write
+
+Lower-layer ghost
+        -> read current SceneDocument + active building level + asset catalog
+        -> derive direct lower-layer ghost projection for Scene Canvas
+        -> render translucent UI-only reference layer
+        -> no SceneDocument mutation, no placement rule participation and no storage write
 
 Mobile startup
         -> readLatestSceneDocumentFromStorage
@@ -1245,7 +1260,7 @@ All PRD feature groups have architectural support:
 - Building Level Management maps to `packages/scene-core/src/domain/scene/levels.ts`, web command handling and `apps/web/src/components/building-level-panel/`.
 - Asset Catalog & Selection maps to `packages/scene-core/src/domain/assets/` and `apps/web/src/components/asset-picker/`.
 - Ditto Skill / Instance Visual State maps to tile commands, selection inspector, scene canvas badges, dye controls and preview selectors.
-- Preview maps to shared selectors and `apps/web/src/components/preview-inspector/`.
+- Preview maps to shared selectors, `apps/web/src/components/export-preview/`, `apps/web/src/components/app-shell/mobile-preview-mode.tsx` and AppShell independent preview/export state.
 - Properties, Save & Recovery maps to selection inspector, IO schema, serializer/storage/recovery modules and validator UI.
 - Image Export maps to `packages/scene-core` export summary JSON, browser-only `apps/web/src/io/image-export.ts`, `apps/web/src/components/export-preview/` and preview/export selectors; it must be derived from SceneDocument and asset catalog.
 - Scene Worker, MCP and Codex Skill maps to `apps/worker/`, `packages/scene-core/`, `.agents/skills/pokopia-scene-worker/`, `pnpm-workspace.yaml`, root pnpm scripts and `apps/worker/wrangler.toml`.

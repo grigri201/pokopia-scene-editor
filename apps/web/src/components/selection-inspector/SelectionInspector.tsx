@@ -78,13 +78,14 @@ export function SelectionInspector({
   onUpdateLayerNote,
   onDeleteLayerNote,
 }: SelectionInspectorProps) {
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
   const context = selectedContext;
   const asset = getAssetById(selectedInstance?.assetId);
   const assetDisplay = asset ? getAssetDisplay(asset, locale) : null;
   const canEditSelectedSkill = Boolean(context?.placeable && (!selectedInstance || asset || selectedSkillMarker));
   const selectedLevel = selectedInstance
-    ? buildingLevels.find((level) => level.id === selectedInstance.buildingLevelId)
-    : context?.buildingLevel;
+    ? buildingLevels.find((level) => level.id === selectedInstance.buildingLevelId) ?? null
+    : context?.buildingLevel ?? null;
   const layerNotesLevel = currentBuildingLevel ?? selectedLevel ?? null;
   const coordinate = selectedInstance?.coordinate ?? context?.coordinate ?? null;
   const activeSkillType = selectedSkillMarker?.skillType ?? (selectedInstance?.requiresSkill ? selectedInstance.skillType : null);
@@ -95,18 +96,29 @@ export function SelectionInspector({
     ? getStackItems(selectedStackingRelation, tileInstances).filter((item) => item.instanceId !== selectedInstanceId)
     : [];
   const selectionSummary = [
-    assetDisplay ? assetDisplay.name : (coordinate ? `${coordinate.x},${coordinate.y}` : t(locale, 'noSelection')),
+    assetDisplay ? assetDisplay.name : selectedInstance?.assetId ?? (coordinate ? `${coordinate.x},${coordinate.y}` : t(locale, 'noSelection')),
     coordinate ? `x${coordinate.x} y${coordinate.y}` : null,
     selectedLevel ? getBuildingLevelDisplayId(selectedLevel.levelNumber) : null,
   ]
     .filter(Boolean)
     .join(', ');
+  const compactMetaItems = [
+    coordinate ? `x${coordinate.x} y${coordinate.y}` : null,
+    selectedLevel ? getBuildingLevelDisplayId(selectedLevel.levelNumber) : null,
+    selectedInstance ? `${selectedInstance.rotationDegrees} deg` : null,
+  ].filter(Boolean);
+  const selectedAssetLabel = assetDisplay?.name ?? selectedInstance?.assetId ?? (coordinate ? t(locale, 'emptyGridCell') : t(locale, 'noSelection'));
+  const detailsId = 'selection-details-panel';
   const emptyPromptStyle = {
     '--selection-empty-image': `url("${dittoPromptImageUrl}")`,
   } as CSSProperties;
 
   return (
-    <section className="selection-inspector" aria-label={t(locale, 'selectionContext')}>
+    <section
+      className="selection-inspector"
+      aria-label={t(locale, 'selectionContext')}
+      data-details-expanded={detailsExpanded}
+    >
       <div
         className={[
           'current-selection-bar',
@@ -119,12 +131,29 @@ export function SelectionInspector({
             {asset && assetDisplay ? (
               <>
                 <img src={asset.thumbnailUrl} alt="" />
-                <span className="current-selection-bar__asset-name" title={assetDisplay.name}>
-                  {assetDisplay.name}
+                <span className="current-selection-bar__asset-copy">
+                  <span className="current-selection-bar__asset-name" title={assetDisplay.name}>
+                    {assetDisplay.name}
+                  </span>
+                  <span className="current-selection-bar__meta">
+                    {compactMetaItems.map((item) => (
+                      <span key={item}>{item}</span>
+                    ))}
+                  </span>
                 </span>
               </>
             ) : (
-              <span className="current-selection-bar__asset-placeholder" aria-hidden="true" />
+              <>
+                <span className="current-selection-bar__asset-placeholder" aria-hidden="true" />
+                <span className="current-selection-bar__asset-copy">
+                  <span className="current-selection-bar__asset-name">{selectedAssetLabel}</span>
+                  <span className="current-selection-bar__meta">
+                    {compactMetaItems.map((item) => (
+                      <span key={item}>{item}</span>
+                    ))}
+                  </span>
+                </span>
+              </>
             )}
           </div>
         ) : (
@@ -147,13 +176,16 @@ export function SelectionInspector({
                   type="button"
                   className={[
                     'current-selection-stack-button',
+                    'has-icon-tooltip',
                     selectedInstanceId === item.instanceId ? 'current-selection-stack-button--active' : '',
                   ].filter(Boolean).join(' ')}
                   aria-label={`Stack ${item.role}: ${itemDisplay}`}
                   aria-pressed={selectedInstanceId === item.instanceId}
+                  data-tooltip={`Stack ${item.role}: ${itemDisplay}`}
                   data-stacking-role={item.role}
                   data-instance-id={item.instanceId}
                   data-asset-id={item.assetId}
+                  title={`Stack ${item.role}: ${itemDisplay}`}
                   key={item.role}
                   onClick={() => onSelectInstance(item.instanceId)}
                 >
@@ -164,8 +196,9 @@ export function SelectionInspector({
             })}
           </div>
         ) : null}
-        {coordinate ? (
-          <div className="current-selection-bar__actions" aria-label={t(locale, 'selectionEditActions')}>
+        <div className="current-selection-bar__actions" aria-label={t(locale, 'selectionEditActions')}>
+          {coordinate ? (
+            <>
             {selectedInstance ? (
               <button
                 type="button"
@@ -251,19 +284,52 @@ export function SelectionInspector({
                 </button>
               );
             })}
-          </div>
-        ) : null}
+            </>
+          ) : null}
+          <button
+            type="button"
+            className="current-selection-action-button current-selection-action-button--details has-icon-tooltip"
+            aria-controls={detailsId}
+            aria-expanded={detailsExpanded}
+            aria-label={t(locale, detailsExpanded ? 'collapseSelectionDetails' : 'expandSelectionDetails')}
+            data-tooltip={t(locale, detailsExpanded ? 'collapseSelectionDetails' : 'expandSelectionDetails')}
+            title={t(locale, detailsExpanded ? 'collapseSelectionDetails' : 'expandSelectionDetails')}
+            onClick={() => setDetailsExpanded((current) => !current)}
+          >
+            <DetailsIcon />
+          </button>
+        </div>
       </div>
-      {layerNotesLevel ? (
-        <LayerNotesPanel
+      <section
+        id={detailsId}
+        className="selection-details-panel"
+        aria-label={t(locale, 'selectionDetails')}
+        hidden={!detailsExpanded}
+        inert={!detailsExpanded ? true : undefined}
+        aria-hidden={!detailsExpanded ? true : undefined}
+      >
+        <SelectionDetailsSummary
           locale={locale}
-          level={layerNotesLevel}
-          readOnly={readOnly}
-          onAddLayerNote={onAddLayerNote}
-          onUpdateLayerNote={onUpdateLayerNote}
-          onDeleteLayerNote={onDeleteLayerNote}
+          assetName={assetDisplay?.name ?? null}
+          assetId={selectedInstance?.assetId ?? null}
+          coordinate={coordinate}
+          selectedLevel={selectedLevel}
+          rotationDegrees={selectedInstance?.rotationDegrees ?? null}
+          dyeColor={selectedInstance?.dyeColor ?? null}
+          skillType={activeSkillType}
+          skillNote={activeSkillNote}
         />
-      ) : null}
+        {layerNotesLevel ? (
+          <LayerNotesPanel
+            locale={locale}
+            level={layerNotesLevel}
+            readOnly={readOnly}
+            onAddLayerNote={onAddLayerNote}
+            onUpdateLayerNote={onUpdateLayerNote}
+            onDeleteLayerNote={onDeleteLayerNote}
+          />
+        ) : null}
+      </section>
     </section>
   );
 }
@@ -356,6 +422,93 @@ function getStackItemFootprint(assetId: string, instance: TileInstance | null) {
   return getEffectiveAssetFootprint(asset.footprint, instance?.rotationDegrees ?? 0);
 }
 
+function SelectionDetailsSummary({
+  locale,
+  assetName,
+  assetId,
+  coordinate,
+  selectedLevel,
+  rotationDegrees,
+  dyeColor,
+  skillType,
+  skillNote,
+}: {
+  locale: Locale;
+  assetName: string | null;
+  assetId: string | null;
+  coordinate: GridCoordinate | null;
+  selectedLevel: BuildingLevel | null;
+  rotationDegrees: RotationDegrees | null;
+  dyeColor: string | null | undefined;
+  skillType: AssetSkillType | null;
+  skillNote: string;
+}) {
+  const skillDisplay = skillType ? getSkillDisplay(skillType, locale).name : t(locale, 'noSkillMarker');
+
+  return (
+    <section className="selection-details-summary" aria-label={t(locale, 'selectedInstanceDetails')}>
+      <div className="selection-details-summary__header">
+        <h2>{t(locale, 'selectedInstanceDetails')}</h2>
+        <span>{t(locale, 'futureInstanceDetails')}</span>
+      </div>
+      <dl>
+        <div>
+          <dt>{t(locale, 'selectionAsset')}</dt>
+          <dd>{assetName ?? assetId ?? t(locale, 'emptyGridCell')}</dd>
+        </div>
+        {assetId ? (
+          <div>
+            <dt>assetId</dt>
+            <dd>{assetId}</dd>
+          </div>
+        ) : null}
+        {coordinate ? (
+          <div>
+            <dt>{t(locale, 'selectionCoordinate')}</dt>
+            <dd>{coordinate.x},{coordinate.y}</dd>
+          </div>
+        ) : null}
+        {selectedLevel ? (
+          <div>
+            <dt>{t(locale, 'selectionBuildingLayer')}</dt>
+            <dd>{getBuildingLevelDisplayId(selectedLevel.levelNumber)} {selectedLevel.name}</dd>
+          </div>
+        ) : null}
+        {rotationDegrees !== null ? (
+          <div>
+            <dt>{t(locale, 'selectionRotation')}</dt>
+            <dd>{rotationDegrees} deg</dd>
+          </div>
+        ) : null}
+        {dyeColor ? (
+          <div>
+            <dt>{t(locale, 'selectionDye')}</dt>
+            <dd>{dyeColor}</dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>{t(locale, 'skillMarker')}</dt>
+          <dd>{skillDisplay}</dd>
+        </div>
+        <div>
+          <dt>{t(locale, 'skillNote')}</dt>
+          <dd>{skillNote.trim() ? skillNote : t(locale, 'noSkillNote')}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
+function DetailsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 6h16" />
+      <path d="M4 12h16" />
+      <path d="M4 18h10" />
+    </svg>
+  );
+}
+
 function RotateIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -414,6 +567,15 @@ function LayerNotesPanel({
     setEditingText('');
   }, [level.id]);
 
+  useEffect(() => {
+    if (!readOnly) {
+      return;
+    }
+
+    setEditingNoteId(null);
+    setEditingText('');
+  }, [readOnly]);
+
   const submitNewNote = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (readOnly || !draftText.trim()) {
@@ -443,23 +605,22 @@ function LayerNotesPanel({
         <h2>{t(locale, 'layerNotes')}</h2>
         {readOnly ? <span>{t(locale, 'layerNotesReadonly')}</span> : null}
       </div>
-      {!readOnly ? (
-        <form className="layer-note-form" onSubmit={submitNewNote}>
-          <label className="sr-only" htmlFor={`layer-note-input-${level.id}`}>
-            {t(locale, 'addLayerNoteInput')}
-          </label>
-          <textarea
-            id={`layer-note-input-${level.id}`}
-            aria-label={t(locale, 'addLayerNoteInput')}
-            value={draftText}
-            rows={2}
-            onChange={(event) => setDraftText(event.target.value)}
-          />
-          <button type="submit" disabled={!draftText.trim()}>
-            {t(locale, 'addLayerNote')}
-          </button>
-        </form>
-      ) : null}
+      <form className="layer-note-form" onSubmit={submitNewNote}>
+        <label className="sr-only" htmlFor={`layer-note-input-${level.id}`}>
+          {t(locale, 'addLayerNoteInput')}
+        </label>
+        <textarea
+          id={`layer-note-input-${level.id}`}
+          aria-label={t(locale, 'addLayerNoteInput')}
+          value={draftText}
+          rows={2}
+          disabled={readOnly}
+          onChange={(event) => setDraftText(event.target.value)}
+        />
+        <button type="submit" disabled={readOnly || !draftText.trim()}>
+          {t(locale, 'addLayerNote')}
+        </button>
+      </form>
       {level.notes.length > 0 ? (
         <ol className="layer-note-list" aria-label={t(locale, 'layerNoteList')}>
           {level.notes.map((note, index) => {
@@ -477,10 +638,11 @@ function LayerNotesPanel({
                       aria-label={t(locale, 'editLayerNoteInput', { index: noteIndex })}
                       value={editingText}
                       rows={2}
+                      disabled={readOnly}
                       onChange={(event) => setEditingText(event.target.value)}
                     />
                     <div className="layer-note-item__actions">
-                      <button type="submit" disabled={!editingText.trim()}>
+                      <button type="submit" disabled={readOnly || !editingText.trim()}>
                         {t(locale, 'saveLayerNote')}
                       </button>
                       <button
@@ -497,30 +659,30 @@ function LayerNotesPanel({
                 ) : (
                   <>
                     <p>{note.text}</p>
-                    {!readOnly ? (
-                      <div className="layer-note-item__actions">
-                        <button
-                          type="button"
-                          aria-label={t(locale, 'editLayerNoteAction', { index: noteIndex })}
-                          onClick={() => {
-                            setEditingNoteId(note.id);
-                            setEditingText(note.text);
-                          }}
-                        >
-                          {t(locale, 'editLayerNote')}
-                        </button>
-                        <button
-                          type="button"
-                          className="layer-note-icon-button layer-note-icon-button--danger has-icon-tooltip"
-                          aria-label={t(locale, 'deleteLayerNoteAction', { index: noteIndex })}
-                          data-tooltip={t(locale, 'deleteLayerNote')}
-                          title={t(locale, 'deleteLayerNote')}
-                          onClick={() => onDeleteLayerNote(level.id, note.id)}
-                        >
-                          <DeleteNoteIcon />
-                        </button>
-                      </div>
-                    ) : null}
+                    <div className="layer-note-item__actions">
+                      <button
+                        type="button"
+                        aria-label={t(locale, 'editLayerNoteAction', { index: noteIndex })}
+                        disabled={readOnly}
+                        onClick={() => {
+                          setEditingNoteId(note.id);
+                          setEditingText(note.text);
+                        }}
+                      >
+                        {t(locale, 'editLayerNote')}
+                      </button>
+                      <button
+                        type="button"
+                        className="layer-note-icon-button layer-note-icon-button--danger has-icon-tooltip"
+                        aria-label={t(locale, 'deleteLayerNoteAction', { index: noteIndex })}
+                        data-tooltip={t(locale, 'deleteLayerNote')}
+                        title={t(locale, 'deleteLayerNote')}
+                        disabled={readOnly}
+                        onClick={() => onDeleteLayerNote(level.id, note.id)}
+                      >
+                        <DeleteNoteIcon />
+                      </button>
+                    </div>
                   </>
                 )}
               </li>

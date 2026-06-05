@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildSceneOccupancy,
@@ -72,6 +72,12 @@ describe('SelectionInspector', () => {
     expect(screen.getByLabelText('No selected grid cell')).toHaveStyle({
       '--selection-empty-image': 'url("/assets/pokopia_image_sources/pokemon_portraits/063-ditto.png")',
     });
+    expect(screen.getByRole('button', { name: '展开详情' })).toHaveAttribute('aria-expanded', 'false');
+    expect(document.querySelector('.selection-details-panel')).toHaveAttribute('hidden');
+    expect(document.querySelector('.selection-details-panel')).toHaveAttribute('inert');
+
+    expandSelectionDetails();
+
     expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
     expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
     expect(screen.getByRole('button', { name: '添加备注' })).toBeDisabled();
@@ -92,6 +98,7 @@ describe('SelectionInspector', () => {
       />,
     );
 
+    expandSelectionDetails();
     fireEvent.change(screen.getByLabelText('新增当前层备注'), { target: { value: '无需选中格' } });
     fireEvent.click(screen.getByRole('button', { name: '添加备注' }));
 
@@ -114,7 +121,7 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    expectSelectionCopyRemoved('3,3', 'x3 y3', 'Coordinate', 'Building layer');
+    expectSelectionCopyRemoved('Coordinate', 'Building layer');
     expect(screen.getByRole('button', { name: '清除选中格子中的素材' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toBeEnabled();
     expect(screen.getByRole('button', { name: '设置技能标记：耕地' })).toBeEnabled();
@@ -154,6 +161,7 @@ describe('SelectionInspector', () => {
       />,
     );
 
+    expandSelectionDetails();
     expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
     expect(screen.getByLabelText('当前层备注列表')).toHaveTextContent('<b>先放桌子</b>');
     expect(screen.getByLabelText('当前层备注列表')).toHaveTextContent('再放椅子');
@@ -197,6 +205,7 @@ describe('SelectionInspector', () => {
       />,
     );
 
+    expandSelectionDetails();
     fireEvent.click(screen.getByRole('button', { name: '编辑第 1 条备注' }));
     fireEvent.change(screen.getByLabelText('编辑第 1 条当前层备注'), { target: { value: '第一条更新' } });
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
@@ -209,7 +218,7 @@ describe('SelectionInspector', () => {
     expect(onDeleteLayerNote).toHaveBeenCalledWith('level-0', 'note-2');
   });
 
-  it('shows layer notes without mutation controls in read-only mode', () => {
+  it('shows layer notes with disabled mutation controls in read-only mode', () => {
     const noteScene = {
       ...scene,
       buildingLevels: [
@@ -234,12 +243,13 @@ describe('SelectionInspector', () => {
       />,
     );
 
+    expandSelectionDetails();
     expect(screen.getByText('只能查看')).toBeVisible();
     expect(screen.getByText('只读')).toBeVisible();
-    expect(screen.queryByLabelText('新增当前层备注')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '添加备注' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /编辑第/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /删除第/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('新增当前层备注')).toBeDisabled();
+    expect(screen.getByRole('button', { name: '添加备注' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '编辑第 1 条备注' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '删除第 1 条备注' })).toBeDisabled();
   });
 
   it('shows current layer notes in read-only mode even when no coordinate is selected', () => {
@@ -266,10 +276,13 @@ describe('SelectionInspector', () => {
       />,
     );
 
+    expandSelectionDetails();
     expect(screen.getByLabelText('No selected grid cell')).toBeVisible();
     expect(screen.getByText('当前层只读备注')).toBeVisible();
-    expect(screen.queryByLabelText('新增当前层备注')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /编辑第|删除第|添加备注/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('新增当前层备注')).toBeDisabled();
+    expect(screen.getByRole('button', { name: '添加备注' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '编辑第 1 条备注' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '删除第 1 条备注' })).toBeDisabled();
   });
 
   it('keeps note drafts when parent mutation callbacks fail', () => {
@@ -288,11 +301,37 @@ describe('SelectionInspector', () => {
       />,
     );
 
+    expandSelectionDetails();
     fireEvent.change(screen.getByLabelText('新增当前层备注'), { target: { value: '失败时保留' } });
     fireEvent.click(screen.getByRole('button', { name: '添加备注' }));
 
     expect(onAddLayerNote).toHaveBeenCalledWith('level-0', '失败时保留');
     expect(screen.getByLabelText('新增当前层备注')).toHaveValue('失败时保留');
+  });
+
+  it('keeps unsaved layer-note drafts when details are collapsed and reopened', () => {
+    const emptyContext = getCellContext(scene, { x: 3, y: 3 });
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={emptyContext}
+        selectedInstance={null}
+        selectedInstanceId={null}
+        selectedSkillMarker={null}
+        readOnly={false}
+      />,
+    );
+
+    expandSelectionDetails();
+    fireEvent.change(screen.getByLabelText('新增当前层备注'), { target: { value: '折叠后仍保留' } });
+    fireEvent.click(screen.getByRole('button', { name: '收起详情' }));
+
+    expect(document.querySelector('.selection-details-panel')).toHaveAttribute('hidden');
+    expect(document.querySelector('.selection-details-panel')).toHaveAttribute('inert');
+
+    expandSelectionDetails();
+    expect(screen.getByLabelText('新增当前层备注')).toHaveValue('折叠后仍保留');
   });
 
   it('ignores hover target context until a grid cell is selected', () => {
@@ -310,6 +349,7 @@ describe('SelectionInspector', () => {
     expect(screen.getByLabelText('No selected grid cell')).toHaveTextContent('点击一个编辑格查看或放置素材');
     expect(screen.getByLabelText('No selected grid cell')).not.toHaveTextContent('没有选中格子');
     expect(screen.getByLabelText('Current selection actions')).not.toHaveTextContent('2,2');
+    expandSelectionDetails();
     expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
   });
 
@@ -330,7 +370,6 @@ describe('SelectionInspector', () => {
     );
 
     expectSelectionCopyRemoved(
-      'x2 y2',
       'Coordinate',
       'Area',
       'Building layer',
@@ -339,9 +378,15 @@ describe('SelectionInspector', () => {
       'Dye',
       'Skill marker',
       'Skill note',
-      '90 deg',
     );
-    expect(screen.getByText('屋顶装饰')).toBeVisible();
+    const compactBar = screen.getByLabelText('Current selection actions');
+    expect(within(compactBar).getByText('x2 y2')).toBeVisible();
+    expect(within(compactBar).getByText('L1')).toBeVisible();
+    expect(within(compactBar).getByText('90 deg')).toBeVisible();
+    expect(within(compactBar).getByText('屋顶装饰')).toBeVisible();
+    expandSelectionDetails();
+    expect(screen.getByLabelText(/选择详情|Selection details/)).toBeVisible();
+    expect(screen.getByRole('heading', { name: '实例详情' })).toBeVisible();
     expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
     expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
     expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();
@@ -366,6 +411,29 @@ describe('SelectionInspector', () => {
 
     expect(onRotateInstance).toHaveBeenCalledWith('tile-edit', 180);
     expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-edit', true, '树叶', '');
+  });
+
+  it('labels an unresolved selected asset by asset id instead of empty-cell copy', () => {
+    const missingAssetInstance = createTileInstance({
+      instanceId: 'tile-missing-asset',
+      assetId: 'missing-asset-id',
+      coordinate: { x: 2, y: 2 },
+      buildingLevelId: 'level-0',
+    });
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={selectedContext}
+        selectedInstance={missingAssetInstance}
+        selectedInstanceId="tile-missing-asset"
+        readOnly={false}
+      />,
+    );
+
+    expect(screen.getByLabelText('Current selection actions')).toHaveTextContent('missing-asset-id');
+    expect(screen.getByLabelText('Current selection actions')).not.toHaveTextContent('空格');
+    expect(screen.getByRole('button', { name: '清除选中格子中的素材' })).toBeEnabled();
   });
 
   it('keeps compact edit actions disabled in read-only mode', () => {
@@ -449,6 +517,8 @@ describe('SelectionInspector', () => {
     const skillButton = screen.getByRole('button', { name: '设置技能标记：树叶' });
     expect(skillButton).toHaveAttribute('aria-pressed', 'true');
     expectSelectionCopyRemoved('Skill marker', '树叶', 'Skill note', 'legacy note');
+    expandSelectionDetails();
+    expect(screen.getByLabelText(/选择详情|Selection details/)).toHaveTextContent('legacy note');
     fireEvent.click(skillButton);
     expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-skill', false, '树叶', 'legacy note');
 
@@ -481,6 +551,8 @@ describe('SelectionInspector', () => {
     expect(screen.getByLabelText('Stacking relation')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Stack top: 苹野果' })).not.toBeInTheDocument();
     expect(baseChip).toHaveAttribute('aria-pressed', 'false');
+    expect(baseChip).toHaveAttribute('data-tooltip', 'Stack base: 盘子');
+    expect(baseChip).toHaveAttribute('title', 'Stack base: 盘子');
     expect(baseChip).toHaveAttribute('data-instance-id', 'stacking-base-plate');
 
     fireEvent.click(baseChip);
@@ -527,6 +599,7 @@ describe('SelectionInspector', () => {
     const topChip = screen.getByRole('button', { name: 'Stack top: 苹野果' });
 
     expect(screen.getByLabelText('Stacking relation')).toBeVisible();
+    expect(topChip).toHaveAttribute('data-tooltip', 'Stack top: 苹野果');
     expect(topChip).toHaveAttribute('data-instance-id', 'tile-leppa-berry');
     expect(topChip).toHaveAttribute('data-asset-id', 'leppa-berry');
     expect(screen.queryByRole('button', { name: 'Stack base: 小圆地毯' })).not.toBeInTheDocument();
@@ -608,8 +681,10 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    expectSelectionCopyRemoved('0,2', 'outer', 'L3 3层', '270 deg', '#56ccf2', '耕地', 'soil roof note');
-    expect(screen.getByText('屋顶装饰')).toBeVisible();
+    expectSelectionCopyRemoved('outer', 'L3 3层', '#56ccf2', '耕地', 'soil roof note');
+    expect(within(screen.getByLabelText('Current selection actions')).getByText('屋顶装饰')).toBeVisible();
+    expandSelectionDetails();
+    expect(screen.getByLabelText(/选择详情|Selection details/)).toHaveTextContent('soil roof note');
     expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
     expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
     expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();
@@ -647,9 +722,16 @@ function expectSelectionCopyRemoved(...fragments: string[]): void {
 
   expect(screen.queryByLabelText('Selected instance')).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Selected coordinate')).not.toBeInTheDocument();
-  expect(screen.queryByLabelText('Selection details')).not.toBeInTheDocument();
 
   for (const fragment of fragments) {
     expect(bar).not.toHaveTextContent(fragment);
   }
+}
+
+function expandSelectionDetails(): HTMLElement {
+  const expandButton = screen.getByRole('button', { name: '展开详情' });
+  expect(expandButton).toHaveAttribute('aria-expanded', 'false');
+  fireEvent.click(expandButton);
+  expect(screen.getByRole('button', { name: '收起详情' })).toHaveAttribute('aria-expanded', 'true');
+  return screen.getByLabelText(/选择详情|Selection details/);
 }

@@ -57,14 +57,15 @@ describe('BuildingLevelPanel', () => {
     );
     expect(screen.getByRole('button', { name: '新建层' })).toBeDisabled();
     expect(currentRow).toHaveAttribute('draggable', 'false');
-    expect(within(currentRow).getAllByRole('button')).toHaveLength(2);
-    expect(within(standbyRow).getAllByRole('button')).toHaveLength(2);
+    expect(within(currentRow).getAllByRole('button')).toHaveLength(4);
+    expect(within(standbyRow).getAllByRole('button')).toHaveLength(4);
     expect(within(currentRow).queryByRole('button', { name: /View 1层/ })).not.toBeInTheDocument();
     expect(within(currentRow).queryByRole('button', { name: /Hide 1层/ })).not.toBeInTheDocument();
     expect(within(currentRow).queryByRole('button', { name: /Lock 1层/ })).not.toBeInTheDocument();
+    expect(within(currentRow).getByRole('button', { name: /Move 1层 \(L1\) up.*read-only mode/ })).toBeDisabled();
+    expect(within(currentRow).getByRole('button', { name: /Move 1层 \(L1\) down.*read-only mode/ })).toBeDisabled();
     expect(within(currentRow).getByRole('button', { name: /Copy 1层.*read-only mode/ })).toBeDisabled();
     expect(within(currentRow).getByRole('button', { name: /Delete 1层.*read-only mode/ })).toBeDisabled();
-    expect(within(currentRow).queryByRole('button', { name: /Reorder 1层/ })).not.toBeInTheDocument();
     for (const keyEvent of readOnlyApplicationKeyEvents) {
       fireEvent.keyDown(standbyRow, keyEvent);
     }
@@ -108,11 +109,17 @@ describe('BuildingLevelPanel', () => {
     render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(multiLevelScene)} readOnly={false} />);
 
     const standbyRow = screen.getByLabelText('L2, 2层, 0 instances');
+    const moveUpButton = within(standbyRow).getByRole('button', { name: /Move 2层 \(L2\) up/ });
+    const moveDownButton = within(standbyRow).getByRole('button', { name: /Move 2层 \(L2\) down/ });
     const copyButton = within(standbyRow).getByRole('button', { name: /Copy 2层 \(L2\)/ });
     const deleteButton = within(standbyRow).getByRole('button', { name: /Delete 2层 \(L2\)/ });
 
     fireEvent.click(screen.getByRole('button', { name: '新建层' }));
-    expect(within(standbyRow).getAllByRole('button')).toHaveLength(2);
+    expect(within(standbyRow).getAllByRole('button')).toHaveLength(4);
+    expect(moveUpButton.querySelector('svg')).not.toBeNull();
+    expect(moveUpButton).toHaveAttribute('data-tooltip', '上移建筑层');
+    expect(moveDownButton.querySelector('svg')).not.toBeNull();
+    expect(moveDownButton).toHaveAttribute('data-tooltip', '下移建筑层');
     expect(copyButton.querySelector('svg')).not.toBeNull();
     expect(copyButton).toHaveAttribute('data-tooltip', '复制建筑层');
     expect(copyButton).not.toHaveTextContent('C');
@@ -129,6 +136,37 @@ describe('BuildingLevelPanel', () => {
     expect(props.onCopyLayer).toHaveBeenCalledWith('level-1');
     expect(props.onDeleteLayer).toHaveBeenCalledWith('level-1');
     expect(props.onRenameLayer).toHaveBeenCalledWith('level-1', '屋顶层');
+    expect(props.onSelectLayer).not.toHaveBeenCalled();
+  });
+
+  it('keeps move controls keyboard reachable and commits reorder through the existing command path', () => {
+    const props = defaultProps();
+    render(<BuildingLevelPanel {...props} levels={getBuildingLevelContexts(multiLevelScene)} readOnly={false} />);
+
+    const topRow = screen.getByLabelText('L3, 3层, 0 instances');
+    const middleRow = screen.getByLabelText('L2, 2层, 0 instances');
+    const bottomRow = screen.getByLabelText('L1, 1层, 0 instances, current editing layer');
+    const moveUpButton = within(middleRow).getByRole('button', { name: /Move 2层 \(L2\) up/ });
+    const moveDownButton = within(middleRow).getByRole('button', { name: /Move 2层 \(L2\) down/ });
+
+    expect(within(topRow).getByRole('button', { name: /Move 3层 \(L3\) up/ })).toBeDisabled();
+    expect(within(bottomRow).getByRole('button', { name: /Move 1层 \(L1\) down/ })).toBeDisabled();
+    expect(moveUpButton).toBeEnabled();
+    expect(moveDownButton).toBeEnabled();
+    expect(middleRow.querySelector('.level-actions')).toHaveClass('level-actions');
+
+    middleRow.focus();
+    expect(middleRow).toHaveFocus();
+    moveUpButton.focus();
+    expect(moveUpButton).toHaveFocus();
+    fireEvent.click(moveUpButton);
+    expect(props.onReorderLayer).toHaveBeenCalledWith(['level-1', 'level-2', 'level-0']);
+
+    props.onReorderLayer.mockClear();
+    moveDownButton.focus();
+    expect(moveDownButton).toHaveFocus();
+    fireEvent.click(moveDownButton);
+    expect(props.onReorderLayer).toHaveBeenCalledWith(['level-2', 'level-0', 'level-1']);
     expect(props.onSelectLayer).not.toHaveBeenCalled();
   });
 
@@ -251,6 +289,7 @@ describe('BuildingLevelPanel', () => {
 
     const standbyRow = screen.getByLabelText('L2, 2层, 0 instances');
     const nameInput = within(standbyRow).getByLabelText('Rename 2层');
+    const moveUpButton = within(standbyRow).getByRole('button', { name: /Move 2层 \(L2\) up/ });
     const copyButton = within(standbyRow).getByRole('button', { name: /Copy 2层 \(L2\)/ });
     const deleteButton = within(standbyRow).getByRole('button', { name: /Delete 2层 \(L2\)/ });
 
@@ -267,6 +306,7 @@ describe('BuildingLevelPanel', () => {
 
     props.onSelectLayer.mockClear();
     fireEvent.click(nameInput);
+    fireEvent.click(moveUpButton);
     fireEvent.click(copyButton);
     fireEvent.click(deleteButton);
 

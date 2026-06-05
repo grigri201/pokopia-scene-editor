@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { type AssetSkillType, type PokemonKey, type RotationDegrees } from '@pokopia-scene-editor/scene-core';
 import { AssetPicker, type AssetSelectionMode } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
@@ -43,8 +43,12 @@ import {
   getSceneIdFromSearch,
   getUiPreferencesStorage,
   readLatestSceneDocumentFromStorage,
+  readLowerLayerGhostPreferencesFromStorage,
+  readSceneSummaryPreferencesFromStorage,
   readUiPreferencesFromStorage,
   savedSceneStorageKey,
+  writeLowerLayerGhostEnabledPreferenceToStorage,
+  writeSceneSummaryExpandedPreferenceToStorage,
   writeHelpOverlayDismissedPreferenceToStorage,
   type RecoveryError,
   type RemoteSceneFetchResult,
@@ -156,6 +160,12 @@ export function AppShell() {
       : initialSceneState.recoveryErrors.length > 0 ? 'error' : 'idle',
   );
   const [locale, setLocale] = useState<Locale>(initialUiPreferences.locale);
+  const [sceneSummaryExpanded, setSceneSummaryExpanded] = useState(
+    () => readSceneSummaryPreferencesFromStorage(getUiPreferencesStorage()).expanded,
+  );
+  const [lowerLayerGhostEnabled, setLowerLayerGhostEnabled] = useState(
+    () => readLowerLayerGhostPreferencesFromStorage(getUiPreferencesStorage()).enabled,
+  );
   const autosaveReadyRef = useRef(false);
   const recoveryToastTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const recoveryToastStartedAtRef = useRef(0);
@@ -181,11 +191,14 @@ export function AppShell() {
   const [viewportWidth, setViewportWidth] = useState(initialViewportWidth);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(initialInteractionMode);
   const [sceneStringImportModalOpen, setSceneStringImportModalOpen] = useState(false);
+  const [fileActionsMenuOpen, setFileActionsMenuOpen] = useState(false);
   const [remoteSceneImportState, setRemoteSceneImportState] = useState<RemoteSceneImportState>(() =>
     createInitialRemoteSceneImportState(window.location.search),
   );
   const remoteSceneImportRequestIdRef = useRef(0);
   const hasEnteredEditModeRef = useRef(initialInteractionMode === 'edit');
+  const fileActionsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const fileActionsMenuRef = useRef<HTMLDivElement | null>(null);
   const [helpOverlayOpen, setHelpOverlayOpen] = useState(
     initialInteractionMode === 'edit' &&
       initialViewportWidth >= helpOverlayMinimumWidth &&
@@ -1153,6 +1166,87 @@ export function AppShell() {
     setSceneStringImportModalOpen(false);
   };
 
+  const closeFileActionsMenu = (restoreFocus = false) => {
+    setFileActionsMenuOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => {
+        fileActionsTriggerRef.current?.focus();
+      });
+    }
+  };
+
+  const toggleFileActionsMenu = () => {
+    setFileActionsMenuOpen((open) => !open);
+  };
+
+  const runFileAction = (action: () => void, options: { restoreFocus?: boolean } = {}) => {
+    closeFileActionsMenu(options.restoreFocus ?? true);
+    action();
+  };
+
+  const getFileActionsMenuItems = () =>
+    Array.from(
+      fileActionsMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [],
+    );
+
+  const focusFileActionsMenuItem = (direction: 'first' | 'last' | 'next' | 'previous') => {
+    const menuItems = getFileActionsMenuItems();
+    if (menuItems.length === 0) {
+      return;
+    }
+
+    const activeIndex = menuItems.findIndex((item) => item === document.activeElement);
+    const nextIndex = (() => {
+      if (direction === 'first') {
+        return 0;
+      }
+
+      if (direction === 'last') {
+        return menuItems.length - 1;
+      }
+
+      if (activeIndex === -1) {
+        return direction === 'next' ? 0 : menuItems.length - 1;
+      }
+
+      return direction === 'next'
+        ? (activeIndex + 1) % menuItems.length
+        : (activeIndex - 1 + menuItems.length) % menuItems.length;
+    })();
+
+    menuItems[nextIndex]?.focus();
+  };
+
+  const handleFileActionsMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      focusFileActionsMenuItem('next');
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusFileActionsMenuItem('previous');
+      return;
+    }
+
+    if (event.key === 'Home') {
+      event.preventDefault();
+      focusFileActionsMenuItem('first');
+      return;
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault();
+      focusFileActionsMenuItem('last');
+      return;
+    }
+
+    if (event.key === 'Tab') {
+      closeFileActionsMenu();
+    }
+  };
+
   const cancelSceneStringImportModal = () => {
     setSceneStringImportModalOpen(false);
     if (!isReadOnly) {
@@ -1464,6 +1558,64 @@ export function AppShell() {
     void runRemoteSceneImport();
   }, []);
 
+  useEffect(() => {
+    if (!fileActionsMenuOpen) {
+      return;
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      focusFileActionsMenuItem('first');
+    });
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+    };
+  }, [fileActionsMenuOpen]);
+
+  useEffect(() => {
+    if (isReadOnly && fileActionsMenuOpen) {
+      closeFileActionsMenu();
+    }
+  }, [fileActionsMenuOpen, isReadOnly]);
+
+  useEffect(() => {
+    if (!fileActionsMenuOpen) {
+      return;
+    }
+
+    const handleDocumentMouseDown = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) {
+        return;
+      }
+
+      if (
+        fileActionsMenuRef.current?.contains(event.target) ||
+        fileActionsTriggerRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+
+      closeFileActionsMenu(true);
+    };
+
+    const handleDocumentKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      event.preventDefault();
+      closeFileActionsMenu(true);
+    };
+
+    document.addEventListener('mousedown', handleDocumentMouseDown);
+    document.addEventListener('keydown', handleDocumentKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown);
+      document.removeEventListener('keydown', handleDocumentKeyDown);
+    };
+  }, [fileActionsMenuOpen]);
+
   const openExportPreview = () => {
     try {
       setExportPreviewSummary(buildImageExportSummary(scene, locale));
@@ -1610,6 +1762,16 @@ export function AppShell() {
     writeLocalePreferenceToStorage(getUiPreferencesStorage(), nextLocale);
   };
 
+  const updateSceneSummaryExpanded = (expanded: boolean) => {
+    setSceneSummaryExpanded(expanded);
+    writeSceneSummaryExpandedPreferenceToStorage(getUiPreferencesStorage(), expanded);
+  };
+
+  const updateLowerLayerGhostEnabled = (enabled: boolean) => {
+    setLowerLayerGhostEnabled(enabled);
+    writeLowerLayerGhostEnabledPreferenceToStorage(getUiPreferencesStorage(), enabled);
+  };
+
   const openHelpOverlay = () => {
     if (!helpOverlayAvailable) {
       return;
@@ -1704,29 +1866,13 @@ export function AppShell() {
         </div>
         <div className="app-header__actions" aria-label="Scene file actions">
           {!isReadOnly ? (
-            <>
-              <button
-                type="button"
-                className="app-action-button"
-                onClick={exportSceneString}
-              >
-                {t(locale, 'exportSceneString')}
-              </button>
-              <button
-                type="button"
-                className="app-action-button"
-                onClick={openSceneStringImportModal}
-              >
-                {t(locale, 'importSceneString')}
-              </button>
-              <button
-                type="button"
-                className="app-action-button"
-                onClick={openExportPreview}
-              >
-                {t(locale, 'exportPreview')}
-              </button>
-            </>
+            <button
+              type="button"
+              className="app-action-button app-action-button--primary"
+              onClick={openExportPreview}
+            >
+              {t(locale, 'previewExportAction')}
+            </button>
           ) : null}
           <label className="language-control">
             <span>{t(locale, 'language')}</span>
@@ -1743,14 +1889,67 @@ export function AppShell() {
             </select>
           </label>
           {!isReadOnly ? (
-            <button
-              type="button"
-              className="app-action-button app-action-button--danger"
-              title={t(locale, 'resetSceneTitle')}
-              onClick={deleteCurrentScene}
-            >
-              {t(locale, 'reset')}
-            </button>
+            <div className="file-actions-menu">
+              <button
+                type="button"
+                ref={fileActionsTriggerRef}
+                className="app-action-button file-actions-menu__trigger"
+                aria-haspopup="menu"
+                aria-expanded={fileActionsMenuOpen}
+                aria-controls={fileActionsMenuOpen ? 'file-actions-menu' : undefined}
+                onClick={toggleFileActionsMenu}
+              >
+                {t(locale, 'fileActions')}
+              </button>
+              {fileActionsMenuOpen ? (
+                <div
+                  id="file-actions-menu"
+                  ref={fileActionsMenuRef}
+                  className="file-actions-menu__popover"
+                  role="menu"
+                  aria-label={t(locale, 'fileActionsMenu')}
+                  onKeyDown={handleFileActionsMenuKeyDown}
+                >
+                  <div
+                    className="file-actions-menu__group"
+                    role="group"
+                    aria-label={t(locale, 'sceneStringActions')}
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="file-actions-menu__item"
+                      onClick={() => runFileAction(exportSceneString)}
+                    >
+                      {t(locale, 'exportSceneString')}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="file-actions-menu__item"
+                      onClick={() => runFileAction(openSceneStringImportModal, { restoreFocus: false })}
+                    >
+                      {t(locale, 'importSceneString')}
+                    </button>
+                  </div>
+                  <div
+                    className="file-actions-menu__group file-actions-menu__group--danger"
+                    role="group"
+                    aria-label={t(locale, 'dangerousActions')}
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="file-actions-menu__item app-action-button--danger"
+                      title={t(locale, 'resetSceneTitle')}
+                      onClick={() => runFileAction(deleteCurrentScene)}
+                    >
+                      {t(locale, 'reset')}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </header>
@@ -2020,9 +2219,11 @@ export function AppShell() {
             canvasSize={scene.canvasSize}
             selectedPokemonKey={scene.selectedPokemonKey}
             sceneName={scene.sceneName}
+            sceneSummaryExpanded={sceneSummaryExpanded}
             onCanvasSizeChange={updateCanvasSize}
             onPokemonChange={updatePokemon}
             onSceneNameChange={updateSceneName}
+            onSceneSummaryExpandedChange={updateSceneSummaryExpanded}
             onSceneNameValidationError={showSceneNameValidationError}
           />
           <BuildingLevelPanel
@@ -2047,11 +2248,24 @@ export function AppShell() {
           <span className="sr-only status-pill" aria-label="Interaction mode">
             {isReadOnly ? 'Mobile read-only mode' : 'Desktop edit mode'}
           </span>
+          {!isReadOnly ? (
+            <div className="canvas-stage__tools" role="group" aria-label={t(locale, 'canvasViewOptions')}>
+              <label className="lower-layer-ghost-toggle">
+                <input
+                  type="checkbox"
+                  checked={lowerLayerGhostEnabled}
+                  onChange={(event) => updateLowerLayerGhostEnabled(event.currentTarget.checked)}
+                />
+                <span>{t(locale, 'lowerLayerGhostToggle')}</span>
+              </label>
+            </div>
+          ) : null}
           <SceneCanvas
             locale={locale}
             canvasSize={scene.canvasSize}
             scene={scene}
             cells={canvasCells}
+            lowerLayerGhostEnabled={!isReadOnly && lowerLayerGhostEnabled}
             readOnly={isReadOnly}
             placementMode={Boolean(scene.workspaceState.selectedAssetId && !isReadOnly)}
             selectedCoordinate={selectedCoordinate}

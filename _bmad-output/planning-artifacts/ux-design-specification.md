@@ -90,7 +90,7 @@ pokopia-scene-editor 是一个面向 Pokopia 布景创作者的结构化布景�
 
 本 UX 规格已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-30-repo-slim-core-library.md` 进入 Polish 阶段。产品已经不是 MVP：主流程已可用，用户可以完成布景编辑、保存/恢复、预览、导出，并生成所需攻略/导出说明图。当前 UX 工作不再定义最小可用范围，而是保护已有主流程、减少维护复杂度、保持导出说明图可读，并为后续 polish 迭代提供稳定边界。
 
-终端用户工作台不因仓库瘦身改变。Scene Canvas、Asset Picker、Building Level Panel、Selection Inspector、Preview Inspector、Export Preview、Mobile View-only Mode、i18n、安全文本、17×17/legacy 7×7 表达、footprint、stacking 和层备注体验都必须保持。Developer / Agent Workflow Surface 从本仓库外迁；API/MCP/skill failure 不再是本仓库 UX concern。
+终端用户工作台不因仓库瘦身改变。Scene Canvas、Asset Picker、Building Level Panel、Selection Inspector、独立 Export Preview、Mobile inline Preview、i18n、安全文本、17×17/legacy 7×7 表达、footprint、stacking 和层备注体验都必须保持。Developer / Agent Workflow Surface 从本仓库外迁；API/MCP/skill failure 不再是本仓库 UX concern。
 
 ### Approved Course Correction - 2026-05-31 Mobile 导入与下载预览模式重写
 
@@ -114,6 +114,14 @@ Desktop 上，remote import 成功后进入现有可编辑工作台；加载中�
 
 折叠状态下，暂存区保持紧凑，只展示最后放入的 3 个素材、总数和每项删除按钮。展开状态下，暂存区成为主要浏览 surface，占据素材面板 80% 高度，素材区域下沉为 20%，并用与素材区一致的素材行展示所有暂存素材。暂存区不提供类型分组；所有暂存素材在一个可滚动列表里按最近顺序排列。
 
+### Approved Course Correction - 2026-06-05 Desktop 工作台 UI/UX 降噪
+
+本 UX 规格已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-05-desktop-workbench-decluttering.md` 增加 Epic 19。Desktop 工作台从“所有能力默认展开”调整为“编辑当前建筑层优先”：当前层、画布、建筑层列表、当前选择和素材浏览保持默认主视觉；场景设置、低频文件操作、层备注、素材详情和预览/导出通过摘要、菜单、详情区或独立模式按需展开。
+
+顶部工具栏只保留预览/导出主入口和低视觉重量的语言选择；导出字符串、导入字符串和重置进入文件/更多操作区，其中重置必须作为危险操作单独分组和确认。左侧默认显示场景摘要，展开后才显示完整表单；建筑层列表获得更多高度，并保留整行拖拽排序。底部检查器默认是稳定高度的当前选择快捷栏，详情区承载层备注、技能备注和未来实例详情。右侧素材栏默认浏览优先，素材详情以可见入口按需展开，查看详情不得隐式选择素材。桌面编辑态不再常驻旧预览面板；预览/导出通过独立入口展示整体素材清单、逐层图形、逐层素材清单和下载操作。
+
+SceneCanvas 新增“下层影子”辅助模式：编辑 L(n) 时可显示直接下一层 L(n-1) 的半透明素材参考，L0 不显示。推荐默认开启，但提供 UI-only 开关；影子透明度约 25%-35%，显示 lower layer 素材的 footprint、rotation 和 dye，不显示技能标记、备注、选择边框或操作 affordance。影子只服务对齐参考，不可选中、不可删除、不可旋转、不可触发检查器，也不参与 placement、occupancy、stacking、replacement confirmation、height blocking 或 SceneDocument 持久化。
+
 ### Target Users
 
 目标用户包括 Pokopia 布景创作者和素材库维护者。布景创作者需要把灵感或搭建方案整理成可复现、可继续编辑、可分享的数据；素材库维护者需要维护素材名称、分类、标签、适用区域、技能需求、footprint、承载/叠放规则、缩略图和筛选信息，让创作者能快速找到正确素材。
@@ -121,17 +129,17 @@ Desktop 上，remote import 成功后进入现有可编辑工作台；加载中�
 ### Key Design Challenges
 
 - 必须让用户始终理解“默认 15×15 主体区”和“17×17 实际编辑画布”的关系，同时让旧 7×7 场景按原尺寸清楚恢复，避免外围装饰区被误认为主体区或被忽略。
-- 必须在有限空间中同时呈现素材选择、画布、建筑层、属性和预览状态，避免编辑工具变成分散的多页面流程。
+- 必须在有限空间中优先呈现当前建筑层编辑所需的信息：画布、当前层、建筑层列表、当前选中对象和素材浏览。低频文件操作、完整场景设置、层备注、素材详情和预览/导出应通过摘要、菜单、详情区或独立模式按需展开，避免默认首屏把所有信息同时摊开。
 - 必须让大素材的跨格 footprint、旋转后占用方向和 height 上层阻塞清楚可见，避免用户以为素材仍是单格对象。
 - 必须让承载/叠放例外足够清楚：食物放盘子是合法承载，非食物放盘子是不兼容，已审计底垫/地毯/嫩芽/低高度素材只开放被允许的 overlap。
 - 建筑层、当前编辑层、技能标记和选中格状态必须清楚可见，不能只依赖颜色；当前产品不提供建筑层锁定或隐藏状态。
-- 俯视图和正视图需要足够直观，但当前产品不应陷入复杂真实视角或遮挡模拟。
+- 预览/导出需要足够直观，但当前产品不应让常驻预览挤压编辑态空间；结构检查应通过独立预览模式和下层影子辅助模式共同承担。
 
 ### Design Opportunities
 
-- 通过稳定的三栏/多区域编辑布局，把素材、画布、属性和建筑层组织成高效的创作工作台。
+- 通过稳定的三栏/多区域编辑布局，把素材浏览、画布、当前选择快捷栏和建筑层主面板组织成高效的创作工作台。
 - 通过主体区边界、外围区样式、footprint 跨格预览、上层阻塞状态、技能角标、层级状态和预览切换，让 Pokopia 的布景规则自然可见。
-- 通过素材 surface badge、hover preview、冲突提示和实例检查器，让用户在放置前就知道目标格是可承载、可叠放还是被阻断。
+- 通过素材详情、surface badge、hover preview、下层影子、冲突提示和实例检查器，让用户在放置前就知道目标格是可承载、可叠放、被阻断还是需要参照下层对齐。
 - 通过 Open Design 原型流程生成更贴近真实工具界面的设计方向，而不是输出营销页式 UI。
 - 通过清晰的数据恢复、错误提示和图片导出结构，让用户信任方案可以被复现并被他人阅读。
 
@@ -139,7 +147,7 @@ Desktop 上，remote import 成功后进入现有可编辑工作台；加载中�
 
 ### Defining Experience
 
-核心体验是：用户在规则始终可见的尺寸驱动多建筑层画布中，通过搜索和筛选选择素材，在当前建筑层放置一个带真实 footprint 和承载/叠放规则的素材实例，为该实例标记百变怪技能，并通过即时画布反馈、结构预览、可信恢复状态和图片导出预览，持续确认这个布景可以被保存、恢复并导出为可阅读图片。新建场景默认显示 17×17 画布，其中中心 15×15 是主体区。
+核心体验是：用户在规则始终可见但默认降噪的尺寸驱动多建筑层画布中，通过搜索和筛选选择素材，在当前建筑层放置一个带真实 footprint 和承载/叠放规则的素材实例，为该实例标记百变怪技能，并通过即时画布反馈、下层影子参考、可展开详情、可信恢复状态和独立图片导出预览，持续确认这个布景可以被保存、恢复并导出为可阅读图片。新建场景默认显示 17×17 画布，其中中心 15×15 是主体区。
 
 该编辑器不是通用绘图工具。每次放置都必须明确绑定到一个具体实例：素材 ID、anchor x/y 坐标、主体区或外围装饰区、建筑层、朝向、footprint 占用格、承载/被承载关系和百变怪技能标记。用户应始终知道自己正在编辑的是哪个建筑层、哪个格子、哪个素材实例，以及这个实例实际占用了哪些格子和是否与同格 surface 形成合法叠放。
 
@@ -794,6 +802,6 @@ Mobile preview/import 测试必须验证：
 - command 层检查 `interactionMode`；`readOnly` 下返回 `READ_ONLY_VIEWPORT`，不得修改 scene state。
 - 区分查看状态和场景状态：允许改变选中格子、当前楼层、缩放、平移、打开详情；禁止改变 scene document、实例列表、格子占用、层备注、技能标记、编辑草稿和 dirty flag。
 - Canvas pointer/keyboard handler 也必须检查 `interactionMode`，不能只靠隐藏按钮。
-- Scene Canvas、Preview Inspector、Export Preview 和 aria labels 必须从 scene dimensions 生成尺寸文案；不得把 7×7 写死到新默认场景路径。
+- Scene Canvas、独立 Export Preview、Mobile inline Preview 和 aria labels 必须从 scene dimensions 生成尺寸文案；不得把 7×7 写死到新默认场景路径。
 - 使用语义 HTML、明确 `min/max` 尺寸、画布 `aspect-ratio` 和稳定面板宽度。
 - 恢复数据和图片导出预览中的名称、层备注、技能说明必须按文本安全渲染，不能作为 HTML 注入。

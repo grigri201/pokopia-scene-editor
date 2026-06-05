@@ -406,6 +406,234 @@ describe('SceneCanvas', () => {
     expect(document.querySelector('.cell-other-layer-count')).toBeNull();
   });
 
+  it('does not render lower-layer ghosts on the ground layer', () => {
+    const layeredScene = {
+      ...scene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-upper-layer',
+          assetId: 'brick-roof-decoration',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-1',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={layeredScene}
+        cells={getCanvasCellContexts(layeredScene, 'level-0')}
+        lowerLayerGhostEnabled
+        readOnly={false}
+      />,
+    );
+
+    expect(screen.getByTestId('scene-canvas')).toHaveAttribute('data-lower-layer-ghost-count', '0');
+    expect(document.querySelector('[data-lower-layer-ghost="true"]')).toBeNull();
+  });
+
+  it('renders the direct lower layer as non-interactive footprint ghosts with rotation and dye', () => {
+    const layeredScene = {
+      ...scene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
+      workspaceState: { ...scene.workspaceState, currentBuildingLevelId: 'level-1' },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-lower-bench',
+          assetId: 'wooden-bench',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-0',
+          requiresSkill: true,
+          skillType: '树叶',
+          rotationDegrees: 90,
+          dyeColor: '#56ccf2',
+        }),
+      ],
+    };
+    const benchInstance = getOccupancyInstance(layeredScene, 'tile-lower-bench');
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={layeredScene}
+        cells={getCanvasCellContexts(layeredScene, 'level-1')}
+        lowerLayerGhostEnabled
+        readOnly={false}
+      />,
+    );
+
+    const ghost = screen.getByTestId('lower-layer-ghost-tile-lower-bench');
+
+    expect(screen.getByTestId('scene-canvas')).toHaveAttribute('data-lower-layer-ghost-count', '1');
+    expect(ghost.closest('.scene-lower-layer-ghost-layer')).toHaveAttribute('aria-hidden', 'true');
+    expect(ghost).toHaveAttribute('data-instance-id', 'tile-lower-bench');
+    expect(ghost).toHaveAttribute('data-building-level-id', 'level-0');
+    expect(ghost).toHaveAttribute('data-anchor-coordinate', '2,3');
+    expect(ghost).toHaveAttribute('data-effective-footprint', formatFootprint(benchInstance.effectiveFootprint));
+    expect(ghost).toHaveAttribute('data-rotation', '90');
+    expect(ghost).toHaveAttribute('data-dye-color', '#56ccf2');
+    expect(ghost).toHaveStyle({ '--lower-layer-ghost-rotation': '90deg' });
+    expect(ghost.querySelectorAll('img')).toHaveLength(1);
+    expect(ghost.querySelector('.scene-lower-layer-ghost__rotation')).toHaveAttribute(
+      'data-rotation-marker',
+      '90',
+    );
+    const dyeMarker = ghost.querySelector<HTMLElement>('.scene-lower-layer-ghost__dye');
+    expect(dyeMarker).toHaveAttribute('data-dye-marker', '#56ccf2');
+    expect(dyeMarker?.style.backgroundColor).toBe('rgb(86, 204, 242)');
+    expect(ghost.querySelector('.cell-skill-marker')).toBeNull();
+    expect(ghost.querySelector('button')).toBeNull();
+  });
+
+  it('does not render lower-layer ghosts in read-only canvas usage', () => {
+    const layeredScene = {
+      ...scene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
+      workspaceState: { ...scene.workspaceState, currentBuildingLevelId: 'level-1' },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-readonly-lower',
+          assetId: 'leafy-plant',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={layeredScene}
+        cells={getCanvasCellContexts(layeredScene, 'level-1')}
+        lowerLayerGhostEnabled
+        readOnly
+      />,
+    );
+
+    expect(screen.getByTestId('scene-canvas')).toHaveAttribute('data-lower-layer-ghost-count', '0');
+    expect(screen.queryByTestId('lower-layer-ghost-tile-readonly-lower')).not.toBeInTheDocument();
+  });
+
+  it('renders only the direct lower layer when editing above multiple layers', () => {
+    const layeredScene = {
+      ...scene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1), createBuildingLevel(2)],
+      workspaceState: { ...scene.workspaceState, currentBuildingLevelId: 'level-2' },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-lowest-bench',
+          assetId: 'wooden-bench',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-0',
+        }),
+        createTileInstance({
+          instanceId: 'tile-direct-lower-plant',
+          assetId: 'leafy-plant',
+          coordinate: { x: 4, y: 4 },
+          buildingLevelId: 'level-1',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={layeredScene}
+        cells={getCanvasCellContexts(layeredScene, 'level-2')}
+        lowerLayerGhostEnabled
+        readOnly={false}
+      />,
+    );
+
+    expect(screen.getByTestId('scene-canvas')).toHaveAttribute('data-lower-layer-ghost-count', '1');
+    expect(screen.getByTestId('lower-layer-ghost-tile-direct-lower-plant')).toHaveAttribute(
+      'data-building-level-id',
+      'level-1',
+    );
+    expect(screen.queryByTestId('lower-layer-ghost-tile-lowest-bench')).not.toBeInTheDocument();
+  });
+
+  it('ignores same-number building level peers when deriving malformed direct lower context', () => {
+    const layeredScene = {
+      ...scene,
+      buildingLevels: [
+        createBuildingLevel(0),
+        { ...createBuildingLevel(1), id: 'level-peer', name: 'Peer layer' },
+        createBuildingLevel(1),
+      ],
+      workspaceState: { ...scene.workspaceState, currentBuildingLevelId: 'level-1' },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-same-number-peer',
+          assetId: 'wooden-bench',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-peer',
+        }),
+        createTileInstance({
+          instanceId: 'tile-strict-lower',
+          assetId: 'leafy-plant',
+          coordinate: { x: 4, y: 4 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={layeredScene}
+        cells={getCanvasCellContexts(layeredScene, 'level-1')}
+        lowerLayerGhostEnabled
+        readOnly={false}
+      />,
+    );
+
+    expect(screen.getByTestId('scene-canvas')).toHaveAttribute('data-lower-layer-ghost-count', '1');
+    expect(screen.getByTestId('lower-layer-ghost-tile-strict-lower')).toHaveAttribute(
+      'data-building-level-id',
+      'level-0',
+    );
+    expect(screen.queryByTestId('lower-layer-ghost-tile-same-number-peer')).not.toBeInTheDocument();
+  });
+
+  it('keeps ghost-covered cells on the current layer interaction path', () => {
+    const onSelectCoordinate = vi.fn();
+    const layeredScene = {
+      ...scene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
+      workspaceState: { ...scene.workspaceState, currentBuildingLevelId: 'level-1' },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-lower-plant',
+          assetId: 'leafy-plant',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={layeredScene}
+        cells={getCanvasCellContexts(layeredScene, 'level-1')}
+        lowerLayerGhostEnabled
+        readOnly={false}
+        onSelectCoordinate={onSelectCoordinate}
+      />,
+    );
+
+    fireEvent.click(getRenderedCell('2,3'));
+
+    expect(screen.getByTestId('lower-layer-ghost-tile-lower-plant')).toHaveAttribute(
+      'data-building-level-id',
+      'level-0',
+    );
+    expect(onSelectCoordinate).toHaveBeenCalledWith({ x: 2, y: 3 });
+  });
+
   it('does not expose same-layer duplicate instances as stack UI', () => {
     const sceneWithDuplicateTiles = {
       ...scene,
@@ -922,6 +1150,51 @@ describe('SceneCanvas', () => {
     expect(sideCell).toHaveAttribute('data-placement-preview', 'none');
     expect(overlay).toHaveAttribute('data-effective-footprint', formatFootprint(preview?.effectiveFootprint ?? null));
     expect(overlay).toHaveAttribute('data-placement-status', 'ready');
+  });
+
+  it('renders placement preview from the current layer while lower-layer ghosts remain passive', () => {
+    const placementScene = {
+      ...scene,
+      buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
+      workspaceState: {
+        ...scene.workspaceState,
+        currentBuildingLevelId: 'level-1',
+        selectedAssetId: 'wooden-bench',
+      },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'tile-lower-plant-preview',
+          assetId: 'leafy-plant',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-0',
+        }),
+      ],
+    };
+    const preview = getAssetPlacementPreview(placementScene, { x: 2, y: 3 }, 'edit', false, 90);
+
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        scene={placementScene}
+        cells={getCanvasCellContexts(placementScene, 'level-1')}
+        targetCoordinate={{ x: 2, y: 3 }}
+        targetPlacement={preview}
+        lowerLayerGhostEnabled
+        readOnly={false}
+      />,
+    );
+
+    const anchor = screen.getByLabelText(/Cell 2,3, main area, level-1, placeable, 1 item on other visible layers, placement preview anchor/);
+    const occupied = screen.getByLabelText(/Cell 3,3, main area, level-1, placeable, placement preview footprint/);
+    const placementOverlay = screen.getByTestId('placement-footprint-overlay');
+    const ghost = screen.getByTestId('lower-layer-ghost-tile-lower-plant-preview');
+
+    expect(anchor).toHaveAttribute('data-placement-preview', 'anchor');
+    expect(anchor).toHaveAttribute('data-footprint-instance-id', '');
+    expect(occupied).toHaveAttribute('data-placement-preview', 'occupied');
+    expect(placementOverlay).toHaveAttribute('data-effective-footprint', formatFootprint(preview?.effectiveFootprint ?? null));
+    expect(placementOverlay).toHaveAttribute('data-placement-status', 'ready');
+    expect(ghost).toHaveAttribute('data-building-level-id', 'level-0');
   });
 
   it('renders placed wide assets as one anchor-bound footprint overlay without duplicating occupied cells', () => {

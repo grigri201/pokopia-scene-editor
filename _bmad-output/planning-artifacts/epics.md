@@ -10,11 +10,12 @@ inputDocuments:
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-01-scene-id-url-import.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-pokopia-data-extraction.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-asset-staging-area.md
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-05-desktop-workbench-decluttering.md
 ---
 
 # pokopia-scene-editor - Active Epic Index
 
-As of 2026-06-04, Epic 18 is complete.
+As of 2026-06-05, Epic 18 is complete and Epic 19 is the active Desktop 工作台 UI/UX 降噪 backlog.
 
 Completed planning history is archived here:
 
@@ -273,3 +274,125 @@ Acceptance Criteria:
 - Existing AssetPicker search/filter/pagination tests、pre-placement rotate tests、continuous selection tests 继续通过。
 - Mobile tests 明确 `<768px` 不渲染素材暂存区、暂存区展开/收起入口、暂存删除按钮、暂存旋转按钮或素材编辑控件，并且不需要读取/恢复暂存区本地存储。
 - Playwright/browser smoke 覆盖 desktop 1280x720 展开状态和 tablet 1000px 左右布局，验证没有重叠且素材区仍可滚动。
+
+## Epic 19: Desktop 工作台 UI/UX 降噪
+
+Status: in-progress.
+
+Desktop 工作台从“所有能力默认展开”调整为“编辑当前建筑层优先”。顶部文件操作收敛为预览/导出主入口和低频文件/危险操作菜单；左侧变为场景摘要 + 建筑层主面板；底部检查器变为紧凑快捷栏 + 可展开详情区；右侧素材栏浏览优先并按需展示素材详情；常驻 PreviewInspector 清理为独立预览/导出模式；SceneCanvas 新增直接下一层的半透明影子辅助对齐。该能力不改变 `SceneDocument v1`、PSE 字符串、scene autosave/saved payload、export summary、scene-core placement/occupancy/stacking 规则或 Cloudflare deployment 边界。
+
+### Story 19.1: Course Correction 同步与 Desktop 降噪契约
+
+Status: done.
+
+As a 维护者, I want PRD、UX、Architecture、Epics 和 tracker 明确 Desktop 工作台降噪边界, So that 后续实现不会把 UI-only 状态误写入 SceneDocument 或回退已完成功能。
+
+Acceptance Criteria:
+
+- PRD 新增 2026-06-05 Desktop 工作台 UI/UX 降噪 course correction 和 functional requirements。
+- UX Design Specification 新增顶部、左侧、底部、右侧、独立预览、下层影子交互规格。
+- Architecture 新增 AppShell / SceneCanvas / AssetPicker / SelectionInspector / ExportPreview / MobilePreviewMode / PreviewInspector 清理边界。
+- Epics 新增 Epic 19 和 stories。
+- sprint-status 新增 Epic 19 tracker entries。
+- 明确本次不改 `SceneDocument v1`、PSE string、scene autosave/saved payload、export summary、scene-core 持久契约或 Cloudflare deploy 边界。
+
+### Story 19.2: 顶部文件/分享工具栏收敛
+
+As a desktop 编辑用户, I want 顶部只保留高频预览/导出入口并把低频文件操作收进菜单, So that 首屏横向动作区更容易扫描且危险操作不易误触。
+
+Acceptance Criteria:
+
+- 1280px desktop 下顶部不再平铺导出字符串、导入字符串、下载预览、语言、重置五类操作。
+- “预览/导出”或“分享预览”作为高频主入口，1 步打开独立预览/导出模式。
+- “导出字符串 / 导入字符串 / 重置”仍可在 1-2 步内访问。
+- “重置”在视觉、分组和确认流程上作为危险操作处理。
+- 菜单支持 Escape、点击外部关闭、焦点进入/返回、aria-label、aria-expanded 和键盘导航。
+- 不改变导入/导出字符串业务语义。
+
+### Story 19.3: 左侧场景摘要与建筑层主面板
+
+As a desktop 编辑用户, I want 左侧默认展示紧凑场景摘要并把建筑层列表作为主工作区, So that 多层布景中我能看到更多建筑层并快速切层。
+
+Acceptance Criteria:
+
+- 场景摘要默认只展示场景名、Pokemon、画布尺寸摘要。
+- 展开后显示场景名输入、Pokemon 选择、画布宽高控件。
+- 展开/折叠状态只写 UI preferences/localStorage，不写 SceneDocument。
+- 1280x720 下建筑层列表可见高度增加。
+- 当前层明显可见，非当前层降低视觉重量。
+- 行内重命名、复制、删除等操作按需浮现，但 hover/focus/keyboard 均可访问。
+- Epic 16 整行拖拽排序、edge drop、键盘 fallback 和 autosave 行为不回退。
+
+### Story 19.4: 底部检查器紧凑快捷栏与详情区
+
+As a desktop 编辑用户, I want 底部默认只显示当前选择和高频操作, So that 画布下方不再被完整表单占满。
+
+Acceptance Criteria:
+
+- 第一层快捷栏高度稳定，选中/未选中状态不会导致画布明显跳动。
+- 快捷栏展示当前素材缩略图/名称、坐标、建筑层、旋转、删除、树叶/耕地/储水技能按钮。
+- 无选中素材时显示清晰空状态，不展示大量 disabled 按钮。
+- 第二层详情区可展开，包含层备注、技能备注和未来实例详情。
+- 层备注新增、编辑、删除能力保留。
+- 只读模式下编辑动作 disabled，查看信息仍可读。
+- 图标按钮都有 tooltip / aria-label。
+
+### Story 19.5: 右侧素材详情按需展开
+
+As a desktop 编辑用户, I want 在浏览素材时按需查看关键规则, So that 我能理解 footprint、rotation、dye 和叠放规则而不靠试错。
+
+Acceptance Criteria:
+
+- 素材列表默认仍以搜索、分类、分页、素材浏览为优先。
+- 素材详情入口对普通用户可见，不再只存在于 sr-only 区域。
+- 详情展示名称、缩略图、官方编号、assetId、分类、标签、Pokemon 喜好、footprint、可旋转、可染色、可叠放/特殊规则和当前待放置旋转状态。
+- 打开详情不改变当前待放置素材；只有明确“使用/放置”才选择素材。
+- 详情 surface 不长期挤压素材列表过多空间。
+- 新详情状态只属于 UI-only，不进入 SceneDocument、PSE、export summary 或 staging storage contract。
+
+### Story 19.6: 独立预览模式与 PreviewInspector 清理
+
+As a desktop 编辑用户, I want 通过独立入口进入预览/导出模式, So that 编辑态保持专注但我仍能检查整体和逐层导出内容。
+
+Acceptance Criteria:
+
+- Desktop 工作台不再常驻显示 PreviewInspector。
+- 预览/导出入口打开独立模式、modal 或页面内切换模式。
+- 独立预览展示整体素材清单、逐层图形、逐层素材清单和层备注。
+- 支持下载整体图片和按层下载图片。
+- `ExportPreview` / `MobilePreviewMode` 已有内容不回退。
+- 删除或废弃 `PreviewInspector` 组件、测试、样式、i18n 和规划文档旧描述。
+- `docs/功能验收-checklist.md` 中“预览检查器”改为“独立预览/导出模式”验收。
+- 预览模式不写 SceneDocument、不触发 scene autosave、不保存 export summary。
+
+### Story 19.7: SceneCanvas 下层影子辅助模式
+
+As a 多层布景编辑用户, I want 在当前层看到直接下一层的半透明素材影子, So that 我可以对齐家具、墙体和装饰而不频繁切层。
+
+Acceptance Criteria:
+
+- 编辑 L0 时不显示下层影子。
+- 编辑 L1 时可看到 L0 的半透明影子；编辑 L2 时可看到 L1 的半透明影子。
+- 只显示直接下一层，不显示所有低层。
+- 影子透明度约 25%-35%，位于当前层真实素材之后，且不遮挡 placement preview、选中态和当前层操作标记。
+- 影子按 lower layer 的 footprint、rotation 和 dye 渲染；不显示技能标记、备注或可操作 affordance。
+- 影子不可选中、不可删除、不可旋转、不可触发检查器。
+- 点击影子所在格仍按当前层选择/放置逻辑执行。
+- 影子不参与 occupancy、stacking、replacement confirmation、footprint conflict、height blocking 或 scene-core placement semantics。
+- 下层影子开关默认开启；开关状态只写 UI preferences/localStorage，不进入 SceneDocument、PSE、export payload 或 autosave payload。
+- Tests 覆盖 L0 无影子、L1 显示 L0、点击影子不改变规则、placement preview 仍按当前层规则、toggle 不进入 SceneDocument。
+
+### Story 19.8: 降噪回归测试与浏览器布局验证
+
+As a 维护者, I want Desktop 降噪改造有 focused tests 和 viewport smoke, So that UI 收敛不会破坏现有编辑、导入、导出、暂存、排序和 mobile preview。
+
+Acceptance Criteria:
+
+- AppShell tests 覆盖顶部菜单焦点管理、危险重置分组、导入/导出字符串仍可访问、预览/导出入口仍可打开。
+- BuildingLevelPanel / Scene summary tests 覆盖摘要展开、UI-only persistence、建筑层排序不回退。
+- SelectionInspector tests 覆盖快捷栏、详情区、只读模式、层备注保留。
+- AssetPicker tests 覆盖可见详情入口、详情不选择素材、staging 边界不回退。
+- SceneCanvas tests 覆盖 lower-layer ghost 渲染层级和不参与交互/placement semantics。
+- ExportPreview / MobilePreviewMode tests 继续证明 desktop modal 和 mobile inline content 一致。
+- Playwright 覆盖 1280x720 desktop、1000px tablet 和 390x844 mobile：无重叠、桌面可编辑、mobile 不出现编辑工作台。
+- 验证命令至少包含 web focused tests、scene-core focused tests、web typecheck、web build 和 desktop/mobile smoke。

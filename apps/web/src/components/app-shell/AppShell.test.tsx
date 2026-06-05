@@ -1,11 +1,13 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { toBlob } from 'html-to-image';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDefaultSceneDocument, createStackingPlateFoodScene, createTileInstance } from '@pokopia-scene-editor/scene-core';
+import { createBuildingLevel, createDefaultSceneDocument, createStackingPlateFoodScene, createTileInstance } from '@pokopia-scene-editor/scene-core';
 import {
   assetStagingPreferencesStorageKey,
   autosavedSceneStorageKey,
   encodeSceneDocumentString,
+  lowerLayerGhostPreferencesStorageKey,
+  sceneSummaryPreferencesStorageKey,
   savedSceneStorageKey,
   serializeSceneDocument,
   uiPreferencesStorageKey,
@@ -142,16 +144,19 @@ describe('AppShell scene storage integration', () => {
 
   it('autosaves the editable Open Design scene and restores it after remount', async () => {
     const { unmount } = render(<AppShell />);
-    const exportButton = screen.getByRole('button', { name: '下载预览' });
-    const resetButton = screen.getByRole('button', { name: '重置' });
+    const exportButton = screen.getByRole('button', { name: '预览/导出' });
+    const fileActionsButton = screen.getByRole('button', { name: '文件操作' });
 
     expect(exportButton).toBeVisible();
-    expect(resetButton).toBeVisible();
-    expect(resetButton.querySelector('svg')).not.toBeInTheDocument();
-    expect(resetButton).toHaveTextContent('重置');
+    expect(fileActionsButton).toBeVisible();
+    expect(fileActionsButton).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: '导出字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '重置' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save scene from scene controls' })).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: '展开场景设置' }));
+    expect(screen.getByLabelText('布景')).toBeVisible();
     fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Autosaved Garden Layout' } });
     expectNoSaveStatus();
 
@@ -174,11 +179,208 @@ describe('AppShell scene storage integration', () => {
     expectNoSaveStatus();
   }, 20_000);
 
+  it('persists scene summary expansion separately from SceneDocument storage', () => {
+    const { unmount } = render(<AppShell />);
+    const beforeSnapshot = readSceneSnapshot();
+
+    expect(screen.getByRole('region', { name: '场景摘要' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '展开场景设置' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(document.querySelector('.scene-controls__fields')).toHaveAttribute('data-expanded', 'false');
+    expect(window.localStorage.getItem(sceneSummaryPreferencesStorageKey)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: '展开场景设置' }));
+
+    expect(screen.getByRole('button', { name: '收起场景设置' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByLabelText('布景')).toBeVisible();
+    expect(window.localStorage.getItem(sceneSummaryPreferencesStorageKey)).toBe(
+      JSON.stringify({ schemaVersion: 1, expanded: true }),
+    );
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+
+    unmount();
+    render(<AppShell />);
+
+    expect(screen.getByRole('button', { name: '收起场景设置' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByLabelText('布景')).toBeVisible();
+  });
+
+  it('keeps scene summary expansion usable when UI storage writes fail', () => {
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation((key: string) => {
+        if (key === sceneSummaryPreferencesStorageKey) {
+          throw new Error('quota exceeded');
+        }
+      });
+
+    render(<AppShell />);
+    const beforeSnapshot = readSceneSnapshot();
+
+    fireEvent.click(screen.getByRole('button', { name: '展开场景设置' }));
+
+    expect(screen.getByRole('button', { name: '收起场景设置' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByLabelText('布景')).toBeVisible();
+    expect(setItemSpy).toHaveBeenCalledWith(
+      sceneSummaryPreferencesStorageKey,
+      JSON.stringify({ schemaVersion: 1, expanded: true }),
+    );
+    expect(window.localStorage.getItem(sceneSummaryPreferencesStorageKey)).toBeNull();
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+  });
+
+  it('persists the lower-layer ghost toggle separately from SceneDocument storage', () => {
+    setViewportWidth(1024);
+    const { unmount } = render(<AppShell />);
+    const beforeSnapshot = readSceneSnapshot();
+    const toggle = screen.getByRole('checkbox', { name: '显示下层影子' });
+
+    expect(toggle).toBeChecked();
+    expect(screen.getByRole('group', { name: '画布显示选项' })).toBeVisible();
+    expect(window.localStorage.getItem(lowerLayerGhostPreferencesStorageKey)).toBeNull();
+
+    fireEvent.click(toggle);
+
+    expect(toggle).not.toBeChecked();
+    expect(window.localStorage.getItem(lowerLayerGhostPreferencesStorageKey)).toBe(
+      JSON.stringify({ schemaVersion: 1, enabled: false }),
+    );
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+
+    unmount();
+    render(<AppShell />);
+
+    expect(screen.getByRole('checkbox', { name: '显示下层影子' })).not.toBeChecked();
+  });
+
+  it('keeps lower-layer ghost toggle usable when UI storage writes fail', () => {
+    setViewportWidth(1024);
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation((key: string) => {
+        if (key === lowerLayerGhostPreferencesStorageKey) {
+          throw new Error('quota exceeded');
+        }
+      });
+
+    render(<AppShell />);
+    const beforeSnapshot = readSceneSnapshot();
+    const toggle = screen.getByRole('checkbox', { name: '显示下层影子' });
+
+    fireEvent.click(toggle);
+
+    expect(toggle).not.toBeChecked();
+    expect(setItemSpy).toHaveBeenCalledWith(
+      lowerLayerGhostPreferencesStorageKey,
+      JSON.stringify({ schemaVersion: 1, enabled: false }),
+    );
+    expect(window.localStorage.getItem(lowerLayerGhostPreferencesStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+  });
+
+  it('keeps low-frequency file actions in an accessible header menu', async () => {
+    const confirmReset = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    render(<AppShell />);
+
+    const trigger = screen.getByRole('button', { name: '文件操作' });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('menu', { name: '文件操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导出字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导入字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '重置' })).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+
+    const menu = screen.getByRole('menu', { name: '文件操作' });
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(within(menu).getByRole('menuitem', { name: '导出字符串' })).toBeVisible();
+    expect(within(menu).getByRole('menuitem', { name: '导入字符串' })).toBeVisible();
+    expect(within(menu).getByRole('group', { name: '危险操作' })).toBeVisible();
+    expect(within(menu).getByRole('menuitem', { name: '重置' })).toHaveClass(
+      'app-action-button--danger',
+    );
+    await waitFor(() => {
+      expect(within(menu).getByRole('menuitem', { name: '导出字符串' })).toHaveFocus();
+    });
+
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    expect(within(menu).getByRole('menuitem', { name: '导入字符串' })).toHaveFocus();
+
+    fireEvent.click(within(menu).getByRole('menuitem', { name: '重置' }));
+    expect(confirmReset).toHaveBeenCalledWith('Reset the current scene and workbench?');
+    expect(screen.queryByRole('menu', { name: '文件操作' })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(trigger).toHaveFocus();
+    });
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole('menu', { name: '文件操作' })).toBeVisible();
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu', { name: '文件操作' })).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    });
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole('menu', { name: '文件操作' })).toBeVisible();
+    fireEvent.keyDown(screen.getByRole('menu', { name: '文件操作' }), { key: 'Tab' });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu', { name: '文件操作' })).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole('menu', { name: '文件操作' })).toBeVisible();
+    fireEvent.mouseDown(document.body);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu', { name: '文件操作' })).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    });
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole('menu', { name: '文件操作' })).toBeVisible();
+    setViewportWidth(390);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu', { name: '文件操作' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '文件操作' })).not.toBeInTheDocument();
+    });
+
+    setViewportWidth(1280);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '文件操作' })).toHaveAttribute('aria-expanded', 'false');
+    });
+  });
+
   it('lets desktop users set the editable canvas width and height', async () => {
     writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
 
     render(<AppShell />);
 
+    fireEvent.click(screen.getByRole('button', { name: '展开场景设置' }));
+    expect(screen.getByLabelText('布景')).toBeVisible();
     fireEvent.change(screen.getByLabelText('宽度'), { target: { value: '12' } });
     fireEvent.change(screen.getByLabelText('高度'), { target: { value: '10' } });
 
@@ -200,7 +402,7 @@ describe('AppShell scene storage integration', () => {
     const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(null);
 
     render(<AppShell />);
-    fireEvent.click(screen.getByRole('button', { name: '导出字符串' }));
+    clickFileActionMenuItem('导出字符串');
 
     const exportedString = promptSpy.mock.calls[0]?.[1];
     expect(exportedString).toMatch(/^PSE2~/);
@@ -547,7 +749,7 @@ describe('AppShell scene storage integration', () => {
     vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
 
     render(<AppShell />);
-    fireEvent.click(screen.getByRole('button', { name: '下载预览' }));
+    openDesktopExportPreview();
 
     expect(screen.getByRole('dialog', { name: '下载预览' })).toBeVisible();
     expect(screen.getByLabelText('Application header')).toHaveAttribute('inert');
@@ -576,7 +778,8 @@ describe('AppShell scene storage integration', () => {
 
     fireEvent.change(screen.getByLabelText('语言'), { target: { value: 'en-US' } });
 
-    expect(screen.getByRole('button', { name: 'Download Preview' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Preview / export' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand scene settings' }));
     expect(screen.getByLabelText('Scene name')).toBeVisible();
     expect(screen.getByLabelText('Current Pokemon')).toHaveValue('Ditto');
     fireEvent.focus(screen.getByLabelText('Current Pokemon'));
@@ -631,7 +834,7 @@ describe('AppShell scene storage integration', () => {
     });
 
     fireEvent.change(screen.getByLabelText('语言'), { target: { value: 'en-US' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+    clickFileActionMenuItem('Reset');
 
     await waitFor(() => {
       expect(JSON.parse(readSceneSnapshot()).buildingLevels).toEqual([
@@ -780,7 +983,7 @@ describe('AppShell scene storage integration', () => {
 
     render(<AppShell />);
     const beforeSnapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
-    fireEvent.click(screen.getByRole('button', { name: '下载预览' }));
+    openDesktopExportPreview();
     fireEvent.click(screen.getByRole('button', { name: '下载图片' }));
 
     await waitFor(() => {
@@ -849,7 +1052,10 @@ describe('AppShell scene storage integration', () => {
     });
 
     const beforeSnapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
-    fireEvent.click(screen.getByRole('button', { name: '下载预览' }));
+    const beforeSaved = window.localStorage.getItem(savedSceneStorageKey);
+    const beforeAutosave = window.localStorage.getItem(autosavedSceneStorageKey);
+    const beforeUiPreferences = window.localStorage.getItem(uiPreferencesStorageKey);
+    openDesktopExportPreview();
     fireEvent.click(screen.getByRole('button', { name: '按层下载图片' }));
 
     await waitFor(() => {
@@ -868,6 +1074,9 @@ describe('AppShell scene storage integration', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:layer-export-3');
     expect(screen.getByRole('status', { name: '图片导出提示' })).toHaveTextContent('分层图片已准备下载');
     expect((window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.()).toBe(beforeSnapshot);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBe(beforeSaved);
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(beforeAutosave);
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBe(beforeUiPreferences);
   }, 20_000);
 
   it('shows image download progress and disables duplicate download clicks', async () => {
@@ -897,7 +1106,7 @@ describe('AppShell scene storage integration', () => {
     }));
 
     render(<AppShell />);
-    fireEvent.click(screen.getByRole('button', { name: '下载预览' }));
+    openDesktopExportPreview();
     fireEvent.click(screen.getByRole('button', { name: '下载图片' }));
 
     expect(screen.getByRole('button', { name: '下载图片' })).toBeDisabled();
@@ -1660,6 +1869,7 @@ describe('AppShell scene storage integration', () => {
     setViewportWidth(1024);
     render(<AppShell />);
 
+    fireEvent.click(screen.getByRole('button', { name: '展开详情' }));
     fireEvent.change(screen.getByLabelText('新增当前层备注'), { target: { value: '  先放桌子 <b>不要执行</b>  ' } });
     fireEvent.click(screen.getByRole('button', { name: '添加备注' }));
 
@@ -1682,6 +1892,23 @@ describe('AppShell scene storage integration', () => {
       expect(screen.getByLabelText('当前层备注列表')).toHaveTextContent('先放桌子 <b>不要执行</b>');
     });
     expect(document.querySelector('b')).toBeNull();
+  });
+
+  it('keeps selection details expansion out of scene storage', () => {
+    setViewportWidth(1024);
+    render(<AppShell />);
+    const beforeSnapshot = readSceneSnapshot();
+
+    fireEvent.click(screen.getByRole('button', { name: '展开详情' }));
+    expect(screen.getByRole('button', { name: '收起详情' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText('选择详情')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: '收起详情' }));
+
+    expect(screen.getByRole('button', { name: '展开详情' })).toHaveAttribute('aria-expanded', 'false');
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
   });
 
   it('shows stored scene summary on mobile without dirtying scene storage', () => {
@@ -1754,6 +1981,62 @@ describe('AppShell scene storage integration', () => {
     expect(roofRow).toHaveAttribute('aria-current', 'true');
     expect(screen.getByLabelText(/Cell 0,0, outer area, level-2/)).toBeVisible();
     expect(screen.queryByRole('status', { name: '建筑层提示' })).not.toBeInTheDocument();
+  }, 15_000);
+
+  it('selects ghost-covered cells on the current layer without selecting the lower-layer instance', async () => {
+    setViewportWidth(1024);
+    const layeredScene = createDefaultSceneDocument({
+      sceneId: 'scene-lower-layer-ghost-select',
+      now: '2026-05-16T08:20:00.000Z',
+    });
+    writeSceneDocumentToStorage(
+      window.localStorage,
+      {
+        ...layeredScene,
+        buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
+        workspaceState: {
+          ...layeredScene.workspaceState,
+          currentBuildingLevelId: 'level-1',
+          selectedCoordinate: null,
+        },
+        tileInstances: [
+          createTileInstance({
+            instanceId: 'tile-lower-ghost-select',
+            assetId: 'leafy-plant',
+            coordinate: { x: 2, y: 3 },
+            buildingLevelId: 'level-0',
+          }),
+        ],
+      },
+      'autosave',
+    );
+    render(<AppShell />);
+
+    expect(screen.getByTestId('scene-canvas')).toHaveAttribute('data-lower-layer-ghost-count', '1');
+    expect(screen.getByTestId('lower-layer-ghost-tile-lower-ghost-select')).toHaveAttribute(
+      'data-building-level-id',
+      'level-0',
+    );
+
+    fireEvent.click(screen.getByLabelText(/Cell 2,3, main area, level-1, placeable, 1 item on other visible layers/));
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.workspaceState.currentBuildingLevelId).toBe('level-1');
+      expect(payload.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 3 });
+      expect(payload.tileInstances).toEqual([
+        expect.objectContaining({
+          instanceId: 'tile-lower-ghost-select',
+          assetId: 'leafy-plant',
+          coordinate: { x: 2, y: 3 },
+          buildingLevelId: 'level-0',
+        }),
+      ]);
+    });
+    expect(screen.getByLabelText(/Cell 2,3, main area, level-1, placeable, 1 item on other visible layers/)).toHaveAttribute(
+      'data-selected',
+      'true',
+    );
   }, 15_000);
 
   it('autosaves dirty edits without writing UI save status into payload', async () => {
@@ -2329,6 +2612,74 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
+  it('places on the current layer through a ghost-covered placement preview', async () => {
+    setViewportWidth(1024);
+    const layeredScene = createDefaultSceneDocument({
+      sceneId: 'scene-lower-layer-ghost-place',
+      now: '2026-05-16T08:20:00.000Z',
+    });
+    writeSceneDocumentToStorage(
+      window.localStorage,
+      {
+        ...layeredScene,
+        buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
+        workspaceState: {
+          ...layeredScene.workspaceState,
+          currentBuildingLevelId: 'level-1',
+          selectedCoordinate: null,
+        },
+        tileInstances: [
+          createTileInstance({
+            instanceId: 'tile-lower-ghost-place',
+            assetId: 'leppa-berry',
+            coordinate: { x: 2, y: 3 },
+            buildingLevelId: 'level-0',
+          }),
+        ],
+      },
+      'autosave',
+    );
+    render(<AppShell />);
+
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
+    if (!assetButton) {
+      throw new Error('Expected pecha-berry asset button.');
+    }
+
+    fireEvent.click(assetButton);
+    fireEvent.mouseEnter(screen.getByLabelText(/Cell 2,3, main area, level-1, placeable, 1 item on other visible layers/));
+
+    const previewCell = await screen.findByLabelText(/Cell 2,3, main area, level-1, placeable, 1 item on other visible layers, placement preview anchor/);
+    expect(previewCell).toHaveAttribute('data-placement-preview', 'anchor');
+    expect(screen.getByTestId('lower-layer-ghost-tile-lower-ghost-place')).toHaveAttribute(
+      'data-building-level-id',
+      'level-0',
+    );
+
+    fireEvent.click(previewCell);
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            instanceId: 'tile-lower-ghost-place',
+            assetId: 'leppa-berry',
+            coordinate: { x: 2, y: 3 },
+            buildingLevelId: 'level-0',
+          }),
+          expect.objectContaining({
+            assetId: 'pecha-berry',
+            coordinate: { x: 2, y: 3 },
+            buildingLevelId: 'level-1',
+          }),
+        ]),
+      );
+      expect(payload.workspaceState.currentBuildingLevelId).toBe('level-1');
+      expect(payload.workspaceState.selectedAssetId).toBeNull();
+    });
+  }, 15_000);
+
   it('stores asset filter preferences separately without dirtying or polluting autosaved SceneDocument payloads', async () => {
     render(<AppShell />);
 
@@ -2415,6 +2766,27 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  });
+
+  it('opens asset details without changing scene snapshots or storage', () => {
+    render(<AppShell />);
+
+    const beforeSnapshot = readSceneSnapshot();
+    const beforeSceneString = encodeSceneDocumentString(JSON.parse(beforeSnapshot));
+    const beforeSaved = window.localStorage.getItem(savedSceneStorageKey);
+    const beforeAutosave = window.localStorage.getItem(autosavedSceneStorageKey);
+    const beforeUiPreferences = window.localStorage.getItem(uiPreferencesStorageKey);
+    const beforeStagingPreferences = window.localStorage.getItem(assetStagingPreferencesStorageKey);
+
+    fireEvent.click(screen.getByRole('button', { name: '查看苹野果详情' }));
+
+    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('leppa-berry');
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+    expect(encodeSceneDocumentString(JSON.parse(readSceneSnapshot()))).toBe(beforeSceneString);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBe(beforeSaved);
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(beforeAutosave);
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBe(beforeUiPreferences);
+    expect(window.localStorage.getItem(assetStagingPreferencesStorageKey)).toBe(beforeStagingPreferences);
   });
 
   it('does not expose undo or redo scene history controls', async () => {
@@ -2801,6 +3173,11 @@ function expectNoSaveStatus(): void {
 }
 
 function selectPokemonBySearch(query: string, optionName: RegExp): HTMLElement {
+  const expandButton = screen.queryByRole('button', { name: '展开场景设置' });
+  if (expandButton) {
+    fireEvent.click(expandButton);
+  }
+
   const pokemonSearch = screen.getByLabelText('Current Pokemon');
   fireEvent.focus(pokemonSearch);
   fireEvent.change(pokemonSearch, { target: { value: query } });
@@ -2828,6 +3205,7 @@ function createDataTransfer() {
       payload.set(format, data);
     }),
     getData: vi.fn((format: string) => payload.get(format) ?? ''),
+    setDragImage: vi.fn(),
   };
 }
 
@@ -2897,8 +3275,30 @@ function mockBuildingLevelRowRects(): void {
   });
 }
 
+function openFileActionsMenu(): HTMLElement {
+  const trigger = screen.getByRole('button', { name: /文件操作|File actions/ });
+  fireEvent.click(trigger);
+  return screen.getByRole('menu', { name: /文件操作|File actions/ });
+}
+
+function clickFileActionMenuItem(name: string | RegExp): void {
+  const menu = openFileActionsMenu();
+  fireEvent.click(within(menu).getByRole('menuitem', { name }));
+}
+
+function openDesktopExportPreview(): void {
+  fireEvent.click(screen.getByRole('button', { name: /预览\/导出|Preview \/ export/ }));
+}
+
 function openSceneStringImportModal(): HTMLElement {
-  fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+  const fileActionsTrigger = screen.queryByRole('button', { name: /文件操作|File actions/ });
+  if (fileActionsTrigger) {
+    clickFileActionMenuItem(/导入字符串|Import String/);
+  } else {
+    const directImportButton = screen.getByRole('button', { name: /导入字符串|Import String/ });
+    fireEvent.click(directImportButton);
+  }
+
   return screen.getByRole('dialog', { name: '导入布景字符串' });
 }
 

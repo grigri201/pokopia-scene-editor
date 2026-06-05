@@ -178,6 +178,22 @@ export function BuildingLevelPanel({
     setPreviewLevelIds(null);
   };
 
+  const moveLevelInDisplayOrder = (levelId: string, direction: 'up' | 'down') => {
+    if (readOnly) {
+      return;
+    }
+
+    const nextOrder = levels.map((level) => level.id);
+    const sourceIndex = nextOrder.indexOf(levelId);
+    const targetIndex = direction === 'up' ? sourceIndex - 1 : sourceIndex + 1;
+    if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= nextOrder.length) {
+      return;
+    }
+
+    [nextOrder[sourceIndex], nextOrder[targetIndex]] = [nextOrder[targetIndex], nextOrder[sourceIndex]];
+    commitReorder(nextOrder, t(locale, 'layerReorderDropped'));
+  };
+
   useEffect(() => {
     if (!draggingLevelId || readOnly) {
       return;
@@ -278,7 +294,12 @@ export function BuildingLevelPanel({
         onDrop={handleListDrop}
       >
         <span className="sr-only" aria-live="polite">{reorderAnnouncement}</span>
-        {orderedLevels.map((level) => (
+        {orderedLevels.map((level) => {
+          const levelDisplayIndex = levels.findIndex((candidate) => candidate.id === level.id);
+          const moveUpDisabled = readOnly || levelDisplayIndex <= 0;
+          const moveDownDisabled = readOnly || levelDisplayIndex < 0 || levelDisplayIndex >= levels.length - 1;
+
+          return (
           <article
             className={[
               'level-row',
@@ -343,6 +364,30 @@ export function BuildingLevelPanel({
             <div className="level-actions" aria-label={t(locale, 'layerActions', { name: level.name })}>
               <button
                 type="button"
+                className="level-action-button level-action-button--move has-icon-tooltip"
+                disabled={moveUpDisabled}
+                data-disabled-reason={readOnly ? 'read-only' : levelDisplayIndex <= 0 ? 'top-edge' : 'available'}
+                data-tooltip={t(locale, 'moveLayerUpTooltip')}
+                aria-label={`${t(locale, 'moveLayerUp', { name: level.name, displayId: level.displayId })}${readOnly ? ' disabled in read-only mode' : ''}`}
+                title={t(locale, 'moveLayerUpTooltip')}
+                onClick={() => moveLevelInDisplayOrder(level.id, 'up')}
+              >
+                <MoveUpIcon />
+              </button>
+              <button
+                type="button"
+                className="level-action-button level-action-button--move has-icon-tooltip"
+                disabled={moveDownDisabled}
+                data-disabled-reason={readOnly ? 'read-only' : moveDownDisabled ? 'bottom-edge' : 'available'}
+                data-tooltip={t(locale, 'moveLayerDownTooltip')}
+                aria-label={`${t(locale, 'moveLayerDown', { name: level.name, displayId: level.displayId })}${readOnly ? ' disabled in read-only mode' : ''}`}
+                title={t(locale, 'moveLayerDownTooltip')}
+                onClick={() => moveLevelInDisplayOrder(level.id, 'down')}
+              >
+                <MoveDownIcon />
+              </button>
+              <button
+                type="button"
                 className="level-action-button level-action-button--copy has-icon-tooltip"
                 disabled={readOnly || layerLimitReached}
                 data-disabled-reason={layerLimitReached ? 'max-layers' : readOnly ? 'read-only' : 'available'}
@@ -367,7 +412,8 @@ export function BuildingLevelPanel({
               </button>
             </div>
           </article>
-        ))}
+          );
+        })}
       </div>
     </aside>
   );
@@ -384,6 +430,26 @@ function CopyIcon() {
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <rect x="8" y="8" width="10" height="10" rx="2" />
       <path d="M6 14H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function MoveUpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 5l-6 6" />
+      <path d="M12 5l6 6" />
+      <path d="M12 5v14" />
+    </svg>
+  );
+}
+
+function MoveDownIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 19l-6-6" />
+      <path d="M12 19l6-6" />
+      <path d="M12 19V5" />
     </svg>
   );
 }

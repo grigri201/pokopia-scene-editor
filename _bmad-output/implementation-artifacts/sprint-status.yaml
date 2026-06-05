@@ -1,5 +1,5 @@
 # generated: 2026-05-31T16:34:56+0800
-# last_updated: 2026-06-04T18:08:33+0800
+# last_updated: 2026-06-06T00:52:26+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -29,9 +29,10 @@
 # - Epic 14 is complete; all Epic 14 stories are done.
 # - Epic 16 is complete.
 # - Epic 18 is complete.
+# - Epic 19 is complete.
 
 generated: 2026-05-31T16:34:56+0800
-last_updated: 2026-06-04T18:08:33+0800
+last_updated: 2026-06-06T00:52:26+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -124,3 +125,32 @@ development_status:
       18-4-asset-staging-regression-tests-and-browser-smoke:
         status: done
         title: 回归测试与浏览器验证
+  epic_19:
+    status: done
+    title: Desktop 工作台 UI/UX 降噪
+    proposal: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-05-desktop-workbench-decluttering.md
+    stories:
+      19-1-course-correction-sync-and-desktop-decluttering-contract:
+        status: done
+        title: Course Correction 同步与 Desktop 降噪契约
+      19-2-top-file-share-toolbar-consolidation:
+        status: done
+        title: 顶部文件/分享工具栏收敛
+      19-3-scene-summary-and-building-level-main-panel:
+        status: done
+        title: 左侧场景摘要与建筑层主面板
+      19-4-compact-selection-inspector-and-details:
+        status: done
+        title: 底部检查器紧凑快捷栏与详情区
+      19-5-browse-first-asset-details:
+        status: done
+        title: 右侧素材详情按需展开
+      19-6-independent-preview-mode-and-preview-inspector-cleanup:
+        status: done
+        title: 独立预览模式与 PreviewInspector 清理
+      19-7-scene-canvas-lower-layer-ghost-mode:
+        status: done
+        title: SceneCanvas 下层影子辅助模式
+      19-8-decluttering-regression-tests-and-browser-smoke:
+        status: done
+        title: 降噪回归测试与浏览器布局验证

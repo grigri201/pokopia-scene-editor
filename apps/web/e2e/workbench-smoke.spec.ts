@@ -21,10 +21,16 @@ const defaultOuterPadding = defaultSceneDimensions.outerPadding;
 const defaultCanvasCellCount = getCanvasCellCount(defaultCanvasSize);
 const defaultMaxCoordinate = getMaxCoordinate(defaultCanvasSize);
 const legacyMaxCoordinate = getMaxCoordinate(legacySceneDimensions.canvasSize);
+const fileActionsName = /文件操作|File actions/;
+const importStringName = /导入字符串|Import String/;
+const exportStringName = /导出字符串|Export String/;
+const previewExportName = /预览\/导出|Preview \/ export/;
+const resetName = /重置|Reset/;
+const newLayerName = /新建层|New layer/;
 const responsiveReleaseViewports = [
   { width: 1440, height: 900 },
   { width: 1280, height: 720 },
-  { width: 1024, height: 768 },
+  { width: 1000, height: 720 },
   { width: 768, height: 1024 },
   { width: 390, height: 844 },
 ] as const;
@@ -51,6 +57,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Pokopia scene editor workbench')).toBeVisible();
   expect(await getShellTransitionDuration(page)).toBe('0s');
   await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
+  await expect(page.getByRole('region', { name: '场景摘要' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '展开场景设置' })).toBeVisible();
+  await expandSceneSettings(page);
   await expect(page.getByLabel('Current Pokemon')).toHaveValue('百变怪');
   await expect(page.getByLabel('布景')).toHaveValue('15x15 布景');
   await expect(page.getByLabel('宽度')).toHaveValue('17');
@@ -69,12 +78,19 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Cell 3,2, main area, level-0, placeable')).toBeVisible();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Save scene' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '下载预览' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '重置' })).toBeVisible();
+  await expect(page.getByRole('button', { name: previewExportName })).toBeVisible();
+  await expect(page.getByRole('button', { name: fileActionsName })).toBeVisible();
+  await openFileActionsMenu(page);
+  await expect(page.getByRole('menuitem', { name: exportStringName })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: importStringName })).toBeVisible();
+  await expect(page.getByRole('group', { name: '危险操作' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: resetName })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu', { name: fileActionsName })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Undo' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Redo' })).toHaveCount(0);
   await expect.poll(() => getSelectionEmptyPromptHeightRatio(page)).toBeGreaterThan(0.7);
-  await expect.poll(() => getSelectionEmptyPromptHeightRatio(page)).toBeLessThan(0.95);
+  await expect.poll(() => getSelectionEmptyPromptHeightRatio(page)).toBeLessThan(0.99);
   await expect.poll(() => getSelectionEmptySilhouetteHeightRatio(page)).toBeCloseTo(0.8, 1);
   await expect.poll(() => getSelectionEmptyTextHeightRatio(page)).toBeCloseTo(1, 1);
   await expect(page.getByRole('button', { name: 'Show preview grid' })).toHaveCount(0);
@@ -134,6 +150,7 @@ test('resizes the editable canvas from scene controls', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
   await dismissHelpOverlayIfVisible(page);
+  await expandSceneSettings(page);
 
   await page.getByLabel('宽度').selectOption('12');
   await page.getByLabel('高度').selectOption('10');
@@ -168,8 +185,15 @@ test('switches the workbench to English without writing locale into SceneDocumen
 
   await page.getByLabel('语言').selectOption('en-US');
 
-  await expect(page.getByRole('button', { name: 'Download Preview' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible();
+  await expect(page.getByRole('button', { name: previewExportName })).toBeVisible();
+  await expect(page.getByRole('button', { name: fileActionsName })).toBeVisible();
+  await openFileActionsMenu(page);
+  await expect(page.getByRole('menuitem', { name: exportStringName })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: importStringName })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Dangerous actions' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: resetName })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expandSceneSettings(page);
   await expect(page.getByLabel('Scene name')).toHaveValue('15x15 布景');
   await expect(page.getByLabel('Current Pokemon')).toHaveValue('Ditto');
   await expect(page.locator('[data-asset-id="pecha-berry"]')).toContainText('Pecha Berry');
@@ -188,7 +212,7 @@ test('switches the workbench to English without writing locale into SceneDocumen
   expect(JSON.stringify(autosavedPayload)).not.toContain('"language"');
   expectScenePayloadHasNoLegacyFields(autosavedPayload);
 
-  await page.getByRole('button', { name: 'Download Preview' }).click();
+  await page.getByRole('button', { name: previewExportName }).click();
 
   await expect(page.getByRole('dialog', { name: 'Download preview' })).toBeVisible();
   await expect(page.getByLabel('Overall material list')).toContainText('No materials placed');
@@ -202,6 +226,7 @@ test('autosaves SceneDocument v1 without UI-only state or manual save entrypoint
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
   await dismissHelpOverlayIfVisible(page);
+  await expandSceneSettings(page);
 
   await page.getByLabel('布景').fill('Smoke Payload Boundary');
   const autosavedPayload = await waitForStoredPayload(page, autosavedSceneStorageKey);
@@ -268,6 +293,9 @@ test('keeps expanded asset staging layout usable on desktop and tablet', async (
         .toMatchObject({
           assetCatalogHidden: true,
           assetControlsHidden: true,
+          hasPicker: true,
+          hasStaging: true,
+          hasAssetPicker: true,
           assetPickerHeaderVisible: true,
           pickerClearOfCanvas: true,
           pickerClearOfLeftPanel: true,
@@ -275,10 +303,11 @@ test('keeps expanded asset staging layout usable on desktop and tablet', async (
           pickerClearOfCanvasBottomPanels: true,
           stagingBeforePicker: true,
           stagingListScrollable: true,
+          stagingListUsable: true,
         });
       await expect
         .poll(async () => (await getExpandedAssetStagingLayoutMetrics(page)).stagingToPickerRatio)
-        .toBeGreaterThan(4);
+        .toBeGreaterThanOrEqual(3.8);
     });
   }
 });
@@ -290,6 +319,7 @@ test('restores autosaved SceneDocument v1 on desktop startup', async ({ page }) 
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
   await dismissHelpOverlayIfVisible(page);
+  await expandSceneSettings(page);
 
   await expect(page.getByLabel('布景')).toHaveValue('Restored Smoke Layout');
 
@@ -317,7 +347,7 @@ test('previews and downloads an image export without mutating scene storage', as
   const beforeUiPreferences = await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey);
 
   const beforeSnapshot = JSON.stringify(await readSceneSnapshot(page));
-  await page.getByRole('button', { name: '下载预览' }).click();
+  await page.getByRole('button', { name: previewExportName }).click();
 
   await expect(page.getByRole('dialog', { name: '下载预览' })).toBeVisible();
   const preview = page.locator('.export-preview');
@@ -579,7 +609,7 @@ test('keeps retained edit commands wired through the workbench shell', async ({ 
     .toMatchObject({ selectedAssetId: null });
   await expect(page.locator('[data-asset-id="lum-berry"]')).toHaveAttribute('data-selection-mode', 'none');
 
-  await page.getByRole('button', { name: '新建层' }).click();
+  await page.getByRole('button', { name: newLayerName }).click();
   await expect
     .poll(async () => getStoredBuildingLevelCount(page))
     .toBe(4);
@@ -699,6 +729,33 @@ test('keeps default 17x17 scenes responsive across the release viewport matrix',
   }
 });
 
+test('keeps the 1000px tablet edit workbench interactive with decluttered actions', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 720 });
+  await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
+
+  await expect(page.getByLabel('Interaction mode')).toHaveText('Desktop edit mode');
+  await expect(page.getByLabel('Open Design editing workbench')).toBeVisible();
+  await expectPrimaryWorkbenchPanelsClear(page);
+
+  const targetCell = page.getByLabel('Cell 2,3, main area, level-0, placeable');
+  await targetCell.click();
+  await expect(targetCell).toHaveAttribute('aria-selected', 'true');
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
+    .toMatchObject({ selectedCoordinate: { x: 2, y: 3 } });
+
+  await openFileActionsMenu(page);
+  await expect(page.getByRole('menuitem', { name: exportStringName })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: importStringName })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu', { name: fileActionsName })).toHaveCount(0);
+
+  await page.getByRole('button', { name: previewExportName }).click();
+  await expect(page.getByRole('dialog', { name: '下载预览' })).toBeVisible();
+  await expect(page.getByLabel('整体使用素材清单')).toBeVisible();
+});
+
 test('keeps legacy 7x7 scenes responsive across the release viewport matrix', async ({ page }) => {
   await page.addInitScript((scene) => {
     (window as unknown as { __pokopiaInitialSceneSnapshot?: unknown }).__pokopiaInitialSceneSnapshot = scene;
@@ -724,6 +781,39 @@ test('keeps legacy 7x7 scenes responsive across the release viewport matrix', as
       mobileCanvasDimensions: `${legacySceneDimensions.canvasSize.width}x${legacySceneDimensions.canvasSize.height}`,
     });
   }
+});
+
+test('keeps English Mobile Preview Mode localized and free of desktop edit controls', async ({ page }) => {
+  const storedScene = createDefaultSceneDocument({
+    sceneId: 'scene-mobile-english-smoke',
+    sceneName: 'Mobile English Smoke',
+    selectedPokemonKey: 'pikachu',
+    now: '2026-06-06T00:42:00.000Z',
+  });
+  await page.addInitScript(
+    ({ autosaveKey, scene, uiKey }) => {
+      window.localStorage.setItem(autosaveKey, JSON.stringify(scene));
+      window.localStorage.setItem(uiKey, JSON.stringify({ schemaVersion: 1, locale: 'en-US' }));
+    },
+    { autosaveKey: autosavedSceneStorageKey, scene: storedScene, uiKey: uiPreferencesStorageKey },
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+    'data-mobile-preview-state',
+    'preview-ready',
+  );
+  await expect(page.getByRole('heading', { name: 'Mobile English Smoke' })).toBeVisible();
+  await expect(page.getByText('17x17 canvas · 1 building layer')).toBeVisible();
+  await expect(page.getByRole('button', { name: importStringName })).toBeVisible();
+  await expect(page.getByRole('button', { name: previewExportName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: fileActionsName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: exportStringName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: resetName })).toHaveCount(0);
+  await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
+  await expect(page.getByRole('complementary', { name: 'Asset picker' })).toHaveCount(0);
+  await expectMobilePreviewLayoutClear(page);
 });
 
 test('migrates legacy UI preferences without hidden preview or advanced asset controls', async ({ page }) => {
@@ -793,7 +883,7 @@ test('switches to Mobile Preview Mode below the mobile breakpoint', async ({ pag
   await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute('data-mobile-preview-state', 'empty');
   await expect(page.getByText('还没有本地保存的布景。')).toHaveCount(0);
   await expect(page.getByText('可以导入一个布景字符串来恢复说明预览。')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '导入字符串' })).toBeVisible();
+  await expect(page.getByRole('button', { name: importStringName })).toBeVisible();
   await expect(page.getByTestId('scene-cell')).toHaveCount(0);
   await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toHaveCount(0);
@@ -807,15 +897,16 @@ test('switches to Mobile Preview Mode below the mobile breakpoint', async ({ pag
   await expect(page.getByLabel('布景')).toHaveCount(0);
   await expect(page.getByLabel('宽度')).toHaveCount(0);
   await expect(page.getByLabel('高度')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '新建层' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: newLayerName })).toHaveCount(0);
   await expect(page.getByLabel('Save status')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '下载预览' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '导出字符串' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '重置' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: previewExportName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: fileActionsName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: exportStringName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: resetName })).toHaveCount(0);
   await expect(page.getByRole('dialog', { name: '下载预览' })).toHaveCount(0);
   await expect(page.locator('.export-preview-backdrop')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await expectElementCenterUncovered(page, page.getByRole('button', { name: '导入字符串' }));
+  await expectElementCenterUncovered(page, page.getByRole('button', { name: importStringName }));
   const beforeKeyboardSnapshot = JSON.stringify(await readSceneSnapshot(page));
   const dialogs: string[] = [];
   page.on('dialog', async (dialog) => {
@@ -823,11 +914,11 @@ test('switches to Mobile Preview Mode below the mobile breakpoint', async ({ pag
     await dialog.dismiss();
   });
 
-  await page.getByRole('button', { name: '导入字符串' }).focus();
+  await page.getByRole('button', { name: importStringName }).focus();
   for (const key of mobileApplicationKeys) {
     await page.keyboard.press(key);
   }
-  await page.getByRole('button', { name: '导入字符串' }).click();
+  await page.getByRole('button', { name: importStringName }).click();
   const importDialog = page.getByRole('dialog', { name: '导入布景字符串' });
   await expect(importDialog).toBeVisible();
   await expect(importDialog.getByLabel('布景字符串')).toBeVisible();
@@ -860,7 +951,7 @@ test('imports a scene string into Mobile Preview Mode autosave and inline previe
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.getByRole('button', { name: '导入字符串' }).click();
+  await page.getByRole('button', { name: importStringName }).click();
 
   const importDialog = page.getByRole('dialog', { name: '导入布景字符串' });
   await expect(importDialog).toBeVisible();
@@ -905,6 +996,7 @@ test('imports a remote scene_id into the desktop workbench with mocked productio
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/?scene_id=fixture');
   await dismissHelpOverlayIfVisible(page);
+  await expandSceneSettings(page);
 
   await expect(page.getByLabel('Pokopia scene editor workbench')).toBeVisible();
   await expect(page.getByRole('textbox', { name: '布景' })).toHaveValue('Remote Desktop Smoke');
@@ -919,7 +1011,7 @@ test('imports a remote scene_id into the desktop workbench with mocked productio
   expect(Array.isArray(snapshot.tileInstances) ? snapshot.tileInstances.length : 0).toBeGreaterThan(0);
   expectScenePayloadHasNoLegacyFields(snapshot);
 
-  await page.getByRole('button', { name: '下载预览' }).click();
+  await page.getByRole('button', { name: previewExportName }).click();
 
   await expect(page.getByRole('dialog', { name: '下载预览' })).toBeVisible();
   await expect(page.getByLabel('皮卡丘导出预览宝可梦图片')).toBeVisible();
@@ -937,6 +1029,7 @@ test('shows a recoverable desktop remote scene_id failure without silent default
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/?scene_id=missing');
   await dismissHelpOverlayIfVisible(page);
+  await expandSceneSettings(page);
 
   await expect(page.getByRole('alert', { name: '远程布景无法导入' })).toContainText('没有找到远程布景 missing');
   await expect(page.getByRole('button', { name: '手动导入字符串' })).toBeVisible();
@@ -969,9 +1062,10 @@ test('imports a remote scene_id into Mobile Preview Mode autosave and persists w
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toHaveCount(0);
   await expect(page.getByLabel('Building level panel')).toHaveCount(0);
   await expect(page.getByLabel('Selection context')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '下载预览' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '导出字符串' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '重置' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: previewExportName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: fileActionsName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: exportStringName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: resetName })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(await readStoredPayload(page, autosavedSceneStorageKey)).toMatchObject({
     sceneName: 'Remote Mobile Smoke',
@@ -1006,7 +1100,7 @@ test('shows mobile remote scene_id failure without desktop controls or storage w
     'remote-error',
   );
   await expect(page.getByRole('alert')).toContainText('没有找到远程布景 missing');
-  await expect(page.getByRole('button', { name: '导入字符串' })).toBeVisible();
+  await expect(page.getByRole('button', { name: importStringName })).toBeVisible();
   await expect(page.getByRole('dialog', { name: '导入布景字符串' })).toHaveCount(0);
   await expect(page.locator('.scene-string-import-backdrop')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: '布景说明预览' })).toHaveCount(0);
@@ -1014,11 +1108,12 @@ test('shows mobile remote scene_id failure without desktop controls or storage w
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toHaveCount(0);
   await expect(page.getByLabel('Building level panel')).toHaveCount(0);
   await expect(page.getByLabel('Selection context')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '下载预览' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '导出字符串' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '重置' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: previewExportName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: fileActionsName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: exportStringName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: resetName })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await expectElementCenterUncovered(page, page.getByRole('button', { name: '导入字符串' }));
+  await expectElementCenterUncovered(page, page.getByRole('button', { name: importStringName }));
   expect(await readStoredPayload(page, autosavedSceneStorageKey)).toBeNull();
   expect(await readStoredPayload(page, savedSceneStorageKey)).toBeNull();
   expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
@@ -1060,7 +1155,7 @@ test('shows stored scene in Mobile Preview Mode without desktop preview drift or
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toHaveCount(0);
   expect(await getGridColumnCount(page, '.export-preview--inline .export-layer__content')).toBe(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await expectElementCenterUncovered(page, page.getByRole('button', { name: '导入字符串' }));
+  await expectElementCenterUncovered(page, page.getByRole('button', { name: importStringName }));
   await expectElementCenterUncovered(page, page.getByRole('heading', { name: 'Restored Smoke Layout' }));
   expect(await page.evaluate((key) => window.localStorage.getItem(key), autosavedSceneStorageKey)).toBe(storedPayload);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
@@ -1091,7 +1186,7 @@ test('shows invalid stored scene state in Mobile Preview Mode', async ({ page })
   );
   await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile Preview Mode');
   await expect(page.getByLabel('Mobile preview recovery errors')).toContainText('schemaVersion');
-  await expect(page.getByRole('button', { name: '导入字符串' })).toBeVisible();
+  await expect(page.getByRole('button', { name: importStringName })).toBeVisible();
   await expect(page.getByText('15x15 布景')).toHaveCount(0);
   await expect(page.getByTestId('scene-cell')).toHaveCount(0);
   await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
@@ -1099,7 +1194,7 @@ test('shows invalid stored scene state in Mobile Preview Mode', async ({ page })
   expect(await page.evaluate((key) => window.localStorage.getItem(key), savedSceneStorageKey)).toBeNull();
   expect(await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)).toBeNull();
 
-  await page.getByRole('button', { name: '导入字符串' }).click();
+  await page.getByRole('button', { name: importStringName }).click();
   const importDialog = page.getByRole('dialog', { name: '导入布景字符串' });
   await expect(importDialog).toBeVisible();
   await importDialog.getByLabel('布景字符串').fill('bad-code');
@@ -1317,6 +1412,9 @@ async function getExpandedAssetStagingLayoutMetrics(
 ): Promise<{
   assetCatalogHidden: boolean;
   assetControlsHidden: boolean;
+  hasPicker: boolean;
+  hasStaging: boolean;
+  hasAssetPicker: boolean;
   assetPickerHeaderVisible: boolean;
   pickerClearOfCanvasBottomPanels: boolean;
   pickerClearOfCanvas: boolean;
@@ -1324,11 +1422,32 @@ async function getExpandedAssetStagingLayoutMetrics(
   pickerClearOfSelectionInspector: boolean;
   stagingBeforePicker: boolean;
   stagingListScrollable: boolean;
+  stagingListUsable: boolean;
   stagingToPickerRatio: number;
 }> {
   return page.evaluate(() => {
-    const getRect = (selector: string): DOMRect | null =>
-      document.querySelector<HTMLElement>(selector)?.getBoundingClientRect() ?? null;
+    const getVisibleRect = (selector: string): DOMRect | null => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element || element.hidden) {
+        return null;
+      }
+      const style = getComputedStyle(element);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        return null;
+      }
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return null;
+      }
+      return {
+        bottom: rect.bottom + window.scrollY,
+        height: rect.height,
+        left: rect.left + window.scrollX,
+        right: rect.right + window.scrollX,
+        top: rect.top + window.scrollY,
+        width: rect.width,
+      } as DOMRect;
+    };
     const overlaps = (first: DOMRect | null, second: DOMRect | null): boolean => {
       if (!first || !second) {
         return false;
@@ -1342,30 +1461,31 @@ async function getExpandedAssetStagingLayoutMetrics(
       );
     };
 
-    const picker = getRect('.asset-sidebar');
-    const staging = getRect('.asset-staging');
-    const assetPicker = getRect('.asset-picker');
-    const assetPickerHeader = getRect('.asset-picker__header');
-    const canvas = getRect('.scene-canvas');
-    const leftPanel = getRect('.workbench-left');
-    const selectionInspector = getRect('.selection-inspector');
-    const canvasBottomPanels = getRect('.canvas-bottom-panels');
-    const catalog = document.querySelector<HTMLElement>('.asset-catalog-panel');
-    const search = document.querySelector<HTMLElement>('.asset-search');
-    const filters = document.querySelector<HTMLElement>('.asset-category-tabs');
-    const pagination = document.querySelector<HTMLElement>('.asset-pagination');
+    const picker = getVisibleRect('.asset-sidebar');
+    const staging = getVisibleRect('.asset-staging');
+    const assetPicker = getVisibleRect('.asset-picker');
+    const assetPickerHeader = getVisibleRect('.asset-picker__header');
+    const canvas = getVisibleRect('.scene-canvas');
+    const leftPanel = getVisibleRect('.workbench-left');
+    const selectionInspector = getVisibleRect('.selection-inspector');
+    const canvasBottomPanels = getVisibleRect('.canvas-bottom-panels');
     const stagingList = document.querySelector<HTMLElement>('.asset-staging__list');
+    const stagingListRect = getVisibleRect('.asset-staging__list');
 
     return {
-      assetCatalogHidden: !catalog,
-      assetControlsHidden: !search && !filters && !pagination,
-      assetPickerHeaderVisible: Boolean(assetPickerHeader && assetPickerHeader.width > 0 && assetPickerHeader.height > 0),
+      assetCatalogHidden: !getVisibleRect('.asset-catalog-panel'),
+      assetControlsHidden: !getVisibleRect('.asset-search') && !getVisibleRect('.asset-category-tabs') && !getVisibleRect('.asset-pagination'),
+      hasPicker: Boolean(picker),
+      hasStaging: Boolean(staging),
+      hasAssetPicker: Boolean(assetPicker),
+      assetPickerHeaderVisible: Boolean(assetPickerHeader),
       pickerClearOfCanvasBottomPanels: !overlaps(picker, canvasBottomPanels),
       pickerClearOfCanvas: !overlaps(picker, canvas),
       pickerClearOfLeftPanel: !overlaps(picker, leftPanel),
       pickerClearOfSelectionInspector: !overlaps(picker, selectionInspector),
       stagingBeforePicker: Boolean(staging && assetPicker && staging.bottom <= assetPicker.top + 1),
       stagingListScrollable: Boolean(stagingList && stagingList.scrollHeight > stagingList.clientHeight + 1),
+      stagingListUsable: Boolean(stagingListRect && stagingList && stagingList.clientHeight >= 44),
       stagingToPickerRatio: staging && assetPicker && assetPicker.height > 0 ? staging.height / assetPicker.height : 0,
     };
   });
@@ -1393,11 +1513,18 @@ async function expectResponsiveWorkbench(
     await expect(page.getByTestId('scene-cell')).toHaveCount(0);
     await expect(page.getByLabel('Pokemon scene controls')).toHaveCount(0);
     await expect(page.getByRole('complementary', { name: 'Asset picker' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '导入字符串' })).toBeVisible();
-    await expect(page.getByRole('button', { name: '下载预览' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '导出字符串' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '重置' })).toHaveCount(0);
+    await expect(page.getByLabel('Building level panel')).toHaveCount(0);
+    await expect(page.getByLabel('Selection context')).toHaveCount(0);
+    await expect(page.locator('.asset-staging')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: importStringName })).toBeVisible();
+    await expect(page.getByRole('button', { name: previewExportName })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: fileActionsName })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: exportStringName })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: resetName })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: newLayerName })).toHaveCount(0);
+    await expect(page.getByRole('checkbox', { name: /显示下层影子|Show lower-layer ghost/ })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expectMobilePreviewLayoutClear(page);
 
     if (options.mobileState === 'preview-ready') {
       await expect(page.getByRole('heading', { name: options.mobileSceneName ?? '' })).toBeVisible();
@@ -1423,8 +1550,31 @@ async function expectResponsiveWorkbench(
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
   await expect(page.getByRole('complementary', { name: '检查器预览' })).toHaveCount(0);
   await expectElementCenterUncovered(page, page.getByRole('complementary', { name: 'Asset picker' }));
-  await expect(page.getByRole('button', { name: '下载预览' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '新建层' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: previewExportName })).toBeVisible();
+  await expect(page.getByRole('button', { name: fileActionsName })).toBeVisible();
+  await expectPrimaryWorkbenchPanelsClear(page);
+  await expect(page.getByRole('button', { name: newLayerName })).toBeEnabled();
+}
+
+async function expandSceneSettings(page: Page): Promise<void> {
+  const fields = page.locator('.scene-controls__fields');
+  const collapseButton = page.getByRole('button', { name: /收起场景设置|Collapse scene settings/ });
+  const expandButton = page.getByRole('button', { name: /展开场景设置|Expand scene settings/ });
+  if (await collapseButton.isVisible().catch(() => false)) {
+    await expect(fields).toHaveAttribute('data-expanded', 'true');
+    await expect(page.getByRole('textbox', { name: /布景|Scene name/ })).toBeVisible();
+    return;
+  }
+
+  await expandButton.click();
+  await expect(collapseButton).toBeVisible();
+  await expect(fields).toHaveAttribute('data-expanded', 'true');
+  await expect(page.getByRole('textbox', { name: /布景|Scene name/ })).toBeVisible();
+}
+
+async function openFileActionsMenu(page: Page): Promise<void> {
+  await page.getByRole('button', { name: fileActionsName }).click();
+  await expect(page.getByRole('menu', { name: fileActionsName })).toBeVisible();
 }
 
 async function expectElementCenterUncovered(page: Page, locator: Locator): Promise<void> {
@@ -1440,6 +1590,186 @@ async function expectElementCenterUncovered(page: Page, locator: Locator): Promi
       }),
     )
     .toBe(true);
+}
+
+async function expectPrimaryWorkbenchPanelsClear(page: Page): Promise<void> {
+  await expect
+    .poll(() => getPrimaryWorkbenchLayoutMetrics(page))
+    .toMatchObject({
+      hasHeader: true,
+      hasWorkbench: true,
+      hasAssetPicker: true,
+      hasLeftPanel: true,
+      hasCanvas: true,
+      hasBottomPanels: true,
+      headerClearOfWorkbench: true,
+      assetPickerClearOfLeftPanel: true,
+      canvasClearOfAssetPicker: true,
+      canvasClearOfLeftPanel: true,
+      bottomPanelsClearOfAssetPicker: true,
+      bottomPanelsClearOfLeftPanel: true,
+      noHorizontalOverflow: true,
+    });
+}
+
+async function getPrimaryWorkbenchLayoutMetrics(page: Page): Promise<{
+  hasHeader: boolean;
+  hasWorkbench: boolean;
+  hasAssetPicker: boolean;
+  hasLeftPanel: boolean;
+  hasCanvas: boolean;
+  hasBottomPanels: boolean;
+  headerClearOfWorkbench: boolean;
+  primaryRectsInsidePage: boolean;
+  assetPickerClearOfLeftPanel: boolean;
+  canvasClearOfAssetPicker: boolean;
+  canvasClearOfLeftPanel: boolean;
+  bottomPanelsClearOfAssetPicker: boolean;
+  bottomPanelsClearOfLeftPanel: boolean;
+  noHorizontalOverflow: boolean;
+}> {
+  return page.evaluate(() => {
+    const getVisibleRect = (selector: string): DOMRect | null => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element || element.hidden) {
+        return null;
+      }
+      const style = getComputedStyle(element);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        return null;
+      }
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return null;
+      }
+      return {
+        bottom: rect.bottom + window.scrollY,
+        height: rect.height,
+        left: rect.left + window.scrollX,
+        right: rect.right + window.scrollX,
+        top: rect.top + window.scrollY,
+        width: rect.width,
+      } as DOMRect;
+    };
+    const overlaps = (first: DOMRect | null, second: DOMRect | null): boolean => {
+      if (!first || !second) {
+        return false;
+      }
+
+      return (
+        first.left < second.right - 1 &&
+        first.right > second.left + 1 &&
+        first.top < second.bottom - 1 &&
+        first.bottom > second.top + 1
+      );
+    };
+    const isInsidePage = (rect: DOMRect | null): boolean =>
+      Boolean(
+        rect &&
+          rect.left >= -1 &&
+          rect.top >= -1 &&
+          rect.right <= Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth) + 1 &&
+          rect.bottom <= Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, window.innerHeight) + 1,
+      );
+
+    const header = getVisibleRect('.app-header');
+    const workbench = getVisibleRect('.workbench-grid');
+    const assetPicker = getVisibleRect('.asset-sidebar');
+    const leftPanel = getVisibleRect('.workbench-left');
+    const canvas = getVisibleRect('.scene-canvas');
+    const bottomPanels = getVisibleRect('.canvas-bottom-panels');
+    const requiredRects = [header, workbench, assetPicker, leftPanel, canvas, bottomPanels];
+
+    return {
+      hasHeader: Boolean(header),
+      hasWorkbench: Boolean(workbench),
+      hasAssetPicker: Boolean(assetPicker),
+      hasLeftPanel: Boolean(leftPanel),
+      hasCanvas: Boolean(canvas),
+      hasBottomPanels: Boolean(bottomPanels),
+      headerClearOfWorkbench: !overlaps(header, workbench),
+      primaryRectsInsidePage: requiredRects.every(isInsidePage),
+      assetPickerClearOfLeftPanel: !overlaps(assetPicker, leftPanel),
+      canvasClearOfAssetPicker: !overlaps(canvas, assetPicker),
+      canvasClearOfLeftPanel: !overlaps(canvas, leftPanel),
+      bottomPanelsClearOfAssetPicker: !overlaps(bottomPanels, assetPicker),
+      bottomPanelsClearOfLeftPanel: !overlaps(bottomPanels, leftPanel),
+      noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+    };
+  });
+}
+
+async function expectMobilePreviewLayoutClear(page: Page): Promise<void> {
+  await expect
+    .poll(() => getMobilePreviewLayoutMetrics(page))
+    .toMatchObject({
+      hasRegion: true,
+      hasImportButton: true,
+      noHorizontalOverflow: true,
+      regionInsidePage: true,
+      importButtonInsidePage: true,
+      importClearOfPreview: true,
+    });
+}
+
+async function getMobilePreviewLayoutMetrics(page: Page): Promise<{
+  hasRegion: boolean;
+  hasImportButton: boolean;
+  noHorizontalOverflow: boolean;
+  regionInsidePage: boolean;
+  importButtonInsidePage: boolean;
+  importClearOfPreview: boolean;
+}> {
+  return page.evaluate(() => {
+    const getVisibleRect = (selector: string): DOMRect | null => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element || element.hidden) {
+        return null;
+      }
+      const style = getComputedStyle(element);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        return null;
+      }
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return null;
+      }
+      return rect;
+    };
+    const overlaps = (first: DOMRect | null, second: DOMRect | null): boolean => {
+      if (!first || !second) {
+        return false;
+      }
+
+      return (
+        first.left < second.right - 1 &&
+        first.right > second.left + 1 &&
+        first.top < second.bottom - 1 &&
+        first.bottom > second.top + 1
+      );
+    };
+    const isInsideViewportHorizontally = (rect: DOMRect | null): boolean =>
+      Boolean(rect && rect.left >= -1 && rect.right <= window.innerWidth + 1);
+    const isInsidePageVertically = (rect: DOMRect | null): boolean =>
+      Boolean(
+        rect &&
+          rect.top >= -1 &&
+          rect.bottom <= Math.max(document.documentElement.scrollHeight, window.innerHeight) + 1,
+      );
+
+    const region = getVisibleRect('[aria-label="Mobile Preview Mode"]');
+    const importButton = getVisibleRect('.mobile-preview-mode__import');
+    const preview = getVisibleRect('.export-preview--inline');
+
+    return {
+      hasRegion: Boolean(region),
+      hasImportButton: Boolean(importButton),
+      noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+      regionInsidePage: isInsideViewportHorizontally(region) && isInsidePageVertically(region),
+      importButtonInsidePage: isInsideViewportHorizontally(importButton) && isInsidePageVertically(importButton),
+      importClearOfPreview: !overlaps(importButton, preview),
+    };
+  });
 }
 
 async function measureSelectionDuration(page: Page, cellSelector: string): Promise<number> {

@@ -4,6 +4,69 @@ import { createDefaultSceneDocument } from '@pokopia-scene-editor/scene-core';
 import { PokemonSceneControls } from './PokemonSceneControls';
 
 describe('PokemonSceneControls', () => {
+  it('shows a compact scene summary by default and expands the full settings on request', () => {
+    const onSceneSummaryExpandedChange = vi.fn();
+
+    const { container } = render(
+      <PokemonSceneControls
+        readOnly={false}
+        canvasSize={defaultCanvasSize}
+        selectedPokemonKey="pikachu"
+        sceneName="星光庭院"
+        sceneSummaryExpanded={false}
+        onCanvasSizeChange={() => undefined}
+        onPokemonChange={() => undefined}
+        onSceneNameChange={() => undefined}
+        onSceneSummaryExpandedChange={onSceneSummaryExpandedChange}
+      />,
+    );
+
+    expect(screen.getByRole('region', { name: '场景摘要' })).toBeVisible();
+    expect(screen.getByText('星光庭院')).toBeVisible();
+    expect(screen.getByText('皮卡丘')).toBeVisible();
+    expect(screen.getByText('17x17 画布')).toBeVisible();
+    expect(container.querySelector('.scene-controls__fields')).toHaveAttribute('data-expanded', 'false');
+    expect(container.querySelector('.scene-controls__fields')).toHaveAttribute('hidden');
+    expect(container.querySelector('.scene-controls__fields')).toHaveAttribute('inert');
+
+    const expandButton = screen.getByRole('button', { name: '展开场景设置' });
+    expect(expandButton).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(expandButton);
+
+    expect(onSceneSummaryExpandedChange).toHaveBeenCalledWith(true);
+  });
+
+  it('shows full scene settings when the scene summary is expanded', () => {
+    const onSceneSummaryExpandedChange = vi.fn();
+
+    const { container } = render(
+      <PokemonSceneControls
+        readOnly={false}
+        canvasSize={defaultCanvasSize}
+        selectedPokemonKey="pikachu"
+        sceneName="星光庭院"
+        sceneSummaryExpanded
+        onCanvasSizeChange={() => undefined}
+        onPokemonChange={() => undefined}
+        onSceneNameChange={() => undefined}
+        onSceneSummaryExpandedChange={onSceneSummaryExpandedChange}
+      />,
+    );
+
+    expect(container.querySelector('.scene-controls__fields')).toBeVisible();
+    expect(container.querySelector('.scene-controls__fields')).not.toHaveAttribute('hidden');
+    expect(container.querySelector('.scene-controls__fields')).not.toHaveAttribute('inert');
+    expect(screen.getByLabelText('布景')).toBeVisible();
+    expect(screen.getByLabelText('Current Pokemon')).toBeVisible();
+    expect(screen.getByRole('group', { name: '编辑区域大小' })).toBeVisible();
+
+    const collapseButton = screen.getByRole('button', { name: '收起场景设置' });
+    expect(collapseButton).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(collapseButton);
+
+    expect(onSceneSummaryExpandedChange).toHaveBeenCalledWith(false);
+  });
+
   it('uses compact Open Design controls for Pokemon and name without manual save', () => {
     const onCanvasSizeChange = vi.fn();
     const onPokemonChange = vi.fn();

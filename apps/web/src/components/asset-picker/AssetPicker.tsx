@@ -14,9 +14,11 @@ import {
   assetMatchesPokemonFavorite,
   filterAssetCatalog,
   getAssetById,
+  type AssetCategory,
   type AssetCategoryFilter,
   type AssetDefinition,
   type AssetFilterState,
+  type AssetStackingSurfaceKind,
   type PokemonKey,
   type RotationDegrees,
 } from '@pokopia-scene-editor/scene-core';
@@ -81,6 +83,7 @@ export function AssetPicker({
   const assetDragPreviewRef = useRef<HTMLElement | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewedAssetId, setViewedAssetId] = useState<string | null>(selectedAssetId);
+  const [assetDetailsOpen, setAssetDetailsOpen] = useState(false);
   const selectedAsset = getAssetById(selectedAssetId);
   const viewedAsset = getAssetById(viewedAssetId) ?? selectedAsset;
   const stagedAssets = useMemo(
@@ -342,12 +345,16 @@ export function AssetPicker({
         </span>
         <button
           type="button"
-          className="sr-only"
+          className="asset-detail-button"
           aria-label={t(locale, 'viewAssetDetails', { name: assetDisplay.name })}
-          disabled={readOnly}
-          onClick={() => setViewedAssetId(asset.assetId)}
+          aria-controls="asset-detail-panel"
+          aria-expanded={assetDetailsOpen && viewedAsset?.assetId === asset.assetId}
+          onClick={() => {
+            setViewedAssetId(asset.assetId);
+            setAssetDetailsOpen(true);
+          }}
         >
-          Details
+          {t(locale, 'assetDetailButton')}
         </button>
       </article>
     );
@@ -533,9 +540,15 @@ export function AssetPicker({
             </div>
           </>
         ) : null}
-        <div className="sr-only">
-          <AssetDetail locale={locale} asset={viewedAsset} selectedPokemonKey={selectedPokemonKey} />
-        </div>
+        {assetDetailsOpen ? (
+          <AssetDetail
+            locale={locale}
+            asset={viewedAsset}
+            selectedPokemonKey={selectedPokemonKey}
+            placementRotationDegrees={viewedAsset?.assetId === selectedAssetId ? placementRotationDegrees : 0}
+            onClose={() => setAssetDetailsOpen(false)}
+          />
+        ) : null}
       </aside>
     </div>
   );
@@ -612,25 +625,37 @@ function AssetDetail({
   locale,
   asset,
   selectedPokemonKey,
+  placementRotationDegrees,
+  onClose,
 }: {
   locale: Locale;
   asset: AssetDefinition | null;
   selectedPokemonKey: PokemonKey;
+  placementRotationDegrees: RotationDegrees;
+  onClose: () => void;
 }) {
   if (!asset) {
     return (
-      <section className="asset-detail" aria-label={t(locale, 'assetDetail')}>
-        <span>{t(locale, 'assetDetail')}</span>
+      <section className="asset-detail" aria-label={t(locale, 'assetDetail')} id="asset-detail-panel">
+        <div className="asset-detail__header">
+          <span>{t(locale, 'assetDetail')}</span>
+          <button type="button" onClick={onClose}>{t(locale, 'close')}</button>
+        </div>
         <strong>{t(locale, 'noAssetSelected')}</strong>
       </section>
     );
   }
 
   const assetDisplay = getAssetDisplay(asset, locale);
+  const rotatable = isRotatableBeforePlacement(asset);
+  const stackingSummary = formatAssetStacking(asset, locale);
 
   return (
-    <section className="asset-detail" aria-label={`${assetDisplay.name} asset detail`}>
-      <span>{t(locale, 'assetDetail')}</span>
+    <section className="asset-detail" aria-label={`${assetDisplay.name} asset detail`} id="asset-detail-panel">
+      <div className="asset-detail__header">
+        <span>{t(locale, 'assetDetail')}</span>
+        <button type="button" onClick={onClose}>{t(locale, 'close')}</button>
+      </div>
       <img src={asset.thumbnailUrl} alt={assetDisplay.thumbnailAlt} className="asset-detail__thumb" />
       <strong>{assetDisplay.name}</strong>
       <dl>
@@ -652,15 +677,77 @@ function AssetDetail({
         </div>
         <div>
           <dt>{t(locale, 'favorite')}</dt>
-          <dd>{assetMatchesPokemonFavorite(asset, selectedPokemonKey) ? selectedPokemonKey : t(locale, 'noMatch')}</dd>
+          <dd>{assetMatchesPokemonFavorite(asset, selectedPokemonKey) ? t(locale, 'yes') : t(locale, 'noMatch')}</dd>
+        </div>
+        <div>
+          <dt>{t(locale, 'footprint')}</dt>
+          <dd>{formatFootprint(asset)}</dd>
+        </div>
+        <div>
+          <dt>{t(locale, 'rotatable')}</dt>
+          <dd>{rotatable ? t(locale, 'yes') : t(locale, 'no')}</dd>
         </div>
         <div>
           <dt>{t(locale, 'dyeable')}</dt>
           <dd>{asset.dyeable ? t(locale, 'yes') : t(locale, 'no')}</dd>
         </div>
+        <div>
+          <dt>{t(locale, 'stackingRules')}</dt>
+          <dd>{stackingSummary}</dd>
+        </div>
+        <div>
+          <dt>{t(locale, 'placementRotation')}</dt>
+          <dd>{placementRotationDegrees} deg</dd>
+        </div>
       </dl>
     </section>
   );
+}
+
+function formatFootprint(asset: AssetDefinition): string {
+  return `${asset.footprint.length}x${asset.footprint.width}x${asset.footprint.height}`;
+}
+
+function formatAssetStacking(asset: AssetDefinition, locale: Locale): string {
+  const stackingRules: string[] = [];
+
+  if (asset.stacking.surfaceKind !== 'none') {
+    const allowedCategories = asset.stacking.allowedTopCategories
+      .map((category) => getAssetCategoryLabel(category, locale))
+      .join(', ');
+
+    stackingRules.push(t(locale, 'stackingSurfaceRules', {
+      kind: getStackingSurfaceKindLabel(asset.stacking.surfaceKind, locale),
+      categories: allowedCategories || t(locale, 'noMatch'),
+    }));
+  }
+
+  if (canBeStackedOnAnySurface(asset.category)) {
+    stackingRules.push(t(locale, 'stackingTopEligible'));
+  }
+
+  if (stackingRules.length === 0) {
+    return t(locale, 'noStackingRules');
+  }
+
+  return stackingRules.join(' · ');
+}
+
+function canBeStackedOnAnySurface(category: AssetCategory): boolean {
+  return assetCatalog.some((asset) =>
+    asset.stacking.allowsSameLevelOverlap && asset.stacking.allowedTopCategories.includes(category),
+  );
+}
+
+function getStackingSurfaceKindLabel(kind: Exclude<AssetStackingSurfaceKind, 'none'>, locale: Locale): string {
+  if (kind === 'food-surface') {
+    return t(locale, 'stackingSurfaceFood');
+  }
+  if (kind === 'floor-cover') {
+    return t(locale, 'stackingSurfaceFloorCover');
+  }
+
+  return t(locale, 'stackingSurfaceLowHeight');
 }
 
 function focusSiblingAsset(currentButton: HTMLButtonElement, offset: number): void {

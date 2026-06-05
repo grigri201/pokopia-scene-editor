@@ -1,6 +1,7 @@
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent } from 'react';
 import {
   buildSceneOccupancy,
+  getEffectiveAssetFootprint,
   getAssetById,
   getAssetSkillMarkerIconUrl,
   toAssetSkillType,
@@ -24,6 +25,7 @@ interface SceneCanvasProps {
   canvasSize: GridSize;
   scene?: SceneDocument;
   cells: CanvasCellContext[];
+  lowerLayerGhostEnabled?: boolean;
   readOnly: boolean;
   placementMode: boolean;
   selectedCoordinate: GridCoordinate | null;
@@ -41,6 +43,7 @@ export function SceneCanvas({
   canvasSize,
   scene,
   cells,
+  lowerLayerGhostEnabled = true,
   readOnly,
   placementMode,
   selectedCoordinate,
@@ -75,6 +78,12 @@ export function SceneCanvas({
     targetPlacement,
     locale,
   });
+  const lowerLayerGhostOverlays = buildLowerLayerGhostOverlays({
+    scene,
+    cells,
+    canvasSize,
+    enabled: lowerLayerGhostEnabled && !readOnly,
+  });
 
   return (
     <div
@@ -90,6 +99,7 @@ export function SceneCanvas({
       data-testid="scene-canvas"
       data-read-only={readOnly}
       data-canvas-density={canvasDensity}
+      data-lower-layer-ghost-count={lowerLayerGhostOverlays.length}
       style={canvasGridStyle}
     >
       {rows.map((row, rowIndex) => (
@@ -404,6 +414,41 @@ export function SceneCanvas({
           ))}
         </div>
       ) : null}
+      {lowerLayerGhostOverlays.length > 0 ? (
+        <div className="scene-lower-layer-ghost-layer" aria-hidden="true">
+          {lowerLayerGhostOverlays.map((overlay) => (
+            <span
+              className="scene-lower-layer-ghost"
+              data-testid={`lower-layer-ghost-${overlay.instanceId}`}
+              data-lower-layer-ghost="true"
+              data-instance-id={overlay.instanceId}
+              data-asset-id={overlay.asset.assetId}
+              data-building-level-id={overlay.buildingLevelId}
+              data-anchor-coordinate={formatCoordinate(overlay.anchor)}
+              data-effective-footprint={formatFootprint(overlay.effectiveFootprint)}
+              data-rotation={overlay.rotationDegrees}
+              data-dye-color={overlay.dyeColor ?? ''}
+              style={getGhostOverlayStyle(overlay)}
+              key={overlay.id}
+            >
+              <img src={overlay.asset.thumbnailUrl} alt="" />
+              {overlay.rotationDegrees ? (
+                <span
+                  className="scene-lower-layer-ghost__rotation"
+                  data-rotation-marker={overlay.rotationDegrees}
+                />
+              ) : null}
+              {overlay.dyeColor ? (
+                <span
+                  className="scene-lower-layer-ghost__dye"
+                  data-dye-marker={overlay.dyeColor}
+                  style={{ backgroundColor: overlay.dyeColor }}
+                />
+              ) : null}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -468,6 +513,21 @@ interface FootprintOverlay {
   instanceId?: string;
   placementStatus?: string;
   conflictTypes: string[];
+}
+
+interface LowerLayerGhostOverlay {
+  id: string;
+  asset: AssetDefinition;
+  anchor: GridCoordinate;
+  effectiveFootprint: AssetDefinition['footprint'];
+  gridColumnStart: number;
+  gridRowStart: number;
+  gridColumnSpan: number;
+  gridRowSpan: number;
+  instanceId: string;
+  buildingLevelId: string;
+  rotationDegrees: NonNullable<SceneDocument['tileInstances'][number]['rotationDegrees']>;
+  dyeColor: string | null;
 }
 
 interface StackingCellState {
@@ -657,6 +717,66 @@ function buildFootprintCanvasView(input: BuildFootprintCanvasViewInput): {
   return { cellsByCoordinate, overlays, overlayInstanceIds };
 }
 
+function buildLowerLayerGhostOverlays(input: {
+  scene: SceneDocument | undefined;
+  cells: readonly CanvasCellContext[];
+  canvasSize: GridSize;
+  enabled: boolean;
+}): LowerLayerGhostOverlay[] {
+  const activeLevel = input.cells[0]?.buildingLevel;
+
+  if (!input.enabled || !input.scene || !activeLevel) {
+    return [];
+  }
+
+  const lowerLevel = getDirectLowerBuildingLevel(input.scene, activeLevel.id);
+  if (!lowerLevel) {
+    return [];
+  }
+
+  const overlays: LowerLayerGhostOverlay[] = [];
+  for (const instance of input.scene.tileInstances) {
+    if (instance.buildingLevelId !== lowerLevel.id) {
+      continue;
+    }
+
+    const asset = getAssetById(instance.assetId);
+    if (!asset) {
+      continue;
+    }
+
+    const rotationDegrees = instance.rotationDegrees ?? 0;
+    const overlay = createLowerLayerGhostOverlay({
+      id: `lower-layer-ghost-${instance.instanceId}`,
+      asset,
+      anchor: instance.coordinate,
+      effectiveFootprint: getEffectiveAssetFootprint(asset.footprint, rotationDegrees),
+      canvasSize: input.canvasSize,
+      instanceId: instance.instanceId,
+      buildingLevelId: lowerLevel.id,
+      rotationDegrees,
+      dyeColor: instance.dyeColor ?? null,
+    });
+
+    if (overlay) {
+      overlays.push(overlay);
+    }
+  }
+
+  return overlays;
+}
+
+function getDirectLowerBuildingLevel(scene: SceneDocument, activeBuildingLevelId: string): SceneDocument['buildingLevels'][number] | null {
+  const activeLevel = scene.buildingLevels.find((level) => level.id === activeBuildingLevelId);
+  if (!activeLevel) {
+    return null;
+  }
+
+  return [...scene.buildingLevels]
+    .filter((level) => level.levelNumber < activeLevel.levelNumber)
+    .sort((left, right) => right.levelNumber - left.levelNumber || right.id.localeCompare(left.id))[0] ?? null;
+}
+
 function createEmptyFootprintCellState(): FootprintCellState {
   return {
     footprintRole: 'none',
@@ -752,11 +872,60 @@ function createFootprintOverlay(input: {
   };
 }
 
-function getOverlayGridStyle(overlay: FootprintOverlay): CSSProperties {
+function createLowerLayerGhostOverlay(input: {
+  id: string;
+  asset: AssetDefinition;
+  anchor: GridCoordinate;
+  effectiveFootprint: AssetDefinition['footprint'];
+  canvasSize: GridSize;
+  instanceId: string;
+  buildingLevelId: string;
+  rotationDegrees: NonNullable<SceneDocument['tileInstances'][number]['rotationDegrees']>;
+  dyeColor: string | null;
+}): LowerLayerGhostOverlay | null {
+  const visibleStartX = Math.max(0, input.anchor.x);
+  const visibleStartY = Math.max(0, input.anchor.y);
+  const visibleEndX = Math.min(input.canvasSize.width, input.anchor.x + input.effectiveFootprint.length);
+  const visibleEndY = Math.min(input.canvasSize.height, input.anchor.y + input.effectiveFootprint.width);
+
+  if (visibleEndX <= visibleStartX || visibleEndY <= visibleStartY) {
+    return null;
+  }
+
+  return {
+    id: input.id,
+    asset: input.asset,
+    anchor: { x: input.anchor.x, y: input.anchor.y },
+    effectiveFootprint: input.effectiveFootprint,
+    gridColumnStart: visibleStartX + 1,
+    gridRowStart: visibleStartY + 1,
+    gridColumnSpan: visibleEndX - visibleStartX,
+    gridRowSpan: visibleEndY - visibleStartY,
+    instanceId: input.instanceId,
+    buildingLevelId: input.buildingLevelId,
+    rotationDegrees: input.rotationDegrees,
+    dyeColor: input.dyeColor,
+  };
+}
+
+function getOverlayGridStyle(overlay: {
+  gridColumnStart: number;
+  gridColumnSpan: number;
+  gridRowStart: number;
+  gridRowSpan: number;
+}): CSSProperties {
   return {
     gridColumn: `${overlay.gridColumnStart} / span ${overlay.gridColumnSpan}`,
     gridRow: `${overlay.gridRowStart} / span ${overlay.gridRowSpan}`,
   };
+}
+
+function getGhostOverlayStyle(overlay: LowerLayerGhostOverlay): CSSProperties {
+  return {
+    ...getOverlayGridStyle(overlay),
+    '--lower-layer-ghost-rotation': `${overlay.rotationDegrees}deg`,
+    '--lower-layer-ghost-dye-color': overlay.dyeColor ?? 'transparent',
+  } as CSSProperties;
 }
 
 function getInteractionCoordinate(
