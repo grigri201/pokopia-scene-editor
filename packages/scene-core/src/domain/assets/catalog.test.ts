@@ -122,10 +122,12 @@ describe('asset catalog', () => {
     expect(getAssetById('cardboard-boxes')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('straw-table')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('modern-sink')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
+    expect(getAssetById('recycling-bin')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('wooden-bench')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
     expect(getAssetById('curved-eave')?.footprint).toEqual({ length: 2, width: 1, height: 1 });
     expect(getAssetById('cart')?.footprint).toEqual({ length: 1, width: 3, height: 1 });
     expect(getAssetById('canoe')?.footprint).toEqual({ length: 2, width: 1, height: 1 });
+    expect(getAssetById('vending-machine')?.footprint).toEqual({ length: 2, width: 1, height: 2 });
     expect(getAssetById('firepit')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
     expect(getAssetById('large-boulder')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
     expect(getAssetById('chansey-plant')?.footprint).toEqual({ length: 2, width: 2, height: 3 });
@@ -205,6 +207,7 @@ describe('asset catalog', () => {
       ['large-square-rug', { length: 4, width: 4, height: 1 }],
       ['chansey-plant', { length: 2, width: 2, height: 3 }],
       ['lift-platform', { length: 2, width: 2, height: 2 }],
+      ['vending-machine', { length: 2, width: 1, height: 2 }],
       ['slide', { length: 1, width: 3, height: 2 }],
     ] as const;
 
