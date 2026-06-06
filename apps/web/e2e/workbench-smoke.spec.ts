@@ -1419,7 +1419,7 @@ async function expectSceneCanvasZoomViewportAtMin(page: Page): Promise<void> {
       hasViewport: true,
       hasCanvas: true,
       scale: 1,
-      fullLongSideVisible: true,
+      defaultCanvasSizingValid: true,
       noHorizontalOverflow: true,
     });
 }
@@ -1439,7 +1439,7 @@ async function expectSceneCanvasZoomViewportAtMax(page: Page): Promise<void> {
     });
 
   const metrics = await getSceneCanvasZoomViewportMetrics(page);
-  expect(metrics.visibleColumns).toBeGreaterThan(7);
+  expect(metrics.visibleColumns).toBeGreaterThan(6);
   expect(metrics.visibleRows).toBeGreaterThan(6);
 }
 
@@ -1448,6 +1448,9 @@ async function getSceneCanvasZoomViewportMetrics(page: Page): Promise<{
   hasCanvas: boolean;
   scale: number;
   fullLongSideVisible: boolean;
+  canvasInsideViewport: boolean;
+  canvasLongSideMatchesViewportShortSide: boolean;
+  defaultCanvasSizingValid: boolean;
   scaledContentClipped: boolean;
   viewportFillsStage: boolean;
   viewportOverflowHidden: boolean;
@@ -1491,11 +1494,22 @@ async function getSceneCanvasZoomViewportMetrics(page: Page): Promise<{
           inner.bottom <= outer.bottom + 1,
       );
 
+    const canvasInsideViewport = contains(viewportRect, canvasRect);
+    const canvasLongSideMatchesViewportShortSide = Boolean(
+      viewportRect &&
+        canvasRect &&
+        Math.abs(Math.max(canvasRect.width, canvasRect.height) - Math.min(viewportRect.width, viewportRect.height)) <= 2,
+    );
+    const fullLongSideVisible = contains(viewportRect, firstCellRect) && contains(viewportRect, edgeCellRect);
+
     return {
       hasViewport: Boolean(viewportRect),
       hasCanvas: Boolean(canvasRect),
       scale: Number(Number(viewport?.dataset.zoomScale ?? '0').toFixed(4)),
-      fullLongSideVisible: contains(viewportRect, firstCellRect) && contains(viewportRect, edgeCellRect),
+      fullLongSideVisible,
+      canvasInsideViewport,
+      canvasLongSideMatchesViewportShortSide,
+      defaultCanvasSizingValid: canvasInsideViewport && (canvasLongSideMatchesViewportShortSide || fullLongSideVisible),
       scaledContentClipped: Boolean(
         viewportRect &&
           canvasRect &&

@@ -1845,6 +1845,7 @@ button:disabled {
   overflow: hidden;
   border-radius: 12px;
   touch-action: none;
+  container-type: size;
   contain: layout paint;
   cursor: grab;
 }
@@ -3873,6 +3874,7 @@ button:disabled {
     align-self: stretch;
     margin-left: 0;
     width: 100%;
+    container-type: normal;
   }
 
   .scene-canvas {

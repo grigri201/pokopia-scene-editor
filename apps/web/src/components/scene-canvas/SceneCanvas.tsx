@@ -74,10 +74,10 @@ export function SceneCanvas({
     '--scene-canvas-rows': canvasSize.height,
     '--scene-canvas-max-side': maxCanvasSide,
     '--scene-canvas-aspect-ratio': `${canvasSize.width} / ${canvasSize.height}`,
-    '--scene-canvas-width-large': createViewportBoundedCanvasWidth(canvasInlineScale, 100, 212, 660, 'px', 100, '%'),
+    '--scene-canvas-width-large': createViewportShortSideCanvasWidth(canvasInlineScale),
     '--scene-canvas-width-medium': createScaledCanvasWidth(canvasInlineScale, 100, '%', 620, 'px'),
     '--scene-canvas-width-mobile': createScaledCanvasWidth(canvasInlineScale, 100, '%', 92, 'vw'),
-    '--scene-canvas-render-width-large': createViewportBoundedCanvasWidth(canvasInlineScale * zoomScale, 100, 212, 660, 'px', 100, '%'),
+    '--scene-canvas-render-width-large': createViewportShortSideCanvasWidth(canvasInlineScale * zoomScale),
     '--scene-canvas-render-width-medium': createScaledCanvasWidth(canvasInlineScale * zoomScale, 100, '%', 620, 'px'),
     '--scene-canvas-render-width-mobile': createScaledCanvasWidth(canvasInlineScale * zoomScale, 100, '%', 92, 'vw'),
     '--scene-canvas-zoom-scale': formatSceneCanvasZoomScale(zoomScale),
@@ -813,23 +813,8 @@ function createScaledCanvasWidth(
   return `min(${terms.join(', ')})`;
 }
 
-function createViewportBoundedCanvasWidth(
-  scale: number,
-  viewportPercent: number,
-  viewportOffsetPx: number,
-  secondValue: number,
-  secondUnit: string,
-  thirdValue?: number,
-  thirdUnit?: string,
-): string {
-  const viewportTerm = `calc(${formatScaledDimension(viewportPercent, scale)}vh - ${formatScaledDimension(viewportOffsetPx, scale)}px)`;
-  const terms = [
-    viewportTerm,
-    `${formatScaledDimension(secondValue, scale)}${secondUnit}`,
-    ...(thirdValue !== undefined && thirdUnit ? [`${formatScaledDimension(thirdValue, scale)}${thirdUnit}`] : []),
-  ];
-
-  return `min(${terms.join(', ')})`;
+function createViewportShortSideCanvasWidth(scale: number): string {
+  return `calc(min(100cqw, 100cqh) * ${formatScaledDimension(1, scale)})`;
 }
 
 function formatScaledDimension(value: number, scale: number): string {
