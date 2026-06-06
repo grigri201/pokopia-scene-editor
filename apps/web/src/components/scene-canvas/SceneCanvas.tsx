@@ -147,22 +147,13 @@ export function SceneCanvas({
     [maxZoomScale, readOnly],
   );
 
-  const handleFitViewport = useCallback(() => {
-    const viewport = viewportRef.current;
-    const canvas = viewport?.querySelector<HTMLElement>('[data-testid="scene-canvas"]');
-
-    if (!viewport || !canvas || viewport.clientWidth <= 0 || viewport.clientHeight <= 0 || canvas.offsetWidth <= 0 || canvas.offsetHeight <= 0) {
-      return;
-    }
-
-    const coverScale = Math.max(viewport.clientWidth / canvas.offsetWidth, viewport.clientHeight / canvas.offsetHeight);
-    const nextScale = clampSceneCanvasZoomScale(coverScale, maxZoomScale);
-    zoomScaleRef.current = nextScale;
+  const handleResetViewport = useCallback(() => {
+    zoomScaleRef.current = 1;
     canvasPanRef.current = { x: 0, y: 0 };
     setZoomOrigin({ x: 50, y: 50 });
     setCanvasPan({ x: 0, y: 0 });
-    setZoomScale(nextScale);
-  }, [maxZoomScale]);
+    setZoomScale(1);
+  }, []);
 
   const handleViewportPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -229,7 +220,7 @@ export function SceneCanvas({
   }, []);
 
   const handleViewportClickCapture = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    if (!suppressViewportClickRef.current) {
+    if (!suppressViewportClickRef.current || isViewportControlTarget(event.target)) {
       return;
     }
 
@@ -298,9 +289,9 @@ export function SceneCanvas({
       <button
         type="button"
         className="scene-canvas-fit-button"
-        aria-label="Fit canvas to viewport"
-        title="Fit canvas to viewport"
-        onClick={handleFitViewport}
+        aria-label="Reset canvas view"
+        title="Reset canvas view"
+        onClick={handleResetViewport}
       >
         <FitViewportIcon />
       </button>

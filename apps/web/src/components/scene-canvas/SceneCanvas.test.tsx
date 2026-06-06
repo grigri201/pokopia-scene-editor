@@ -230,19 +230,30 @@ describe('SceneCanvas', () => {
     expect(viewport).toHaveAttribute('data-zoom-scale', '1');
   });
 
-  it('fits the canvas to cover the viewport from the viewport control', () => {
+  it('resets zoom and pan to the default viewport mode from the viewport control', () => {
     render(<SceneCanvas {...defaultProps} readOnly={false} />);
 
     const viewport = screen.getByTestId('scene-canvas-viewport');
-    const canvas = screen.getByTestId('scene-canvas');
-    defineReadonlyElementNumber(viewport, 'clientWidth', 900);
-    defineReadonlyElementNumber(viewport, 'clientHeight', 600);
-    defineReadonlyElementNumber(canvas, 'offsetWidth', 300);
-    defineReadonlyElementNumber(canvas, 'offsetHeight', 300);
+    const setPointerCapture = vi.fn();
+    const releasePointerCapture = vi.fn();
+    const hasPointerCapture = vi.fn(() => true);
+    Object.assign(viewport, {
+      setPointerCapture,
+      releasePointerCapture,
+      hasPointerCapture,
+    });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Fit canvas to viewport' }));
+    fireEvent.wheel(viewport, { deltaY: -1200 });
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 100, clientY: 100, pointerId: 7 });
+    fireEvent.pointerMove(viewport, { clientX: 130, clientY: 112, pointerId: 7 });
+    fireEvent.pointerUp(viewport, { clientX: 130, clientY: 112, pointerId: 7 });
 
     expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
+    expect(viewport).toHaveAttribute('data-zoom-pan', '30,12');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset canvas view' }));
+
+    expect(viewport).toHaveAttribute('data-zoom-scale', '1');
     expect(viewport).toHaveAttribute('data-zoom-origin', '50,50');
     expect(viewport).toHaveAttribute('data-zoom-pan', '0,0');
   });
@@ -1686,13 +1697,6 @@ function createGestureEvent(
   });
 
   return event;
-}
-
-function defineReadonlyElementNumber(element: HTMLElement, property: 'clientWidth' | 'clientHeight' | 'offsetWidth' | 'offsetHeight', value: number): void {
-  Object.defineProperty(element, property, {
-    configurable: true,
-    value,
-  });
 }
 
 function formatFootprint(footprint: { length: number; width: number; height: number } | null): string {
