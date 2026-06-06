@@ -1894,7 +1894,12 @@ button:disabled {
 .scene-canvas {
   --scene-canvas-padding: 10px;
   --scene-canvas-gap: 6px;
-  --scene-coordinate-watermark-size: clamp(5px, min(42cqw, calc(150px / var(--scene-canvas-max-side, 7))), 18px);
+  --scene-canvas-zoom-factor: var(--scene-canvas-zoom-scale, 1);
+  --scene-coordinate-watermark-size: clamp(
+    5px,
+    min(42cqw, calc((150px / var(--scene-canvas-max-side, 7)) * var(--scene-canvas-zoom-factor))),
+    calc(18px * var(--scene-canvas-zoom-factor))
+  );
   --scene-material-frame-margin: 8px;
   --scene-material-frame-border: 1px solid color-mix(in srgb, var(--line) 72%, var(--ink-muted) 28%);
   --scene-material-frame-radius: 6px;
@@ -2407,13 +2412,13 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: calc(20px * var(--scene-canvas-zoom-factor));
+  height: calc(20px * var(--scene-canvas-zoom-factor));
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--color-skill-marker);
-  font-size: 11px;
+  font-size: calc(11px * var(--scene-canvas-zoom-factor));
   font-weight: 800;
   line-height: 1;
   box-shadow: none;
@@ -2427,21 +2432,21 @@ button:disabled {
 
 .cell-skill-marker img {
   display: block;
-  width: 18px;
-  height: 18px;
+  width: calc(18px * var(--scene-canvas-zoom-factor));
+  height: calc(18px * var(--scene-canvas-zoom-factor));
   object-fit: contain;
 }
 
 .scene-canvas[data-canvas-density="compact"] .cell-skill-marker {
   top: 2px;
   right: 2px;
-  width: 14px;
-  height: 14px;
+  width: calc(14px * var(--scene-canvas-zoom-factor));
+  height: calc(14px * var(--scene-canvas-zoom-factor));
 }
 
 .scene-canvas[data-canvas-density="compact"] .cell-skill-marker img {
-  width: 13px;
-  height: 13px;
+  width: calc(13px * var(--scene-canvas-zoom-factor));
+  height: calc(13px * var(--scene-canvas-zoom-factor));
 }
 
 .cell-rotation-marker {
@@ -2515,14 +2520,14 @@ button:disabled {
   z-index: 6;
   display: inline-grid;
   place-items: center;
-  min-width: 24px;
-  height: 20px;
-  padding: 0 5px;
+  min-width: calc(24px * var(--scene-canvas-zoom-factor));
+  height: calc(20px * var(--scene-canvas-zoom-factor));
+  padding: 0 calc(5px * var(--scene-canvas-zoom-factor));
   border: 1px solid rgba(91, 65, 104, 0.42);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.84);
   color: #3d3444;
-  font-size: 11px;
+  font-size: calc(11px * var(--scene-canvas-zoom-factor));
   font-weight: 900;
   line-height: 1;
   box-shadow: 0 2px 4px rgba(35, 31, 26, 0.16);
@@ -2532,10 +2537,10 @@ button:disabled {
 .scene-canvas[data-canvas-density="compact"] .cell-height-marker {
   top: 2px;
   left: 2px;
-  min-width: 15px;
-  height: 13px;
-  padding: 0 3px;
-  font-size: 8px;
+  min-width: calc(15px * var(--scene-canvas-zoom-factor));
+  height: calc(13px * var(--scene-canvas-zoom-factor));
+  padding: 0 calc(3px * var(--scene-canvas-zoom-factor));
+  font-size: calc(8px * var(--scene-canvas-zoom-factor));
 }
 
 .cell-dye-marker {
