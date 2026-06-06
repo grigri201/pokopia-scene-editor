@@ -63,6 +63,7 @@ describe('SceneCanvas', () => {
       '--scene-canvas-max-side': `${Math.max(scene.canvasSize.width, scene.canvasSize.height)}`,
       '--scene-canvas-aspect-ratio': `${scene.canvasSize.width} / ${scene.canvasSize.height}`,
       '--scene-canvas-width-large': 'min(calc(100vh - 212px), 660px, 100%)',
+      '--scene-canvas-render-width-large': 'min(calc(100vh - 212px), 660px, 100%)',
     });
     expect(cells).toHaveLength(defaultCanvasCellCount);
     expect(screen.getByLabelText('Cell 0,0, outer area, level-0, placeable')).toBeVisible();
@@ -175,6 +176,21 @@ describe('SceneCanvas', () => {
     expect(canvas).toHaveStyle({
       '--scene-canvas-zoom-scale': '1',
       '--scene-canvas-zoom-max-scale': '2.8333',
+      '--scene-canvas-render-width-large': 'min(calc(100vh - 212px), 660px, 100%)',
+    });
+  });
+
+  it('reflows the canvas at the zoomed size so CSS grid details stay sharp', () => {
+    render(<SceneCanvas {...defaultProps} readOnly={false} />);
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    const canvas = screen.getByTestId('scene-canvas');
+
+    fireEvent.wheel(viewport, { deltaY: -1200 });
+
+    expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
+    expect(canvas).toHaveStyle({
+      '--scene-canvas-render-width-large': 'min(calc(283.3333vh - 600.6667px), 1870px, 283.3333%)',
     });
   });
 

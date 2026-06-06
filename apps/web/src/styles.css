@@ -1908,7 +1908,7 @@ button:disabled {
   margin-left: 0;
   display: grid;
   grid-template-rows: repeat(var(--scene-canvas-rows, 7), 1fr);
-  width: var(--scene-canvas-width-large, min(72vh, 660px, 100%));
+  width: var(--scene-canvas-render-width-large, var(--scene-canvas-width-large, min(72vh, 660px, 100%)));
   aspect-ratio: var(--scene-canvas-aspect-ratio, 1 / 1);
   border: 1px solid var(--line-strong);
   border-radius: 12px;
@@ -1919,8 +1919,7 @@ button:disabled {
 
 .scene-canvas-viewport > .scene-canvas {
   flex: 0 0 auto;
-  transform: translate3d(var(--scene-canvas-pan-x, 0), var(--scene-canvas-pan-y, 0), 0) scale(var(--scene-canvas-zoom-scale, 1));
-  transform-origin: var(--scene-canvas-zoom-origin-x, 50%) var(--scene-canvas-zoom-origin-y, 50%);
+  transform: translate3d(var(--scene-canvas-pan-x, 0), var(--scene-canvas-pan-y, 0), 0);
   will-change: transform;
 }
 
@@ -3874,7 +3873,7 @@ button:disabled {
   .scene-canvas {
     align-self: center;
     margin-left: 0;
-    width: var(--scene-canvas-width-medium, min(100%, 620px));
+    width: var(--scene-canvas-render-width-medium, var(--scene-canvas-width-medium, min(100%, 620px)));
   }
 
   .selection-inspector {
@@ -4047,7 +4046,7 @@ button:disabled {
   .scene-canvas {
     align-self: center;
     margin-left: 0;
-    width: var(--scene-canvas-width-mobile, min(100%, 92vw));
+    width: var(--scene-canvas-render-width-mobile, var(--scene-canvas-width-mobile, min(100%, 92vw)));
   }
 
   .scene-canvas {

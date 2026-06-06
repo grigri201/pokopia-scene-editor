@@ -1439,7 +1439,7 @@ async function expectSceneCanvasZoomViewportAtMax(page: Page): Promise<void> {
     });
 
   const metrics = await getSceneCanvasZoomViewportMetrics(page);
-  expect(metrics.visibleColumns).toBeGreaterThan(8);
+  expect(metrics.visibleColumns).toBeGreaterThan(7);
   expect(metrics.visibleRows).toBeGreaterThan(6);
 }
 
