@@ -1,4 +1,5 @@
-import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, WheelEvent } from 'react';
 import {
   buildSceneOccupancy,
   getEffectiveAssetFootprint,
@@ -57,6 +58,12 @@ export function SceneCanvas({
 }: SceneCanvasProps) {
   const maxCanvasSide = Math.max(canvasSize.width, canvasSize.height);
   const canvasInlineScale = canvasSize.width / maxCanvasSide;
+  const maxZoomScale = getMaxSceneCanvasZoomScale(canvasSize);
+  const [zoomScale, setZoomScale] = useState(1);
+  const [zoomOrigin, setZoomOrigin] = useState<SceneCanvasZoomOrigin>({ x: 50, y: 50 });
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const zoomScaleRef = useRef(1);
+  const gestureStartZoomRef = useRef(1);
   const canvasGridStyle = {
     '--scene-canvas-columns': canvasSize.width,
     '--scene-canvas-rows': canvasSize.height,
@@ -65,6 +72,10 @@ export function SceneCanvas({
     '--scene-canvas-width-large': createViewportBoundedCanvasWidth(canvasInlineScale, 100, 212, 660, 'px', 100, '%'),
     '--scene-canvas-width-medium': createScaledCanvasWidth(canvasInlineScale, 100, '%', 620, 'px'),
     '--scene-canvas-width-mobile': createScaledCanvasWidth(canvasInlineScale, 100, '%', 92, 'vw'),
+    '--scene-canvas-zoom-scale': formatSceneCanvasZoomScale(zoomScale),
+    '--scene-canvas-zoom-max-scale': formatSceneCanvasZoomScale(maxZoomScale),
+    '--scene-canvas-zoom-origin-x': `${formatSceneCanvasZoomPercent(zoomOrigin.x)}%`,
+    '--scene-canvas-zoom-origin-y': `${formatSceneCanvasZoomPercent(zoomOrigin.y)}%`,
   } as CSSProperties;
   const canvasDensity = canvasSize.width > 7 || canvasSize.height > 7 ? 'compact' : 'standard';
   const rows = Array.from({ length: canvasSize.height }, (_, rowIndex) =>
@@ -85,84 +96,172 @@ export function SceneCanvas({
     enabled: lowerLayerGhostEnabled && !readOnly,
   });
 
+  useEffect(() => {
+    zoomScaleRef.current = zoomScale;
+  }, [zoomScale]);
+
+  useEffect(() => {
+    setZoomOrigin({ x: 50, y: 50 });
+    setZoomScale((currentScale) => {
+      const nextScale = clampSceneCanvasZoomScale(currentScale, maxZoomScale);
+      zoomScaleRef.current = nextScale;
+
+      return nextScale;
+    });
+  }, [canvasSize.height, canvasSize.width, maxZoomScale]);
+
+  const handleWheelZoom = useCallback(
+    (event: WheelEvent<HTMLDivElement>) => {
+      if (readOnly || !Number.isFinite(event.deltaY) || event.deltaY === 0) {
+        return;
+      }
+
+      const nextScale = getNextWheelZoomScale(
+        zoomScaleRef.current,
+        normalizeWheelDeltaY(event.deltaY, event.deltaMode),
+        maxZoomScale,
+      );
+
+      if (nextScale === zoomScaleRef.current) {
+        return;
+      }
+
+      event.preventDefault();
+      zoomScaleRef.current = nextScale;
+      const viewport = viewportRef.current ?? event.currentTarget;
+      setZoomOrigin(getSceneCanvasZoomOriginFromPoint(viewport, event.clientX, event.clientY));
+      setZoomScale(nextScale);
+    },
+    [maxZoomScale, readOnly],
+  );
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+
+    if (readOnly || !viewport || typeof window === 'undefined' || !('ongesturechange' in window)) {
+      return undefined;
+    }
+    const gestureTarget: EventTarget = viewport;
+    const listenerOptions: AddEventListenerOptions = { passive: false };
+
+    const handleGestureStart = (event: Event) => {
+      event.preventDefault();
+      gestureStartZoomRef.current = zoomScaleRef.current;
+      const gestureEvent = event as SceneCanvasGestureEvent;
+      setZoomOrigin(getSceneCanvasZoomOriginFromPoint(viewport, gestureEvent.clientX, gestureEvent.clientY));
+    };
+
+    const handleGestureChange = (event: Event) => {
+      event.preventDefault();
+      const gestureEvent = event as SceneCanvasGestureEvent;
+      const eventScale = gestureEvent.scale;
+      const gestureScale = typeof eventScale === 'number' && Number.isFinite(eventScale) && eventScale > 0
+        ? eventScale
+        : 1;
+      setZoomOrigin(getSceneCanvasZoomOriginFromPoint(viewport, gestureEvent.clientX, gestureEvent.clientY));
+      const nextScale = clampSceneCanvasZoomScale(gestureStartZoomRef.current * gestureScale, maxZoomScale);
+      zoomScaleRef.current = nextScale;
+      setZoomScale(nextScale);
+    };
+
+    gestureTarget.addEventListener('gesturestart', handleGestureStart, listenerOptions);
+    gestureTarget.addEventListener('gesturechange', handleGestureChange, listenerOptions);
+
+    return () => {
+      gestureTarget.removeEventListener('gesturestart', handleGestureStart, listenerOptions);
+      gestureTarget.removeEventListener('gesturechange', handleGestureChange, listenerOptions);
+    };
+  }, [maxZoomScale, readOnly]);
+
   return (
     <div
-      className="scene-canvas"
-      role="grid"
-      aria-label={
-        readOnly
-          ? t(locale, 'sceneCanvasReadOnly', { width: canvasSize.width, height: canvasSize.height })
-          : t(locale, 'sceneCanvas', { width: canvasSize.width, height: canvasSize.height })
-      }
-      aria-rowcount={canvasSize.height}
-      aria-colcount={canvasSize.width}
-      data-testid="scene-canvas"
-      data-read-only={readOnly}
-      data-canvas-density={canvasDensity}
-      data-lower-layer-ghost-count={lowerLayerGhostOverlays.length}
+      className="scene-canvas-viewport"
+      ref={viewportRef}
+      data-testid="scene-canvas-viewport"
+      data-zoom-scale={formatSceneCanvasZoomScale(zoomScale)}
+      data-zoom-min-scale="1"
+      data-zoom-max-scale={formatSceneCanvasZoomScale(maxZoomScale)}
+      data-zoom-origin={`${formatSceneCanvasZoomPercent(zoomOrigin.x)},${formatSceneCanvasZoomPercent(zoomOrigin.y)}`}
+      onWheel={handleWheelZoom}
       style={canvasGridStyle}
     >
-      {rows.map((row, rowIndex) => (
-        <div className="scene-row" role="row" aria-rowindex={rowIndex + 1} key={rowIndex}>
-          {row.map((cell) => {
-            const coordinate = cell.coordinate;
-            const footprintState = footprintView.cellsByCoordinate.get(getCoordinateKey(coordinate)) ?? emptyFootprintCellState;
-            const placeable = cell.placeable && !footprintState.heightBlocked;
-            const editable = isCellEditable(placeable, readOnly);
-            const stateLabel = getCellStateLabel(placeable, readOnly);
-            const selected = coordinatesEqual(selectedCoordinate, coordinate);
-            const targeted = coordinatesEqual(targetCoordinate, coordinate);
-            const visibleInstances = cell.tileInstances;
-            const topInstance = visibleInstances.at(-1) ?? null;
-            const topAsset = getAssetById(topInstance?.assetId);
-            const topAssetLabel = topInstance ? getInstanceDisplayLabel(topInstance.assetId, locale) : null;
-            const otherLayerInstanceCount = cell.otherVisibleLayerInstances.length;
-            const topSkillInstance = topInstance?.requiresSkill ? topInstance : null;
-            const topCellSkillMarker = cell.skillMarkers.at(-1) ?? null;
-            const skillMarkerType = topSkillInstance?.skillType ?? topCellSkillMarker?.skillType ?? null;
-            const hasSkillMarker = Boolean(skillMarkerType);
-            const normalizedSkillType = toAssetSkillType(skillMarkerType);
-            const skillMarkerLabel = normalizedSkillType ? getSkillDisplay(normalizedSkillType, locale).marker : null;
-            const skillMarkerIconUrl = skillMarkerType
-              ? getAssetSkillMarkerIconUrl(skillMarkerType)
-              : null;
-            const skillMarkerTooltip = normalizedSkillType ? getSkillDisplay(normalizedSkillType, locale).name : null;
-            const skillMarkerAriaLabel = topSkillInstance
-              ? getInstanceSkillMarkerLabel(topSkillInstance.assetId, skillMarkerLabel, locale)
-              : topCellSkillMarker
-                ? getCellSkillMarkerLabel(skillMarkerLabel, locale)
+      <div
+        className="scene-canvas"
+        role="grid"
+        aria-label={
+          readOnly
+            ? t(locale, 'sceneCanvasReadOnly', { width: canvasSize.width, height: canvasSize.height })
+            : t(locale, 'sceneCanvas', { width: canvasSize.width, height: canvasSize.height })
+        }
+        aria-rowcount={canvasSize.height}
+        aria-colcount={canvasSize.width}
+        data-testid="scene-canvas"
+        data-read-only={readOnly}
+        data-canvas-density={canvasDensity}
+        data-lower-layer-ghost-count={lowerLayerGhostOverlays.length}
+        style={canvasGridStyle}
+      >
+        {rows.map((row, rowIndex) => (
+          <div className="scene-row" role="row" aria-rowindex={rowIndex + 1} key={rowIndex}>
+            {row.map((cell) => {
+              const coordinate = cell.coordinate;
+              const footprintState = footprintView.cellsByCoordinate.get(getCoordinateKey(coordinate)) ?? emptyFootprintCellState;
+              const placeable = cell.placeable && !footprintState.heightBlocked;
+              const editable = isCellEditable(placeable, readOnly);
+              const stateLabel = getCellStateLabel(placeable, readOnly);
+              const selected = coordinatesEqual(selectedCoordinate, coordinate);
+              const targeted = coordinatesEqual(targetCoordinate, coordinate);
+              const visibleInstances = cell.tileInstances;
+              const topInstance = visibleInstances.at(-1) ?? null;
+              const topAsset = getAssetById(topInstance?.assetId);
+              const topAssetLabel = topInstance ? getInstanceDisplayLabel(topInstance.assetId, locale) : null;
+              const otherLayerInstanceCount = cell.otherVisibleLayerInstances.length;
+              const topSkillInstance = topInstance?.requiresSkill ? topInstance : null;
+              const topCellSkillMarker = cell.skillMarkers.at(-1) ?? null;
+              const skillMarkerType = topSkillInstance?.skillType ?? topCellSkillMarker?.skillType ?? null;
+              const hasSkillMarker = Boolean(skillMarkerType);
+              const normalizedSkillType = toAssetSkillType(skillMarkerType);
+              const skillMarkerLabel = normalizedSkillType ? getSkillDisplay(normalizedSkillType, locale).marker : null;
+              const skillMarkerIconUrl = skillMarkerType
+                ? getAssetSkillMarkerIconUrl(skillMarkerType)
                 : null;
-            const footprintHeight = topInstance && topAsset ? topAsset.footprint.height : 1;
-            const heightMarkerExtra = footprintHeight > 1 ? footprintHeight - 1 : 0;
-            const rotationDegrees = topInstance?.rotationDegrees ?? 0;
-            const rotationLabel = rotationDegrees ? `${rotationDegrees}` : null;
-            const dyeColor = topInstance?.dyeColor ?? null;
-            const interactionCoordinate = getInteractionCoordinate(coordinate, footprintState, placementMode);
-            const stackingState = footprintState.stackingState;
-            const stackingBaseAsset = getAssetById(stackingState?.baseAssetId);
-            const stackingTopAsset = getAssetById(stackingState?.topAssetId);
-            const stackingLabel = getStackingLabel(stackingState, locale);
-            const shouldRenderStackingSplit = Boolean(stackingState && stackingBaseAsset && stackingTopAsset);
-            const stackingBaseFootprint = stackingState?.baseFootprint ?? stackingBaseAsset?.footprint ?? null;
-            const stackingTopFootprint = stackingState?.topFootprint ?? stackingTopAsset?.footprint ?? null;
-            const stackingDisplay = getStackingSplitDisplay({
-              topFootprint: stackingTopFootprint,
-              baseFootprint: stackingBaseFootprint,
-            });
-            const stackingTopUsesOverlay = Boolean(stackingState && footprintView.overlayInstanceIds.has(stackingState.topInstanceId));
-            const stackingBaseUsesOverlay = Boolean(stackingState && footprintView.overlayInstanceIds.has(stackingState.baseInstanceId));
-            const hideStackingBaseImage = !stackingDisplay.showBaseImage || stackingBaseUsesOverlay;
-            const stackingBaseFootprintLabel = formatStackingFootprint(stackingBaseFootprint);
-            const stackingTopFootprintLabel = formatStackingFootprint(stackingTopFootprint);
-            const shouldRenderInlineAsset = Boolean(topAsset && topInstance && !footprintView.overlayInstanceIds.has(topInstance.instanceId) && !shouldRenderStackingSplit);
-            const visibleInstanceCount = stackingState?.kind === 'placed'
-              ? 2
-              : topInstance
-                ? 1
-                : 0;
+              const skillMarkerTooltip = normalizedSkillType ? getSkillDisplay(normalizedSkillType, locale).name : null;
+              const skillMarkerAriaLabel = topSkillInstance
+                ? getInstanceSkillMarkerLabel(topSkillInstance.assetId, skillMarkerLabel, locale)
+                : topCellSkillMarker
+                  ? getCellSkillMarkerLabel(skillMarkerLabel, locale)
+                  : null;
+              const footprintHeight = topInstance && topAsset ? topAsset.footprint.height : 1;
+              const heightMarkerExtra = footprintHeight > 1 ? footprintHeight - 1 : 0;
+              const rotationDegrees = topInstance?.rotationDegrees ?? 0;
+              const rotationLabel = rotationDegrees ? `${rotationDegrees}` : null;
+              const dyeColor = topInstance?.dyeColor ?? null;
+              const interactionCoordinate = getInteractionCoordinate(coordinate, footprintState, placementMode);
+              const stackingState = footprintState.stackingState;
+              const stackingBaseAsset = getAssetById(stackingState?.baseAssetId);
+              const stackingTopAsset = getAssetById(stackingState?.topAssetId);
+              const stackingLabel = getStackingLabel(stackingState, locale);
+              const shouldRenderStackingSplit = Boolean(stackingState && stackingBaseAsset && stackingTopAsset);
+              const stackingBaseFootprint = stackingState?.baseFootprint ?? stackingBaseAsset?.footprint ?? null;
+              const stackingTopFootprint = stackingState?.topFootprint ?? stackingTopAsset?.footprint ?? null;
+              const stackingDisplay = getStackingSplitDisplay({
+                topFootprint: stackingTopFootprint,
+                baseFootprint: stackingBaseFootprint,
+              });
+              const stackingTopUsesOverlay = Boolean(stackingState && footprintView.overlayInstanceIds.has(stackingState.topInstanceId));
+              const stackingBaseUsesOverlay = Boolean(stackingState && footprintView.overlayInstanceIds.has(stackingState.baseInstanceId));
+              const hideStackingBaseImage = !stackingDisplay.showBaseImage || stackingBaseUsesOverlay;
+              const stackingBaseFootprintLabel = formatStackingFootprint(stackingBaseFootprint);
+              const stackingTopFootprintLabel = formatStackingFootprint(stackingTopFootprint);
+              const shouldRenderInlineAsset = Boolean(topAsset && topInstance && !footprintView.overlayInstanceIds.has(topInstance.instanceId) && !shouldRenderStackingSplit);
+              const visibleInstanceCount = stackingState?.kind === 'placed'
+                ? 2
+                : topInstance
+                  ? 1
+                  : 0;
 
-            return (
-              <button
+              return (
+                <button
                 type="button"
                 role="gridcell"
                 className={[
@@ -379,78 +478,170 @@ export function SceneCanvas({
                     )}
                   </span>
                 ) : null}
-              </button>
-            );
-          })}
-        </div>
-      ))}
-      {footprintView.overlays.length > 0 ? (
-        <div className="scene-footprint-layer" aria-hidden="true">
-          {footprintView.overlays.map((overlay) => (
-            <span
-              className={[
-                'scene-footprint-overlay',
-                `scene-footprint-overlay--${overlay.kind}`,
-                overlay.conflictTypes.length > 0 ? 'scene-footprint-overlay--conflict' : '',
-                overlay.stackingRole === 'top' ? 'scene-footprint-overlay--stacking-top' : '',
-              ].filter(Boolean).join(' ')}
-              data-testid={overlay.kind === 'placement' ? 'placement-footprint-overlay' : `scene-footprint-overlay-${overlay.id}`}
-              data-instance-id={overlay.instanceId ?? ''}
-              data-asset-id={overlay.asset.assetId}
-              data-anchor-coordinate={formatCoordinate(overlay.anchor)}
-              data-effective-footprint={formatFootprint(overlay.effectiveFootprint)}
-              data-placement-status={overlay.placementStatus ?? ''}
-              data-conflicts={overlay.conflictTypes.join(',')}
-              data-stacking-role={overlay.stackingRole ?? ''}
-              data-stacking-relation-id={overlay.stackingState ? `${overlay.stackingState.baseInstanceId}:${overlay.stackingState.topInstanceId}` : ''}
-              data-stacking-base-instance-id={overlay.stackingState?.baseInstanceId ?? ''}
-              data-stacking-top-instance-id={overlay.stackingState?.topInstanceId ?? ''}
-              data-stacking-top-crop-axis={overlay.stackingRole === 'top' ? getStackingShortSideSplitAxis(overlay.effectiveFootprint) : ''}
-              style={getOverlayGridStyle(overlay)}
-              key={overlay.id}
-            >
-              <img src={overlay.asset.thumbnailUrl} alt="" />
-            </span>
-          ))}
-        </div>
-      ) : null}
-      {lowerLayerGhostOverlays.length > 0 ? (
-        <div className="scene-lower-layer-ghost-layer" aria-hidden="true">
-          {lowerLayerGhostOverlays.map((overlay) => (
-            <span
-              className="scene-lower-layer-ghost"
-              data-testid={`lower-layer-ghost-${overlay.instanceId}`}
-              data-lower-layer-ghost="true"
-              data-instance-id={overlay.instanceId}
-              data-asset-id={overlay.asset.assetId}
-              data-building-level-id={overlay.buildingLevelId}
-              data-anchor-coordinate={formatCoordinate(overlay.anchor)}
-              data-effective-footprint={formatFootprint(overlay.effectiveFootprint)}
-              data-rotation={overlay.rotationDegrees}
-              data-dye-color={overlay.dyeColor ?? ''}
-              style={getGhostOverlayStyle(overlay)}
-              key={overlay.id}
-            >
-              <img src={overlay.asset.thumbnailUrl} alt="" />
-              {overlay.rotationDegrees ? (
-                <span
-                  className="scene-lower-layer-ghost__rotation"
-                  data-rotation-marker={overlay.rotationDegrees}
-                />
-              ) : null}
-              {overlay.dyeColor ? (
-                <span
-                  className="scene-lower-layer-ghost__dye"
-                  data-dye-marker={overlay.dyeColor}
-                  style={{ backgroundColor: overlay.dyeColor }}
-                />
-              ) : null}
-            </span>
-          ))}
-        </div>
-      ) : null}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+        {footprintView.overlays.length > 0 ? (
+          <div className="scene-footprint-layer" aria-hidden="true">
+            {footprintView.overlays.map((overlay) => (
+              <span
+                className={[
+                  'scene-footprint-overlay',
+                  `scene-footprint-overlay--${overlay.kind}`,
+                  overlay.conflictTypes.length > 0 ? 'scene-footprint-overlay--conflict' : '',
+                  overlay.stackingRole === 'top' ? 'scene-footprint-overlay--stacking-top' : '',
+                ].filter(Boolean).join(' ')}
+                data-testid={overlay.kind === 'placement' ? 'placement-footprint-overlay' : `scene-footprint-overlay-${overlay.id}`}
+                data-instance-id={overlay.instanceId ?? ''}
+                data-asset-id={overlay.asset.assetId}
+                data-anchor-coordinate={formatCoordinate(overlay.anchor)}
+                data-effective-footprint={formatFootprint(overlay.effectiveFootprint)}
+                data-placement-status={overlay.placementStatus ?? ''}
+                data-conflicts={overlay.conflictTypes.join(',')}
+                data-stacking-role={overlay.stackingRole ?? ''}
+                data-stacking-relation-id={overlay.stackingState ? `${overlay.stackingState.baseInstanceId}:${overlay.stackingState.topInstanceId}` : ''}
+                data-stacking-base-instance-id={overlay.stackingState?.baseInstanceId ?? ''}
+                data-stacking-top-instance-id={overlay.stackingState?.topInstanceId ?? ''}
+                data-stacking-top-crop-axis={overlay.stackingRole === 'top' ? getStackingShortSideSplitAxis(overlay.effectiveFootprint) : ''}
+                style={getOverlayGridStyle(overlay)}
+                key={overlay.id}
+              >
+                <img src={overlay.asset.thumbnailUrl} alt="" />
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {lowerLayerGhostOverlays.length > 0 ? (
+          <div className="scene-lower-layer-ghost-layer" aria-hidden="true">
+            {lowerLayerGhostOverlays.map((overlay) => (
+              <span
+                className="scene-lower-layer-ghost"
+                data-testid={`lower-layer-ghost-${overlay.instanceId}`}
+                data-lower-layer-ghost="true"
+                data-instance-id={overlay.instanceId}
+                data-asset-id={overlay.asset.assetId}
+                data-building-level-id={overlay.buildingLevelId}
+                data-anchor-coordinate={formatCoordinate(overlay.anchor)}
+                data-effective-footprint={formatFootprint(overlay.effectiveFootprint)}
+                data-rotation={overlay.rotationDegrees}
+                data-dye-color={overlay.dyeColor ?? ''}
+                style={getGhostOverlayStyle(overlay)}
+                key={overlay.id}
+              >
+                <img src={overlay.asset.thumbnailUrl} alt="" />
+                {overlay.rotationDegrees ? (
+                  <span
+                    className="scene-lower-layer-ghost__rotation"
+                    data-rotation-marker={overlay.rotationDegrees}
+                  />
+                ) : null}
+                {overlay.dyeColor ? (
+                  <span
+                    className="scene-lower-layer-ghost__dye"
+                    data-dye-marker={overlay.dyeColor}
+                    style={{ backgroundColor: overlay.dyeColor }}
+                  />
+                ) : null}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
+}
+
+interface SceneCanvasZoomOrigin {
+  x: number;
+  y: number;
+}
+
+interface SceneCanvasGestureEvent extends Event {
+  clientX?: number;
+  clientY?: number;
+  scale?: number;
+}
+
+function getMaxSceneCanvasZoomScale(canvasSize: GridSize): number {
+  return Math.max(1, Math.max(canvasSize.width, canvasSize.height) / 6);
+}
+
+function clampSceneCanvasZoomScale(scale: number, maxZoomScale: number): number {
+  if (scale === Infinity) {
+    return maxZoomScale;
+  }
+
+  if (!Number.isFinite(scale)) {
+    return 1;
+  }
+
+  return Math.min(Math.max(scale, 1), maxZoomScale);
+}
+
+function getNextWheelZoomScale(currentScale: number, normalizedDeltaY: number, maxZoomScale: number): number {
+  if (!Number.isFinite(normalizedDeltaY)) {
+    return currentScale;
+  }
+
+  const zoomFactor = Math.exp(-normalizedDeltaY / 360);
+
+  return clampSceneCanvasZoomScale(currentScale * zoomFactor, maxZoomScale);
+}
+
+function normalizeWheelDeltaY(deltaY: number, deltaMode: number): number {
+  if (deltaMode === 1) {
+    return deltaY * 16;
+  }
+
+  if (deltaMode === 2) {
+    return deltaY * 120;
+  }
+
+  return deltaY;
+}
+
+function getSceneCanvasZoomOriginFromPoint(
+  element: HTMLElement,
+  clientX: number | undefined,
+  clientY: number | undefined,
+): SceneCanvasZoomOrigin {
+  const rect = element.getBoundingClientRect();
+  const pointX = clientX;
+  const pointY = clientY;
+
+  if (
+    typeof pointX !== 'number'
+    || typeof pointY !== 'number'
+    || !Number.isFinite(pointX)
+    || !Number.isFinite(pointY)
+    || rect.width <= 0
+    || rect.height <= 0
+  ) {
+    return { x: 50, y: 50 };
+  }
+
+  return {
+    x: clampSceneCanvasZoomPercent(((pointX - rect.left) / rect.width) * 100),
+    y: clampSceneCanvasZoomPercent(((pointY - rect.top) / rect.height) * 100),
+  };
+}
+
+function clampSceneCanvasZoomPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 50;
+  }
+
+  return Math.min(Math.max(value, 0), 100);
+}
+
+function formatSceneCanvasZoomScale(scale: number): string {
+  return Number(scale.toFixed(4)).toString();
+}
+
+function formatSceneCanvasZoomPercent(value: number): string {
+  return Number(value.toFixed(2)).toString();
 }
 
 function createScaledCanvasWidth(

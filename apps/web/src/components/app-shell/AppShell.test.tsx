@@ -5,6 +5,7 @@ import { createBuildingLevel, createDefaultSceneDocument, createStackingPlateFoo
 import {
   assetStagingPreferencesStorageKey,
   autosavedSceneStorageKey,
+  decodeSceneDocumentString,
   encodeSceneDocumentString,
   savedSceneStorageKey,
   serializeSceneDocument,
@@ -351,6 +352,81 @@ describe('AppShell scene storage integration', () => {
     );
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+  });
+
+  it('leaves external panel wheel input outside SceneCanvas zoom handling', () => {
+    setViewportWidth(1279);
+
+    render(<AppShell />);
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    const externalPanels = [
+      document.querySelector('.workbench-left'),
+      document.querySelector('.asset-sidebar'),
+      document.querySelector('.canvas-bottom-panels'),
+    ];
+
+    for (const panel of externalPanels) {
+      expect(panel).not.toBeNull();
+      fireEvent.wheel(panel as HTMLElement, { deltaY: -1200 });
+    }
+
+    expect(viewport).toHaveAttribute('data-zoom-scale', '1');
+
+    fireEvent.wheel(viewport, { deltaY: -1200 });
+
+    expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
+  });
+
+  it('keeps SceneCanvas zoom out of scene storage, UI preferences, and exported scene strings', async () => {
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(null);
+    setViewportWidth(1279);
+
+    render(<AppShell />);
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    fireEvent.wheel(viewport, { deltaY: -1200 });
+
+    expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Zoom Storage Boundary' } });
+
+    let rawAutosavePayload: string | null = null;
+    await waitFor(() => {
+      rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
+      expect(rawAutosavePayload).not.toBeNull();
+    });
+
+    const autosavePayload = JSON.parse(rawAutosavePayload ?? '{}');
+    expect(autosavePayload).toMatchObject({
+      sceneName: 'Zoom Storage Boundary',
+      selectedPokemonKey: 'ditto',
+    });
+    expect(JSON.stringify(autosavePayload)).not.toContain('zoom');
+    expect(JSON.stringify(autosavePayload)).not.toContain('scene-canvas');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+
+    clickFileActionMenuItem('导出字符串');
+
+    const exportedString = promptSpy.mock.calls[0]?.[1] ?? '';
+    expect(exportedString).toMatch(/^PSE2~/);
+    const decodedExport = decodeSceneDocumentString(exportedString, '2026-06-06T08:00:00.000Z');
+    expect(decodedExport.ok).toBe(true);
+    if (!decodedExport.ok) {
+      throw new Error('Expected exported zoom boundary string to decode.');
+    }
+    expect(decodedExport.scene).toMatchObject({
+      sceneName: 'Zoom Storage Boundary',
+      selectedPokemonKey: 'ditto',
+    });
+    expect(JSON.stringify(decodedExport.scene)).not.toContain('zoom');
+    expect(JSON.stringify(decodedExport.scene)).not.toContain('scene-canvas');
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
   });
 

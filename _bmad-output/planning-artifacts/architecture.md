@@ -156,7 +156,13 @@ Production endpoint 是 `https://scene-api.pokokit.com/api/scenes/{id}`。Local 
 
 `scene-canvas/` 可接收或内部派生 lower-layer ghost projection，用于渲染直接下一层半透明素材参考。Ghost projection 只读取当前 `SceneDocument` 和 asset catalog，按 lower layer footprint、rotation 和 dye 渲染；不改变 `getAssetPlacementPreview()`、occupancy、stacking、replacement confirmation、height blocking 或 command-layer scene writes。点击 ghost 所在格仍走当前层 pointer/keyboard 逻辑。下层影子开关只属于 UI preferences/localStorage，不属于 `SceneDocument v1`、PSE 字符串、export payload、export summary 或 `packages/scene-core` 持久契约。
 
-另有 72 条 Non-Functional Requirements，核心架构约束包括：
+### Approved Course Correction - 2026-06-06 SceneCanvas 缩放视口
+
+本 Architecture 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-06-scene-canvas-zoom.md` 增加 Epic 20。默认 17x17 画布必须支持 web UI-only zoom viewport：min zoom 完整显示画布长边，max zoom 按 `max(canvas.width, canvas.height) / 6` 派生，使默认 17x17 场景最大时约显示 6x6 格。`apps/web/src/components/app-shell/` 或 SceneCanvas wrapper 拥有 zoom scale/origin state；`apps/web/src/components/scene-canvas/` 继续拥有格子 pointer/keyboard/hover/focus 和 placement visual state；`apps/web/src/styles.css` 负责 viewport clip 和稳定尺寸。Zoom state 不进入 scene storage、PSE、export payload、export summary 或 `packages/scene-core`。
+
+Zoom 输入只在 desktop/tablet 编辑区域内处理。鼠标滚轮和 macOS 触控板 pinch gesture 必须进入同一 clamp 逻辑；Safari gesture 兼容路径需要 feature detection，不能破坏普通 wheel scroll。画布尺寸变化、scene restore、remote import 和进入/退出 Mobile Preview Mode 时必须重新 clamp 或重置 zoom，防止旧 zoom state 造成不可达或越界布局。
+
+另有 75 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
 - 预览切换需要在 300ms 内完成首个可见更新；素材搜索筛选 1000 个素材以内需要在 200ms 内返回可见结果。
@@ -168,7 +174,7 @@ Production endpoint 是 `https://scene-api.pokokit.com/api/scenes/{id}`。Local 
 - 恢复数据或未来导入 JSON 必须作为数据处理，用户自定义名称、备注和技能说明必须按安全文本渲染，不得作为 HTML 或脚本执行。
 - 基础可访问性目标是 WCAG 2.2 AA，关键状态不能只依赖颜色表达。
 - 1280px 及以上使用完整 Open Design 浮动工作台，768px 以下进入 Mobile Preview Mode；普通编辑命令不得写 scene，只有显式 import flow 可替换本地 scene storage。
-- 默认 17x17 画布可以使用内部缩放、滚动或稳定压缩，但不得破坏格子固定宽高比、坐标可读性、主/外围区语义或移动端只读边界。
+- 默认 17x17 画布支持用户可控 zoom viewport，但不得破坏格子固定宽高比、坐标可读性、主/外围区语义、面板布局或移动端只读边界。
 - Desktop 降噪 UI-only state 必须与 scene saved/autosave storage 分离；文件菜单、场景摘要展开、底部详情展开、素材详情和下层影子开关不得进入 SceneDocument、PSE 字符串或 export payload。
 
 Open Design UI 的当前工作台形态已进入降噪阶段。架构上应支持一个桌面优先的单页工作台：顶部收敛为预览/导出主入口、语言选择和低频文件/危险操作菜单；左侧默认是场景摘要 + Building Level 主面板；中央尺寸驱动画布可显示 UI-only 下层影子；底部是稳定高度的 Selection Inspector 快捷栏和可展开详情；右侧 Asset Picker 以浏览为主并按需打开素材详情。动态 Pokemon 主题只影响外层 shell 和少量强调色，不允许覆盖主体区、外围区、当前层、选中格、技能标记、下层影子、警告和错误状态等语义状态色。
@@ -1048,7 +1054,7 @@ MVP web app 不使用 service/repository/database layer。跨组件业务操作�
 - FR41-FR47, FR63, and FR136 Preview：`packages/scene-core/src/domain/scene/selectors.ts`、`apps/web/src/components/export-preview/`、`apps/web/src/components/app-shell/mobile-preview-mode.tsx` 和独立 preview/export mode；FR43/47 已从 MVP 删除，旧预览面板 surface 在 Epic 19 中清理。
 - FR48-FR49 Properties：`apps/web/src/components/selection-inspector/`、`packages/scene-core/src/domain/scene/selectors.ts`、`apps/web/src/state/`。
 - FR50-FR55 Save & Recovery：`packages/scene-core/src/io/scene-schema.ts`、`scene-serializer.ts`、`recover-scene.ts`、`apps/web/src/io/scene-storage.ts`、`apps/web/src/components/recovery-validator/`。
-- FR56-FR58, FR131-FR134, and FR138 Open Design Workbench Context：`apps/web/src/components/app-shell/`、`apps/web/src/components/pokemon-scene-controls/`、`apps/web/src/components/building-level-panel/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/theme/`、`apps/web/src/io/ui-preferences.ts` 和 `apps/web/src/state/`。
+- FR56-FR58, FR131-FR134, FR138, and FR139-FR143 Open Design Workbench Context：`apps/web/src/components/app-shell/`、`apps/web/src/components/pokemon-scene-controls/`、`apps/web/src/components/building-level-panel/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/scene-canvas/`、`apps/web/src/theme/`、`apps/web/src/io/ui-preferences.ts` 和 `apps/web/src/state/`。SceneCanvas zoom viewport 是 web UI-only view state，不改变 scene write boundary、SceneDocument schema、PSE codec 或 export summary。
 - FR69-FR77 Scene Worker, MCP & Codex Skill：`packages/scene-core/`、`apps/worker/src/routes/`、`apps/worker/src/mcp.ts`、`.agents/skills/pokopia-scene-worker/`、root `package.json` pnpm scripts、`pnpm-workspace.yaml` 和 `apps/worker/wrangler.toml`。
 - FR78-FR86 and FR137 Asset Footprint & Occupancy Rules：`packages/scene-core/src/domain/assets/catalog.ts`、`packages/scene-core/src/domain/scene/footprint.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/io/scene-schema.ts`、`apps/web/src/state/asset-placement.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。下层影子是 web UI projection，不改变 scene-core occupancy helpers。
 - FR87-FR92 Building Level Notes：`packages/scene-core/src/domain/scene/levels.ts`、`packages/scene-core/src/domain/scene/types.ts`、`packages/scene-core/src/io/scene-schema.ts`、`packages/scene-core/src/io/scene-string-codec.ts`、`packages/scene-core/src/domain/scene/export-summary.ts`、`apps/web/src/state/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。

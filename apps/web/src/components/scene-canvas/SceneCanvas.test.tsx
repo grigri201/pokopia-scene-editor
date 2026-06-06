@@ -162,6 +162,237 @@ describe('SceneCanvas', () => {
     });
   });
 
+  it('wraps the grid in a clipped zoom viewport with long-side max zoom bounds', () => {
+    render(<SceneCanvas {...defaultProps} readOnly={false} />);
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    const canvas = screen.getByTestId('scene-canvas');
+
+    expect(viewport).toHaveAttribute('data-zoom-scale', '1');
+    expect(viewport).toHaveAttribute('data-zoom-min-scale', '1');
+    expect(viewport).toHaveAttribute('data-zoom-max-scale', '2.8333');
+    expect(viewport).toHaveAttribute('data-zoom-origin', '50,50');
+    expect(canvas).toHaveStyle({
+      '--scene-canvas-zoom-scale': '1',
+      '--scene-canvas-zoom-max-scale': '2.8333',
+    });
+  });
+
+  it('derives max zoom from legacy, rectangular, and small canvas dimensions', () => {
+    const { rerender } = render(<SceneCanvas {...createSceneCanvasProps(createLegacyScene())} readOnly={false} />);
+
+    expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-zoom-max-scale', '1.1667');
+
+    const rectangularScene = createSceneWithCanvasSize({ width: 6, height: 17 });
+    rerender(<SceneCanvas {...createSceneCanvasProps(rectangularScene)} readOnly={false} />);
+
+    expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-zoom-max-scale', '2.8333');
+    fireEvent.wheel(screen.getByTestId('scene-canvas-viewport'), { deltaY: -1200 });
+    expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-zoom-scale', '2.8333');
+
+    const smallScene = createSceneWithCanvasSize({ width: 6, height: 6 });
+    rerender(<SceneCanvas {...createSceneCanvasProps(smallScene)} readOnly={false} />);
+
+    expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-zoom-max-scale', '1');
+    expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-zoom-scale', '1');
+  });
+
+  it('clamps wheel zoom inside the viewport without changing coordinate callbacks', () => {
+    const onSelectCoordinate = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly={false}
+        onSelectCoordinate={onSelectCoordinate}
+      />,
+    );
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    const zoomInEvent = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: -1200,
+      clientX: 12,
+      clientY: 18,
+    });
+    const preventDefaultSpy = vi.spyOn(zoomInEvent, 'preventDefault');
+
+    fireEvent(viewport, zoomInEvent);
+    expect(preventDefaultSpy).toHaveBeenCalledTimes(1);
+    expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
+
+    fireEvent.click(screen.getByLabelText('Cell 2,3, main area, level-0, placeable'));
+
+    expect(onSelectCoordinate).toHaveBeenCalledWith({ x: 2, y: 3 });
+
+    fireEvent.wheel(viewport, { deltaY: 1200 });
+
+    expect(viewport).toHaveAttribute('data-zoom-scale', '1');
+  });
+
+  it('keeps hover and focus callbacks on raw grid coordinates after zoom', () => {
+    const onFocusCoordinate = vi.fn();
+    const onHoverCoordinate = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly={false}
+        onFocusCoordinate={onFocusCoordinate}
+        onHoverCoordinate={onHoverCoordinate}
+      />,
+    );
+
+    fireEvent.wheel(screen.getByTestId('scene-canvas-viewport'), { deltaY: -1200 });
+
+    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
+    fireEvent.mouseEnter(cell);
+    fireEvent.focus(cell);
+    fireEvent.mouseLeave(cell);
+    fireEvent.blur(cell);
+
+    expect(onHoverCoordinate).toHaveBeenNthCalledWith(1, { x: 2, y: 3 });
+    expect(onHoverCoordinate).toHaveBeenNthCalledWith(2, null);
+    expect(onFocusCoordinate).toHaveBeenNthCalledWith(1, { x: 2, y: 3 });
+    expect(onFocusCoordinate).toHaveBeenNthCalledWith(2, null);
+  });
+
+  it('does not consume wheel events when the zoom clamp cannot change', () => {
+    render(<SceneCanvas {...defaultProps} readOnly={false} />);
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    const zoomOutAtMinEvent = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 1200 });
+    const minPreventDefaultSpy = vi.spyOn(zoomOutAtMinEvent, 'preventDefault');
+
+    fireEvent(viewport, zoomOutAtMinEvent);
+
+    expect(minPreventDefaultSpy).not.toHaveBeenCalled();
+    expect(viewport).toHaveAttribute('data-zoom-scale', '1');
+
+    fireEvent.wheel(viewport, { deltaY: -1200 });
+    expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
+
+    const zoomInAtMaxEvent = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -1200 });
+    const maxPreventDefaultSpy = vi.spyOn(zoomInAtMaxEvent, 'preventDefault');
+
+    fireEvent(viewport, zoomInAtMaxEvent);
+
+    expect(maxPreventDefaultSpy).not.toHaveBeenCalled();
+    expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
+  });
+
+  it('keeps extreme wheel deltas clamped to max zoom instead of resetting to min', () => {
+    render(<SceneCanvas {...defaultProps} readOnly={false} />);
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    fireEvent.wheel(viewport, { deltaY: -Number.MAX_VALUE });
+
+    expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
+  });
+
+  it('computes zoom origin from the wheel focus and resets it when canvas dimensions change', () => {
+    const { rerender } = render(<SceneCanvas {...defaultProps} readOnly={false} />);
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue({
+      x: 10,
+      y: 20,
+      left: 10,
+      top: 20,
+      right: 210,
+      bottom: 120,
+      width: 200,
+      height: 100,
+      toJSON: () => undefined,
+    } as DOMRect);
+
+    fireEvent.wheel(viewport, { deltaY: -120, clientX: 60, clientY: 45 });
+    expect(viewport).toHaveAttribute('data-zoom-origin', '25,25');
+
+    const rectangularScene = createSceneWithCanvasSize({ width: 6, height: 17 });
+    rerender(<SceneCanvas {...createSceneCanvasProps(rectangularScene)} readOnly={false} />);
+
+    expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-zoom-origin', '50,50');
+  });
+
+  it('does not apply zoom handlers to read-only canvases', () => {
+    render(<SceneCanvas {...defaultProps} readOnly />);
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    const readOnlyWheelEvent = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -1200 });
+    const preventDefaultSpy = vi.spyOn(readOnlyWheelEvent, 'preventDefault');
+
+    fireEvent(viewport, readOnlyWheelEvent);
+
+    expect(preventDefaultSpy).not.toHaveBeenCalled();
+    expect(viewport).toHaveAttribute('data-zoom-scale', '1');
+  });
+
+  it('maps guarded Safari gesture events to the same zoom clamp', () => {
+    const mutableWindow = window as unknown as { ongesturechange?: unknown };
+    const hadGestureChange = Object.prototype.hasOwnProperty.call(window, 'ongesturechange');
+    const originalGestureChange = mutableWindow.ongesturechange;
+
+    Object.defineProperty(window, 'ongesturechange', {
+      configurable: true,
+      value: null,
+    });
+
+    try {
+      render(<SceneCanvas {...defaultProps} readOnly={false} />);
+
+      const viewport = screen.getByTestId('scene-canvas-viewport');
+      const zoomInStart = createGestureEvent('gesturestart', { scale: 1 });
+      const zoomInChange = createGestureEvent('gesturechange', { scale: 5 });
+
+      expect(fireEvent(viewport, zoomInStart)).toBe(false);
+      expect(fireEvent(viewport, zoomInChange)).toBe(false);
+      expect(zoomInStart.defaultPrevented).toBe(true);
+      expect(zoomInChange.defaultPrevented).toBe(true);
+      expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
+
+      fireEvent(viewport, createGestureEvent('gesturestart', { scale: 1 }));
+      fireEvent(viewport, createGestureEvent('gesturechange', { scale: 0.1 }));
+
+      expect(viewport).toHaveAttribute('data-zoom-scale', '1');
+    } finally {
+      if (hadGestureChange) {
+        Object.defineProperty(window, 'ongesturechange', {
+          configurable: true,
+          value: originalGestureChange,
+        });
+      } else {
+        delete mutableWindow.ongesturechange;
+      }
+    }
+  });
+
+  it('does not register Safari gesture handlers when feature detection is absent', () => {
+    const mutableWindow = window as unknown as { ongesturechange?: unknown };
+    const hadGestureChange = Object.prototype.hasOwnProperty.call(window, 'ongesturechange');
+    const originalGestureChange = mutableWindow.ongesturechange;
+
+    delete mutableWindow.ongesturechange;
+
+    try {
+      render(<SceneCanvas {...defaultProps} readOnly={false} />);
+
+      const viewport = screen.getByTestId('scene-canvas-viewport');
+      const unsupportedGesture = createGestureEvent('gesturechange', { scale: 5 });
+
+      fireEvent(viewport, unsupportedGesture);
+
+      expect(unsupportedGesture.defaultPrevented).toBe(false);
+      expect(viewport).toHaveAttribute('data-zoom-scale', '1');
+    } finally {
+      if (hadGestureChange) {
+        Object.defineProperty(window, 'ongesturechange', {
+          configurable: true,
+          value: originalGestureChange,
+        });
+      }
+    }
+  });
+
   it('emits plain grid coordinates at the UI boundary', () => {
     const onSelectCoordinate = vi.fn();
     render(
@@ -272,6 +503,7 @@ describe('SceneCanvas', () => {
     );
 
     const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
+    fireEvent.wheel(screen.getByTestId('scene-canvas-viewport'), { deltaY: -1200 });
     fireEvent.keyDown(cell, { key: 'ArrowRight' });
     fireEvent.keyDown(cell, { key: 'Enter' });
 
@@ -1139,6 +1371,8 @@ describe('SceneCanvas', () => {
       />,
     );
 
+    fireEvent.wheel(screen.getByTestId('scene-canvas-viewport'), { deltaY: -1200 });
+
     const anchor = screen.getByLabelText(/Cell 2,3, main area, level-0, placeable, placement preview anchor/);
     const occupied = screen.getByLabelText(/Cell 3,3, main area, level-0, placeable, placement preview footprint/);
     const sideCell = screen.getByLabelText('Cell 2,4, main area, level-0, placeable');
@@ -1339,6 +1573,17 @@ function createLegacyScene(): SceneDocument {
   };
 }
 
+function createSceneWithCanvasSize(canvasSize: { width: number; height: number }): SceneDocument {
+  const dimensions = createSceneDimensionsForCanvasSize(canvasSize);
+
+  return {
+    ...scene,
+    sceneSize: dimensions.sceneSize,
+    canvasSize: dimensions.canvasSize,
+    outerPadding: dimensions.outerPadding,
+  };
+}
+
 function createSceneCanvasProps(inputScene: SceneDocument) {
   return {
     ...defaultProps,
@@ -1374,6 +1619,21 @@ function getOccupancyInstance(scene: SceneDocument, instanceId: string) {
   }
 
   return instance;
+}
+
+function createGestureEvent(
+  type: 'gesturestart' | 'gesturechange',
+  options: { scale: number; clientX?: number; clientY?: number },
+): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+
+  Object.defineProperties(event, {
+    scale: { value: options.scale },
+    clientX: { value: options.clientX ?? 0 },
+    clientY: { value: options.clientY ?? 0 },
+  });
+
+  return event;
 }
 
 function formatFootprint(footprint: { length: number; width: number; height: number } | null): string {

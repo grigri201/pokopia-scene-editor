@@ -122,6 +122,12 @@ Desktop 上，remote import 成功后进入现有可编辑工作台；加载中�
 
 SceneCanvas 新增“下层影子”辅助模式：编辑 L(n) 时可显示直接下一层 L(n-1) 的半透明素材参考，L0 不显示。推荐默认开启，但提供 UI-only 开关；影子透明度约 25%-35%，显示 lower layer 素材的 footprint、rotation 和 dye，不显示技能标记、备注、选择边框或操作 affordance。影子只服务对齐参考，不可选中、不可删除、不可旋转、不可触发检查器，也不参与 placement、occupancy、stacking、replacement confirmation、height blocking 或 SceneDocument 持久化。
 
+### Approved Course Correction - 2026-06-06 SceneCanvas 缩放视口
+
+本 UX 规格已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-06-scene-canvas-zoom.md` 增加 Epic 20。Desktop/tablet 编辑区域内，用户可以通过鼠标滚轮和 macOS 触控板缩放手势调整 SceneCanvas 缩放比例。默认进入完整长边显示；最小缩放完整显示当前画布长边；最大缩放在默认 17x17 场景中约显示 6x6 格子。放大后超出编辑区域的画布内容在 viewport 内隐藏，不挤压顶部、左侧、底部或右侧面板，也不产生页面级横向滚动。
+
+缩放焦点推荐跟随指针或手势焦点，缺少焦点时回退到 viewport 中心。缩放不新增 scene edit command，不改变当前层、选中格、hover target、placement preview、下层影子或导出预览语义。`<768px` 仍进入 Mobile Preview Mode，不渲染完整 desktop SceneCanvas zoom viewport。
+
 ### Target Users
 
 目标用户包括 Pokopia 布景创作者和素材库维护者。布景创作者需要把灵感或搭建方案整理成可复现、可继续编辑、可分享的数据；素材库维护者需要维护素材名称、分类、标签、适用区域、技能需求、footprint、承载/叠放规则、缩略图和筛选信息，让创作者能快速找到正确素材。
@@ -568,9 +574,9 @@ flowchart TD
 **Purpose:** 承载尺寸驱动编辑画布；新建场景默认 17×17，并持续表达中心 15×15 主体区和外围装饰区。
 **Usage:** 主编辑区核心组件，所有放置、选中、悬停和区域识别都发生在这里。
 **Anatomy:** 尺寸驱动网格、主体区边界、外围区背景、格子坐标、anchor 标识、跨格 footprint 放置预览、同格上下分区叠放槽、承载/被承载状态、选中格、技能角标、height 派生不可放置状态。默认 17×17 必须保留坐标可读性和格子固定宽高比。
-**States:** 默认、悬停、待放置、已选中、可承载、将被承载、可叠放、上下分区叠放、不兼容叠放、不可放置、将覆盖、越界、被下层 height 阻塞。
+**States:** 默认、悬停、待放置、已选中、可承载、将被承载、可叠放、上下分区叠放、不兼容叠放、不可放置、将覆盖、越界、被下层 height 阻塞、缩放最小值、缩放最大值。
 **Accessibility:** 提供画布整体标签、当前选中格说明、键盘方向移动支持和每格区域/坐标/素材状态说明；跨格素材必须说明 anchor 和占用范围。
-**Interaction Behavior:** 悬停显示坐标、区域、建筑层、effective footprint、承载/叠放兼容性和放置合法性；点击放置或选中实例；冲突操作先提示。大素材只能作为一个实例被选中，不能让用户误以为每个 occupied cell 都是独立素材。同一坐标存在 base/top 两个实例时，界面必须把该格拆成上下两个稳定区域，下半部分显示 base surface，上半部分显示 top item，并让用户识别和选择或至少查看两个实例，不得合并成一个假实例。
+**Interaction Behavior:** 悬停显示坐标、区域、建筑层、effective footprint、承载/叠放兼容性和放置合法性；点击放置或选中实例；冲突操作先提示。大素材只能作为一个实例被选中，不能让用户误以为每个 occupied cell 都是独立素材。同一坐标存在 base/top 两个实例时，界面必须把该格拆成上下两个稳定区域，下半部分显示 base surface，上半部分显示 top item，并让用户识别和选择或至少查看两个实例，不得合并成一个假实例。Desktop/tablet 编辑区域内的鼠标滚轮和 macOS 触控板缩放手势只改变 UI-only zoom viewport：最小值完整显示画布长边，最大值默认 17×17 约显示 6×6 格，超出 viewport 的内容被隐藏，且缩放不得改变 scene command、坐标、选中、hover、placement preview 或导出语义。
 
 #### Asset Picker
 

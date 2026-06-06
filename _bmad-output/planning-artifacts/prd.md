@@ -160,6 +160,12 @@ Mobile 允许用户通过显式“导入字符串”操作替换当前本地布�
 
 `SceneDocument v1` 继续保持。场景摘要展开、底部详情展开、素材详情状态、下层影子开关和文件菜单状态均为 UI-only 状态，不进入 `SceneDocument`、scene autosave/saved payload、PSE 字符串、export payload、export summary 或 `packages/scene-core` 持久契约。下层影子只作为视觉投影，不参与 placement、occupancy、stacking、replacement confirmation、height blocking 或 scene-core 规则派生。
 
+### Approved Course Correction - 2026-06-06 SceneCanvas 缩放视口
+
+本 PRD 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-06-scene-canvas-zoom.md` 增加 Epic 20，用于在 desktop/tablet 编辑工作台的中央 SceneCanvas 增加用户可控缩放。用户可以在编辑区域内通过鼠标滚轮或 macOS 触控板缩放手势调整画布缩放比例；最小缩放完整显示当前画布长边；最大缩放以默认 17x17 场景约显示 6x6 格子为上限；放大后超出编辑区域的内容在 viewport 内隐藏，不撑开页面或侧栏。
+
+`SceneDocument v1` 继续保持。缩放比例、缩放焦点和裁切状态均为 UI-only view state，不进入 `SceneDocument`、scene autosave/saved payload、PSE 字符串、export payload、export summary 或 `packages/scene-core`。缩放不得改变 placement、occupancy、stacking、replacement confirmation、height blocking、下层影子 projection 或导出预览语义。
+
 ### What Makes This Special
 
 本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：默认中心 15×15 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、受控承载/叠放、素材实例级技能标记，以及完整 17×17 预览。
@@ -473,6 +479,14 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR137: SceneCanvas 必须支持“下层影子”辅助模式：编辑 L(n) 时显示直接下一层 L(n-1) 的半透明素材参考，L0 不显示。影子按 lower layer 的 footprint、rotation 和 dye 渲染，不显示技能标记或操作 affordance。
 - FR138: 下层影子不可选中、不可删除、不可旋转、不可触发检查器；点击影子所在格仍按当前层选择/放置逻辑执行。影子和其开关状态不得写入 `SceneDocument`、PSE 字符串、export payload、autosave payload 或 scene-core 规则状态。
 
+### SceneCanvas Zoom Viewport
+
+- FR139: Desktop/Tablet 编辑工作台的中央 SceneCanvas 必须支持用户通过编辑区域内鼠标滚轮调整缩放比例；滚轮只在编辑区域内拦截，外部面板滚动不受影响。
+- FR140: macOS 触控板缩放手势必须映射到同一套 zoom state；Chromium/Firefox 可使用 wheel pinch delta，Safari 需要通过受保护的 gesture 兼容路径或等效策略支持。
+- FR141: 最小 zoom 必须完整显示当前画布长边。默认 17x17、legacy 7x7 和矩形画布都必须从 `scene.canvasSize` 派生 min zoom，不得写死 17 或 7。
+- FR142: 最大 zoom 必须以“画面内显示约 6x6 格子”为上限；默认 17x17 场景最大 zoom factor 为 `17 / 6`，其他尺寸按 `max(canvas.width, canvas.height) / 6` 派生，并至少为 1。
+- FR143: 超出编辑区域 viewport 的 SceneCanvas 内容必须被隐藏，不产生页面级横向滚动条；缩放不得改变坐标、素材实例、放置规则、selected/hover/focus 语义或 export preview 内容。
+
 ### Asset Footprint & Occupancy Rules
 
 - FR78: Asset catalog 必须为每个可放置素材提供 `footprint.length`、`footprint.width`、`footprint.height` 三个正整数；现有素材默认 1x1x1，真实大素材通过集中 override 覆盖。
@@ -625,6 +639,9 @@ Superseded by Epic 13.3 on 2026-05-30: FR69-FR76 are historical requirements onl
 - NFR67: 场景摘要展开、底部详情展开、素材详情状态、下层影子开关和文件/更多菜单状态必须与 scene saved/autosave storage 分离；读取或写入失败不得阻止 SceneDocument recovery、autosave、导出预览或短字符串 encode/decode。
 - NFR68: 下层影子必须以 UI projection 方式从当前 `SceneDocument` 和 asset catalog 派生，不得改变 `scene-core` occupancy、stacking、replacement confirmation、height blocking 或 placement preview 结果。
 - NFR69: 1280x720 desktop 下，顶部工具栏、左侧摘要/建筑层、中央画布、底部快捷栏和右侧素材浏览不得重叠；快捷栏高度必须稳定，不能因选中内容变化导致画布明显跳动。
+- NFR70: SceneCanvas zoom state 必须是 UI-only view state，不得写入 `SceneDocument v1`、scene autosave/saved payload、PSE 字符串、export payload、export summary 或 `packages/scene-core`。
+- NFR71: 1280x720 desktop 和 1024x768 tablet 下，缩放到 min/max 都不得让顶部、左侧、底部或右侧面板重叠；页面不得出现横向滚动。
+- NFR72: 缩放手势必须保持编辑响应；在 17x17 画布、10 个建筑层、每层最多 289 个素材实例以内，zoom scale 更新应在 100ms 内产生可见反馈。
 
 ### Usability
 

@@ -11,11 +11,12 @@ inputDocuments:
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-pokopia-data-extraction.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-asset-staging-area.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-05-desktop-workbench-decluttering.md
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-06-scene-canvas-zoom.md
 ---
 
 # pokopia-scene-editor - Active Epic Index
 
-As of 2026-06-05, Epic 18 is complete and Epic 19 is the active Desktop 工作台 UI/UX 降噪 backlog.
+As of 2026-06-06, Epic 19 is complete and Epic 20 is the active SceneCanvas 缩放视口 backlog.
 
 Completed planning history is archived here:
 
@@ -277,7 +278,7 @@ Acceptance Criteria:
 
 ## Epic 19: Desktop 工作台 UI/UX 降噪
 
-Status: in-progress.
+Status: done.
 
 Desktop 工作台从“所有能力默认展开”调整为“编辑当前建筑层优先”。顶部文件操作收敛为预览/导出主入口和低频文件/危险操作菜单；左侧变为场景摘要 + 建筑层主面板；底部检查器变为紧凑快捷栏 + 可展开详情区；右侧素材栏浏览优先并按需展示素材详情；常驻 PreviewInspector 清理为独立预览/导出模式；SceneCanvas 新增直接下一层的半透明影子辅助对齐。该能力不改变 `SceneDocument v1`、PSE 字符串、scene autosave/saved payload、export summary、scene-core placement/occupancy/stacking 规则或 Cloudflare deployment 边界。
 
@@ -396,3 +397,54 @@ Acceptance Criteria:
 - ExportPreview / MobilePreviewMode tests 继续证明 desktop modal 和 mobile inline content 一致。
 - Playwright 覆盖 1280x720 desktop、1000px tablet 和 390x844 mobile：无重叠、桌面可编辑、mobile 不出现编辑工作台。
 - 验证命令至少包含 web focused tests、scene-core focused tests、web typecheck、web build 和 desktop/mobile smoke。
+
+## Epic 20: SceneCanvas 缩放视口
+
+Status: in-progress.
+
+Desktop/Tablet 编辑工作台的中央 SceneCanvas 支持用户通过鼠标滚轮和 macOS 触控板缩放手势调整 zoom。最小 zoom 完整显示画布长边；最大 zoom 在默认 17x17 场景中约显示 6x6 格；放大后超出编辑区域的内容被 viewport 隐藏，不撑开页面或侧栏。该能力是 web UI-only view state，不改变 `SceneDocument v1`、PSE 字符串、scene autosave/saved payload、export summary、scene-core placement/occupancy/stacking 规则或 Cloudflare deployment 边界。
+
+### Story 20.1: Course Correction 同步与 SceneCanvas Zoom 契约
+
+Status: done.
+
+As a 维护者, I want PRD、UX、Architecture、Epics 和 tracker 明确 SceneCanvas zoom viewport 边界, So that 后续实现不会把 zoom state 写入 SceneDocument 或破坏已完成工作台布局。
+
+Acceptance Criteria:
+
+- PRD 新增 2026-06-06 SceneCanvas 缩放视口 course correction、FR139-FR143 和 NFR70-NFR72。
+- UX Design Specification 新增 wheel/pinch、min/max、裁切和移动端边界。
+- Architecture 新增 AppShell/SceneCanvas/styles/ui-preferences/test responsibility。
+- Epics 新增 Epic 20 和 stories。
+- sprint-status 新增 Epic 20 tracker entries。
+- 明确不改 `SceneDocument v1`、PSE string、scene autosave/saved payload、export summary、scene-core 持久契约或 Cloudflare deploy 边界。
+
+### Story 20.2: SceneCanvas Zoom Viewport 与输入手势
+
+Status: ready-for-dev.
+
+As a desktop/tablet 编辑用户, I want 用鼠标滚轮或 macOS 触控板缩放编辑区, So that 我可以在完整画布和局部 6x6 细节之间切换。
+
+Acceptance Criteria:
+
+- SceneCanvas 外层有稳定 viewport，默认完整显示当前画布长边。
+- 编辑区域内鼠标滚轮调整 zoom；外部素材栏、建筑层面板和底部检查器滚动不被拦截。
+- macOS trackpad pinch 映射到同一 zoom state；Safari 兼容路径受 feature detection 保护。
+- Zoom scale clamp 为 `[1, max(1, max(canvas.width, canvas.height) / 6)]`。
+- 默认 17x17 场景最大 zoom 约显示 6x6 格；legacy 7x7 最大 zoom 约显示 6x6；6x6 画布不额外放大。
+- 放大后超出 viewport 的内容隐藏，不产生页面级横向滚动。
+- 缩放不改变选中格、hover target、placement preview、下层影子、当前层或 scene command 行为。
+
+### Story 20.3: Zoom 回归测试与浏览器布局验证
+
+Status: ready-for-dev.
+
+As a 维护者, I want SceneCanvas zoom 有 focused tests 和 viewport smoke, So that 缩放不会破坏编辑、布局、导出或 mobile preview 边界。
+
+Acceptance Criteria:
+
+- SceneCanvas/AppShell tests 覆盖 wheel zoom、pinch mapping、min/max clamp、canvasSize change clamp 和 zoom state 不进入 SceneDocument/autosave。
+- Tests 覆盖 selected/hover/focus/placement callbacks 在 zoom 后仍按原坐标工作。
+- Playwright 覆盖 1280x720 desktop 和 1024x768 tablet：min zoom 全长边可见、max zoom 约 6x6、超出内容隐藏、无面板重叠、页面无横向滚动。
+- Mobile 390x844 smoke 继续证明不渲染 desktop workbench / SceneCanvas zoom viewport。
+- 验证命令至少包含 web focused tests、web typecheck、web build 和 desktop/tablet/mobile smoke。

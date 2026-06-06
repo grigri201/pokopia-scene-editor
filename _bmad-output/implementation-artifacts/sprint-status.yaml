@@ -1,5 +1,5 @@
 # generated: 2026-05-31T16:34:56+0800
-# last_updated: 2026-06-06T00:52:26+0800
+# last_updated: 2026-06-06T16:31:21+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -30,9 +30,10 @@
 # - Epic 16 is complete.
 # - Epic 18 is complete.
 # - Epic 19 is complete.
+# - Epic 20 is complete.
 
 generated: 2026-05-31T16:34:56+0800
-last_updated: 2026-06-06T00:52:26+0800
+last_updated: 2026-06-06T16:31:21+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -154,3 +155,17 @@ development_status:
       19-8-decluttering-regression-tests-and-browser-smoke:
         status: done
         title: 降噪回归测试与浏览器布局验证
+  epic_20:
+    status: done
+    title: SceneCanvas 缩放视口
+    proposal: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-06-scene-canvas-zoom.md
+    stories:
+      20-1-course-correction-sync-and-scene-canvas-zoom-contract:
+        status: done
+        title: Course Correction 同步与 SceneCanvas Zoom 契约
+      20-2-scene-canvas-zoom-viewport-and-input-gestures:
+        status: done
+        title: SceneCanvas Zoom Viewport 与输入手势
+      20-3-zoom-regression-tests-and-browser-layout-verification:
+        status: done
+        title: Zoom 回归测试与浏览器布局验证

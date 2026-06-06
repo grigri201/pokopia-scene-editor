@@ -300,6 +300,7 @@ test('keeps expanded asset staging layout usable on desktop and tablet', async (
           hasPicker: true,
           hasStaging: true,
           hasAssetPicker: true,
+          hasCanvas: true,
           pickerClearOfCanvas: true,
           pickerClearOfLeftPanel: true,
           pickerClearOfSelectionInspector: true,
@@ -732,6 +733,26 @@ test('keeps default 17x17 scenes responsive across the release viewport matrix',
   }
 });
 
+test('keeps SceneCanvas zoom viewport bounded at min and max on desktop and tablet', async ({ page }) => {
+  for (const viewportSize of [
+    { width: 1280, height: 720 },
+    { width: 1024, height: 768 },
+  ]) {
+    await page.setViewportSize(viewportSize);
+    await page.goto('/');
+    await dismissHelpOverlayIfVisible(page);
+
+    await expect(page.getByLabel('Interaction mode')).toHaveText('Desktop edit mode');
+    await expectSceneCanvasZoomViewportAtMin(page);
+    await expectSceneCanvasZoomWorkbenchPanelsClear(page);
+
+    await zoomSceneCanvasToMax(page);
+
+    await expectSceneCanvasZoomViewportAtMax(page);
+    await expectSceneCanvasZoomWorkbenchPanelsClear(page);
+  }
+});
+
 test('keeps the 1000px tablet edit workbench interactive with decluttered actions', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 720 });
   await page.goto('/');
@@ -886,6 +907,7 @@ test('switches to Mobile Preview Mode below the mobile breakpoint', async ({ pag
   await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute('data-mobile-preview-state', 'empty');
   await expect(page.getByText('还没有本地保存的布景。')).toHaveCount(0);
   await expect(page.getByText('可以导入一个布景字符串来恢复说明预览。')).toHaveCount(0);
+  await expect(page.getByTestId('scene-canvas-viewport')).toHaveCount(0);
   await expect(page.getByRole('button', { name: importStringName })).toBeVisible();
   await expect(page.getByTestId('scene-cell')).toHaveCount(0);
   await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
@@ -1367,6 +1389,144 @@ async function expectSceneCellsToBeSquare(page: Page, coordinates: string[]): Pr
     .toBeLessThanOrEqual(2);
 }
 
+async function zoomSceneCanvasToMax(page: Page): Promise<void> {
+  const viewport = page.getByTestId('scene-canvas-viewport');
+  await expect(viewport).toBeVisible();
+  await expectElementCenterUncovered(page, viewport);
+  await viewport.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const hit = document.elementFromPoint(x, y);
+    if (!hit || (hit !== element && !element.contains(hit))) {
+      throw new Error('Expected SceneCanvas viewport center to receive wheel input.');
+    }
+    hit.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+      deltaY: -1200,
+    }));
+  });
+  await expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
+}
+
+async function expectSceneCanvasZoomViewportAtMin(page: Page): Promise<void> {
+  await expect
+    .poll(() => getSceneCanvasZoomViewportMetrics(page))
+    .toMatchObject({
+      hasViewport: true,
+      hasCanvas: true,
+      scale: 1,
+      fullLongSideVisible: true,
+      noHorizontalOverflow: true,
+    });
+}
+
+async function expectSceneCanvasZoomViewportAtMax(page: Page): Promise<void> {
+  await expect
+    .poll(() => getSceneCanvasZoomViewportMetrics(page))
+    .toMatchObject({
+      hasViewport: true,
+      hasCanvas: true,
+      scale: 2.8333,
+      scaledContentClipped: true,
+      viewportOverflowHidden: true,
+      overflowHitBlocked: true,
+      noHorizontalOverflow: true,
+    });
+
+  const metrics = await getSceneCanvasZoomViewportMetrics(page);
+  expect(metrics.visibleColumns).toBeGreaterThan(5);
+  expect(metrics.visibleColumns).toBeLessThan(7.5);
+  expect(metrics.visibleRows).toBeGreaterThan(5);
+  expect(metrics.visibleRows).toBeLessThan(7.5);
+}
+
+async function getSceneCanvasZoomViewportMetrics(page: Page): Promise<{
+  hasViewport: boolean;
+  hasCanvas: boolean;
+  scale: number;
+  fullLongSideVisible: boolean;
+  scaledContentClipped: boolean;
+  viewportOverflowHidden: boolean;
+  overflowHitBlocked: boolean;
+  visibleColumns: number;
+  visibleRows: number;
+  noHorizontalOverflow: boolean;
+}> {
+  return page.evaluate(() => {
+    const getRect = (selector: string): DOMRect | null => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) {
+        return null;
+      }
+      const rect = element.getBoundingClientRect();
+
+      return {
+        bottom: rect.bottom,
+        height: rect.height,
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        width: rect.width,
+      } as DOMRect;
+    };
+    const viewport = document.querySelector<HTMLElement>('[data-testid="scene-canvas-viewport"]');
+    const canvas = document.querySelector<HTMLElement>('[data-testid="scene-canvas"]');
+    const viewportRect = getRect('[data-testid="scene-canvas-viewport"]');
+    const canvasRect = getRect('[data-testid="scene-canvas"]');
+    const firstCellRect = getRect('[data-coordinate="0,0"]');
+    const edgeCellRect = getRect('[data-coordinate="16,16"]');
+    const centerCellRect = getRect('[data-coordinate="8,8"]');
+    const contains = (outer: DOMRect | null, inner: DOMRect | null): boolean =>
+      Boolean(
+        outer &&
+          inner &&
+          inner.left >= outer.left - 1 &&
+          inner.top >= outer.top - 1 &&
+          inner.right <= outer.right + 1 &&
+          inner.bottom <= outer.bottom + 1,
+      );
+
+    return {
+      hasViewport: Boolean(viewportRect),
+      hasCanvas: Boolean(canvasRect),
+      scale: Number(Number(viewport?.dataset.zoomScale ?? '0').toFixed(4)),
+      fullLongSideVisible: contains(viewportRect, firstCellRect) && contains(viewportRect, edgeCellRect),
+      scaledContentClipped: Boolean(
+        viewportRect &&
+          canvasRect &&
+          (
+            canvasRect.left < viewportRect.left - 1 ||
+            canvasRect.top < viewportRect.top - 1 ||
+            canvasRect.right > viewportRect.right + 1 ||
+            canvasRect.bottom > viewportRect.bottom + 1
+          ),
+      ),
+      viewportOverflowHidden: viewport ? getComputedStyle(viewport).overflow === 'hidden' : false,
+      overflowHitBlocked: Boolean(
+        viewportRect &&
+          canvasRect &&
+          canvas &&
+          canvasRect.left < viewportRect.left - 1 &&
+          (() => {
+            const hit = document.elementFromPoint(viewportRect.left - 2, viewportRect.top + viewportRect.height / 2);
+            return !hit || !canvas.contains(hit);
+          })(),
+      ),
+      visibleColumns: viewportRect && centerCellRect && centerCellRect.width > 0
+        ? viewportRect.width / centerCellRect.width
+        : 0,
+      visibleRows: viewportRect && centerCellRect && centerCellRect.height > 0
+        ? viewportRect.height / centerCellRect.height
+        : 0,
+      noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+    };
+  });
+}
+
 async function getSelectionEmptySilhouetteHeightRatio(page: Page): Promise<number> {
   return page.getByLabel('No selected grid cell').evaluate((element) => {
     const promptHeight = element.getBoundingClientRect().height;
@@ -1418,6 +1578,7 @@ async function getExpandedAssetStagingLayoutMetrics(
   hasPicker: boolean;
   hasStaging: boolean;
   hasAssetPicker: boolean;
+  hasCanvas: boolean;
   pickerClearOfCanvasBottomPanels: boolean;
   pickerClearOfCanvas: boolean;
   pickerClearOfLeftPanel: boolean;
@@ -1466,7 +1627,7 @@ async function getExpandedAssetStagingLayoutMetrics(
     const picker = getVisibleRect('.asset-sidebar');
     const staging = getVisibleRect('.asset-staging');
     const assetPicker = getVisibleRect('.asset-picker');
-    const canvas = getVisibleRect('.scene-canvas');
+    const canvas = getVisibleRect('.scene-canvas-viewport');
     const leftPanel = getVisibleRect('.workbench-left');
     const selectionInspector = getVisibleRect('.selection-inspector');
     const canvasBottomPanels = getVisibleRect('.canvas-bottom-panels');
@@ -1483,6 +1644,7 @@ async function getExpandedAssetStagingLayoutMetrics(
       hasPicker: Boolean(picker),
       hasStaging: Boolean(staging),
       hasAssetPicker: Boolean(assetPicker),
+      hasCanvas: Boolean(canvas),
       pickerClearOfCanvasBottomPanels: !overlaps(picker, canvasBottomPanels),
       pickerClearOfCanvas: !overlaps(picker, canvas),
       pickerClearOfLeftPanel: !overlaps(picker, leftPanel),
@@ -1514,6 +1676,7 @@ async function expectResponsiveWorkbench(
     );
     await expect(page.getByLabel('Interaction mode')).toHaveText('Mobile Preview Mode');
     await expect(page.getByLabel('Open Design editing workbench')).toHaveCount(0);
+    await expect(page.getByTestId('scene-canvas-viewport')).toHaveCount(0);
     await expect(page.getByTestId('scene-cell')).toHaveCount(0);
     await expect(page.getByLabel('Pokemon scene controls')).toHaveCount(0);
     await expect(page.getByRole('complementary', { name: 'Asset picker' })).toHaveCount(0);
@@ -1608,6 +1771,26 @@ async function expectPrimaryWorkbenchPanelsClear(page: Page): Promise<void> {
     });
 }
 
+async function expectSceneCanvasZoomWorkbenchPanelsClear(page: Page): Promise<void> {
+  await expect
+    .poll(() => getPrimaryWorkbenchLayoutMetrics(page))
+    .toMatchObject({
+      hasHeader: true,
+      hasWorkbench: true,
+      hasAssetPicker: true,
+      hasLeftPanel: true,
+      hasCanvas: true,
+      hasBottomPanels: true,
+      primaryRectsInsidePage: true,
+      assetPickerClearOfLeftPanel: true,
+      canvasClearOfAssetPicker: true,
+      canvasClearOfLeftPanel: true,
+      bottomPanelsClearOfAssetPicker: true,
+      bottomPanelsClearOfLeftPanel: true,
+      noHorizontalOverflow: true,
+    });
+}
+
 async function getPrimaryWorkbenchLayoutMetrics(page: Page): Promise<{
   hasHeader: boolean;
   hasWorkbench: boolean;
@@ -1672,7 +1855,7 @@ async function getPrimaryWorkbenchLayoutMetrics(page: Page): Promise<{
     const workbench = getVisibleRect('.workbench-grid');
     const assetPicker = getVisibleRect('.asset-sidebar');
     const leftPanel = getVisibleRect('.workbench-left');
-    const canvas = getVisibleRect('.scene-canvas');
+    const canvas = getVisibleRect('.scene-canvas-viewport');
     const bottomPanels = getVisibleRect('.canvas-bottom-panels');
     const requiredRects = [header, workbench, assetPicker, leftPanel, canvas, bottomPanels];
 
