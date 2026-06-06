@@ -58,6 +58,7 @@ export function SceneCanvas({
 }: SceneCanvasProps) {
   const maxCanvasSide = Math.max(canvasSize.width, canvasSize.height);
   const canvasInlineScale = canvasSize.width / maxCanvasSide;
+  const canvasBlockScale = canvasSize.height / maxCanvasSide;
   const maxZoomScale = getMaxSceneCanvasZoomScale(canvasSize);
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomOrigin, setZoomOrigin] = useState<SceneCanvasZoomOrigin>({ x: 50, y: 50 });
@@ -75,9 +76,11 @@ export function SceneCanvas({
     '--scene-canvas-max-side': maxCanvasSide,
     '--scene-canvas-aspect-ratio': `${canvasSize.width} / ${canvasSize.height}`,
     '--scene-canvas-width-large': createViewportShortSideCanvasWidth(canvasInlineScale),
+    '--scene-canvas-height-large': createViewportShortSideCanvasWidth(canvasBlockScale),
     '--scene-canvas-width-medium': createScaledCanvasWidth(canvasInlineScale, 100, '%', 620, 'px'),
     '--scene-canvas-width-mobile': createScaledCanvasWidth(canvasInlineScale, 100, '%', 92, 'vw'),
     '--scene-canvas-render-width-large': createViewportShortSideCanvasWidth(canvasInlineScale * zoomScale),
+    '--scene-canvas-render-height-large': createViewportShortSideCanvasWidth(canvasBlockScale * zoomScale),
     '--scene-canvas-render-width-medium': createScaledCanvasWidth(canvasInlineScale * zoomScale, 100, '%', 620, 'px'),
     '--scene-canvas-render-width-mobile': createScaledCanvasWidth(canvasInlineScale * zoomScale, 100, '%', 92, 'vw'),
     '--scene-canvas-zoom-scale': formatSceneCanvasZoomScale(zoomScale),

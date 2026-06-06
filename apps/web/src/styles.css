@@ -1915,6 +1915,7 @@ button:disabled {
   display: grid;
   grid-template-rows: repeat(var(--scene-canvas-rows, 7), 1fr);
   width: var(--scene-canvas-render-width-large, var(--scene-canvas-width-large, min(72vh, 660px, 100%)));
+  height: var(--scene-canvas-render-height-large, var(--scene-canvas-height-large, auto));
   aspect-ratio: var(--scene-canvas-aspect-ratio, 1 / 1);
   border: 1px solid var(--line-strong);
   border-radius: 12px;
@@ -3881,6 +3882,7 @@ button:disabled {
     align-self: center;
     margin-left: 0;
     width: var(--scene-canvas-render-width-medium, var(--scene-canvas-width-medium, min(100%, 620px)));
+    height: auto;
   }
 
   .selection-inspector {

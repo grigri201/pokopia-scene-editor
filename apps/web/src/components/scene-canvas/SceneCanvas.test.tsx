@@ -63,7 +63,9 @@ describe('SceneCanvas', () => {
       '--scene-canvas-max-side': `${Math.max(scene.canvasSize.width, scene.canvasSize.height)}`,
       '--scene-canvas-aspect-ratio': `${scene.canvasSize.width} / ${scene.canvasSize.height}`,
       '--scene-canvas-width-large': 'calc(min(100cqw, 100cqh) * 1)',
+      '--scene-canvas-height-large': 'calc(min(100cqw, 100cqh) * 1)',
       '--scene-canvas-render-width-large': 'calc(min(100cqw, 100cqh) * 1)',
+      '--scene-canvas-render-height-large': 'calc(min(100cqw, 100cqh) * 1)',
     });
     expect(cells).toHaveLength(defaultCanvasCellCount);
     expect(screen.getByLabelText('Cell 0,0, outer area, level-0, placeable')).toBeVisible();
@@ -138,8 +140,8 @@ describe('SceneCanvas', () => {
     expect(screen.getAllByTestId('scene-cell').every((cell) => cell.dataset.editable === 'true')).toBe(true);
   });
 
-  it('shrinks rectangular canvas width from the longest side so cells stay square', () => {
-    const dimensions = createSceneDimensionsForCanvasSize({ width: 6, height: 17 });
+  it('sizes rectangular canvases from the longest side so cells stay square', () => {
+    const dimensions = createSceneDimensionsForCanvasSize({ width: 6, height: 20 });
     const rectangularScene = {
       ...scene,
       sceneSize: dimensions.sceneSize,
@@ -150,16 +152,17 @@ describe('SceneCanvas', () => {
     render(<SceneCanvas {...createSceneCanvasProps(rectangularScene)} readOnly={false} />);
 
     const canvas = screen.getByTestId('scene-canvas');
-    expect(screen.getByRole('grid', { name: '6x17 canvas with main and outer regions' })).toBeVisible();
-    expect(screen.getAllByTestId('scene-cell')).toHaveLength(102);
+    expect(screen.getByRole('grid', { name: '6x20 canvas with main and outer regions' })).toBeVisible();
+    expect(screen.getAllByTestId('scene-cell')).toHaveLength(120);
     expect(canvas).toHaveStyle({
       '--scene-canvas-columns': '6',
-      '--scene-canvas-rows': '17',
-      '--scene-canvas-max-side': '17',
-      '--scene-canvas-aspect-ratio': '6 / 17',
-      '--scene-canvas-width-large': 'calc(min(100cqw, 100cqh) * 0.3529)',
-      '--scene-canvas-width-medium': 'min(35.2941%, 218.8235px)',
-      '--scene-canvas-width-mobile': 'min(35.2941%, 32.4706vw)',
+      '--scene-canvas-rows': '20',
+      '--scene-canvas-max-side': '20',
+      '--scene-canvas-aspect-ratio': '6 / 20',
+      '--scene-canvas-width-large': 'calc(min(100cqw, 100cqh) * 0.3)',
+      '--scene-canvas-height-large': 'calc(min(100cqw, 100cqh) * 1)',
+      '--scene-canvas-width-medium': 'min(30%, 186px)',
+      '--scene-canvas-width-mobile': 'min(30%, 27.6vw)',
     });
   });
 
@@ -177,6 +180,7 @@ describe('SceneCanvas', () => {
       '--scene-canvas-zoom-scale': '1',
       '--scene-canvas-zoom-max-scale': '2.8333',
       '--scene-canvas-render-width-large': 'calc(min(100cqw, 100cqh) * 1)',
+      '--scene-canvas-render-height-large': 'calc(min(100cqw, 100cqh) * 1)',
     });
   });
 
@@ -191,6 +195,7 @@ describe('SceneCanvas', () => {
     expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
     expect(canvas).toHaveStyle({
       '--scene-canvas-render-width-large': 'calc(min(100cqw, 100cqh) * 2.8333)',
+      '--scene-canvas-render-height-large': 'calc(min(100cqw, 100cqh) * 2.8333)',
     });
   });
 
