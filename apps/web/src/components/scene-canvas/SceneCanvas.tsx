@@ -171,7 +171,6 @@ export function SceneCanvas({
         startPan: canvasPanRef.current,
         moved: false,
       };
-      event.currentTarget.setPointerCapture(event.pointerId);
     },
     [readOnly],
   );
@@ -192,6 +191,9 @@ export function SceneCanvas({
     }
 
     event.preventDefault();
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
     dragState.moved = true;
     setDraggingCanvas(true);
     setCanvasPan({

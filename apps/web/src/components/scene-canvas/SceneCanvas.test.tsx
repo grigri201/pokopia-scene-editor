@@ -252,7 +252,14 @@ describe('SceneCanvas', () => {
     const viewport = screen.getByTestId('scene-canvas-viewport');
     const setPointerCapture = vi.fn();
     const releasePointerCapture = vi.fn();
-    const hasPointerCapture = vi.fn(() => true);
+    let pointerCaptured = false;
+    const hasPointerCapture = vi.fn(() => pointerCaptured);
+    setPointerCapture.mockImplementation(() => {
+      pointerCaptured = true;
+    });
+    releasePointerCapture.mockImplementation(() => {
+      pointerCaptured = false;
+    });
     Object.assign(viewport, {
       setPointerCapture,
       releasePointerCapture,
@@ -287,7 +294,14 @@ describe('SceneCanvas', () => {
     const viewport = screen.getByTestId('scene-canvas-viewport');
     const setPointerCapture = vi.fn();
     const releasePointerCapture = vi.fn();
-    const hasPointerCapture = vi.fn(() => true);
+    let pointerCaptured = false;
+    const hasPointerCapture = vi.fn(() => pointerCaptured);
+    setPointerCapture.mockImplementation(() => {
+      pointerCaptured = true;
+    });
+    releasePointerCapture.mockImplementation(() => {
+      pointerCaptured = false;
+    });
     Object.assign(viewport, {
       setPointerCapture,
       releasePointerCapture,
@@ -307,6 +321,36 @@ describe('SceneCanvas', () => {
     expect(releasePointerCapture).toHaveBeenCalledWith(7);
     expect(viewport).toHaveAttribute('data-dragging-canvas', 'false');
     expect(onSelectCoordinate).not.toHaveBeenCalled();
+  });
+
+  it('does not capture ordinary cell clicks before drag movement starts', () => {
+    const onSelectCoordinate = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly={false}
+        onSelectCoordinate={onSelectCoordinate}
+      />,
+    );
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    const cell = screen.getByLabelText('Cell 2,3, main area, level-0, placeable');
+    const setPointerCapture = vi.fn();
+    const releasePointerCapture = vi.fn();
+    const hasPointerCapture = vi.fn(() => false);
+    Object.assign(viewport, {
+      setPointerCapture,
+      releasePointerCapture,
+      hasPointerCapture,
+    });
+
+    fireEvent.pointerDown(cell, { button: 0, clientX: 100, clientY: 100, pointerId: 7 });
+    fireEvent.pointerUp(cell, { clientX: 100, clientY: 100, pointerId: 7 });
+    fireEvent.click(cell);
+
+    expect(setPointerCapture).not.toHaveBeenCalled();
+    expect(releasePointerCapture).not.toHaveBeenCalled();
+    expect(onSelectCoordinate).toHaveBeenCalledWith({ x: 2, y: 3 });
   });
 
   it('keeps hover and focus callbacks on raw grid coordinates after zoom', () => {
