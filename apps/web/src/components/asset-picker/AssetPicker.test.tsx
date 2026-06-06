@@ -40,8 +40,12 @@ describe('AssetPicker', () => {
     expect(within(emptyStaging).queryByRole('heading', { name: '素材暂存区' })).not.toBeInTheDocument();
     expect(within(emptyStaging).queryByLabelText('素材暂存数量')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '展开素材暂存区' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '素材' })).toBeVisible();
-    expect(screen.getByLabelText('Asset result count')).toHaveTextContent(`${totalAssetCount} results`);
+    expect(screen.queryByRole('heading', { name: '素材' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Asset result count')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Search assets')).toHaveAttribute('placeholder', '输入关键字搜索素材');
+    expect(screen.getByLabelText('Search assets').closest('.asset-filter-row')).toContainElement(
+      screen.getByRole('combobox', { name: 'Asset category filters' }),
+    );
     expect(screen.getByLabelText('Asset page status')).toHaveTextContent(`1 / ${totalAssetPages}`);
     expect(screen.getAllByRole('article')).toHaveLength(10);
     expect(screen.queryByText(/Showing first/)).not.toBeInTheDocument();
@@ -58,13 +62,17 @@ describe('AssetPicker', () => {
     expect(getAssetSelectButton('pecha-berry')).not.toHaveTextContent('Pecha Berry');
     expect(getAssetSelectButton('pecha-berry')).toHaveTextContent('食物');
     expect(getAssetSelectButton('pecha-berry')).not.toHaveTextContent('食物 · 食物');
+    expect(within(getAssetRow('pecha-berry')).getByLabelText('标签')).toHaveTextContent('食物');
+    expect(within(getAssetRow('pecha-berry')).getAllByText('食物')).toHaveLength(1);
+    expect(screen.queryByRole('group', { name: 'Asset category filters' })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Asset category filters' })).toHaveValue('all');
     expect(
-      within(screen.getByRole('group', { name: 'Asset category filters' }))
-        .getAllByRole('button')
-        .map((button) => button.textContent),
+      within(screen.getByRole('combobox', { name: 'Asset category filters' }))
+        .getAllByRole('option')
+        .map((option) => option.textContent),
     ).toEqual(['全部', '建筑', '家具', '功能', '户外', '自然', '食物', '材料', '地块', '杂项', '其他']);
-    expect(screen.getByRole('button', { name: '查看桃桃果详情' })).toBeVisible();
-    expect(screen.getByRole('button', { name: '查看桃桃果详情' })).toHaveTextContent('详情');
+    expect(screen.queryByRole('button', { name: '查看桃桃果详情' })).not.toBeInTheDocument();
+    expect(screen.queryByText('详情')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('桃桃果 asset detail')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset advanced filters')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset area filter')).not.toBeInTheDocument();
@@ -88,6 +96,9 @@ describe('AssetPicker', () => {
     expect(screen.getByLabelText('Asset page status')).toHaveTextContent(`1 / ${totalAssetPages}`);
     expect(screen.getByLabelText('Previous asset page')).toBeDisabled();
     expect(screen.getByLabelText('Next asset page')).toBeEnabled();
+    expect(document.querySelector('.asset-catalog-panel')?.lastElementChild).toBe(
+      screen.getByRole('navigation', { name: 'Asset pagination' }),
+    );
 
     fireEvent.click(screen.getByLabelText('Next asset page'));
 
@@ -170,9 +181,10 @@ describe('AssetPicker', () => {
     expect(rotateButton).toHaveAttribute('aria-pressed', 'true');
     expect(rotateButton).toHaveAttribute('data-rotation', '90');
 
-    fireEvent.click(within(getAssetRow('wooden-bench')).getByRole('button', { name: '查看木长椅详情' }));
-    expect(screen.getByLabelText('木长椅 asset detail')).toHaveTextContent('可放在兼容承载面上');
-    expect(screen.getByLabelText('木长椅 asset detail')).toHaveTextContent('90 deg');
+    expect(getAssetSelectButton('wooden-bench')).toHaveTextContent('家具');
+    expect(within(getAssetRow('wooden-bench')).getByLabelText('标签')).toHaveTextContent('家具');
+    expect(within(getAssetRow('wooden-bench')).getByLabelText('标签')).toHaveTextContent('休闲');
+    expect(screen.queryByText('详情')).not.toBeInTheDocument();
 
     fireEvent.click(rotateButton);
 
@@ -203,7 +215,7 @@ describe('AssetPicker', () => {
     expect(selectedRow).toHaveClass('asset-row--continuous');
   });
 
-  it('opens asset detail without selecting the placement asset', () => {
+  it('renders row metadata and dye affordances without opening a detail panel', () => {
     const onAssetSelect = vi.fn();
 
     render(
@@ -218,31 +230,23 @@ describe('AssetPicker', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '查看苹野果详情' }));
-
     expect(onAssetSelect).not.toHaveBeenCalled();
     expect(getAssetSelectButton('pecha-berry')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('leppa-berry');
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('官方编号');
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('占用');
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('1x1x1');
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('可旋转');
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('否');
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('可染色');
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('叠放规则');
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('可放在兼容承载面上');
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('待放置旋转');
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('0 deg');
-    expect(within(screen.getByLabelText('苹野果 asset detail')).getByAltText('苹野果缩略图')).toBeInTheDocument();
+    expect(getAssetSelectButton('leppa-berry')).toHaveTextContent('苹野果');
+    expect(getAssetSelectButton('leppa-berry')).toHaveTextContent('食物');
+    expect(within(getAssetRow('leppa-berry')).getByLabelText('标签')).toHaveTextContent('食物');
+    expect(within(getAssetRow('leppa-berry')).getAllByText('食物')).toHaveLength(1);
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
     expect(window.localStorage.getItem(assetStagingPreferencesStorageKey)).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: '关闭' }));
     expect(screen.queryByLabelText('苹野果 asset detail')).not.toBeInTheDocument();
+    expect(screen.queryByText('详情')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'plate' } });
-    fireEvent.click(within(getAssetRow('plate')).getByRole('button', { name: /详情$/ }));
-    expect(screen.getByLabelText(/asset detail$/)).toHaveTextContent('食物 承载面');
-    expect(screen.getByLabelText(/asset detail$/)).not.toHaveTextContent('food-surface');
+    fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'wall-storage-box' } });
+    expect(getAssetSelectButton('wall-storage-box')).toHaveTextContent('壁挂收纳箱');
+    expect(getAssetSelectButton('wall-storage-box')).toHaveTextContent('家具');
+    expect(within(getAssetRow('wall-storage-box')).getByLabelText('标签')).toHaveTextContent('家具');
+    expect(within(getAssetRow('wall-storage-box')).getByLabelText('标签')).toHaveTextContent('装饰');
+    expect(screen.queryByRole('button', { name: '染色' })).not.toBeInTheDocument();
   });
 
   it('enables the placement skill toggle for any selected asset only', () => {
@@ -294,21 +298,18 @@ describe('AssetPicker', () => {
     );
 
     expect(screen.queryByLabelText('Show favorite assets')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Asset result count')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '木长椅' } });
-    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('1 results');
     expect(getAssetSelectButton('wooden-bench')).toBeVisible();
 
     fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'wooden-bench' } });
-    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('1 results');
     expect(getAssetSelectButton('wooden-bench')).toBeVisible();
 
     fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'Leppa Berry' } });
-    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('1 results');
     expect(getAssetSelectButton('leppa-berry')).toHaveTextContent('苹野果');
 
     fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '苹野果' } });
-    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('1 results');
     expect(getAssetSelectButton('leppa-berry')).toBeVisible();
   });
 
@@ -326,7 +327,7 @@ describe('AssetPicker', () => {
     );
 
     fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: '屋顶' } });
-    fireEvent.click(within(screen.getByRole('group', { name: 'Asset category filters' })).getByRole('button', { name: '建筑' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Asset category filters' }), { target: { value: 'buildings' } });
 
     expect(screen.queryByLabelText('Show favorite assets')).not.toBeInTheDocument();
     expect(readUiPreferencesFromStorage(window.localStorage).assetFilters).toEqual({
@@ -349,8 +350,7 @@ describe('AssetPicker', () => {
     );
 
     expect(screen.getByLabelText('Search assets')).toHaveValue('屋顶');
-    expect(within(screen.getByRole('group', { name: 'Asset category filters' })).getByRole('button', { name: '建筑' }))
-      .toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('combobox', { name: 'Asset category filters' })).toHaveValue('buildings');
     expect(screen.queryByLabelText('Show favorite assets')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset area filter')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset skill filter')).not.toBeInTheDocument();
@@ -447,8 +447,8 @@ describe('AssetPicker', () => {
     expect(screen.getByLabelText('素材暂存区')).toHaveClass('asset-staging--expanded');
     expect(document.querySelector('.asset-sidebar')).toHaveClass('asset-sidebar--staging-expanded');
     expect(screen.getByRole('complementary', { name: 'Asset picker' })).not.toContainElement(screen.getByLabelText('素材暂存区'));
-    expect(screen.getByRole('complementary', { name: 'Asset picker' })).toHaveTextContent(/素材/);
-    expect(screen.getByLabelText('Asset result count')).toHaveTextContent(/\d+ results/);
+    expect(screen.queryByRole('heading', { name: '素材' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Asset result count')).not.toBeInTheDocument();
     expect(document.querySelector('.asset-catalog-panel')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Search assets')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset results')).not.toBeInTheDocument();
@@ -664,7 +664,7 @@ describe('AssetPicker', () => {
 
     fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'missing' } });
 
-    expect(screen.getByLabelText('Asset result count')).toHaveTextContent('0 results');
+    expect(screen.queryByLabelText('Asset result count')).not.toBeInTheDocument();
     expect(screen.getByLabelText('No matching assets')).toBeVisible();
     expect(screen.getByText('No assets match the current filters.')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
@@ -686,7 +686,7 @@ describe('AssetPicker', () => {
     );
 
     fireEvent.change(screen.getByLabelText('Search assets'), { target: { value: 'missing asset' } });
-    fireEvent.click(screen.getByRole('button', { name: '建筑' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Asset category filters' }), { target: { value: 'buildings' } });
 
     expect(screen.getByLabelText('No matching assets')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Disable favorite' })).not.toBeInTheDocument();
@@ -694,7 +694,7 @@ describe('AssetPicker', () => {
     expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument();
   });
 
-  it('keeps read-only asset cards usable for detail viewing', () => {
+  it('keeps read-only asset cards visible without detail actions', () => {
     const onAssetSelect = vi.fn();
 
     render(
@@ -716,9 +716,8 @@ describe('AssetPicker', () => {
     expect(screen.queryByLabelText('Asset advanced filters')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset area filter')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Asset skill filter')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '查看苹野果详情' })).toBeEnabled();
-    expect(within(screen.getByRole('group', { name: 'Asset category filters' })).getByRole('button', { name: '全部' }))
-      .toBeDisabled();
+    expect(screen.queryByRole('button', { name: '查看苹野果详情' })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Asset category filters' })).toBeDisabled();
     fireEvent.click(getAssetSelectButton('leppa-berry'));
     expect(onAssetSelect).not.toHaveBeenCalled();
     expect(getAssetSelectButton('pecha-berry')).toHaveAttribute('aria-pressed', 'true');
@@ -729,8 +728,7 @@ describe('AssetPicker', () => {
     fireEvent.keyDown(getAssetSelectButton('pecha-berry'), { key: 'ArrowUp' });
     fireEvent.keyDown(getAssetSelectButton('pecha-berry'), { key: 'Enter' });
     fireEvent.keyDown(getAssetSelectButton('pecha-berry'), { key: ' ' });
-    fireEvent.click(screen.getByRole('button', { name: '查看苹野果详情' }));
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('leppa-berry');
+    expect(screen.queryByLabelText('苹野果 asset detail')).not.toBeInTheDocument();
 
     expect(onAssetSelect).not.toHaveBeenCalled();
     expect(getAssetSelectButton('pecha-berry')).toHaveFocus();

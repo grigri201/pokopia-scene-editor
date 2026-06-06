@@ -62,7 +62,7 @@ describe('SceneCanvas', () => {
       '--scene-canvas-rows': `${scene.canvasSize.height}`,
       '--scene-canvas-max-side': `${Math.max(scene.canvasSize.width, scene.canvasSize.height)}`,
       '--scene-canvas-aspect-ratio': `${scene.canvasSize.width} / ${scene.canvasSize.height}`,
-      '--scene-canvas-width-large': 'min(72vh, 660px, 100%)',
+      '--scene-canvas-width-large': 'min(calc(100vh - 212px), 660px, 100%)',
     });
     expect(cells).toHaveLength(defaultCanvasCellCount);
     expect(screen.getByLabelText('Cell 0,0, outer area, level-0, placeable')).toBeVisible();
@@ -156,7 +156,7 @@ describe('SceneCanvas', () => {
       '--scene-canvas-rows': '17',
       '--scene-canvas-max-side': '17',
       '--scene-canvas-aspect-ratio': '6 / 17',
-      '--scene-canvas-width-large': 'min(25.4118vh, 232.9412px, 35.2941%)',
+      '--scene-canvas-width-large': 'min(calc(35.2941vh - 74.8235px), 232.9412px, 35.2941%)',
       '--scene-canvas-width-medium': 'min(35.2941%, 218.8235px)',
       '--scene-canvas-width-mobile': 'min(35.2941%, 32.4706vw)',
     });

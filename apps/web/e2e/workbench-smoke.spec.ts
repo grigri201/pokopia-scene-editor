@@ -57,9 +57,9 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('Pokopia scene editor workbench')).toBeVisible();
   expect(await getShellTransitionDuration(page)).toBe('0s');
   await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
-  await expect(page.getByRole('region', { name: '场景摘要' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '展开场景设置' })).toBeVisible();
-  await expandSceneSettings(page);
+  await expect(page.getByRole('region', { name: '场景摘要' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '展开场景设置' })).toHaveCount(0);
+  await expectSceneSettingsFormVisible(page);
   await expect(page.getByLabel('Current Pokemon')).toHaveValue('百变怪');
   await expect(page.getByLabel('布景')).toHaveValue('15x15 布景');
   await expect(page.getByLabel('宽度')).toHaveValue('17');
@@ -68,12 +68,16 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.locator('.asset-row')).toHaveCount(10);
   await expect(page.locator('[data-asset-id="pecha-berry"]')).toContainText('桃桃果');
   await expect(page.locator('[data-asset-id="pecha-berry"]')).toContainText('食物');
+  await expect(page.getByLabel('Search assets')).toHaveAttribute('placeholder', '输入关键字搜索素材');
+  await expect(page.getByLabel('Asset category filters')).toHaveValue('all');
   await expect(page.getByLabel('Asset page status')).toHaveText('1 / 117');
+  await expect(page.getByLabel('Asset result count')).toHaveCount(0);
   await expect(page.getByText('Showing first')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show more' })).toHaveCount(0);
   await expect(page.getByRole('complementary', { name: '检查器预览' })).toHaveCount(0);
   await expect(page.getByLabel('俯视图预览')).toHaveCount(0);
   await expect(page.getByLabel('正视图预览')).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: /显示下层影子|Show lower-layer ghost/ })).toHaveCount(0);
   await expect(page.getByTestId('scene-cell')).toHaveCount(defaultCanvasCellCount);
   await expect(page.getByLabel('Cell 3,2, main area, level-0, placeable')).toBeVisible();
   await expect(page.getByLabel('Save status')).toHaveCount(0);
@@ -150,7 +154,7 @@ test('resizes the editable canvas from scene controls', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
   await dismissHelpOverlayIfVisible(page);
-  await expandSceneSettings(page);
+  await expectSceneSettingsFormVisible(page);
 
   await page.getByLabel('宽度').selectOption('12');
   await page.getByLabel('高度').selectOption('10');
@@ -193,7 +197,7 @@ test('switches the workbench to English without writing locale into SceneDocumen
   await expect(page.getByRole('group', { name: 'Dangerous actions' })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: resetName })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expandSceneSettings(page);
+  await expectSceneSettingsFormVisible(page);
   await expect(page.getByLabel('Scene name')).toHaveValue('15x15 布景');
   await expect(page.getByLabel('Current Pokemon')).toHaveValue('Ditto');
   await expect(page.locator('[data-asset-id="pecha-berry"]')).toContainText('Pecha Berry');
@@ -226,7 +230,7 @@ test('autosaves SceneDocument v1 without UI-only state or manual save entrypoint
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
   await dismissHelpOverlayIfVisible(page);
-  await expandSceneSettings(page);
+  await expectSceneSettingsFormVisible(page);
 
   await page.getByLabel('布景').fill('Smoke Payload Boundary');
   const autosavedPayload = await waitForStoredPayload(page, autosavedSceneStorageKey);
@@ -281,8 +285,8 @@ test('keeps expanded asset staging layout usable on desktop and tablet', async (
       await expect(page.getByRole('region', { name: '素材暂存区' })).toHaveAttribute('data-expanded', 'true');
       await expect(assetPicker.getByRole('region', { name: '素材暂存区' })).toHaveCount(0);
       await expect(page.getByLabel('全部暂存素材').locator('[data-asset-source="staging"]')).toHaveCount(smokeStagedAssetIds.length);
-      await expect(assetPicker.getByRole('heading', { name: '素材' })).toBeVisible();
-      await expect(assetPicker.getByLabel('Asset result count')).toBeVisible();
+      await expect(assetPicker.getByRole('heading', { name: '素材' })).toHaveCount(0);
+      await expect(assetPicker.getByLabel('Asset result count')).toHaveCount(0);
       await expect(page.getByLabel('Asset results')).toHaveCount(0);
       await expect(page.getByLabel('Asset page status')).toHaveCount(0);
       await expect(page.getByLabel('Search assets')).toHaveCount(0);
@@ -296,7 +300,6 @@ test('keeps expanded asset staging layout usable on desktop and tablet', async (
           hasPicker: true,
           hasStaging: true,
           hasAssetPicker: true,
-          assetPickerHeaderVisible: true,
           pickerClearOfCanvas: true,
           pickerClearOfLeftPanel: true,
           pickerClearOfSelectionInspector: true,
@@ -319,7 +322,7 @@ test('restores autosaved SceneDocument v1 on desktop startup', async ({ page }) 
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
   await dismissHelpOverlayIfVisible(page);
-  await expandSceneSettings(page);
+  await expectSceneSettingsFormVisible(page);
 
   await expect(page.getByLabel('布景')).toHaveValue('Restored Smoke Layout');
 
@@ -996,7 +999,7 @@ test('imports a remote scene_id into the desktop workbench with mocked productio
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/?scene_id=fixture');
   await dismissHelpOverlayIfVisible(page);
-  await expandSceneSettings(page);
+  await expectSceneSettingsFormVisible(page);
 
   await expect(page.getByLabel('Pokopia scene editor workbench')).toBeVisible();
   await expect(page.getByRole('textbox', { name: '布景' })).toHaveValue('Remote Desktop Smoke');
@@ -1029,7 +1032,7 @@ test('shows a recoverable desktop remote scene_id failure without silent default
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/?scene_id=missing');
   await dismissHelpOverlayIfVisible(page);
-  await expandSceneSettings(page);
+  await expectSceneSettingsFormVisible(page);
 
   await expect(page.getByRole('alert', { name: '远程布景无法导入' })).toContainText('没有找到远程布景 missing');
   await expect(page.getByRole('button', { name: '手动导入字符串' })).toBeVisible();
@@ -1415,7 +1418,6 @@ async function getExpandedAssetStagingLayoutMetrics(
   hasPicker: boolean;
   hasStaging: boolean;
   hasAssetPicker: boolean;
-  assetPickerHeaderVisible: boolean;
   pickerClearOfCanvasBottomPanels: boolean;
   pickerClearOfCanvas: boolean;
   pickerClearOfLeftPanel: boolean;
@@ -1464,7 +1466,6 @@ async function getExpandedAssetStagingLayoutMetrics(
     const picker = getVisibleRect('.asset-sidebar');
     const staging = getVisibleRect('.asset-staging');
     const assetPicker = getVisibleRect('.asset-picker');
-    const assetPickerHeader = getVisibleRect('.asset-picker__header');
     const canvas = getVisibleRect('.scene-canvas');
     const leftPanel = getVisibleRect('.workbench-left');
     const selectionInspector = getVisibleRect('.selection-inspector');
@@ -1474,11 +1475,14 @@ async function getExpandedAssetStagingLayoutMetrics(
 
     return {
       assetCatalogHidden: !getVisibleRect('.asset-catalog-panel'),
-      assetControlsHidden: !getVisibleRect('.asset-search') && !getVisibleRect('.asset-category-tabs') && !getVisibleRect('.asset-pagination'),
+      assetControlsHidden:
+        !getVisibleRect('.asset-filter-row') &&
+        !getVisibleRect('.asset-search') &&
+        !getVisibleRect('.asset-category-select') &&
+        !getVisibleRect('.asset-pagination'),
       hasPicker: Boolean(picker),
       hasStaging: Boolean(staging),
       hasAssetPicker: Boolean(assetPicker),
-      assetPickerHeaderVisible: Boolean(assetPickerHeader),
       pickerClearOfCanvasBottomPanels: !overlaps(picker, canvasBottomPanels),
       pickerClearOfCanvas: !overlaps(picker, canvas),
       pickerClearOfLeftPanel: !overlaps(picker, leftPanel),
@@ -1556,19 +1560,11 @@ async function expectResponsiveWorkbench(
   await expect(page.getByRole('button', { name: newLayerName })).toBeEnabled();
 }
 
-async function expandSceneSettings(page: Page): Promise<void> {
+async function expectSceneSettingsFormVisible(page: Page): Promise<void> {
   const fields = page.locator('.scene-controls__fields');
-  const collapseButton = page.getByRole('button', { name: /收起场景设置|Collapse scene settings/ });
-  const expandButton = page.getByRole('button', { name: /展开场景设置|Expand scene settings/ });
-  if (await collapseButton.isVisible().catch(() => false)) {
-    await expect(fields).toHaveAttribute('data-expanded', 'true');
-    await expect(page.getByRole('textbox', { name: /布景|Scene name/ })).toBeVisible();
-    return;
-  }
-
-  await expandButton.click();
-  await expect(collapseButton).toBeVisible();
-  await expect(fields).toHaveAttribute('data-expanded', 'true');
+  await expect(fields).toBeVisible();
+  await expect(page.getByRole('button', { name: /展开场景设置|Expand scene settings/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /收起场景设置|Collapse scene settings/ })).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: /布景|Scene name/ })).toBeVisible();
 }
 

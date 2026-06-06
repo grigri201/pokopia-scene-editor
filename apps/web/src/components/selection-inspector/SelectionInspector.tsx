@@ -78,7 +78,6 @@ export function SelectionInspector({
   onUpdateLayerNote,
   onDeleteLayerNote,
 }: SelectionInspectorProps) {
-  const [detailsExpanded, setDetailsExpanded] = useState(false);
   const context = selectedContext;
   const asset = getAssetById(selectedInstance?.assetId);
   const assetDisplay = asset ? getAssetDisplay(asset, locale) : null;
@@ -108,7 +107,6 @@ export function SelectionInspector({
     selectedInstance ? `${selectedInstance.rotationDegrees} deg` : null,
   ].filter(Boolean);
   const selectedAssetLabel = assetDisplay?.name ?? selectedInstance?.assetId ?? (coordinate ? t(locale, 'emptyGridCell') : t(locale, 'noSelection'));
-  const detailsId = 'selection-details-panel';
   const emptyPromptStyle = {
     '--selection-empty-image': `url("${dittoPromptImageUrl}")`,
   } as CSSProperties;
@@ -117,7 +115,7 @@ export function SelectionInspector({
     <section
       className="selection-inspector"
       aria-label={t(locale, 'selectionContext')}
-      data-details-expanded={detailsExpanded}
+      data-layer-notes={layerNotesLevel ? 'available' : 'unavailable'}
     >
       <div
         className={[
@@ -286,50 +284,18 @@ export function SelectionInspector({
             })}
             </>
           ) : null}
-          <button
-            type="button"
-            className="current-selection-action-button current-selection-action-button--details has-icon-tooltip"
-            aria-controls={detailsId}
-            aria-expanded={detailsExpanded}
-            aria-label={t(locale, detailsExpanded ? 'collapseSelectionDetails' : 'expandSelectionDetails')}
-            data-tooltip={t(locale, detailsExpanded ? 'collapseSelectionDetails' : 'expandSelectionDetails')}
-            title={t(locale, detailsExpanded ? 'collapseSelectionDetails' : 'expandSelectionDetails')}
-            onClick={() => setDetailsExpanded((current) => !current)}
-          >
-            <DetailsIcon />
-          </button>
         </div>
       </div>
-      <section
-        id={detailsId}
-        className="selection-details-panel"
-        aria-label={t(locale, 'selectionDetails')}
-        hidden={!detailsExpanded}
-        inert={!detailsExpanded ? true : undefined}
-        aria-hidden={!detailsExpanded ? true : undefined}
-      >
-        <SelectionDetailsSummary
+      {layerNotesLevel ? (
+        <LayerNotesPanel
           locale={locale}
-          assetName={assetDisplay?.name ?? null}
-          assetId={selectedInstance?.assetId ?? null}
-          coordinate={coordinate}
-          selectedLevel={selectedLevel}
-          rotationDegrees={selectedInstance?.rotationDegrees ?? null}
-          dyeColor={selectedInstance?.dyeColor ?? null}
-          skillType={activeSkillType}
-          skillNote={activeSkillNote}
+          level={layerNotesLevel}
+          readOnly={readOnly}
+          onAddLayerNote={onAddLayerNote}
+          onUpdateLayerNote={onUpdateLayerNote}
+          onDeleteLayerNote={onDeleteLayerNote}
         />
-        {layerNotesLevel ? (
-          <LayerNotesPanel
-            locale={locale}
-            level={layerNotesLevel}
-            readOnly={readOnly}
-            onAddLayerNote={onAddLayerNote}
-            onUpdateLayerNote={onUpdateLayerNote}
-            onDeleteLayerNote={onDeleteLayerNote}
-          />
-        ) : null}
-      </section>
+      ) : null}
     </section>
   );
 }
@@ -420,93 +386,6 @@ function getStackItemFootprint(assetId: string, instance: TileInstance | null) {
   }
 
   return getEffectiveAssetFootprint(asset.footprint, instance?.rotationDegrees ?? 0);
-}
-
-function SelectionDetailsSummary({
-  locale,
-  assetName,
-  assetId,
-  coordinate,
-  selectedLevel,
-  rotationDegrees,
-  dyeColor,
-  skillType,
-  skillNote,
-}: {
-  locale: Locale;
-  assetName: string | null;
-  assetId: string | null;
-  coordinate: GridCoordinate | null;
-  selectedLevel: BuildingLevel | null;
-  rotationDegrees: RotationDegrees | null;
-  dyeColor: string | null | undefined;
-  skillType: AssetSkillType | null;
-  skillNote: string;
-}) {
-  const skillDisplay = skillType ? getSkillDisplay(skillType, locale).name : t(locale, 'noSkillMarker');
-
-  return (
-    <section className="selection-details-summary" aria-label={t(locale, 'selectedInstanceDetails')}>
-      <div className="selection-details-summary__header">
-        <h2>{t(locale, 'selectedInstanceDetails')}</h2>
-        <span>{t(locale, 'futureInstanceDetails')}</span>
-      </div>
-      <dl>
-        <div>
-          <dt>{t(locale, 'selectionAsset')}</dt>
-          <dd>{assetName ?? assetId ?? t(locale, 'emptyGridCell')}</dd>
-        </div>
-        {assetId ? (
-          <div>
-            <dt>assetId</dt>
-            <dd>{assetId}</dd>
-          </div>
-        ) : null}
-        {coordinate ? (
-          <div>
-            <dt>{t(locale, 'selectionCoordinate')}</dt>
-            <dd>{coordinate.x},{coordinate.y}</dd>
-          </div>
-        ) : null}
-        {selectedLevel ? (
-          <div>
-            <dt>{t(locale, 'selectionBuildingLayer')}</dt>
-            <dd>{getBuildingLevelDisplayId(selectedLevel.levelNumber)} {selectedLevel.name}</dd>
-          </div>
-        ) : null}
-        {rotationDegrees !== null ? (
-          <div>
-            <dt>{t(locale, 'selectionRotation')}</dt>
-            <dd>{rotationDegrees} deg</dd>
-          </div>
-        ) : null}
-        {dyeColor ? (
-          <div>
-            <dt>{t(locale, 'selectionDye')}</dt>
-            <dd>{dyeColor}</dd>
-          </div>
-        ) : null}
-        <div>
-          <dt>{t(locale, 'skillMarker')}</dt>
-          <dd>{skillDisplay}</dd>
-        </div>
-        <div>
-          <dt>{t(locale, 'skillNote')}</dt>
-          <dd>{skillNote.trim() ? skillNote : t(locale, 'noSkillNote')}</dd>
-        </div>
-      </dl>
-    </section>
-  );
-}
-
-function DetailsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M4 6h16" />
-      <path d="M4 12h16" />
-      <path d="M4 18h10" />
-    </svg>
-  );
 }
 
 function RotateIcon() {

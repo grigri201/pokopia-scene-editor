@@ -6,8 +6,6 @@ import {
   assetStagingPreferencesStorageKey,
   autosavedSceneStorageKey,
   encodeSceneDocumentString,
-  lowerLayerGhostPreferencesStorageKey,
-  sceneSummaryPreferencesStorageKey,
   savedSceneStorageKey,
   serializeSceneDocument,
   uiPreferencesStorageKey,
@@ -155,7 +153,6 @@ describe('AppShell scene storage integration', () => {
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save scene from scene controls' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '展开场景设置' }));
     expect(screen.getByLabelText('布景')).toBeVisible();
     fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Autosaved Garden Layout' } });
     expectNoSaveStatus();
@@ -179,120 +176,62 @@ describe('AppShell scene storage integration', () => {
     expectNoSaveStatus();
   }, 20_000);
 
-  it('persists scene summary expansion separately from SceneDocument storage', () => {
-    const { unmount } = render(<AppShell />);
+  it('shows scene settings as a direct form without scene summary expansion storage', () => {
+    render(<AppShell />);
     const beforeSnapshot = readSceneSnapshot();
 
-    expect(screen.getByRole('region', { name: '场景摘要' })).toBeVisible();
-    expect(screen.getByRole('button', { name: '展开场景设置' })).toHaveAttribute(
-      'aria-expanded',
-      'false',
-    );
-    expect(document.querySelector('.scene-controls__fields')).toHaveAttribute('data-expanded', 'false');
-    expect(window.localStorage.getItem(sceneSummaryPreferencesStorageKey)).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: '展开场景设置' }));
-
-    expect(screen.getByRole('button', { name: '收起场景设置' })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
+    expect(screen.queryByRole('region', { name: '场景摘要' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '展开场景设置' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '收起场景设置' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('布景')).toBeVisible();
-    expect(window.localStorage.getItem(sceneSummaryPreferencesStorageKey)).toBe(
-      JSON.stringify({ schemaVersion: 1, expanded: true }),
-    );
+    expect(screen.getByLabelText('Current Pokemon')).toBeVisible();
+    expect(screen.getByRole('group', { name: '编辑区域大小' })).toBeVisible();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
     expect(readSceneSnapshot()).toBe(beforeSnapshot);
-
-    unmount();
-    render(<AppShell />);
-
-    expect(screen.getByRole('button', { name: '收起场景设置' })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
-    expect(screen.getByLabelText('布景')).toBeVisible();
   });
 
-  it('keeps scene summary expansion usable when UI storage writes fail', () => {
-    const setItemSpy = vi
-      .spyOn(Storage.prototype, 'setItem')
-      .mockImplementation((key: string) => {
-        if (key === sceneSummaryPreferencesStorageKey) {
-          throw new Error('quota exceeded');
-        }
-      });
-
-    render(<AppShell />);
-    const beforeSnapshot = readSceneSnapshot();
-
-    fireEvent.click(screen.getByRole('button', { name: '展开场景设置' }));
-
-    expect(screen.getByRole('button', { name: '收起场景设置' })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
-    expect(screen.getByLabelText('布景')).toBeVisible();
-    expect(setItemSpy).toHaveBeenCalledWith(
-      sceneSummaryPreferencesStorageKey,
-      JSON.stringify({ schemaVersion: 1, expanded: true }),
-    );
-    expect(window.localStorage.getItem(sceneSummaryPreferencesStorageKey)).toBeNull();
-    expect(readSceneSnapshot()).toBe(beforeSnapshot);
-  });
-
-  it('persists the lower-layer ghost toggle separately from SceneDocument storage', () => {
+  it('always shows lower-layer ghosts without exposing a UI toggle', () => {
     setViewportWidth(1024);
-    const { unmount } = render(<AppShell />);
-    const beforeSnapshot = readSceneSnapshot();
-    const toggle = screen.getByRole('checkbox', { name: '显示下层影子' });
-
-    expect(toggle).toBeChecked();
-    expect(screen.getByRole('group', { name: '画布显示选项' })).toBeVisible();
-    expect(window.localStorage.getItem(lowerLayerGhostPreferencesStorageKey)).toBeNull();
-
-    fireEvent.click(toggle);
-
-    expect(toggle).not.toBeChecked();
-    expect(window.localStorage.getItem(lowerLayerGhostPreferencesStorageKey)).toBe(
-      JSON.stringify({ schemaVersion: 1, enabled: false }),
+    const legacyLowerLayerGhostPreferencesStorageKey = 'pokopia.lowerLayerGhost.v1';
+    const legacyDisabledPreferences = JSON.stringify({ schemaVersion: 1, enabled: false });
+    window.localStorage.setItem(legacyLowerLayerGhostPreferencesStorageKey, legacyDisabledPreferences);
+    const layeredScene = createDefaultSceneDocument({
+      sceneId: 'scene-lower-layer-ghost-always-visible',
+      now: '2026-05-16T08:20:00.000Z',
+    });
+    writeSceneDocumentToStorage(
+      window.localStorage,
+      {
+        ...layeredScene,
+        buildingLevels: [createBuildingLevel(0), createBuildingLevel(1)],
+        workspaceState: {
+          ...layeredScene.workspaceState,
+          currentBuildingLevelId: 'level-1',
+          selectedCoordinate: null,
+        },
+        tileInstances: [
+          createTileInstance({
+            instanceId: 'tile-lower-ghost-always-visible',
+            assetId: 'leafy-plant',
+            coordinate: { x: 2, y: 3 },
+            buildingLevelId: 'level-0',
+          }),
+        ],
+      },
+      'autosave',
     );
-    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
-    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
-    expect(readSceneSnapshot()).toBe(beforeSnapshot);
-
-    unmount();
     render(<AppShell />);
 
-    expect(screen.getByRole('checkbox', { name: '显示下层影子' })).not.toBeChecked();
-  });
-
-  it('keeps lower-layer ghost toggle usable when UI storage writes fail', () => {
-    setViewportWidth(1024);
-    const setItemSpy = vi
-      .spyOn(Storage.prototype, 'setItem')
-      .mockImplementation((key: string) => {
-        if (key === lowerLayerGhostPreferencesStorageKey) {
-          throw new Error('quota exceeded');
-        }
-      });
-
-    render(<AppShell />);
-    const beforeSnapshot = readSceneSnapshot();
-    const toggle = screen.getByRole('checkbox', { name: '显示下层影子' });
-
-    fireEvent.click(toggle);
-
-    expect(toggle).not.toBeChecked();
-    expect(setItemSpy).toHaveBeenCalledWith(
-      lowerLayerGhostPreferencesStorageKey,
-      JSON.stringify({ schemaVersion: 1, enabled: false }),
+    expect(screen.queryByRole('checkbox', { name: '显示下层影子' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: '画布显示选项' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('scene-canvas')).toHaveAttribute('data-lower-layer-ghost-count', '1');
+    expect(screen.getByTestId('lower-layer-ghost-tile-lower-ghost-always-visible')).toHaveAttribute(
+      'data-building-level-id',
+      'level-0',
     );
-    expect(window.localStorage.getItem(lowerLayerGhostPreferencesStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(legacyLowerLayerGhostPreferencesStorageKey)).toBe(legacyDisabledPreferences);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
-    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
-    expect(readSceneSnapshot()).toBe(beforeSnapshot);
   });
 
   it('keeps low-frequency file actions in an accessible header menu', async () => {
@@ -379,7 +318,6 @@ describe('AppShell scene storage integration', () => {
 
     render(<AppShell />);
 
-    fireEvent.click(screen.getByRole('button', { name: '展开场景设置' }));
     expect(screen.getByLabelText('布景')).toBeVisible();
     fireEvent.change(screen.getByLabelText('宽度'), { target: { value: '12' } });
     fireEvent.change(screen.getByLabelText('高度'), { target: { value: '10' } });
@@ -779,7 +717,8 @@ describe('AppShell scene storage integration', () => {
     fireEvent.change(screen.getByLabelText('语言'), { target: { value: 'en-US' } });
 
     expect(screen.getByRole('button', { name: 'Preview / export' })).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Expand scene settings' }));
+    expect(screen.queryByRole('button', { name: 'Expand scene settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Collapse scene settings' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Scene name')).toBeVisible();
     expect(screen.getByLabelText('Current Pokemon')).toHaveValue('Ditto');
     fireEvent.focus(screen.getByLabelText('Current Pokemon'));
@@ -1771,11 +1710,12 @@ describe('AppShell scene storage integration', () => {
   it('places only the current selection item below the canvas', () => {
     const { container } = render(<AppShell />);
 
-    const lowerInspectors = container.querySelector('.canvas-stage > .canvas-bottom-panels');
+    const lowerInspectors = container.querySelector('.workbench-grid > .canvas-bottom-panels');
     expect(lowerInspectors).toBeInTheDocument();
     expect(lowerInspectors).toHaveAttribute('aria-label', 'Canvas lower inspectors');
     expect(lowerInspectors?.children).toHaveLength(1);
     expect(lowerInspectors?.children[0]).toHaveClass('selection-inspector');
+    expect(container.querySelector('.canvas-stage > .canvas-bottom-panels')).toBeNull();
     expect(screen.queryByRole('complementary', { name: '检查器预览' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('俯视图预览')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('正视图预览')).not.toBeInTheDocument();
@@ -1869,7 +1809,6 @@ describe('AppShell scene storage integration', () => {
     setViewportWidth(1024);
     render(<AppShell />);
 
-    fireEvent.click(screen.getByRole('button', { name: '展开详情' }));
     fireEvent.change(screen.getByLabelText('新增当前层备注'), { target: { value: '  先放桌子 <b>不要执行</b>  ' } });
     fireEvent.click(screen.getByRole('button', { name: '添加备注' }));
 
@@ -1894,18 +1833,16 @@ describe('AppShell scene storage integration', () => {
     expect(document.querySelector('b')).toBeNull();
   });
 
-  it('keeps selection details expansion out of scene storage', () => {
+  it('keeps the always-visible lower inspector out of scene storage', () => {
     setViewportWidth(1024);
     render(<AppShell />);
     const beforeSnapshot = readSceneSnapshot();
 
-    fireEvent.click(screen.getByRole('button', { name: '展开详情' }));
-    expect(screen.getByRole('button', { name: '收起详情' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByLabelText('选择详情')).toBeVisible();
+    expect(screen.queryByRole('button', { name: '展开详情' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '收起详情' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('选择详情')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('当前层备注')).toBeVisible();
 
-    fireEvent.click(screen.getByRole('button', { name: '收起详情' }));
-
-    expect(screen.getByRole('button', { name: '展开详情' })).toHaveAttribute('aria-expanded', 'false');
     expect(readSceneSnapshot()).toBe(beforeSnapshot);
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
@@ -2768,7 +2705,7 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
   });
 
-  it('opens asset details without changing scene snapshots or storage', () => {
+  it('shows inline asset metadata without changing scene snapshots or storage', () => {
     render(<AppShell />);
 
     const beforeSnapshot = readSceneSnapshot();
@@ -2778,9 +2715,18 @@ describe('AppShell scene storage integration', () => {
     const beforeUiPreferences = window.localStorage.getItem(uiPreferencesStorageKey);
     const beforeStagingPreferences = window.localStorage.getItem(assetStagingPreferencesStorageKey);
 
-    fireEvent.click(screen.getByRole('button', { name: '查看苹野果详情' }));
+    const leppaBerryRow = document.querySelector<HTMLElement>(
+      '[data-asset-id="leppa-berry"][data-asset-source="catalog"]',
+    );
+    if (!leppaBerryRow) {
+      throw new Error('Expected leppa-berry catalog row.');
+    }
 
-    expect(screen.getByLabelText('苹野果 asset detail')).toHaveTextContent('leppa-berry');
+    expect(within(leppaBerryRow).getByText('苹野果')).toBeVisible();
+    expect(within(leppaBerryRow).getAllByText('食物')).toHaveLength(1);
+    expect(within(leppaBerryRow).getByLabelText('标签')).toHaveTextContent('食物');
+    expect(screen.queryByRole('button', { name: '查看苹野果详情' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('苹野果 asset detail')).not.toBeInTheDocument();
     expect(readSceneSnapshot()).toBe(beforeSnapshot);
     expect(encodeSceneDocumentString(JSON.parse(readSceneSnapshot()))).toBe(beforeSceneString);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBe(beforeSaved);
@@ -3173,11 +3119,6 @@ function expectNoSaveStatus(): void {
 }
 
 function selectPokemonBySearch(query: string, optionName: RegExp): HTMLElement {
-  const expandButton = screen.queryByRole('button', { name: '展开场景设置' });
-  if (expandButton) {
-    fireEvent.click(expandButton);
-  }
-
   const pokemonSearch = screen.getByLabelText('Current Pokemon');
   fireEvent.focus(pokemonSearch);
   fireEvent.change(pokemonSearch, { target: { value: query } });

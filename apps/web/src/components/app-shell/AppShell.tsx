@@ -43,12 +43,8 @@ import {
   getSceneIdFromSearch,
   getUiPreferencesStorage,
   readLatestSceneDocumentFromStorage,
-  readLowerLayerGhostPreferencesFromStorage,
-  readSceneSummaryPreferencesFromStorage,
   readUiPreferencesFromStorage,
   savedSceneStorageKey,
-  writeLowerLayerGhostEnabledPreferenceToStorage,
-  writeSceneSummaryExpandedPreferenceToStorage,
   writeHelpOverlayDismissedPreferenceToStorage,
   type RecoveryError,
   type RemoteSceneFetchResult,
@@ -160,12 +156,6 @@ export function AppShell() {
       : initialSceneState.recoveryErrors.length > 0 ? 'error' : 'idle',
   );
   const [locale, setLocale] = useState<Locale>(initialUiPreferences.locale);
-  const [sceneSummaryExpanded, setSceneSummaryExpanded] = useState(
-    () => readSceneSummaryPreferencesFromStorage(getUiPreferencesStorage()).expanded,
-  );
-  const [lowerLayerGhostEnabled, setLowerLayerGhostEnabled] = useState(
-    () => readLowerLayerGhostPreferencesFromStorage(getUiPreferencesStorage()).enabled,
-  );
   const autosaveReadyRef = useRef(false);
   const recoveryToastTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const recoveryToastStartedAtRef = useRef(0);
@@ -1762,16 +1752,6 @@ export function AppShell() {
     writeLocalePreferenceToStorage(getUiPreferencesStorage(), nextLocale);
   };
 
-  const updateSceneSummaryExpanded = (expanded: boolean) => {
-    setSceneSummaryExpanded(expanded);
-    writeSceneSummaryExpandedPreferenceToStorage(getUiPreferencesStorage(), expanded);
-  };
-
-  const updateLowerLayerGhostEnabled = (enabled: boolean) => {
-    setLowerLayerGhostEnabled(enabled);
-    writeLowerLayerGhostEnabledPreferenceToStorage(getUiPreferencesStorage(), enabled);
-  };
-
   const openHelpOverlay = () => {
     if (!helpOverlayAvailable) {
       return;
@@ -1850,32 +1830,44 @@ export function AppShell() {
             aria-label="pokokit Scene Editor"
           >
             <span className="app-brand__pokokit">pokokit</span>
-            <span>Scene Editor</span>
+            <span className="app-brand__product-name">Scene Editor</span>
           </a>
+        </div>
+        <div className="app-header__actions" aria-label="Scene file actions">
           {helpOverlayAvailable ? (
             <button
               type="button"
-              className="help-entry-button"
+              className="app-header-tool-button help-entry-button has-icon-tooltip"
               aria-label={t(locale, 'openHelpOverlay')}
               title={t(locale, 'openHelpOverlay')}
+              data-tooltip={t(locale, 'openHelpOverlay')}
               onClick={openHelpOverlay}
             >
+              <span className="app-header-tool-button__frame" aria-hidden="true" />
               ?
             </button>
           ) : null}
-        </div>
-        <div className="app-header__actions" aria-label="Scene file actions">
           {!isReadOnly ? (
             <button
               type="button"
-              className="app-action-button app-action-button--primary"
+              className="app-header-tool-button app-header-icon-button has-icon-tooltip"
+              aria-label={t(locale, 'previewExportAction')}
+              title={t(locale, 'previewExportAction')}
+              data-tooltip={t(locale, 'previewExportAction')}
               onClick={openExportPreview}
             >
-              {t(locale, 'previewExportAction')}
+              <span className="app-header-tool-button__frame" aria-hidden="true" />
+              <PreviewExportIcon />
             </button>
           ) : null}
-          <label className="language-control">
-            <span>{t(locale, 'language')}</span>
+          <label
+            className="app-header-tool-button language-control has-icon-tooltip"
+            title={t(locale, 'language')}
+            data-tooltip={t(locale, 'language')}
+          >
+            <span className="app-header-tool-button__frame" aria-hidden="true" />
+            <span className="sr-only">{t(locale, 'language')}</span>
+            <LanguageIcon />
             <select
               aria-label={t(locale, 'language')}
               value={locale}
@@ -1893,13 +1885,17 @@ export function AppShell() {
               <button
                 type="button"
                 ref={fileActionsTriggerRef}
-                className="app-action-button file-actions-menu__trigger"
+                className="app-header-tool-button app-header-icon-button file-actions-menu__trigger has-icon-tooltip"
+                aria-label={t(locale, 'fileActions')}
+                title={t(locale, 'fileActions')}
+                data-tooltip={t(locale, 'fileActions')}
                 aria-haspopup="menu"
                 aria-expanded={fileActionsMenuOpen}
                 aria-controls={fileActionsMenuOpen ? 'file-actions-menu' : undefined}
                 onClick={toggleFileActionsMenu}
               >
-                {t(locale, 'fileActions')}
+                <span className="app-header-tool-button__frame" aria-hidden="true" />
+                <FileActionsIcon />
               </button>
               {fileActionsMenuOpen ? (
                 <div
@@ -2219,11 +2215,9 @@ export function AppShell() {
             canvasSize={scene.canvasSize}
             selectedPokemonKey={scene.selectedPokemonKey}
             sceneName={scene.sceneName}
-            sceneSummaryExpanded={sceneSummaryExpanded}
             onCanvasSizeChange={updateCanvasSize}
             onPokemonChange={updatePokemon}
             onSceneNameChange={updateSceneName}
-            onSceneSummaryExpandedChange={updateSceneSummaryExpanded}
             onSceneNameValidationError={showSceneNameValidationError}
           />
           <BuildingLevelPanel
@@ -2248,24 +2242,11 @@ export function AppShell() {
           <span className="sr-only status-pill" aria-label="Interaction mode">
             {isReadOnly ? 'Mobile read-only mode' : 'Desktop edit mode'}
           </span>
-          {!isReadOnly ? (
-            <div className="canvas-stage__tools" role="group" aria-label={t(locale, 'canvasViewOptions')}>
-              <label className="lower-layer-ghost-toggle">
-                <input
-                  type="checkbox"
-                  checked={lowerLayerGhostEnabled}
-                  onChange={(event) => updateLowerLayerGhostEnabled(event.currentTarget.checked)}
-                />
-                <span>{t(locale, 'lowerLayerGhostToggle')}</span>
-              </label>
-            </div>
-          ) : null}
           <SceneCanvas
             locale={locale}
             canvasSize={scene.canvasSize}
             scene={scene}
             cells={canvasCells}
-            lowerLayerGhostEnabled={!isReadOnly && lowerLayerGhostEnabled}
             readOnly={isReadOnly}
             placementMode={Boolean(scene.workspaceState.selectedAssetId && !isReadOnly)}
             selectedCoordinate={selectedCoordinate}
@@ -2277,37 +2258,37 @@ export function AppShell() {
             onHoverCoordinate={setHoveredCoordinate}
             onFocusCoordinate={setFocusedCoordinate}
           />
-          <div className="canvas-bottom-panels" aria-label="Canvas lower inspectors">
-            <SelectionInspector
-              locale={locale}
-              selectedContext={selectedContext}
-              selectedInstance={selectedInstance}
-              selectedInstanceId={selectedInstanceId}
-              selectedSkillMarker={selectedSkillMarker}
-              stackingRelations={stackingRelations}
-              targetContext={targetContext}
-              targetPlacement={targetPlacementPreview}
-              canvasSize={scene.canvasSize}
-              sceneDimensions={{
-                sceneSize: scene.sceneSize,
-                canvasSize: scene.canvasSize,
-                outerPadding: scene.outerPadding,
-              }}
-              buildingLevels={scene.buildingLevels}
-              currentBuildingLevel={currentBuildingLevelRecord}
-              tileInstances={scene.tileInstances}
-              readOnly={isReadOnly}
-              onSelectInstance={setSelectedInstanceId}
-              onDeleteInstance={deleteInstance}
-              onRotateInstance={rotateInstance}
-              onSaveInstanceSkill={saveInstanceSkill}
-              onSaveCellSkill={saveSelectedCellSkill}
-              onAddLayerNote={addLayerNote}
-              onUpdateLayerNote={updateLayerNote}
-              onDeleteLayerNote={deleteLayerNote}
-            />
-          </div>
         </section>
+        <div className="canvas-bottom-panels" aria-label="Canvas lower inspectors">
+          <SelectionInspector
+            locale={locale}
+            selectedContext={selectedContext}
+            selectedInstance={selectedInstance}
+            selectedInstanceId={selectedInstanceId}
+            selectedSkillMarker={selectedSkillMarker}
+            stackingRelations={stackingRelations}
+            targetContext={targetContext}
+            targetPlacement={targetPlacementPreview}
+            canvasSize={scene.canvasSize}
+            sceneDimensions={{
+              sceneSize: scene.sceneSize,
+              canvasSize: scene.canvasSize,
+              outerPadding: scene.outerPadding,
+            }}
+            buildingLevels={scene.buildingLevels}
+            currentBuildingLevel={currentBuildingLevelRecord}
+            tileInstances={scene.tileInstances}
+            readOnly={isReadOnly}
+            onSelectInstance={setSelectedInstanceId}
+            onDeleteInstance={deleteInstance}
+            onRotateInstance={rotateInstance}
+            onSaveInstanceSkill={saveInstanceSkill}
+            onSaveCellSkill={saveSelectedCellSkill}
+            onAddLayerNote={addLayerNote}
+            onUpdateLayerNote={updateLayerNote}
+            onDeleteLayerNote={deleteLayerNote}
+          />
+        </div>
         <AssetPicker
           locale={locale}
           readOnly={isReadOnly}
@@ -2470,6 +2451,42 @@ function RemoteSceneImportStatus({
         )}
       </div>
     </section>
+  );
+}
+
+function PreviewExportIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 5h16v10H4z" />
+      <path d="M8 19h8" />
+      <path d="M12 15v4" />
+      <path d="m15 10-3 3-3-3" />
+      <path d="M12 13V7" />
+    </svg>
+  );
+}
+
+function LanguageIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M3 5h12" />
+      <path d="M9 3v2" />
+      <path d="M6 9c1.2 2 3.2 3.5 6 4.5" />
+      <path d="M13 5c-.8 3.6-3 6.5-6.5 8.5" />
+      <path d="m15 21 4-10 4 10" />
+      <path d="M16.5 17h5" />
+    </svg>
+  );
+}
+
+function FileActionsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M6 3h8l4 4v14H6z" />
+      <path d="M14 3v5h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h6" />
+    </svg>
   );
 }
 

@@ -16,11 +16,9 @@ interface PokemonSceneControlsProps {
   canvasSize: GridSize;
   selectedPokemonKey: PokemonKey;
   sceneName: string;
-  sceneSummaryExpanded?: boolean;
   onCanvasSizeChange: (canvasSize: GridSize) => void;
   onPokemonChange: (pokemonKey: PokemonKey) => void;
   onSceneNameChange: (sceneName: string) => void;
-  onSceneSummaryExpandedChange?: (expanded: boolean) => void;
   onSceneNameValidationError?: (message: string) => void;
 }
 
@@ -30,15 +28,12 @@ export function PokemonSceneControls({
   canvasSize,
   selectedPokemonKey,
   sceneName,
-  sceneSummaryExpanded = true,
   onCanvasSizeChange,
   onPokemonChange,
   onSceneNameChange,
-  onSceneSummaryExpandedChange,
   onSceneNameValidationError,
 }: PokemonSceneControlsProps) {
   const pokemonListboxId = useId();
-  const sceneSettingsId = useId();
   const [sceneNameDraft, setSceneNameDraft] = useState(sceneName);
   const [isPokemonMenuOpen, setIsPokemonMenuOpen] = useState(false);
   const [pokemonSearchQuery, setPokemonSearchQuery] = useState('');
@@ -56,11 +51,6 @@ export function PokemonSceneControls({
     () => pokemonThemeCatalogByNumber.findIndex((pokemon) => pokemon.key === selectedPokemonKey),
     [selectedPokemonKey],
   );
-  const selectedPokemonDisplay = getPokemonDisplay(selectedPokemon, locale);
-  const canvasSummary = t(locale, 'canvasSummary', {
-    width: canvasSize.width,
-    height: canvasSize.height,
-  });
   const selectedPokemonMenuIndex = selectedPokemonIndex >= 0 ? selectedPokemonIndex : 0;
   const activePokemon = isPokemonMenuOpen ? filteredPokemon[activePokemonIndex] : undefined;
   const activePokemonOptionId = activePokemon ? `${pokemonListboxId}-${activePokemon.key}` : undefined;
@@ -226,36 +216,8 @@ export function PokemonSceneControls({
   };
 
   return (
-    <section
-      className="scene-controls"
-      aria-label={t(locale, 'sceneControls')}
-      data-summary-expanded={sceneSummaryExpanded}
-    >
-      <div className="scene-summary" role="region" aria-label={t(locale, 'sceneSummary')}>
-        <div className="scene-summary__copy">
-          <p className="eyebrow">{t(locale, 'sceneSummary')}</p>
-          <strong>{sceneName}</strong>
-          <span>{selectedPokemonDisplay}</span>
-          <span>{canvasSummary}</span>
-        </div>
-        <button
-          type="button"
-          className="scene-summary__toggle"
-          aria-controls={sceneSettingsId}
-          aria-expanded={sceneSummaryExpanded}
-          onClick={() => onSceneSummaryExpandedChange?.(!sceneSummaryExpanded)}
-        >
-          {t(locale, sceneSummaryExpanded ? 'collapseSceneSettings' : 'expandSceneSettings')}
-        </button>
-      </div>
-      <div
-        id={sceneSettingsId}
-        className="scene-controls__fields"
-        data-expanded={sceneSummaryExpanded}
-        hidden={!sceneSummaryExpanded}
-        inert={!sceneSummaryExpanded ? true : undefined}
-        aria-hidden={!sceneSummaryExpanded ? true : undefined}
-      >
+    <section className="scene-controls" aria-label={t(locale, 'sceneControls')}>
+      <div className="scene-controls__fields">
         <label>
           {t(locale, 'sceneName')}
           <input

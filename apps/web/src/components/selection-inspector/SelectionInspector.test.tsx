@@ -72,12 +72,9 @@ describe('SelectionInspector', () => {
     expect(screen.getByLabelText('No selected grid cell')).toHaveStyle({
       '--selection-empty-image': 'url("/assets/pokopia_image_sources/pokemon_portraits/063-ditto.png")',
     });
-    expect(screen.getByRole('button', { name: '展开详情' })).toHaveAttribute('aria-expanded', 'false');
-    expect(document.querySelector('.selection-details-panel')).toHaveAttribute('hidden');
-    expect(document.querySelector('.selection-details-panel')).toHaveAttribute('inert');
-
-    expandSelectionDetails();
-
+    expect(screen.queryByRole('button', { name: '展开详情' })).not.toBeInTheDocument();
+    expect(document.querySelector('.selection-details-panel')).toBeNull();
+    expectLayerNotesPanelVisible();
     expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
     expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
     expect(screen.getByRole('button', { name: '添加备注' })).toBeDisabled();
@@ -98,7 +95,7 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    expandSelectionDetails();
+    expectLayerNotesPanelVisible();
     fireEvent.change(screen.getByLabelText('新增当前层备注'), { target: { value: '无需选中格' } });
     fireEvent.click(screen.getByRole('button', { name: '添加备注' }));
 
@@ -161,7 +158,7 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    expandSelectionDetails();
+    expectLayerNotesPanelVisible();
     expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
     expect(screen.getByLabelText('当前层备注列表')).toHaveTextContent('<b>先放桌子</b>');
     expect(screen.getByLabelText('当前层备注列表')).toHaveTextContent('再放椅子');
@@ -205,7 +202,7 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    expandSelectionDetails();
+    expectLayerNotesPanelVisible();
     fireEvent.click(screen.getByRole('button', { name: '编辑第 1 条备注' }));
     fireEvent.change(screen.getByLabelText('编辑第 1 条当前层备注'), { target: { value: '第一条更新' } });
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
@@ -243,7 +240,7 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    expandSelectionDetails();
+    expectLayerNotesPanelVisible();
     expect(screen.getByText('只能查看')).toBeVisible();
     expect(screen.getByText('只读')).toBeVisible();
     expect(screen.getByLabelText('新增当前层备注')).toBeDisabled();
@@ -276,7 +273,7 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    expandSelectionDetails();
+    expectLayerNotesPanelVisible();
     expect(screen.getByLabelText('No selected grid cell')).toBeVisible();
     expect(screen.getByText('当前层只读备注')).toBeVisible();
     expect(screen.getByLabelText('新增当前层备注')).toBeDisabled();
@@ -301,7 +298,7 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    expandSelectionDetails();
+    expectLayerNotesPanelVisible();
     fireEvent.change(screen.getByLabelText('新增当前层备注'), { target: { value: '失败时保留' } });
     fireEvent.click(screen.getByRole('button', { name: '添加备注' }));
 
@@ -309,7 +306,7 @@ describe('SelectionInspector', () => {
     expect(screen.getByLabelText('新增当前层备注')).toHaveValue('失败时保留');
   });
 
-  it('keeps unsaved layer-note drafts when details are collapsed and reopened', () => {
+  it('keeps unsaved layer-note drafts in the always-visible notes panel', () => {
     const emptyContext = getCellContext(scene, { x: 3, y: 3 });
 
     render(
@@ -323,14 +320,10 @@ describe('SelectionInspector', () => {
       />,
     );
 
-    expandSelectionDetails();
+    expectLayerNotesPanelVisible();
     fireEvent.change(screen.getByLabelText('新增当前层备注'), { target: { value: '折叠后仍保留' } });
-    fireEvent.click(screen.getByRole('button', { name: '收起详情' }));
-
-    expect(document.querySelector('.selection-details-panel')).toHaveAttribute('hidden');
-    expect(document.querySelector('.selection-details-panel')).toHaveAttribute('inert');
-
-    expandSelectionDetails();
+    expect(screen.queryByRole('button', { name: '收起详情' })).not.toBeInTheDocument();
+    expect(document.querySelector('.selection-details-panel')).toBeNull();
     expect(screen.getByLabelText('新增当前层备注')).toHaveValue('折叠后仍保留');
   });
 
@@ -349,7 +342,7 @@ describe('SelectionInspector', () => {
     expect(screen.getByLabelText('No selected grid cell')).toHaveTextContent('点击一个编辑格查看或放置素材');
     expect(screen.getByLabelText('No selected grid cell')).not.toHaveTextContent('没有选中格子');
     expect(screen.getByLabelText('Current selection actions')).not.toHaveTextContent('2,2');
-    expandSelectionDetails();
+    expectLayerNotesPanelVisible();
     expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
   });
 
@@ -384,9 +377,9 @@ describe('SelectionInspector', () => {
     expect(within(compactBar).getByText('L1')).toBeVisible();
     expect(within(compactBar).getByText('90 deg')).toBeVisible();
     expect(within(compactBar).getByText('屋顶装饰')).toBeVisible();
-    expandSelectionDetails();
-    expect(screen.getByLabelText(/选择详情|Selection details/)).toBeVisible();
-    expect(screen.getByRole('heading', { name: '实例详情' })).toBeVisible();
+    expectLayerNotesPanelVisible();
+    expect(screen.queryByLabelText(/选择详情|Selection details/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '实例详情' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
     expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
     expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();
@@ -517,8 +510,9 @@ describe('SelectionInspector', () => {
     const skillButton = screen.getByRole('button', { name: '设置技能标记：树叶' });
     expect(skillButton).toHaveAttribute('aria-pressed', 'true');
     expectSelectionCopyRemoved('Skill marker', '树叶', 'Skill note', 'legacy note');
-    expandSelectionDetails();
-    expect(screen.getByLabelText(/选择详情|Selection details/)).toHaveTextContent('legacy note');
+    expectLayerNotesPanelVisible();
+    expect(screen.queryByLabelText(/选择详情|Selection details/)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
     fireEvent.click(skillButton);
     expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-skill', false, '树叶', 'legacy note');
 
@@ -683,8 +677,8 @@ describe('SelectionInspector', () => {
 
     expectSelectionCopyRemoved('outer', 'L3 3层', '#56ccf2', '耕地', 'soil roof note');
     expect(within(screen.getByLabelText('Current selection actions')).getByText('屋顶装饰')).toBeVisible();
-    expandSelectionDetails();
-    expect(screen.getByLabelText(/选择详情|Selection details/)).toHaveTextContent('soil roof note');
+    expectLayerNotesPanelVisible();
+    expect(screen.queryByLabelText(/选择详情|Selection details/)).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '当前层备注' })).toBeVisible();
     expect(screen.getByLabelText('新增当前层备注')).toBeVisible();
     expect(screen.queryByRole('button', { name: /move/i })).not.toBeInTheDocument();
@@ -728,10 +722,13 @@ function expectSelectionCopyRemoved(...fragments: string[]): void {
   }
 }
 
-function expandSelectionDetails(): HTMLElement {
-  const expandButton = screen.getByRole('button', { name: '展开详情' });
-  expect(expandButton).toHaveAttribute('aria-expanded', 'false');
-  fireEvent.click(expandButton);
-  expect(screen.getByRole('button', { name: '收起详情' })).toHaveAttribute('aria-expanded', 'true');
-  return screen.getByLabelText(/选择详情|Selection details/);
+function expectLayerNotesPanelVisible(): HTMLElement {
+  expect(screen.queryByRole('button', { name: '展开详情' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '收起详情' })).not.toBeInTheDocument();
+  expect(document.querySelector('.selection-details-panel')).toBeNull();
+
+  const panel = screen.getByLabelText('当前层备注');
+  expect(panel).toBeVisible();
+
+  return panel;
 }

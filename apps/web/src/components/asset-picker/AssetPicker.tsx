@@ -11,14 +11,11 @@ import {
 import {
   assetCatalog,
   assetCategories,
-  assetMatchesPokemonFavorite,
   filterAssetCatalog,
   getAssetById,
-  type AssetCategory,
   type AssetCategoryFilter,
   type AssetDefinition,
   type AssetFilterState,
-  type AssetStackingSurfaceKind,
   type PokemonKey,
   type RotationDegrees,
 } from '@pokopia-scene-editor/scene-core';
@@ -82,10 +79,7 @@ export function AssetPicker({
   const draggedCatalogAssetIdRef = useRef<string | null>(null);
   const assetDragPreviewRef = useRef<HTMLElement | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewedAssetId, setViewedAssetId] = useState<string | null>(selectedAssetId);
-  const [assetDetailsOpen, setAssetDetailsOpen] = useState(false);
   const selectedAsset = getAssetById(selectedAssetId);
-  const viewedAsset = getAssetById(viewedAssetId) ?? selectedAsset;
   const stagedAssets = useMemo(
     () => assetStaging.stagedAssetIds
       .map((assetId) => getAssetById(assetId))
@@ -98,12 +92,6 @@ export function AssetPicker({
     () => filterAssetCatalog(assetCatalog, filters, selectedPokemonKey, currentPage),
     [filters, currentPage, selectedPokemonKey],
   );
-
-  useEffect(() => {
-    if (selectedAssetId) {
-      setViewedAssetId(selectedAssetId);
-    }
-  }, [selectedAssetId]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -136,8 +124,6 @@ export function AssetPicker({
   };
 
   const handleAssetActivation = (assetId: string, placementMode: AssetSelectionMode) => {
-    setViewedAssetId(assetId);
-
     if (readOnly) {
       return;
     }
@@ -273,6 +259,7 @@ export function AssetPicker({
     const ids = getAssetRowIds(`${assetPickerId}-${source}`, asset.assetId);
     const assetDisplay = getAssetDisplay(asset, locale);
     const rotatable = isRotatableBeforePlacement(asset);
+    const tagLabels = getAssetTagLabels(assetDisplay.categoryLabel, assetDisplay.tags);
 
     return (
       <article
@@ -301,7 +288,7 @@ export function AssetPicker({
           type="button"
           className="asset-select-button"
           aria-pressed={selected}
-          aria-labelledby={`${ids.name} ${ids.meta}`}
+          aria-labelledby={`${ids.name} ${ids.tags}`}
           disabled={source === 'staging' && readOnly}
           onClick={(event) => handleAssetClick(event, asset.assetId)}
           onDoubleClick={() => handleAssetActivation(asset.assetId, 'continuous')}
@@ -310,8 +297,8 @@ export function AssetPicker({
           <img src={asset.thumbnailUrl} alt="" className="asset-thumb" />
           <span className="asset-row__body">
             <strong id={ids.name}>{assetDisplay.name}</strong>
-            <span className="asset-row__meta" id={ids.meta}>
-              {formatAssetTags(assetDisplay.tags, locale)}
+            <span className="asset-tags" id={ids.tags} aria-label={t(locale, 'tags')}>
+              {tagLabels.map((tag) => <span key={tag}>{tag}</span>)}
             </span>
           </span>
         </button>
@@ -343,19 +330,6 @@ export function AssetPicker({
             </button>
           ) : null}
         </span>
-        <button
-          type="button"
-          className="asset-detail-button"
-          aria-label={t(locale, 'viewAssetDetails', { name: assetDisplay.name })}
-          aria-controls="asset-detail-panel"
-          aria-expanded={assetDetailsOpen && viewedAsset?.assetId === asset.assetId}
-          onClick={() => {
-            setViewedAssetId(asset.assetId);
-            setAssetDetailsOpen(true);
-          }}
-        >
-          {t(locale, 'assetDetailButton')}
-        </button>
       </article>
     );
   };
@@ -456,44 +430,35 @@ export function AssetPicker({
         ) : null}
       </section>
       <aside className="panel asset-picker" aria-label={t(locale, 'assetPicker')}>
-        <div className="asset-picker__header">
-          <h2>{t(locale, 'assets')}</h2>
-          <span
-            className="asset-count"
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-            aria-label={t(locale, 'assetResultCount')}
-          >
-            {t(locale, 'results', { count: filterResult.filteredCount })}
-          </span>
-        </div>
         {!stagingExpanded ? (
           <>
-            <label className="asset-search">
-              <span className="sr-only">{t(locale, 'searchAssets')}</span>
-              <input
-                aria-label={t(locale, 'searchAssets')}
-                placeholder={t(locale, 'searchPlaceholder')}
-                value={filters.query}
-                readOnly={readOnly}
-                onChange={(event) => updateFilters({ query: event.target.value })}
-              />
-            </label>
-            <fieldset className="asset-category-tabs" aria-label={t(locale, 'assetCategoryFilters')}>
-              <legend className="sr-only">{t(locale, 'category')}</legend>
-              {getCategoryFilterOptions(locale).map((option) => (
-                <button
-                  type="button"
-                  aria-pressed={filters.category === option.value}
+            <div className="asset-filter-row">
+              <label className="asset-search">
+                <span className="sr-only">{t(locale, 'searchAssets')}</span>
+                <input
+                  aria-label={t(locale, 'searchAssets')}
+                  placeholder={t(locale, 'searchPlaceholder')}
+                  value={filters.query}
+                  readOnly={readOnly}
+                  onChange={(event) => updateFilters({ query: event.target.value })}
+                />
+              </label>
+              <label className="asset-category-select">
+                <span className="sr-only">{t(locale, 'assetCategoryFilters')}</span>
+                <select
+                  aria-label={t(locale, 'assetCategoryFilters')}
+                  value={filters.category}
                   disabled={readOnly}
-                  onClick={() => updateFilters({ category: option.value })}
-                  key={option.value}
+                  onChange={(event) => updateFilters({ category: event.target.value as AssetCategoryFilter })}
                 >
-                  {option.label}
-                </button>
-              ))}
-            </fieldset>
+                  {getCategoryFilterOptions(locale).map((option) => (
+                    <option value={option.value} key={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             <PlacementSkillToggle
               locale={locale}
               asset={selectedAsset}
@@ -508,6 +473,12 @@ export function AssetPicker({
               ].join(' ')}
               data-staging-expanded={assetStaging.expanded}
             >
+              <div className="asset-list" aria-label={t(locale, 'assetResults')} data-asset-list="catalog">
+                {filterResult.renderedAssets.map((asset) => renderAssetRow(asset, 'catalog'))}
+                {filterResult.filteredCount === 0 ? (
+                  <AssetEmptyState locale={locale} />
+                ) : null}
+              </div>
               {filterResult.pageCount > 1 ? (
                 <nav className="asset-pagination" aria-label="Asset pagination">
                   <button
@@ -531,23 +502,8 @@ export function AssetPicker({
                   </button>
                 </nav>
               ) : null}
-              <div className="asset-list" aria-label={t(locale, 'assetResults')} data-asset-list="catalog">
-                {filterResult.renderedAssets.map((asset) => renderAssetRow(asset, 'catalog'))}
-                {filterResult.filteredCount === 0 ? (
-                  <AssetEmptyState locale={locale} />
-                ) : null}
-              </div>
             </div>
           </>
-        ) : null}
-        {assetDetailsOpen ? (
-          <AssetDetail
-            locale={locale}
-            asset={viewedAsset}
-            selectedPokemonKey={selectedPokemonKey}
-            placementRotationDegrees={viewedAsset?.assetId === selectedAssetId ? placementRotationDegrees : 0}
-            onClose={() => setAssetDetailsOpen(false)}
-          />
         ) : null}
       </aside>
     </div>
@@ -621,135 +577,6 @@ function PlacementSkillToggle({
   );
 }
 
-function AssetDetail({
-  locale,
-  asset,
-  selectedPokemonKey,
-  placementRotationDegrees,
-  onClose,
-}: {
-  locale: Locale;
-  asset: AssetDefinition | null;
-  selectedPokemonKey: PokemonKey;
-  placementRotationDegrees: RotationDegrees;
-  onClose: () => void;
-}) {
-  if (!asset) {
-    return (
-      <section className="asset-detail" aria-label={t(locale, 'assetDetail')} id="asset-detail-panel">
-        <div className="asset-detail__header">
-          <span>{t(locale, 'assetDetail')}</span>
-          <button type="button" onClick={onClose}>{t(locale, 'close')}</button>
-        </div>
-        <strong>{t(locale, 'noAssetSelected')}</strong>
-      </section>
-    );
-  }
-
-  const assetDisplay = getAssetDisplay(asset, locale);
-  const rotatable = isRotatableBeforePlacement(asset);
-  const stackingSummary = formatAssetStacking(asset, locale);
-
-  return (
-    <section className="asset-detail" aria-label={`${assetDisplay.name} asset detail`} id="asset-detail-panel">
-      <div className="asset-detail__header">
-        <span>{t(locale, 'assetDetail')}</span>
-        <button type="button" onClick={onClose}>{t(locale, 'close')}</button>
-      </div>
-      <img src={asset.thumbnailUrl} alt={assetDisplay.thumbnailAlt} className="asset-detail__thumb" />
-      <strong>{assetDisplay.name}</strong>
-      <dl>
-        <div>
-          <dt>{t(locale, 'assetId')}</dt>
-          <dd>{asset.assetId}</dd>
-        </div>
-        <div>
-          <dt>{t(locale, 'officialId')}</dt>
-          <dd>No. {asset.officialId}</dd>
-        </div>
-        <div>
-          <dt>{t(locale, 'category')}</dt>
-          <dd>{assetDisplay.categoryLabel}</dd>
-        </div>
-        <div>
-          <dt>{t(locale, 'tags')}</dt>
-          <dd>{formatAssetTags(assetDisplay.tags, locale)}</dd>
-        </div>
-        <div>
-          <dt>{t(locale, 'favorite')}</dt>
-          <dd>{assetMatchesPokemonFavorite(asset, selectedPokemonKey) ? t(locale, 'yes') : t(locale, 'noMatch')}</dd>
-        </div>
-        <div>
-          <dt>{t(locale, 'footprint')}</dt>
-          <dd>{formatFootprint(asset)}</dd>
-        </div>
-        <div>
-          <dt>{t(locale, 'rotatable')}</dt>
-          <dd>{rotatable ? t(locale, 'yes') : t(locale, 'no')}</dd>
-        </div>
-        <div>
-          <dt>{t(locale, 'dyeable')}</dt>
-          <dd>{asset.dyeable ? t(locale, 'yes') : t(locale, 'no')}</dd>
-        </div>
-        <div>
-          <dt>{t(locale, 'stackingRules')}</dt>
-          <dd>{stackingSummary}</dd>
-        </div>
-        <div>
-          <dt>{t(locale, 'placementRotation')}</dt>
-          <dd>{placementRotationDegrees} deg</dd>
-        </div>
-      </dl>
-    </section>
-  );
-}
-
-function formatFootprint(asset: AssetDefinition): string {
-  return `${asset.footprint.length}x${asset.footprint.width}x${asset.footprint.height}`;
-}
-
-function formatAssetStacking(asset: AssetDefinition, locale: Locale): string {
-  const stackingRules: string[] = [];
-
-  if (asset.stacking.surfaceKind !== 'none') {
-    const allowedCategories = asset.stacking.allowedTopCategories
-      .map((category) => getAssetCategoryLabel(category, locale))
-      .join(', ');
-
-    stackingRules.push(t(locale, 'stackingSurfaceRules', {
-      kind: getStackingSurfaceKindLabel(asset.stacking.surfaceKind, locale),
-      categories: allowedCategories || t(locale, 'noMatch'),
-    }));
-  }
-
-  if (canBeStackedOnAnySurface(asset.category)) {
-    stackingRules.push(t(locale, 'stackingTopEligible'));
-  }
-
-  if (stackingRules.length === 0) {
-    return t(locale, 'noStackingRules');
-  }
-
-  return stackingRules.join(' · ');
-}
-
-function canBeStackedOnAnySurface(category: AssetCategory): boolean {
-  return assetCatalog.some((asset) =>
-    asset.stacking.allowsSameLevelOverlap && asset.stacking.allowedTopCategories.includes(category),
-  );
-}
-
-function getStackingSurfaceKindLabel(kind: Exclude<AssetStackingSurfaceKind, 'none'>, locale: Locale): string {
-  if (kind === 'food-surface') {
-    return t(locale, 'stackingSurfaceFood');
-  }
-  if (kind === 'floor-cover') {
-    return t(locale, 'stackingSurfaceFloorCover');
-  }
-
-  return t(locale, 'stackingSurfaceLowHeight');
-}
-
 function focusSiblingAsset(currentButton: HTMLButtonElement, offset: number): void {
   const assetButtons = Array.from(
     currentButton
@@ -788,8 +615,22 @@ function getCategoryFilterOptions(locale: Locale): readonly { value: AssetCatego
   ];
 }
 
-function formatAssetTags(tags: readonly string[], locale: Locale): string {
-  return tags.length > 0 ? tags.join(' · ') : t(locale, 'noTags');
+function getAssetTagLabels(categoryLabel: string, tags: readonly string[]): string[] {
+  const labels: string[] = [];
+  const seen = new Set<string>();
+
+  for (const label of [categoryLabel, ...tags]) {
+    const trimmedLabel = label.trim();
+    const key = trimmedLabel.toLocaleLowerCase();
+    if (!trimmedLabel || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    labels.push(trimmedLabel);
+  }
+
+  return labels;
 }
 
 function getAssetRowIds(assetPickerId: string, assetId: string) {
@@ -797,8 +638,6 @@ function getAssetRowIds(assetPickerId: string, assetId: string) {
 
   return {
     name: `${assetPickerId}-${safeAssetId}-name`,
-    meta: `${assetPickerId}-${safeAssetId}-meta`,
     tags: `${assetPickerId}-${safeAssetId}-tags`,
-    favorite: `${assetPickerId}-${safeAssetId}-favorite`,
   };
 }
