@@ -1432,16 +1432,15 @@ async function expectSceneCanvasZoomViewportAtMax(page: Page): Promise<void> {
       hasCanvas: true,
       scale: 2.8333,
       scaledContentClipped: true,
+      viewportFillsStage: true,
       viewportOverflowHidden: true,
       overflowHitBlocked: true,
       noHorizontalOverflow: true,
     });
 
   const metrics = await getSceneCanvasZoomViewportMetrics(page);
-  expect(metrics.visibleColumns).toBeGreaterThan(5);
-  expect(metrics.visibleColumns).toBeLessThan(7.5);
-  expect(metrics.visibleRows).toBeGreaterThan(5);
-  expect(metrics.visibleRows).toBeLessThan(7.5);
+  expect(metrics.visibleColumns).toBeGreaterThan(8);
+  expect(metrics.visibleRows).toBeGreaterThan(6);
 }
 
 async function getSceneCanvasZoomViewportMetrics(page: Page): Promise<{
@@ -1450,6 +1449,7 @@ async function getSceneCanvasZoomViewportMetrics(page: Page): Promise<{
   scale: number;
   fullLongSideVisible: boolean;
   scaledContentClipped: boolean;
+  viewportFillsStage: boolean;
   viewportOverflowHidden: boolean;
   overflowHitBlocked: boolean;
   visibleColumns: number;
@@ -1477,6 +1477,7 @@ async function getSceneCanvasZoomViewportMetrics(page: Page): Promise<{
     const canvas = document.querySelector<HTMLElement>('[data-testid="scene-canvas"]');
     const viewportRect = getRect('[data-testid="scene-canvas-viewport"]');
     const canvasRect = getRect('[data-testid="scene-canvas"]');
+    const stageRect = getRect('.canvas-stage');
     const firstCellRect = getRect('[data-coordinate="0,0"]');
     const edgeCellRect = getRect('[data-coordinate="16,16"]');
     const centerCellRect = getRect('[data-coordinate="8,8"]');
@@ -1504,6 +1505,14 @@ async function getSceneCanvasZoomViewportMetrics(page: Page): Promise<{
             canvasRect.right > viewportRect.right + 1 ||
             canvasRect.bottom > viewportRect.bottom + 1
           ),
+      ),
+      viewportFillsStage: Boolean(
+        viewportRect &&
+          stageRect &&
+          Math.abs(viewportRect.left - stageRect.left) <= 2 &&
+          Math.abs(viewportRect.top - stageRect.top) <= 2 &&
+          Math.abs(viewportRect.right - stageRect.right) <= 2 &&
+          Math.abs(viewportRect.bottom - stageRect.bottom) <= 4,
       ),
       viewportOverflowHidden: viewport ? getComputedStyle(viewport).overflow === 'hidden' : false,
       overflowHitBlocked: Boolean(
