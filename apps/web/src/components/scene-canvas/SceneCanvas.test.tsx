@@ -230,6 +230,58 @@ describe('SceneCanvas', () => {
     expect(viewport).toHaveAttribute('data-zoom-scale', '1');
   });
 
+  it('fits the canvas to cover the viewport from the viewport control', () => {
+    render(<SceneCanvas {...defaultProps} readOnly={false} />);
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    const canvas = screen.getByTestId('scene-canvas');
+    defineReadonlyElementNumber(viewport, 'clientWidth', 900);
+    defineReadonlyElementNumber(viewport, 'clientHeight', 600);
+    defineReadonlyElementNumber(canvas, 'offsetWidth', 300);
+    defineReadonlyElementNumber(canvas, 'offsetHeight', 300);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fit canvas to viewport' }));
+
+    expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
+    expect(viewport).toHaveAttribute('data-zoom-origin', '50,50');
+    expect(viewport).toHaveAttribute('data-zoom-pan', '0,0');
+  });
+
+  it('pans the editable canvas by dragging the viewport without selecting a cell', () => {
+    const onSelectCoordinate = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly={false}
+        onSelectCoordinate={onSelectCoordinate}
+      />,
+    );
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    const setPointerCapture = vi.fn();
+    const releasePointerCapture = vi.fn();
+    const hasPointerCapture = vi.fn(() => true);
+    Object.assign(viewport, {
+      setPointerCapture,
+      releasePointerCapture,
+      hasPointerCapture,
+    });
+
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 100, clientY: 100, pointerId: 7 });
+    fireEvent.pointerMove(viewport, { clientX: 130, clientY: 112, pointerId: 7 });
+
+    expect(setPointerCapture).toHaveBeenCalledWith(7);
+    expect(viewport).toHaveAttribute('data-dragging-canvas', 'true');
+    expect(viewport).toHaveAttribute('data-zoom-pan', '30,12');
+
+    fireEvent.pointerUp(viewport, { clientX: 130, clientY: 112, pointerId: 7 });
+    fireEvent.click(screen.getByLabelText('Cell 2,3, main area, level-0, placeable'));
+
+    expect(releasePointerCapture).toHaveBeenCalledWith(7);
+    expect(viewport).toHaveAttribute('data-dragging-canvas', 'false');
+    expect(onSelectCoordinate).not.toHaveBeenCalled();
+  });
+
   it('keeps hover and focus callbacks on raw grid coordinates after zoom', () => {
     const onFocusCoordinate = vi.fn();
     const onHoverCoordinate = vi.fn();
@@ -1634,6 +1686,13 @@ function createGestureEvent(
   });
 
   return event;
+}
+
+function defineReadonlyElementNumber(element: HTMLElement, property: 'clientWidth' | 'clientHeight' | 'offsetWidth' | 'offsetHeight', value: number): void {
+  Object.defineProperty(element, property, {
+    configurable: true,
+    value,
+  });
 }
 
 function formatFootprint(footprint: { length: number; width: number; height: number } | null): string {

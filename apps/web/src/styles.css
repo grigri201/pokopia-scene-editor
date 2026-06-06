@@ -1846,6 +1846,49 @@ button:disabled {
   border-radius: 12px;
   touch-action: none;
   contain: layout paint;
+  cursor: grab;
+}
+
+.scene-canvas-viewport[data-dragging-canvas="true"] {
+  cursor: grabbing;
+}
+
+.scene-canvas-fit-button {
+  position: absolute;
+  z-index: 4;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 72%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-panel) 92%, white 8%);
+  color: var(--ink);
+  box-shadow: 0 4px 12px rgba(64, 45, 38, 0.16);
+  cursor: pointer;
+}
+
+.scene-canvas-fit-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.scene-canvas-fit-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.scene-canvas-fit-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .scene-canvas {
@@ -1876,7 +1919,7 @@ button:disabled {
 
 .scene-canvas-viewport > .scene-canvas {
   flex: 0 0 auto;
-  transform: scale(var(--scene-canvas-zoom-scale, 1));
+  transform: translate3d(var(--scene-canvas-pan-x, 0), var(--scene-canvas-pan-y, 0), 0) scale(var(--scene-canvas-zoom-scale, 1));
   transform-origin: var(--scene-canvas-zoom-origin-x, 50%) var(--scene-canvas-zoom-origin-y, 50%);
   will-change: transform;
 }

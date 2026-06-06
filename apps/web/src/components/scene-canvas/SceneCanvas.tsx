@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, WheelEvent } from 'react';
+import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, WheelEvent } from 'react';
 import {
   buildSceneOccupancy,
   getEffectiveAssetFootprint,
@@ -61,9 +61,14 @@ export function SceneCanvas({
   const maxZoomScale = getMaxSceneCanvasZoomScale(canvasSize);
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomOrigin, setZoomOrigin] = useState<SceneCanvasZoomOrigin>({ x: 50, y: 50 });
+  const [canvasPan, setCanvasPan] = useState<SceneCanvasPan>({ x: 0, y: 0 });
+  const [draggingCanvas, setDraggingCanvas] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
   const zoomScaleRef = useRef(1);
   const gestureStartZoomRef = useRef(1);
+  const canvasPanRef = useRef<SceneCanvasPan>({ x: 0, y: 0 });
+  const canvasDragRef = useRef<SceneCanvasDragState | null>(null);
+  const suppressViewportClickRef = useRef(false);
   const canvasGridStyle = {
     '--scene-canvas-columns': canvasSize.width,
     '--scene-canvas-rows': canvasSize.height,
@@ -76,6 +81,8 @@ export function SceneCanvas({
     '--scene-canvas-zoom-max-scale': formatSceneCanvasZoomScale(maxZoomScale),
     '--scene-canvas-zoom-origin-x': `${formatSceneCanvasZoomPercent(zoomOrigin.x)}%`,
     '--scene-canvas-zoom-origin-y': `${formatSceneCanvasZoomPercent(zoomOrigin.y)}%`,
+    '--scene-canvas-pan-x': `${formatSceneCanvasPan(canvasPan.x)}px`,
+    '--scene-canvas-pan-y': `${formatSceneCanvasPan(canvasPan.y)}px`,
   } as CSSProperties;
   const canvasDensity = canvasSize.width > 7 || canvasSize.height > 7 ? 'compact' : 'standard';
   const rows = Array.from({ length: canvasSize.height }, (_, rowIndex) =>
@@ -101,7 +108,12 @@ export function SceneCanvas({
   }, [zoomScale]);
 
   useEffect(() => {
+    canvasPanRef.current = canvasPan;
+  }, [canvasPan]);
+
+  useEffect(() => {
     setZoomOrigin({ x: 50, y: 50 });
+    setCanvasPan({ x: 0, y: 0 });
     setZoomScale((currentScale) => {
       const nextScale = clampSceneCanvasZoomScale(currentScale, maxZoomScale);
       zoomScaleRef.current = nextScale;
@@ -134,6 +146,97 @@ export function SceneCanvas({
     },
     [maxZoomScale, readOnly],
   );
+
+  const handleFitViewport = useCallback(() => {
+    const viewport = viewportRef.current;
+    const canvas = viewport?.querySelector<HTMLElement>('[data-testid="scene-canvas"]');
+
+    if (!viewport || !canvas || viewport.clientWidth <= 0 || viewport.clientHeight <= 0 || canvas.offsetWidth <= 0 || canvas.offsetHeight <= 0) {
+      return;
+    }
+
+    const coverScale = Math.max(viewport.clientWidth / canvas.offsetWidth, viewport.clientHeight / canvas.offsetHeight);
+    const nextScale = clampSceneCanvasZoomScale(coverScale, maxZoomScale);
+    zoomScaleRef.current = nextScale;
+    canvasPanRef.current = { x: 0, y: 0 };
+    setZoomOrigin({ x: 50, y: 50 });
+    setCanvasPan({ x: 0, y: 0 });
+    setZoomScale(nextScale);
+  }, [maxZoomScale]);
+
+  const handleViewportPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (readOnly || event.button !== 0 || isViewportControlTarget(event.target)) {
+        return;
+      }
+
+      canvasDragRef.current = {
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startPan: canvasPanRef.current,
+        moved: false,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+    },
+    [readOnly],
+  );
+
+  const handleViewportPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const dragState = canvasDragRef.current;
+
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const deltaX = event.clientX - dragState.startClientX;
+    const deltaY = event.clientY - dragState.startClientY;
+    const moved = dragState.moved || Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2;
+
+    if (!moved) {
+      return;
+    }
+
+    event.preventDefault();
+    dragState.moved = true;
+    setDraggingCanvas(true);
+    setCanvasPan({
+      x: dragState.startPan.x + deltaX,
+      y: dragState.startPan.y + deltaY,
+    });
+  }, []);
+
+  const finishViewportDrag = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const dragState = canvasDragRef.current;
+
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    canvasDragRef.current = null;
+    setDraggingCanvas(false);
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    if (dragState.moved) {
+      suppressViewportClickRef.current = true;
+      window.setTimeout(() => {
+        suppressViewportClickRef.current = false;
+      }, 0);
+    }
+  }, []);
+
+  const handleViewportClickCapture = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    if (!suppressViewportClickRef.current) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    suppressViewportClickRef.current = false;
+  }, []);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -182,9 +285,25 @@ export function SceneCanvas({
       data-zoom-min-scale="1"
       data-zoom-max-scale={formatSceneCanvasZoomScale(maxZoomScale)}
       data-zoom-origin={`${formatSceneCanvasZoomPercent(zoomOrigin.x)},${formatSceneCanvasZoomPercent(zoomOrigin.y)}`}
+      data-zoom-pan={`${formatSceneCanvasPan(canvasPan.x)},${formatSceneCanvasPan(canvasPan.y)}`}
+      data-dragging-canvas={draggingCanvas}
+      onClickCapture={handleViewportClickCapture}
+      onPointerDown={handleViewportPointerDown}
+      onPointerMove={handleViewportPointerMove}
+      onPointerUp={finishViewportDrag}
+      onPointerCancel={finishViewportDrag}
       onWheel={handleWheelZoom}
       style={canvasGridStyle}
     >
+      <button
+        type="button"
+        className="scene-canvas-fit-button"
+        aria-label="Fit canvas to viewport"
+        title="Fit canvas to viewport"
+        onClick={handleFitViewport}
+      >
+        <FitViewportIcon />
+      </button>
       <div
         className="scene-canvas"
         role="grid"
@@ -553,15 +672,43 @@ export function SceneCanvas({
   );
 }
 
+interface SceneCanvasPan {
+  x: number;
+  y: number;
+}
+
 interface SceneCanvasZoomOrigin {
   x: number;
   y: number;
+}
+
+interface SceneCanvasDragState {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  startPan: SceneCanvasPan;
+  moved: boolean;
 }
 
 interface SceneCanvasGestureEvent extends Event {
   clientX?: number;
   clientY?: number;
   scale?: number;
+}
+
+function FitViewportIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 10V5h5" />
+      <path d="M14 5h5v5" />
+      <path d="M19 14v5h-5" />
+      <path d="M10 19H5v-5" />
+      <path d="M8 8l3 3" />
+      <path d="M16 8l-3 3" />
+      <path d="M16 16l-3-3" />
+      <path d="M8 16l3-3" />
+    </svg>
+  );
 }
 
 function getMaxSceneCanvasZoomScale(canvasSize: GridSize): number {
@@ -642,6 +789,14 @@ function formatSceneCanvasZoomScale(scale: number): string {
 
 function formatSceneCanvasZoomPercent(value: number): string {
   return Number(value.toFixed(2)).toString();
+}
+
+function formatSceneCanvasPan(value: number): string {
+  return Number(value.toFixed(2)).toString();
+}
+
+function isViewportControlTarget(target: EventTarget): boolean {
+  return target instanceof Element && Boolean(target.closest('.scene-canvas-fit-button'));
 }
 
 function createScaledCanvasWidth(
