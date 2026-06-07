@@ -384,6 +384,234 @@ describe('SceneCanvas', () => {
     expect(onSelectCoordinate).toHaveBeenCalledWith({ x: 2, y: 3 });
   });
 
+  it('emits a rectangle fill callback from locked left-drag without also placing a single cell', () => {
+    const onFillRectangle = vi.fn();
+    const onSelectCoordinate = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly={false}
+        rectangleFillEnabled
+        onFillRectangle={onFillRectangle}
+        onSelectCoordinate={onSelectCoordinate}
+      />,
+    );
+
+    const startCell = getRenderedCell('2,2');
+    const endCell = getRenderedCell('4,3');
+    fireEvent.pointerDown(startCell, { button: 0, clientX: 10, clientY: 10, pointerId: 11 });
+    fireEvent.pointerMove(endCell, { button: 0, clientX: 40, clientY: 30, pointerId: 11 });
+
+    expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-rectangle-gesture', 'rectangle-fill');
+    expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-rectangle-range', '2,2:4,3');
+    expect(getRenderedCell('2,2')).toHaveAttribute('data-rectangle-preview', 'rectangle-fill');
+    expect(getRenderedCell('4,3')).toHaveAttribute('data-rectangle-preview', 'rectangle-fill');
+
+    fireEvent.pointerUp(endCell, { button: 0, clientX: 40, clientY: 30, pointerId: 11 });
+    fireEvent.click(startCell);
+
+    expect(onFillRectangle).toHaveBeenCalledWith({ x: 2, y: 2 }, { x: 4, y: 3 });
+    expect(onSelectCoordinate).not.toHaveBeenCalled();
+    expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-rectangle-gesture', 'idle');
+  });
+
+  it('emits a rectangle clear callback from right-drag without also running single-cell delete', () => {
+    const onClearRectangle = vi.fn();
+    const onDeleteCoordinate = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly={false}
+        onClearRectangle={onClearRectangle}
+        onDeleteCoordinate={onDeleteCoordinate}
+      />,
+    );
+
+    const startCell = getRenderedCell('2,2');
+    const endCell = getRenderedCell('2,4');
+    fireEvent.pointerDown(startCell, { button: 2, clientX: 10, clientY: 10, pointerId: 12 });
+    fireEvent.pointerMove(endCell, { button: 2, clientX: 20, clientY: 40, pointerId: 12 });
+
+    expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-rectangle-gesture', 'rectangle-clear');
+    expect(getRenderedCell('2,3')).toHaveAttribute('data-rectangle-preview', 'rectangle-clear');
+
+    fireEvent.pointerUp(endCell, { button: 2, clientX: 20, clientY: 40, pointerId: 12 });
+    fireEvent.contextMenu(startCell);
+
+    expect(onClearRectangle).toHaveBeenCalledWith({ x: 2, y: 2 }, { x: 2, y: 4 });
+    expect(onDeleteCoordinate).not.toHaveBeenCalled();
+  });
+
+  it('suppresses native contextmenu while a moved right-drag clear is active', () => {
+    const onClearRectangle = vi.fn();
+    const onDeleteCoordinate = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly={false}
+        onClearRectangle={onClearRectangle}
+        onDeleteCoordinate={onDeleteCoordinate}
+      />,
+    );
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    const startCell = getRenderedCell('2,2');
+    fireEvent.pointerDown(startCell, { button: 2, clientX: 10, clientY: 10, pointerId: 17 });
+    fireEvent.pointerMove(getRenderedCell('3,3'), { button: 2, clientX: 30, clientY: 30, pointerId: 17 });
+
+    const contextMenuEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    viewport.dispatchEvent(contextMenuEvent);
+
+    expect(contextMenuEvent.defaultPrevented).toBe(true);
+    expect(onDeleteCoordinate).not.toHaveBeenCalled();
+
+    fireEvent.pointerUp(getRenderedCell('3,3'), { button: 2, clientX: 30, clientY: 30, pointerId: 17 });
+
+    expect(onClearRectangle).toHaveBeenCalledWith({ x: 2, y: 2 }, { x: 3, y: 3 });
+  });
+
+  it('uses nearest-cell release after zoom when the rectangle drag ends off-cell', () => {
+    const onClearRectangle = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly={false}
+        onClearRectangle={onClearRectangle}
+      />,
+    );
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    mockSceneCanvasRect(0, 0, 170, 170);
+    fireEvent.wheel(viewport, { deltaY: -1200, clientX: 80, clientY: 80 });
+    fireEvent.pointerDown(getRenderedCell('2,2'), { button: 2, clientX: 25, clientY: 25, pointerId: 13 });
+    fireEvent.pointerMove(viewport, { button: 2, clientX: 90, clientY: 90, pointerId: 13 });
+    fireEvent.pointerUp(viewport, { button: 2, clientX: 999, clientY: 999, pointerId: 13 });
+
+    expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
+    expect(onClearRectangle).toHaveBeenCalledWith({ x: 2, y: 2 }, { x: 16, y: 16 });
+  });
+
+  it('keeps left-drag on the pan path when rectangle fill is not enabled or starts off-cell', () => {
+    const onFillRectangle = vi.fn();
+    const onSelectCoordinate = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly={false}
+        onFillRectangle={onFillRectangle}
+        onSelectCoordinate={onSelectCoordinate}
+      />,
+    );
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    const setPointerCapture = vi.fn();
+    const releasePointerCapture = vi.fn();
+    let pointerCaptured = false;
+    const hasPointerCapture = vi.fn(() => pointerCaptured);
+    setPointerCapture.mockImplementation(() => {
+      pointerCaptured = true;
+    });
+    releasePointerCapture.mockImplementation(() => {
+      pointerCaptured = false;
+    });
+    Object.assign(viewport, {
+      setPointerCapture,
+      releasePointerCapture,
+      hasPointerCapture,
+    });
+
+    fireEvent.pointerDown(getRenderedCell('2,2'), { button: 0, clientX: 100, clientY: 100, pointerId: 14 });
+    fireEvent.pointerMove(viewport, { button: 0, clientX: 128, clientY: 116, pointerId: 14 });
+    fireEvent.pointerUp(viewport, { button: 0, clientX: 128, clientY: 116, pointerId: 14 });
+
+    expect(onFillRectangle).not.toHaveBeenCalled();
+    expect(onSelectCoordinate).not.toHaveBeenCalled();
+    expect(viewport).toHaveAttribute('data-rectangle-gesture', 'idle');
+    expect(viewport).toHaveAttribute('data-zoom-pan', '28,16');
+  });
+
+  it('pans from a non-cell viewport start even when rectangle fill is enabled', () => {
+    const onFillRectangle = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly={false}
+        rectangleFillEnabled
+        onFillRectangle={onFillRectangle}
+      />,
+    );
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    const setPointerCapture = vi.fn();
+    const releasePointerCapture = vi.fn();
+    let pointerCaptured = false;
+    const hasPointerCapture = vi.fn(() => pointerCaptured);
+    setPointerCapture.mockImplementation(() => {
+      pointerCaptured = true;
+    });
+    releasePointerCapture.mockImplementation(() => {
+      pointerCaptured = false;
+    });
+    Object.assign(viewport, {
+      setPointerCapture,
+      releasePointerCapture,
+      hasPointerCapture,
+    });
+
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 100, clientY: 100, pointerId: 18 });
+    fireEvent.pointerMove(viewport, { button: 0, clientX: 122, clientY: 110, pointerId: 18 });
+    fireEvent.pointerUp(viewport, { button: 0, clientX: 122, clientY: 110, pointerId: 18 });
+
+    expect(onFillRectangle).not.toHaveBeenCalled();
+    expect(viewport).toHaveAttribute('data-rectangle-gesture', 'idle');
+    expect(viewport).toHaveAttribute('data-rectangle-range', '');
+    expect(viewport).toHaveAttribute('data-zoom-pan', '22,10');
+  });
+
+  it('does not enter rectangle edit state in read-only usage', () => {
+    const onClearRectangle = vi.fn();
+    const onFillRectangle = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly
+        rectangleFillEnabled
+        onClearRectangle={onClearRectangle}
+        onFillRectangle={onFillRectangle}
+      />,
+    );
+
+    fireEvent.pointerDown(getRenderedCell('2,2'), { button: 2, clientX: 10, clientY: 10, pointerId: 15 });
+    fireEvent.pointerMove(getRenderedCell('4,4'), { button: 2, clientX: 40, clientY: 40, pointerId: 15 });
+    fireEvent.pointerUp(getRenderedCell('4,4'), { button: 2, clientX: 40, clientY: 40, pointerId: 15 });
+
+    expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-rectangle-gesture', 'idle');
+    expect(onClearRectangle).not.toHaveBeenCalled();
+    expect(onFillRectangle).not.toHaveBeenCalled();
+  });
+
+  it('clears rectangle preview without committing when the pointer gesture is canceled', () => {
+    const onFillRectangle = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly={false}
+        rectangleFillEnabled
+        onFillRectangle={onFillRectangle}
+      />,
+    );
+
+    fireEvent.pointerDown(getRenderedCell('2,2'), { button: 0, clientX: 10, clientY: 10, pointerId: 16 });
+    fireEvent.pointerMove(getRenderedCell('4,4'), { button: 0, clientX: 40, clientY: 40, pointerId: 16 });
+
+    expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-rectangle-gesture', 'rectangle-fill');
+
+    fireEvent.pointerCancel(getRenderedCell('4,4'), { button: 0, clientX: 40, clientY: 40, pointerId: 16 });
+
+    expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-rectangle-gesture', 'idle');
+    expect(onFillRectangle).not.toHaveBeenCalled();
+  });
+
   it('keeps hover and focus callbacks on raw grid coordinates after zoom', () => {
     const onFocusCoordinate = vi.fn();
     const onHoverCoordinate = vi.fn();
@@ -1804,6 +2032,20 @@ function formatCoordinate(coordinate: GridCoordinate): string {
 
 function coordinatesEqual(left: GridCoordinate, right: GridCoordinate): boolean {
   return left.x === right.x && left.y === right.y;
+}
+
+function mockSceneCanvasRect(left: number, top: number, width: number, height: number): void {
+  vi.spyOn(screen.getByTestId('scene-canvas'), 'getBoundingClientRect').mockReturnValue({
+    x: left,
+    y: top,
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+    width,
+    height,
+    toJSON: () => undefined,
+  } as DOMRect);
 }
 
 function getRenderedCell(coordinate: string): HTMLElement {

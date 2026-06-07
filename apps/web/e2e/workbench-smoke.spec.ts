@@ -753,6 +753,73 @@ test('keeps SceneCanvas zoom viewport bounded at min and max on desktop and tabl
   }
 });
 
+test('rectangle edit fills and clears cells after desktop zoom', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
+
+  await zoomSceneCanvasToMax(page);
+  await page.locator('[data-asset-id="pecha-berry"] .asset-select-button').dblclick();
+  await expect(page.locator('[data-asset-id="pecha-berry"]')).toHaveAttribute('data-selection-mode', 'continuous');
+
+  await dragSceneCellToCell(page, '8,8', '9,9', 'left');
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).tileInstances as unknown[])
+    .toHaveLength(4);
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
+    .toMatchObject({ selectedAssetId: 'pecha-berry', selectedCoordinate: { x: 9, y: 9 } });
+  await expect(page.locator('[data-coordinate="8,8"]')).toHaveAttribute('data-rectangle-preview', 'none');
+
+  await dragSceneCellToCell(page, '8,8', '9,9', 'right');
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).tileInstances as unknown[])
+    .toHaveLength(0);
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
+    .toMatchObject({ selectedAssetId: 'pecha-berry', selectedCoordinate: { x: 9, y: 9 } });
+  expect(((await readStoredPayload(page, autosavedSceneStorageKey))?.tileInstances as unknown[]) ?? null).toEqual([]);
+});
+
+test('rectangle edit uses nearest-cell release and keeps tablet pan fallback', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto('/');
+  await dismissHelpOverlayIfVisible(page);
+
+  await page.locator('[data-asset-id="pecha-berry"] .asset-select-button').dblclick();
+  await expect(page.locator('[data-asset-id="pecha-berry"]')).toHaveAttribute('data-selection-mode', 'continuous');
+  await dragSceneViewportBlankBy(page, 36, 24, 'left');
+  await expect(page.getByTestId('scene-canvas-viewport')).not.toHaveAttribute('data-zoom-pan', '0,0');
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).tileInstances as unknown[])
+    .toHaveLength(0);
+
+  await page.getByRole('button', { name: 'Reset canvas view' }).click();
+  await expect(page.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-zoom-pan', '0,0');
+  await page.locator('[data-coordinate="16,16"]').click();
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).tileInstances as unknown[])
+    .toHaveLength(1);
+  await dragSceneCellOutsideViewport(page, '8,8', 'right', 48, 48);
+
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).tileInstances as unknown[])
+    .toHaveLength(0);
+  await expect
+    .poll(async () => (await readSceneSnapshot(page)).workspaceState as Record<string, unknown>)
+    .toMatchObject({ selectedCoordinate: { x: 16, y: 16 } });
+});
+
+test('rectangle edit surface is absent in mobile preview mode', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  await expect(page.getByRole('region', { name: 'Mobile Preview Mode' })).toBeVisible();
+  await expect(page.getByTestId('scene-canvas-viewport')).toHaveCount(0);
+  await expect(page.getByTestId('scene-cell')).toHaveCount(0);
+  await expect(page.locator('[data-rectangle-preview]')).toHaveCount(0);
+});
+
 test('keeps the 1000px tablet edit workbench interactive with decluttered actions', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 720 });
   await page.goto('/');
@@ -1370,6 +1437,108 @@ async function getCellBorderStyle(
       width: style.borderTopWidth,
     };
   });
+}
+
+async function dragSceneCellToCell(
+  page: Page,
+  startCoordinate: string,
+  endCoordinate: string,
+  button: 'left' | 'right',
+): Promise<void> {
+  const start = await getLocatorCenter(page.locator(`[data-coordinate="${startCoordinate}"]`));
+  const end = await getLocatorCenter(page.locator(`[data-coordinate="${endCoordinate}"]`));
+
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down({ button });
+  await page.mouse.move(end.x, end.y, { steps: 6 });
+  await page.mouse.up({ button });
+}
+
+async function dragSceneViewportBlankBy(
+  page: Page,
+  deltaX: number,
+  deltaY: number,
+  button: 'left' | 'right',
+): Promise<void> {
+  const start = await getViewportPointOutsideCanvas(page);
+
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down({ button });
+  await page.mouse.move(start.x + deltaX, start.y + deltaY, { steps: 6 });
+  await page.mouse.up({ button });
+}
+
+async function dragSceneCellOutsideViewport(
+  page: Page,
+  startCoordinate: string,
+  button: 'left' | 'right',
+  offsetX: number,
+  offsetY: number,
+): Promise<void> {
+  const start = await getLocatorCenter(page.locator(`[data-coordinate="${startCoordinate}"]`));
+  const viewportBox = await page.getByTestId('scene-canvas-viewport').boundingBox();
+
+  if (!viewportBox) {
+    throw new Error('Expected SceneCanvas viewport bounding box.');
+  }
+
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down({ button });
+  await page.mouse.move(viewportBox.x + viewportBox.width + offsetX, viewportBox.y + viewportBox.height + offsetY, {
+    steps: 8,
+  });
+  await page.mouse.up({ button });
+}
+
+async function getViewportPointOutsideCanvas(page: Page): Promise<{ x: number; y: number }> {
+  return page.evaluate(() => {
+    const viewport = document.querySelector<HTMLElement>('[data-testid="scene-canvas-viewport"]');
+    const canvas = document.querySelector<HTMLElement>('[data-testid="scene-canvas"]');
+
+    if (!viewport || !canvas) {
+      throw new Error('Expected SceneCanvas viewport and canvas.');
+    }
+
+    const viewportRect = viewport.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    const candidates = [
+      { x: viewportRect.left + 12, y: viewportRect.bottom - 12 },
+      { x: viewportRect.right - 12, y: viewportRect.bottom - 12 },
+      { x: viewportRect.left + 12, y: viewportRect.top + 44 },
+      { x: viewportRect.right - 12, y: viewportRect.top + 44 },
+    ];
+    const candidate = candidates.find((point) =>
+      point.x >= viewportRect.left &&
+      point.x <= viewportRect.right &&
+      point.y >= viewportRect.top &&
+      point.y <= viewportRect.bottom &&
+      (
+        point.x < canvasRect.left ||
+        point.x > canvasRect.right ||
+        point.y < canvasRect.top ||
+        point.y > canvasRect.bottom
+      ),
+    );
+
+    if (!candidate) {
+      throw new Error('Expected a viewport point outside the SceneCanvas grid.');
+    }
+
+    return candidate;
+  });
+}
+
+async function getLocatorCenter(locator: Locator): Promise<{ x: number; y: number }> {
+  const box = await locator.boundingBox();
+
+  if (!box) {
+    throw new Error('Expected locator bounding box.');
+  }
+
+  return {
+    x: box.x + box.width / 2,
+    y: box.y + box.height / 2,
+  };
 }
 
 async function expectSceneCellsToBeSquare(page: Page, coordinates: string[]): Promise<void> {

@@ -162,6 +162,12 @@ Production endpoint 是 `https://scene-api.pokokit.com/api/scenes/{id}`。Local 
 
 Zoom 输入只在 desktop/tablet 编辑区域内处理。鼠标滚轮和 macOS 触控板 pinch gesture 必须进入同一 clamp 逻辑；Safari gesture 兼容路径需要 feature detection，不能破坏普通 wheel scroll。画布尺寸变化、scene restore、remote import 和进入/退出 Mobile Preview Mode 时必须重新 clamp 或重置 zoom，防止旧 zoom state 造成不可达或越界布局。
 
+### Approved Course Correction - 2026-06-07 SceneCanvas 矩形填充与清空
+
+本 Architecture 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-07-scene-canvas-rectangle-edit.md` 增加 Epic 21。SceneCanvas 支持 desktop/tablet web-only rectangle edit gesture：右键从格子拖动进入矩形清空，锁定素材状态下左键从格子拖动进入矩形填充；没有锁定素材或锁定素材但按下位置不是格子时，左键拖动继续走 Epic 20 canvas pan。`scene-canvas/` 负责 pointer gesture 分类、rectangle preview、nearest-cell release 和 callback dispatch；`app-shell/` 负责把锁定素材状态、当前层和 command callback 传入；`apps/web/src/state/` 负责矩形清空/填充 command helper。组件不得直接修改 `SceneDocument`。
+
+矩形清空只作用于当前编辑建筑层，按 scene-core derived occupancy/effective footprint intersection 去重删除实例；矩形填充使用当前锁定素材、当前旋转和技能默认值，逐格复用 placement/footprint/stacking validation，不隐式确认替换已有素材。Rectangle gesture state、preview rectangle 和 nearest-cell 计算结果是 UI transient state，不进入 `SceneDocument v1`、scene autosave/saved payload、PSE 字符串、export payload、export summary 或 `packages/scene-core`。最终成功编辑只通过现有 command/autosave 边界写入 scene。
+
 另有 75 条 Non-Functional Requirements，核心架构约束包括：
 
 - 编辑反馈必须快速：桌面 1280x720、1000 个素材以内、10 个建筑层以内，常见画布编辑操作需要在 100ms 内完成可见状态更新。
@@ -633,7 +639,7 @@ Epic 7 已批准的 HTTP route 使用 kebab-case/resource-task 混合风格，�
 
 实现应按职责分层，不按页面临时堆叠：
 
-- `apps/web/src/state/`：web scene reducer、command dispatcher、autosave state、interaction mode。
+- `apps/web/src/state/`：web scene reducer、command dispatcher、autosave state、interaction mode、bulk scene edit helpers。
 - `apps/web/src/components/`：React UI 组件。
 - `apps/web/src/io/`：browser-only scene storage、UI preferences、image export/download 和 safe text boundaries。
 - `apps/web/src/theme/`：动态宝可梦主题 tokens、语义色 tokens 和 theme helpers。
@@ -1022,7 +1028,7 @@ React components 负责 UI rendering、local UI state 和 dispatching commands�
 
 - `app-shell/`：Desktop 降噪工作台 layout、interaction mode wiring、文件/分享菜单、独立预览模式入口和 UI-only preference wiring。
 - `pokemon-scene-controls/`：场景摘要与展开后的 Pokemon 选择、场景 `Name` 和画布尺寸控件；摘要展开状态不得写 SceneDocument。
-- `scene-canvas/`：17x17/legacy canvas rendering、hover/selection UI、pointer handler、桌面可选 keyboard handler 和 UI-only lower-layer ghost projection，但写操作必须 dispatch command；mobile keyboard handler no-op。Ghost projection 不参与 occupancy、stacking、replacement confirmation、height blocking 或 placement preview 计算。
+- `scene-canvas/`：17x17/legacy canvas rendering、hover/selection UI、pointer handler、桌面可选 keyboard handler、zoom/pan viewport、rectangle edit gesture state、rectangle preview 和 UI-only lower-layer ghost projection，但写操作必须 dispatch command；mobile keyboard handler no-op。SceneCanvas 负责把 pointer gesture 分类为 canvas pan、rectangle clear 或 rectangle fill，并通过 callbacks 把最终 rectangle command 交给 AppShell/state 层；组件不得直接修改 `SceneDocument`。Ghost projection 不参与 occupancy、stacking、replacement confirmation、height blocking 或 placement preview 计算。
 - `asset-picker/`：右侧素材搜索、分类/喜好/区域/技能筛选、素材暂存区、素材详情按需 surface、暂存区拖入/删除/展开状态、选中素材和本次放置默认技能状态。暂存区和素材详情状态只在 desktop/tablet edit surface 渲染，保存 UI-only `assetId` 顺序、展开状态或 viewed asset state，并通过 UI preferences 或独立 localStorage key 持久化；点击/双击选择和旋转仍通过既有 `onAssetSelect`、`onPlacementRotationChange` callback 进入 AppShell，不得直接修改 `SceneDocument`。
 - `building-level-panel/`：左侧建筑层列表、当前层、创建/删除/复制/重命名/排序 command entry；视觉顺序高层到低层，数据顺序仍为 0 层到 n 层。拖动中的目标顺序可以作为 component-local preview state；drop 前不得写入 `SceneDocument` 或 autosave。Drop 后排序 command 重排 `buildingLevels[].levelNumber`，保持 level id 和所有引用稳定。
 - `selection-inspector/`：当前选择快捷栏、可展开详情区、选中实例字段展示、层备注和字段 edit command entry。快捷栏高度应稳定，详情展开状态不得写 SceneDocument。
@@ -1054,7 +1060,7 @@ MVP web app 不使用 service/repository/database layer。跨组件业务操作�
 - FR41-FR47, FR63, and FR136 Preview：`packages/scene-core/src/domain/scene/selectors.ts`、`apps/web/src/components/export-preview/`、`apps/web/src/components/app-shell/mobile-preview-mode.tsx` 和独立 preview/export mode；FR43/47 已从 MVP 删除，旧预览面板 surface 在 Epic 19 中清理。
 - FR48-FR49 Properties：`apps/web/src/components/selection-inspector/`、`packages/scene-core/src/domain/scene/selectors.ts`、`apps/web/src/state/`。
 - FR50-FR55 Save & Recovery：`packages/scene-core/src/io/scene-schema.ts`、`scene-serializer.ts`、`recover-scene.ts`、`apps/web/src/io/scene-storage.ts`、`apps/web/src/components/recovery-validator/`。
-- FR56-FR58, FR131-FR134, FR138, and FR139-FR143 Open Design Workbench Context：`apps/web/src/components/app-shell/`、`apps/web/src/components/pokemon-scene-controls/`、`apps/web/src/components/building-level-panel/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/scene-canvas/`、`apps/web/src/theme/`、`apps/web/src/io/ui-preferences.ts` 和 `apps/web/src/state/`。SceneCanvas zoom viewport 是 web UI-only view state，不改变 scene write boundary、SceneDocument schema、PSE codec 或 export summary。
+- FR56-FR58, FR131-FR134, FR138, FR139-FR143, and FR144-FR149 Open Design Workbench Context：`apps/web/src/components/app-shell/`、`apps/web/src/components/pokemon-scene-controls/`、`apps/web/src/components/building-level-panel/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/scene-canvas/`、`apps/web/src/theme/`、`apps/web/src/io/ui-preferences.ts` 和 `apps/web/src/state/`。SceneCanvas zoom viewport 是 web UI-only view state，不改变 scene write boundary、SceneDocument schema、PSE codec 或 export summary。SceneCanvas rectangle gesture preview 是 web UI transient state；最终矩形清空/填充通过 state command helper 写入 scene。
 - FR69-FR77 Scene Worker, MCP & Codex Skill：`packages/scene-core/`、`apps/worker/src/routes/`、`apps/worker/src/mcp.ts`、`.agents/skills/pokopia-scene-worker/`、root `package.json` pnpm scripts、`pnpm-workspace.yaml` 和 `apps/worker/wrangler.toml`。
 - FR78-FR86 and FR137 Asset Footprint & Occupancy Rules：`packages/scene-core/src/domain/assets/catalog.ts`、`packages/scene-core/src/domain/scene/footprint.ts`、`packages/scene-core/src/domain/scene/occupancy.ts`、`packages/scene-core/src/io/scene-schema.ts`、`apps/web/src/state/asset-placement.ts`、`apps/web/src/components/scene-canvas/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。下层影子是 web UI projection，不改变 scene-core occupancy helpers。
 - FR87-FR92 Building Level Notes：`packages/scene-core/src/domain/scene/levels.ts`、`packages/scene-core/src/domain/scene/types.ts`、`packages/scene-core/src/io/scene-schema.ts`、`packages/scene-core/src/io/scene-string-codec.ts`、`packages/scene-core/src/domain/scene/export-summary.ts`、`apps/web/src/state/`、`apps/web/src/components/selection-inspector/`、`apps/web/src/components/export-preview/`、`apps/worker/src/routes/scene.ts`、`apps/worker/src/mcp.ts` 和 `.agents/skills/pokopia-scene-worker/`。
@@ -1080,7 +1086,7 @@ UI components communicate through props/context and dispatch typed commands. Bus
 component event -> command dispatcher -> command guard -> domain helper -> reducer -> scene state -> selectors -> UI
 ```
 
-View-only state such as hover cell, selected panel tab, zoom/pan, asset search/filter/favorite-only, asset staging order/expanded state, scene summary expanded, inspector details expanded, viewed asset detail, lower-layer ghost enabled, preview mode and current viewed level can live in React state and may be persisted in a separate localStorage UI-preferences namespace or dedicated UI-only localStorage key, but must not mutate `SceneDocument` and must not appear in autosave/export payloads or PSE scene strings.
+View-only state such as hover cell, selected panel tab, zoom/pan, rectangle drag preview, asset search/filter/favorite-only, asset staging order/expanded state, scene summary expanded, inspector details expanded, viewed asset detail, lower-layer ghost enabled, preview mode and current viewed level can live in React state and may be persisted in a separate localStorage UI-preferences namespace or dedicated UI-only localStorage key, but must not mutate `SceneDocument` and must not appear in autosave/export payloads or PSE scene strings. Rectangle drag preview should remain transient and normally should not be persisted.
 
 **External Integrations**
 

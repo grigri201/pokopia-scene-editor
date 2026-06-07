@@ -128,6 +128,12 @@ SceneCanvas 新增“下层影子”辅助模式：编辑 L(n) 时可显示直�
 
 缩放焦点推荐跟随指针或手势焦点，缺少焦点时回退到 viewport 中心。缩放不新增 scene edit command，不改变当前层、选中格、hover target、placement preview、下层影子或导出预览语义。`<768px` 仍进入 Mobile Preview Mode，不渲染完整 desktop SceneCanvas zoom viewport。
 
+### Approved Course Correction - 2026-06-07 SceneCanvas 矩形填充与清空
+
+本 UX 规格已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-07-scene-canvas-rectangle-edit.md` 增加 Epic 21。Desktop/tablet 编辑区域内，用户可以从格子右键按下并拖动进入矩形清空预览，松开后清空起点和终点框成的矩形区域内当前建筑层素材；在锁定素材状态下，用户可以从格子左键按下并拖动进入矩形填充预览，松开后使用当前锁定素材、旋转和技能默认值逐格尝试填充。
+
+没有锁定素材时，编辑区内左键拖动始终拖动画布；锁定素材但按下位置不是格子时，也拖动画布。进入矩形填充或清空后，如果松开位置不是格子，系统把松开位置映射到距离最近的编辑区格子并 clamp 到当前画布边界后完成矩形编辑。矩形预览必须跟随 zoom/pan 后的真实 grid 坐标，不遮挡 selection/focus、placement preview、lower-layer ghost 或 multi-cell footprint 的关键状态。`<768px` 仍进入 Mobile Preview Mode，不渲染完整 desktop SceneCanvas rectangle edit surface。
+
 ### Target Users
 
 目标用户包括 Pokopia 布景创作者和素材库维护者。布景创作者需要把灵感或搭建方案整理成可复现、可继续编辑、可分享的数据；素材库维护者需要维护素材名称、分类、标签、适用区域、技能需求、footprint、承载/叠放规则、缩略图和筛选信息，让创作者能快速找到正确素材。
@@ -574,9 +580,9 @@ flowchart TD
 **Purpose:** 承载尺寸驱动编辑画布；新建场景默认 17×17，并持续表达中心 15×15 主体区和外围装饰区。
 **Usage:** 主编辑区核心组件，所有放置、选中、悬停和区域识别都发生在这里。
 **Anatomy:** 尺寸驱动网格、主体区边界、外围区背景、格子坐标、anchor 标识、跨格 footprint 放置预览、同格上下分区叠放槽、承载/被承载状态、选中格、技能角标、height 派生不可放置状态。默认 17×17 必须保留坐标可读性和格子固定宽高比。
-**States:** 默认、悬停、待放置、已选中、可承载、将被承载、可叠放、上下分区叠放、不兼容叠放、不可放置、将覆盖、越界、被下层 height 阻塞、缩放最小值、缩放最大值。
+**States:** 默认、悬停、待放置、已选中、可承载、将被承载、可叠放、上下分区叠放、不兼容叠放、不可放置、将覆盖、越界、被下层 height 阻塞、缩放最小值、缩放最大值、矩形填充预览、矩形清空预览。
 **Accessibility:** 提供画布整体标签、当前选中格说明、键盘方向移动支持和每格区域/坐标/素材状态说明；跨格素材必须说明 anchor 和占用范围。
-**Interaction Behavior:** 悬停显示坐标、区域、建筑层、effective footprint、承载/叠放兼容性和放置合法性；点击放置或选中实例；冲突操作先提示。大素材只能作为一个实例被选中，不能让用户误以为每个 occupied cell 都是独立素材。同一坐标存在 base/top 两个实例时，界面必须把该格拆成上下两个稳定区域，下半部分显示 base surface，上半部分显示 top item，并让用户识别和选择或至少查看两个实例，不得合并成一个假实例。Desktop/tablet 编辑区域内的鼠标滚轮和 macOS 触控板缩放手势只改变 UI-only zoom viewport：最小值完整显示画布长边，最大值默认 17×17 约显示 6×6 格，超出 viewport 的内容被隐藏，且缩放不得改变 scene command、坐标、选中、hover、placement preview 或导出语义。
+**Interaction Behavior:** 悬停显示坐标、区域、建筑层、effective footprint、承载/叠放兼容性和放置合法性；点击放置或选中实例；冲突操作先提示。大素材只能作为一个实例被选中，不能让用户误以为每个 occupied cell 都是独立素材。同一坐标存在 base/top 两个实例时，界面必须把该格拆成上下两个稳定区域，下半部分显示 base surface，上半部分显示 top item，并让用户识别和选择或至少查看两个实例，不得合并成一个假实例。Desktop/tablet 编辑区域内的鼠标滚轮和 macOS 触控板缩放手势只改变 UI-only zoom viewport：最小值完整显示画布长边，最大值默认 17×17 约显示 6×6 格，超出 viewport 的内容被隐藏，且缩放不得改变 scene command、坐标、选中、hover、placement preview 或导出语义。SceneCanvas 还支持矩形编辑手势：格子右键拖动进入矩形清空，锁定素材状态下格子左键拖动进入矩形填充；没有锁定素材或锁定素材但按下位置不是格子时，左键拖动仍拖动画布。矩形编辑松开在非格子位置时，使用最近编辑区格子作为终点。
 
 #### Asset Picker
 

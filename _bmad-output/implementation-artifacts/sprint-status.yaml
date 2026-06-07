@@ -1,5 +1,5 @@
 # generated: 2026-05-31T16:34:56+0800
-# last_updated: 2026-06-06T16:31:21+0800
+# last_updated: 2026-06-07T13:17:25+0800
 # project: pokopia-scene-editor
 # project_key: NOKEY
 # tracking_system: file-system
@@ -31,9 +31,10 @@
 # - Epic 18 is complete.
 # - Epic 19 is complete.
 # - Epic 20 is complete.
+# - Epic 21 is complete; all Epic 21 stories are done.
 
 generated: 2026-05-31T16:34:56+0800
-last_updated: 2026-06-06T16:31:21+0800
+last_updated: 2026-06-07T13:17:25+0800
 project: pokopia-scene-editor
 project_key: NOKEY
 tracking_system: file-system
@@ -169,3 +170,20 @@ development_status:
       20-3-zoom-regression-tests-and-browser-layout-verification:
         status: done
         title: Zoom 回归测试与浏览器布局验证
+  epic_21:
+    status: done
+    title: SceneCanvas 矩形填充与清空
+    proposal: /Users/grigri/side-project/pokopia/pokopia-scene-editor/_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-07-scene-canvas-rectangle-edit.md
+    stories:
+      21-1-course-correction-sync-and-rectangle-edit-contract:
+        status: done
+        title: Course Correction 同步与矩形编辑契约
+      21-2-scene-canvas-rectangle-gesture-and-preview:
+        status: done
+        title: SceneCanvas 矩形手势状态与预览
+      21-3-rectangle-fill-clear-command-layer:
+        status: done
+        title: 矩形填充与清空 Command Layer
+      21-4-rectangle-edit-regression-tests-and-browser-smoke:
+        status: done
+        title: 矩形编辑回归测试与浏览器验证

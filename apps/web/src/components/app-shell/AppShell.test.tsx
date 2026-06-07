@@ -2442,6 +2442,121 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
+  it('fills a dragged rectangle with the locked asset and keeps autosave on the scene boundary', async () => {
+    writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
+    render(<AppShell />);
+
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
+    if (!assetButton) {
+      throw new Error('Expected pecha-berry asset button.');
+    }
+    const beforeUiPreferences = window.localStorage.getItem(uiPreferencesStorageKey);
+
+    fireEvent.doubleClick(assetButton);
+    fireEvent.pointerDown(screen.getByLabelText('Cell 2,2, main area, level-0, placeable'), {
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      pointerId: 31,
+    });
+    fireEvent.pointerMove(screen.getByLabelText('Cell 3,3, main area, level-0, placeable'), {
+      button: 0,
+      clientX: 30,
+      clientY: 30,
+      pointerId: 31,
+    });
+    fireEvent.pointerUp(screen.getByLabelText('Cell 3,3, main area, level-0, placeable'), {
+      button: 0,
+      clientX: 30,
+      clientY: 30,
+      pointerId: 31,
+    });
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.workspaceState.selectedAssetId).toBe('pecha-berry');
+      expect(payload.tileInstances.map((instance: { assetId: string; coordinate: unknown }) => ({
+        assetId: instance.assetId,
+        coordinate: instance.coordinate,
+      }))).toEqual([
+        { assetId: 'pecha-berry', coordinate: { x: 2, y: 2 } },
+        { assetId: 'pecha-berry', coordinate: { x: 3, y: 2 } },
+        { assetId: 'pecha-berry', coordinate: { x: 2, y: 3 } },
+        { assetId: 'pecha-berry', coordinate: { x: 3, y: 3 } },
+      ]);
+      expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}').tileInstances).toHaveLength(4);
+      expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+      expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBe(beforeUiPreferences);
+    });
+    expect(screen.getByText('矩形填充完成')).toBeVisible();
+    expect(assetButton.closest('[data-asset-id="pecha-berry"]')).toHaveAttribute('data-selection-mode', 'continuous');
+
+    const payload = JSON.parse(readSceneSnapshot());
+    const encodedScene = encodeSceneDocumentString(payload);
+    const decodedScene = decodeSceneDocumentString(encodedScene, '2026-06-07T08:00:00.000Z');
+    expect(decodedScene.ok).toBe(true);
+    expect(JSON.stringify(payload)).not.toContain('rectangle');
+
+    fireEvent.click(screen.getByRole('button', { name: '预览/导出' }));
+    const exportDialog = screen.getByRole('dialog', { name: '下载预览' });
+    expect(within(exportDialog).queryByText(/矩形|rectangle/i)).not.toBeInTheDocument();
+  });
+
+  it('clears a dragged rectangle on the current layer without clearing the locked asset', async () => {
+    writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
+    render(<AppShell />);
+
+    const assetButton = document.querySelector<HTMLButtonElement>('[data-asset-id="pecha-berry"] .asset-select-button');
+    if (!assetButton) {
+      throw new Error('Expected pecha-berry asset button.');
+    }
+    const beforeUiPreferences = window.localStorage.getItem(uiPreferencesStorageKey);
+
+    fireEvent.doubleClick(assetButton);
+    fireEvent.click(screen.getByLabelText('Cell 2,2, main area, level-0, placeable'));
+    fireEvent.click(screen.getByLabelText('Cell 2,3, main area, level-0, placeable'));
+
+    await waitFor(() => {
+      expect(JSON.parse(readSceneSnapshot()).tileInstances).toHaveLength(2);
+    });
+
+    fireEvent.pointerDown(screen.getByLabelText(/Cell 2,2, main area, level-0, placeable/), {
+      button: 2,
+      clientX: 10,
+      clientY: 10,
+      pointerId: 32,
+    });
+    fireEvent.pointerMove(screen.getByLabelText(/Cell 2,3, main area, level-0, placeable/), {
+      button: 2,
+      clientX: 20,
+      clientY: 30,
+      pointerId: 32,
+    });
+    fireEvent.pointerUp(screen.getByLabelText(/Cell 2,3, main area, level-0, placeable/), {
+      button: 2,
+      clientX: 20,
+      clientY: 30,
+      pointerId: 32,
+    });
+
+    await waitFor(() => {
+      const payload = JSON.parse(readSceneSnapshot());
+      expect(payload.tileInstances).toEqual([]);
+      expect(payload.workspaceState.selectedAssetId).toBe('pecha-berry');
+      expect(payload.workspaceState.selectedCoordinate).toEqual({ x: 2, y: 3 });
+      expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}').tileInstances).toEqual([]);
+      expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBe(beforeUiPreferences);
+    });
+    expect(screen.getByText('矩形清空完成')).toBeVisible();
+    expect(assetButton.closest('[data-asset-id="pecha-berry"]')).toHaveAttribute('data-selection-mode', 'continuous');
+
+    const payload = JSON.parse(readSceneSnapshot());
+    const encodedScene = encodeSceneDocumentString(payload);
+    const decodedScene = decodeSceneDocumentString(encodedScene, '2026-06-07T08:00:00.000Z');
+    expect(decodedScene.ok).toBe(true);
+    expect(JSON.stringify(payload)).not.toContain('rectangle');
+  });
+
   it('requires replacement confirmation instead of self-stacking locked stackable assets', async () => {
     const confirmReplacement = vi.spyOn(window, 'confirm').mockReturnValue(false);
     writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);

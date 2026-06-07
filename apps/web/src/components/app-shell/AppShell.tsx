@@ -20,6 +20,8 @@ import {
 import {
   editAssetInstance,
   editBuildingLayer,
+  clearSceneRectangle,
+  fillSceneRectangleWithSelectedAsset,
   getAssetPlacementPreview,
   getInteractionMode,
   placeSelectedAsset,
@@ -849,6 +851,66 @@ export function AppShell() {
           selectedCoordinate: { x: coordinate.x, y: coordinate.y },
         },
       },
+    });
+  };
+
+  const clearRectangleMaterial = (start: GridCoordinate, end: GridCoordinate) => {
+    if (isReadOnly) {
+      return;
+    }
+
+    const result = clearSceneRectangle(scene, {
+      start,
+      end,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+
+    if (!result.ok) {
+      return;
+    }
+
+    if (result.scene !== scene) {
+      commitSceneEdit(result.scene);
+    }
+    setSelectedInstanceId(null);
+    setPlacementFeedback(null);
+    showNotificationToast({
+      id: 'rectangle-edit',
+      tone: result.cleared > 0 ? 'success' : 'info',
+      title: '矩形清空完成',
+      message: `清空 ${result.cleared} 个素材实例。`,
+    });
+  };
+
+  const fillRectangleWithCurrentAsset = (start: GridCoordinate, end: GridCoordinate) => {
+    if (isReadOnly || assetSelectionMode !== 'continuous' || !selectedAssetId) {
+      return;
+    }
+
+    const result = fillSceneRectangleWithSelectedAsset(scene, {
+      start,
+      end,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+      createInstanceId: createTileInstanceId,
+      requiresSkill: placementRequiresSkill,
+      rotationDegrees: placementRotationDegrees,
+    });
+
+    if (!result.ok) {
+      return;
+    }
+
+    if (result.scene !== scene) {
+      commitSceneEdit(result.scene);
+    }
+    setPlacementFeedback(null);
+    showNotificationToast({
+      id: 'rectangle-edit',
+      tone: result.placed > 0 ? 'success' : 'warning',
+      title: '矩形填充完成',
+      message: `放置 ${result.placed} 个素材，跳过 ${result.summary.skipped} 个格子。`,
     });
   };
 
@@ -2252,9 +2314,12 @@ export function AppShell() {
             selectedCoordinate={selectedCoordinate}
             targetCoordinate={targetCoordinate}
             targetPlacement={targetCoordinate ? targetPlacementPreview : null}
+            rectangleFillEnabled={assetSelectionMode === 'continuous' && Boolean(selectedAssetId) && !isReadOnly}
             onSelectCoordinate={selectCoordinate}
             onViewCoordinate={viewCoordinate}
             onDeleteCoordinate={deleteCoordinateMaterial}
+            onFillRectangle={fillRectangleWithCurrentAsset}
+            onClearRectangle={clearRectangleMaterial}
             onHoverCoordinate={setHoveredCoordinate}
             onFocusCoordinate={setFocusedCoordinate}
           />

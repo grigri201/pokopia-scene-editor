@@ -166,6 +166,12 @@ Mobile 允许用户通过显式“导入字符串”操作替换当前本地布�
 
 `SceneDocument v1` 继续保持。缩放比例、缩放焦点和裁切状态均为 UI-only view state，不进入 `SceneDocument`、scene autosave/saved payload、PSE 字符串、export payload、export summary 或 `packages/scene-core`。缩放不得改变 placement、occupancy、stacking、replacement confirmation、height blocking、下层影子 projection 或导出预览语义。
 
+### Approved Course Correction - 2026-06-07 SceneCanvas 矩形填充与清空
+
+本 PRD 已按 `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-07-scene-canvas-rectangle-edit.md` 增加 Epic 21，用于在 desktop/tablet 编辑工作台的中央 SceneCanvas 支持矩形填充和矩形清空。用户可以从格子右键拖动到另一个格子，清空两点框成矩形区域内当前建筑层的素材；在锁定素材状态下，可以从格子左键拖动到另一个格子，使用当前锁定素材批量填充矩形区域。
+
+`SceneDocument v1` 继续保持。矩形拖拽状态、矩形预览和最近落点推导均为 web UI transient state，不进入 `SceneDocument`、scene autosave/saved payload、PSE 字符串、export payload、export summary 或 `packages/scene-core`。最终填充/清空结果仍通过现有 scene command/autosave 边界写入当前 scene，不新增第二套保存机制。
+
 ### What Makes This Special
 
 本产品的差异化在于它围绕 Pokopia 布景创作的实际约束建模，而不是提供通用网格绘图或自由画布。核心规则包括：默认中心 15×15 主体区、外围 1 圈装饰区、0 层到 n 层的建筑层关系、同坐标跨建筑层放置、素材 footprint 占用与跨层阻塞、受控承载/叠放、素材实例级技能标记，以及完整 17×17 预览。
@@ -487,6 +493,15 @@ MVP 不需要原生设备能力、移动端权限、推送通知或 CLI 命令�
 - FR142: 最大 zoom 必须以“画面内显示约 6x6 格子”为上限；默认 17x17 场景最大 zoom factor 为 `17 / 6`，其他尺寸按 `max(canvas.width, canvas.height) / 6` 派生，并至少为 1。
 - FR143: 超出编辑区域 viewport 的 SceneCanvas 内容必须被隐藏，不产生页面级横向滚动条；缩放不得改变坐标、素材实例、放置规则、selected/hover/focus 语义或 export preview 内容。
 
+### SceneCanvas Rectangle Editing
+
+- FR144: Desktop/Tablet 编辑工作台中，用户从一个可编辑格子按住右键拖动并松开时，系统必须清空起点和终点框成的矩形区域内当前建筑层的素材实例。
+- FR145: 矩形清空必须按素材 effective footprint 去重处理；任一 footprint cell 与矩形相交的当前层素材实例都应被整体删除，且不得影响其他建筑层、层备注、场景字段或 scene-core derived state。
+- FR146: 在锁定素材状态下，用户从一个可编辑格子按住左键拖动并松开时，系统必须把起点和终点框成的矩形区域作为批量填充区域，使用当前锁定素材、当前放置旋转和技能默认值逐格尝试放置。
+- FR147: 矩形填充必须复用现有 placement/footprint/stacking validation，不得绕过越界、height blocking、stacking surface、replacement confirmation 或 read-only guard；默认不隐式替换已有素材。
+- FR148: 没有锁定素材时，编辑区内左键拖动必须拖动画布，不得进入矩形填充；锁定素材时，如果左键按下目标不是格子，也必须拖动画布。
+- FR149: 进入矩形填充或矩形清空后，如果松开位置不是编辑区格子，系统必须用距离松开位置最近的编辑区格子作为终点并完成矩形编辑。
+
 ### Asset Footprint & Occupancy Rules
 
 - FR78: Asset catalog 必须为每个可放置素材提供 `footprint.length`、`footprint.width`、`footprint.height` 三个正整数；现有素材默认 1x1x1，真实大素材通过集中 override 覆盖。
@@ -642,6 +657,10 @@ Superseded by Epic 13.3 on 2026-05-30: FR69-FR76 are historical requirements onl
 - NFR70: SceneCanvas zoom state 必须是 UI-only view state，不得写入 `SceneDocument v1`、scene autosave/saved payload、PSE 字符串、export payload、export summary 或 `packages/scene-core`。
 - NFR71: 1280x720 desktop 和 1024x768 tablet 下，缩放到 min/max 都不得让顶部、左侧、底部或右侧面板重叠；页面不得出现横向滚动。
 - NFR72: 缩放手势必须保持编辑响应；在 17x17 画布、10 个建筑层、每层最多 289 个素材实例以内，zoom scale 更新应在 100ms 内产生可见反馈。
+- NFR73: 矩形编辑 gesture state、drag preview 和 hover target 属于 web UI transient state，不得写入 `SceneDocument v1`、scene autosave/saved payload、PSE 字符串、export payload、export summary 或 `packages/scene-core`。
+- NFR74: 矩形清空/填充的最终 scene mutation 必须通过 web command layer 执行，成功编辑后只触发现有 autosave 链路，不新增第二套保存机制。
+- NFR75: 在默认 17x17 画布、矩形覆盖全画布、10 个建筑层、每层最多 289 个素材实例以内，矩形清空/填充应在用户感知上保持即时响应；批量结果反馈应可读。
+- NFR76: 矩形编辑必须在 zoom/pan 后保持坐标正确；nearest-cell release、rectangle overlay、placement preview 和 canvas pan 不得因缩放比例或 pan offset 错位。
 
 ### Usability
 

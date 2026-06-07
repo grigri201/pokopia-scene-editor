@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, WheelEvent } from 'react';
+import type {
+  CSSProperties,
+  FocusEvent,
+  KeyboardEvent,
+  MouseEvent,
+  MutableRefObject,
+  PointerEvent as ReactPointerEvent,
+  RefObject,
+  WheelEvent,
+} from 'react';
 import {
   buildSceneOccupancy,
   getEffectiveAssetFootprint,
@@ -32,9 +41,12 @@ interface SceneCanvasProps {
   selectedCoordinate: GridCoordinate | null;
   targetCoordinate: GridCoordinate | null;
   targetPlacement?: AssetPlacementPreview | null;
+  rectangleFillEnabled?: boolean;
   onSelectCoordinate: (coordinate: GridCoordinate) => void;
   onViewCoordinate: (coordinate: GridCoordinate) => void;
   onDeleteCoordinate: (coordinate: GridCoordinate) => void;
+  onFillRectangle?: (start: GridCoordinate, end: GridCoordinate) => void;
+  onClearRectangle?: (start: GridCoordinate, end: GridCoordinate) => void;
   onHoverCoordinate: (coordinate: GridCoordinate | null) => void;
   onFocusCoordinate: (coordinate: GridCoordinate | null) => void;
 }
@@ -50,9 +62,12 @@ export function SceneCanvas({
   selectedCoordinate,
   targetCoordinate,
   targetPlacement = null,
+  rectangleFillEnabled = false,
   onSelectCoordinate,
   onViewCoordinate,
   onDeleteCoordinate,
+  onFillRectangle,
+  onClearRectangle,
   onHoverCoordinate,
   onFocusCoordinate,
 }: SceneCanvasProps) {
@@ -64,12 +79,16 @@ export function SceneCanvas({
   const [zoomOrigin, setZoomOrigin] = useState<SceneCanvasZoomOrigin>({ x: 50, y: 50 });
   const [canvasPan, setCanvasPan] = useState<SceneCanvasPan>({ x: 0, y: 0 });
   const [draggingCanvas, setDraggingCanvas] = useState(false);
+  const [rectanglePreview, setRectanglePreview] = useState<SceneCanvasRectanglePreview | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const zoomScaleRef = useRef(1);
   const gestureStartZoomRef = useRef(1);
   const canvasPanRef = useRef<SceneCanvasPan>({ x: 0, y: 0 });
   const canvasDragRef = useRef<SceneCanvasDragState | null>(null);
+  const rectangleDragRef = useRef<SceneCanvasRectangleDragState | null>(null);
   const suppressViewportClickRef = useRef(false);
+  const suppressCellClickRef = useRef(false);
+  const suppressCellContextMenuRef = useRef(false);
   const canvasGridStyle = {
     '--scene-canvas-columns': canvasSize.width,
     '--scene-canvas-rows': canvasSize.height,
@@ -108,6 +127,7 @@ export function SceneCanvas({
     canvasSize,
     enabled: lowerLayerGhostEnabled && !readOnly,
   });
+  const rectanglePreviewCells = buildRectanglePreviewCellSet(rectanglePreview);
 
   useEffect(() => {
     zoomScaleRef.current = zoomScale;
@@ -179,6 +199,12 @@ export function SceneCanvas({
   );
 
   const handleViewportPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (updateRectangleDrag(event, canvasSize, rectangleDragRef, viewportRef, setRectanglePreview)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     const dragState = canvasDragRef.current;
 
     if (!dragState || dragState.pointerId !== event.pointerId) {
@@ -203,9 +229,28 @@ export function SceneCanvas({
       x: dragState.startPan.x + deltaX,
       y: dragState.startPan.y + deltaY,
     });
-  }, []);
+  }, [canvasSize.height, canvasSize.width]);
 
   const finishViewportDrag = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (finishRectangleDrag(
+      event,
+      canvasSize,
+      rectangleDragRef,
+      viewportRef,
+      setRectanglePreview,
+      (state, endCoordinate) => {
+        if (state.mode === 'rectangle-clear') {
+          onClearRectangle?.(state.start, endCoordinate);
+        } else {
+          onFillRectangle?.(state.start, endCoordinate);
+        }
+      },
+      suppressCellClickRef,
+      suppressCellContextMenuRef,
+    )) {
+      return;
+    }
+
     const dragState = canvasDragRef.current;
 
     if (!dragState || dragState.pointerId !== event.pointerId) {
@@ -225,7 +270,7 @@ export function SceneCanvas({
         suppressViewportClickRef.current = false;
       }, 0);
     }
-  }, []);
+  }, [canvasSize, onClearRectangle, onFillRectangle]);
 
   const handleViewportClickCapture = useCallback((event: MouseEvent<HTMLDivElement>) => {
     if (!suppressViewportClickRef.current || isViewportControlTarget(event.target)) {
@@ -236,6 +281,32 @@ export function SceneCanvas({
     event.stopPropagation();
     suppressViewportClickRef.current = false;
   }, []);
+
+  const handleViewportContextMenuCapture = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    const rectangleDragState = rectangleDragRef.current;
+    const shouldSuppressContextMenu =
+      suppressCellContextMenuRef.current ||
+      Boolean(rectangleDragState?.mode === 'rectangle-clear' && rectangleDragState.moved);
+
+    if (!shouldSuppressContextMenu) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    suppressCellContextMenuRef.current = false;
+  }, []);
+
+  const handleCellPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>, coordinate: GridCoordinate) => {
+      startRectangleDrag(event, coordinate, {
+        readOnly,
+        rectangleFillEnabled,
+        rectangleDragRef,
+      });
+    },
+    [readOnly, rectangleFillEnabled],
+  );
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -286,7 +357,10 @@ export function SceneCanvas({
       data-zoom-origin={`${formatSceneCanvasZoomPercent(zoomOrigin.x)},${formatSceneCanvasZoomPercent(zoomOrigin.y)}`}
       data-zoom-pan={`${formatSceneCanvasPan(canvasPan.x)},${formatSceneCanvasPan(canvasPan.y)}`}
       data-dragging-canvas={draggingCanvas}
+      data-rectangle-gesture={rectanglePreview?.mode ?? 'idle'}
+      data-rectangle-range={formatRectanglePreviewRange(rectanglePreview)}
       onClickCapture={handleViewportClickCapture}
+      onContextMenuCapture={handleViewportContextMenuCapture}
       onPointerDown={handleViewportPointerDown}
       onPointerMove={handleViewportPointerMove}
       onPointerUp={finishViewportDrag}
@@ -323,6 +397,7 @@ export function SceneCanvas({
           <div className="scene-row" role="row" aria-rowindex={rowIndex + 1} key={rowIndex}>
             {row.map((cell) => {
               const coordinate = cell.coordinate;
+              const rectanglePreviewMode = rectanglePreviewCells.get(getCoordinateKey(coordinate)) ?? 'none';
               const footprintState = footprintView.cellsByCoordinate.get(getCoordinateKey(coordinate)) ?? emptyFootprintCellState;
               const placeable = cell.placeable && !footprintState.heightBlocked;
               const editable = isCellEditable(placeable, readOnly);
@@ -394,6 +469,9 @@ export function SceneCanvas({
                   footprintState.placementRole !== 'none' ? 'scene-cell--placement-preview' : '',
                   footprintState.placementConflicts.length > 0 ? 'scene-cell--placement-conflict' : '',
                   stackingState ? `scene-cell--stacking-${stackingState.kind}` : '',
+                  rectanglePreviewMode !== 'none' ? 'scene-cell--rectangle-preview' : '',
+                  rectanglePreviewMode === 'rectangle-fill' ? 'scene-cell--rectangle-fill-preview' : '',
+                  rectanglePreviewMode === 'rectangle-clear' ? 'scene-cell--rectangle-clear-preview' : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -424,12 +502,27 @@ export function SceneCanvas({
                 }${footprintState.placementLabel ? `, ${footprintState.placementLabel}` : ''
                 }${stackingLabel ? `, ${stackingLabel}` : ''
                 }`}
-                onClick={() =>
-                  handleCellPointerSelect(readOnly, interactionCoordinate, onSelectCoordinate, onViewCoordinate)
-                }
-                onContextMenu={(event) =>
-                  handleCellContextMenu(event, readOnly, interactionCoordinate, onDeleteCoordinate)
-                }
+                onPointerDown={(event) => handleCellPointerDown(event, coordinate)}
+                onClick={(event) => {
+                  if (suppressCellClickRef.current) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    suppressCellClickRef.current = false;
+                    return;
+                  }
+
+                  handleCellPointerSelect(readOnly, interactionCoordinate, onSelectCoordinate, onViewCoordinate);
+                }}
+                onContextMenu={(event) => {
+                  if (suppressCellContextMenuRef.current) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    suppressCellContextMenuRef.current = false;
+                    return;
+                  }
+
+                  handleCellContextMenu(event, readOnly, interactionCoordinate, onDeleteCoordinate);
+                }}
                 onFocus={(event) =>
                   readOnly ? undefined : handleCellFocus(event, coordinate, onFocusCoordinate)
                 }
@@ -472,6 +565,7 @@ export function SceneCanvas({
                 data-placement-preview={footprintState.placementRole}
                 data-placement-status={targetPlacement?.status ?? 'none'}
                 data-placement-conflicts={footprintState.placementConflicts.join(',')}
+                data-rectangle-preview={rectanglePreviewMode}
                 data-stacking-state={stackingState?.kind ?? 'none'}
                 data-stacking-base-instance-id={stackingState?.baseInstanceId ?? ''}
                 data-stacking-top-instance-id={stackingState?.topInstanceId ?? ''}
@@ -689,6 +783,24 @@ interface SceneCanvasDragState {
   moved: boolean;
 }
 
+type SceneCanvasRectangleMode = 'rectangle-clear' | 'rectangle-fill';
+
+interface SceneCanvasRectangleDragState {
+  pointerId: number;
+  mode: SceneCanvasRectangleMode;
+  start: GridCoordinate;
+  current: GridCoordinate;
+  startClientX: number;
+  startClientY: number;
+  moved: boolean;
+}
+
+interface SceneCanvasRectanglePreview {
+  mode: SceneCanvasRectangleMode;
+  start: GridCoordinate;
+  end: GridCoordinate;
+}
+
 interface SceneCanvasGestureEvent extends Event {
   clientX?: number;
   clientY?: number;
@@ -796,6 +908,287 @@ function formatSceneCanvasPan(value: number): string {
 
 function isViewportControlTarget(target: EventTarget): boolean {
   return target instanceof Element && Boolean(target.closest('.scene-canvas-fit-button'));
+}
+
+function startRectangleDrag(
+  event: ReactPointerEvent<HTMLButtonElement>,
+  coordinate: GridCoordinate,
+  input: {
+    readOnly: boolean;
+    rectangleFillEnabled: boolean;
+    rectangleDragRef: MutableRefObject<SceneCanvasRectangleDragState | null>;
+  },
+): void {
+  if (input.readOnly) {
+    return;
+  }
+
+  const mode = event.button === 2
+    ? 'rectangle-clear'
+    : event.button === 0 && input.rectangleFillEnabled
+      ? 'rectangle-fill'
+      : null;
+
+  if (!mode) {
+    return;
+  }
+
+  event.stopPropagation();
+  input.rectangleDragRef.current = {
+    pointerId: event.pointerId,
+    mode,
+    start: toGridCoordinate(coordinate),
+    current: toGridCoordinate(coordinate),
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    moved: false,
+  };
+
+  if (
+    typeof event.currentTarget.hasPointerCapture === 'function' &&
+    typeof event.currentTarget.setPointerCapture === 'function' &&
+    !event.currentTarget.hasPointerCapture(event.pointerId)
+  ) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+}
+
+function updateRectangleDrag(
+  event: ReactPointerEvent<HTMLElement>,
+  canvasSize: GridSize,
+  rectangleDragRef: MutableRefObject<SceneCanvasRectangleDragState | null>,
+  viewportRef: RefObject<HTMLDivElement | null>,
+  setRectanglePreview: (preview: SceneCanvasRectanglePreview | null) => void,
+): boolean {
+  const dragState = rectangleDragRef.current;
+
+  if (!dragState || dragState.pointerId !== event.pointerId) {
+    return false;
+  }
+
+  const nextCoordinate = getRectangleGestureCoordinate(event, viewportRef.current, canvasSize, dragState.current);
+  const deltaX = event.clientX - dragState.startClientX;
+  const deltaY = event.clientY - dragState.startClientY;
+  const moved = dragState.moved || Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2 || !coordinatesEqual(nextCoordinate, dragState.start);
+
+  dragState.current = nextCoordinate;
+
+  if (!moved) {
+    return true;
+  }
+
+  dragState.moved = true;
+  setRectanglePreview({
+    mode: dragState.mode,
+    start: dragState.start,
+    end: nextCoordinate,
+  });
+
+  return true;
+}
+
+function finishRectangleDrag(
+  event: ReactPointerEvent<HTMLElement>,
+  canvasSize: GridSize,
+  rectangleDragRef: MutableRefObject<SceneCanvasRectangleDragState | null>,
+  viewportRef: RefObject<HTMLDivElement | null>,
+  setRectanglePreview: (preview: SceneCanvasRectanglePreview | null) => void,
+  onCommit: (state: SceneCanvasRectangleDragState, endCoordinate: GridCoordinate) => void,
+  suppressCellClickRef: MutableRefObject<boolean>,
+  suppressCellContextMenuRef: MutableRefObject<boolean>,
+): boolean {
+  const dragState = rectangleDragRef.current;
+
+  if (!dragState || dragState.pointerId !== event.pointerId) {
+    return false;
+  }
+
+  rectangleDragRef.current = null;
+  setRectanglePreview(null);
+
+  const currentTarget = event.currentTarget;
+  if (
+    currentTarget instanceof HTMLElement &&
+    typeof currentTarget.hasPointerCapture === 'function' &&
+    typeof currentTarget.releasePointerCapture === 'function' &&
+    currentTarget.hasPointerCapture(event.pointerId)
+  ) {
+    currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  if (!dragState.moved) {
+    return true;
+  }
+
+  if (event.type === 'pointercancel') {
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  }
+
+  const endCoordinate = getRectangleGestureCoordinate(event, viewportRef.current, canvasSize, dragState.current);
+  event.preventDefault();
+  event.stopPropagation();
+  suppressCellClickRef.current = dragState.mode === 'rectangle-fill';
+  suppressCellContextMenuRef.current = dragState.mode === 'rectangle-clear';
+  onCommit(dragState, endCoordinate);
+
+  window.setTimeout(() => {
+    suppressCellClickRef.current = false;
+    suppressCellContextMenuRef.current = false;
+  }, 0);
+
+  return true;
+}
+
+function getRectangleGestureCoordinate(
+  event: ReactPointerEvent<HTMLElement>,
+  viewportElement: HTMLDivElement | null,
+  canvasSize: GridSize,
+  fallback: GridCoordinate,
+): GridCoordinate {
+  const canvasElement = viewportElement?.querySelector<HTMLElement>('[data-testid="scene-canvas"]') ?? null;
+  return getCoordinateAtViewportPoint(event.clientX, event.clientY)
+    ?? getNearestRenderedCellCoordinate(canvasElement, event.clientX, event.clientY)
+    ?? getNearestSceneCanvasCoordinate(canvasElement, event.clientX, event.clientY, canvasSize)
+    ?? getTargetCoordinate(event.target)
+    ?? fallback;
+}
+
+function getCoordinateAtViewportPoint(clientX: number, clientY: number): GridCoordinate | null {
+  if (typeof document === 'undefined' || typeof document.elementFromPoint !== 'function') {
+    return null;
+  }
+
+  const hitTarget = document.elementFromPoint(clientX, clientY);
+  return hitTarget ? getTargetCoordinate(hitTarget) : null;
+}
+
+function getTargetCoordinate(target: EventTarget): GridCoordinate | null {
+  if (!(target instanceof Element)) {
+    return null;
+  }
+
+  const coordinateValue = target.closest<HTMLElement>('[data-coordinate]')?.dataset.coordinate;
+  if (!coordinateValue) {
+    return null;
+  }
+
+  const [rawX, rawY] = coordinateValue.split(',');
+  const x = Number(rawX);
+  const y = Number(rawY);
+
+  if (!Number.isInteger(x) || !Number.isInteger(y)) {
+    return null;
+  }
+
+  return { x, y };
+}
+
+function getNearestRenderedCellCoordinate(
+  canvasElement: HTMLElement | null,
+  clientX: number,
+  clientY: number,
+): GridCoordinate | null {
+  if (!canvasElement) {
+    return null;
+  }
+
+  let nearestCoordinate: GridCoordinate | null = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const cell of canvasElement.querySelectorAll<HTMLElement>('[data-coordinate]')) {
+    const coordinate = getTargetCoordinate(cell);
+    if (!coordinate) {
+      continue;
+    }
+
+    const rect = cell.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      continue;
+    }
+
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const distance = (centerX - clientX) ** 2 + (centerY - clientY) ** 2;
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestCoordinate = coordinate;
+    }
+  }
+
+  return nearestCoordinate;
+}
+
+function getNearestSceneCanvasCoordinate(
+  canvasElement: HTMLElement | null,
+  clientX: number,
+  clientY: number,
+  canvasSize: GridSize,
+): GridCoordinate | null {
+  if (!canvasElement || canvasSize.width <= 0 || canvasSize.height <= 0) {
+    return null;
+  }
+
+  const rect = canvasElement.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    return null;
+  }
+
+  const style = getComputedStyle(canvasElement);
+  const paddingLeft = parseCssPixels(style.paddingLeft);
+  const paddingRight = parseCssPixels(style.paddingRight);
+  const paddingTop = parseCssPixels(style.paddingTop);
+  const paddingBottom = parseCssPixels(style.paddingBottom);
+  const contentLeft = rect.left + paddingLeft;
+  const contentTop = rect.top + paddingTop;
+  const contentWidth = Math.max(1, rect.width - paddingLeft - paddingRight);
+  const contentHeight = Math.max(1, rect.height - paddingTop - paddingBottom);
+
+  return {
+    x: Math.min(Math.max(Math.floor((clientX - contentLeft) / (contentWidth / canvasSize.width)), 0), canvasSize.width - 1),
+    y: Math.min(Math.max(Math.floor((clientY - contentTop) / (contentHeight / canvasSize.height)), 0), canvasSize.height - 1),
+  };
+}
+
+function parseCssPixels(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function buildRectanglePreviewCellSet(
+  preview: SceneCanvasRectanglePreview | null,
+): Map<string, SceneCanvasRectangleMode> {
+  const cells = new Map<string, SceneCanvasRectangleMode>();
+  if (!preview) {
+    return cells;
+  }
+
+  const startX = Math.min(preview.start.x, preview.end.x);
+  const endX = Math.max(preview.start.x, preview.end.x);
+  const startY = Math.min(preview.start.y, preview.end.y);
+  const endY = Math.max(preview.start.y, preview.end.y);
+
+  for (let y = startY; y <= endY; y += 1) {
+    for (let x = startX; x <= endX; x += 1) {
+      cells.set(`${x},${y}`, preview.mode);
+    }
+  }
+
+  return cells;
+}
+
+function formatRectanglePreviewRange(preview: SceneCanvasRectanglePreview | null): string {
+  if (!preview) {
+    return '';
+  }
+
+  const startX = Math.min(preview.start.x, preview.end.x);
+  const endX = Math.max(preview.start.x, preview.end.x);
+  const startY = Math.min(preview.start.y, preview.end.y);
+  const endY = Math.max(preview.start.y, preview.end.y);
+
+  return `${startX},${startY}:${endX},${endY}`;
 }
 
 function createScaledCanvasWidth(

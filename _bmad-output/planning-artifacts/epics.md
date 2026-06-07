@@ -12,11 +12,12 @@ inputDocuments:
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-asset-staging-area.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-05-desktop-workbench-decluttering.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-06-scene-canvas-zoom.md
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-07-scene-canvas-rectangle-edit.md
 ---
 
 # pokopia-scene-editor - Active Epic Index
 
-As of 2026-06-06, Epic 19 is complete and Epic 20 is the active SceneCanvas 缩放视口 backlog.
+As of 2026-06-07, Epic 20 and Epic 21 are complete.
 
 Completed planning history is archived here:
 
@@ -400,7 +401,7 @@ Acceptance Criteria:
 
 ## Epic 20: SceneCanvas 缩放视口
 
-Status: in-progress.
+Status: done.
 
 Desktop/Tablet 编辑工作台的中央 SceneCanvas 支持用户通过鼠标滚轮和 macOS 触控板缩放手势调整 zoom。最小 zoom 完整显示画布长边；最大 zoom 在默认 17x17 场景中约显示 6x6 格；放大后超出编辑区域的内容被 viewport 隐藏，不撑开页面或侧栏。该能力是 web UI-only view state，不改变 `SceneDocument v1`、PSE 字符串、scene autosave/saved payload、export summary、scene-core placement/occupancy/stacking 规则或 Cloudflare deployment 边界。
 
@@ -421,7 +422,7 @@ Acceptance Criteria:
 
 ### Story 20.2: SceneCanvas Zoom Viewport 与输入手势
 
-Status: ready-for-dev.
+Status: done.
 
 As a desktop/tablet 编辑用户, I want 用鼠标滚轮或 macOS 触控板缩放编辑区, So that 我可以在完整画布和局部 6x6 细节之间切换。
 
@@ -437,7 +438,7 @@ Acceptance Criteria:
 
 ### Story 20.3: Zoom 回归测试与浏览器布局验证
 
-Status: ready-for-dev.
+Status: done.
 
 As a 维护者, I want SceneCanvas zoom 有 focused tests 和 viewport smoke, So that 缩放不会破坏编辑、布局、导出或 mobile preview 边界。
 
@@ -448,3 +449,76 @@ Acceptance Criteria:
 - Playwright 覆盖 1280x720 desktop 和 1024x768 tablet：min zoom 全长边可见、max zoom 约 6x6、超出内容隐藏、无面板重叠、页面无横向滚动。
 - Mobile 390x844 smoke 继续证明不渲染 desktop workbench / SceneCanvas zoom viewport。
 - 验证命令至少包含 web focused tests、web typecheck、web build 和 desktop/tablet/mobile smoke。
+
+## Epic 21: SceneCanvas 矩形填充与清空
+
+Status: done.
+
+Desktop/Tablet 编辑工作台的中央 SceneCanvas 支持右键矩形清空和锁定素材状态下的左键矩形填充。该能力延续 Epic 20 zoom/pan viewport：没有锁定素材时左键拖动继续拖动画布；锁定素材但按下位置不是格子时也拖动画布。矩形编辑只改变最终 scene material instances，不保存拖拽状态、预览状态或 nearest-cell 计算结果，不改变 `SceneDocument v1`、PSE 字符串、scene autosave/saved payload、export summary、asset catalog 或 scene-core 持久契约。
+
+### Story 21.1: Course Correction 同步与矩形编辑契约
+
+Status: done.
+
+As a 维护者, I want PRD、UX、Architecture、Epics 和 sprint-status 明确 SceneCanvas 矩形编辑边界, So that 后续实现不会把拖拽预览状态误写入 SceneDocument 或破坏 zoom/pan。
+
+Acceptance Criteria:
+
+- PRD 新增 2026-06-07 SceneCanvas 矩形填充与清空 course correction、FR144-FR149 和 NFR73-NFR76。
+- UX Design Specification 新增 right-drag clear、locked left-drag fill、pan fallback、nearest-cell release 和 rectangle preview 交互规格。
+- Architecture 新增 SceneCanvas gesture state、AppShell callbacks、bulk command layer 和 tests responsibility。
+- Epics 新增 Epic 21 和 stories。
+- sprint-status 新增 Epic 21 tracker entries。
+- 明确本次不改 `SceneDocument v1`、PSE string、scene autosave/saved payload、export summary、asset catalog 或 scene-core 持久契约。
+
+### Story 21.2: SceneCanvas 矩形手势状态与预览
+
+Status: done.
+
+As a desktop/tablet 编辑用户, I want SceneCanvas 能区分右键矩形清空、锁定素材左键矩形填充和普通拖动画布, So that 我可以批量编辑格子，同时仍能平移放大后的画布。
+
+Acceptance Criteria:
+
+- 从格子右键按下并拖动进入 rectangle-clear state；拖动中显示矩形清空预览。
+- 在锁定素材状态下，从格子左键按下并拖动进入 rectangle-fill state；拖动中显示矩形填充预览。
+- 没有锁定素材时，编辑区内左键拖动始终进入 canvas pan state，不触发矩形填充。
+- 锁定素材但左键按下目标不是格子时，进入 canvas pan state，不触发矩形填充。
+- 单格左键点击、单格右键清空、cell hover、cell focus、keyboard selection 和 zoom/pan reset 行为不回退。
+- 矩形编辑状态下松开位置不是格子时，使用 nearest-cell helper 得到终点并触发对应 callback。
+- Rectangle preview 在 zoom/pan 后仍覆盖正确 cell range，不撑开 `.canvas-stage`，不产生页面横向滚动。
+- read-only/mobile 不进入 rectangle-fill 或 rectangle-clear state。
+
+### Story 21.3: 矩形填充与清空 Command Layer
+
+Status: done.
+
+As a desktop/tablet 编辑用户, I want 矩形手势完成后能可靠批量清空或填充当前建筑层素材, So that 我不用逐格重复操作。
+
+Acceptance Criteria:
+
+- 新增 bulk command helper，支持 normalized inclusive rectangle input。
+- 矩形清空只作用于当前编辑建筑层；其他层素材、层备注、scene fields、skillMarkers 和 UI preferences 不改变。
+- 矩形清空按 effective footprint intersection 命中素材实例；同一个多格实例只删除一次。
+- 矩形填充只在锁定素材状态下执行；使用当前 selected asset、placement rotation、requiresSkill 默认值和新的 instance ids。
+- 矩形填充逐格复用现有 placement/footprint/stacking validation，合法位置成功放置，blocked 或 replacement-confirmation-required 位置跳过并计数。
+- 矩形填充不隐式确认替换已有素材；用户需要覆盖时可先矩形清空再矩形填充。
+- 批量命令成功后更新 `metadata.updatedAt`，设置合理的 `workspaceState.selectedCoordinate`，并通过现有 autosave effect 保存。
+- 批量命令 read-only 时 no-op/failure，不修改 scene。
+- AppShell 执行后显示 placed/cleared/skipped summary，并清理过期 placement feedback。
+
+### Story 21.4: 矩形编辑回归测试与浏览器验证
+
+Status: done.
+
+As a 维护者, I want 矩形编辑有 focused tests 和 browser smoke, So that 它不会破坏单格编辑、缩放平移、autosave 或 mobile preview。
+
+Acceptance Criteria:
+
+- SceneCanvas component tests 覆盖 right-drag clear callback、locked left-drag fill callback、no-locked left-drag pan、locked non-cell left-drag pan、nearest-cell release 和 zoom/pan 后坐标映射。
+- Bulk command tests 覆盖 rectangle normalization、multi-cell footprint delete de-dupe、current-level-only clear、fill row-major、blocked skipped、replacement skipped、read-only no-op 和 metadata update。
+- AppShell tests 覆盖矩形清空/填充触发 scene mutation 和 autosave，不写 UI preferences、PSE string 或 export summary，不清除 continuous selected asset。
+- Existing SceneCanvas zoom tests、single click placement/delete tests、asset placement tests、mobile preview/import tests 继续通过。
+- Playwright desktop 1280x720 覆盖 zoom 后矩形填充和矩形清空。
+- Playwright tablet 1024x768 覆盖 nearest-cell release 和 pan fallback。
+- Playwright mobile 390x844 继续证明不渲染 desktop workbench / SceneCanvas rectangle edit surface。
+- 验证命令至少包含 focused web tests、web typecheck、web build 和 focused Playwright smoke。
