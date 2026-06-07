@@ -140,7 +140,7 @@ describe('SceneCanvas', () => {
     expect(screen.getAllByTestId('scene-cell').every((cell) => cell.dataset.editable === 'true')).toBe(true);
   });
 
-  it('sizes rectangular canvases from the longest side so cells stay square', () => {
+  it('sizes portrait rectangular canvases so the long side fills the viewport height', () => {
     const dimensions = createSceneDimensionsForCanvasSize({ width: 6, height: 20 });
     const rectangularScene = {
       ...scene,
@@ -159,10 +159,36 @@ describe('SceneCanvas', () => {
       '--scene-canvas-rows': '20',
       '--scene-canvas-max-side': '20',
       '--scene-canvas-aspect-ratio': '6 / 20',
-      '--scene-canvas-width-large': 'calc(min(100cqw, 100cqh) * 0.3)',
-      '--scene-canvas-height-large': 'calc(min(100cqw, 100cqh) * 1)',
+      '--scene-canvas-width-large': 'calc(min(100cqw, 30cqh) * 1)',
+      '--scene-canvas-height-large': 'calc(min(333.3333cqw, 100cqh) * 1)',
       '--scene-canvas-width-medium': 'min(30%, 186px)',
       '--scene-canvas-width-mobile': 'min(30%, 27.6vw)',
+    });
+  });
+
+  it('sizes landscape rectangular canvases so the long side fills the viewport width', () => {
+    const dimensions = createSceneDimensionsForCanvasSize({ width: 20, height: 6 });
+    const rectangularScene = {
+      ...scene,
+      sceneSize: dimensions.sceneSize,
+      canvasSize: dimensions.canvasSize,
+      outerPadding: dimensions.outerPadding,
+    };
+
+    render(<SceneCanvas {...createSceneCanvasProps(rectangularScene)} readOnly={false} />);
+
+    const canvas = screen.getByTestId('scene-canvas');
+    expect(screen.getByRole('grid', { name: '20x6 canvas with main and outer regions' })).toBeVisible();
+    expect(screen.getAllByTestId('scene-cell')).toHaveLength(120);
+    expect(canvas).toHaveStyle({
+      '--scene-canvas-columns': '20',
+      '--scene-canvas-rows': '6',
+      '--scene-canvas-max-side': '20',
+      '--scene-canvas-aspect-ratio': '20 / 6',
+      '--scene-canvas-width-large': 'calc(min(100cqw, 333.3333cqh) * 1)',
+      '--scene-canvas-height-large': 'calc(min(30cqw, 100cqh) * 1)',
+      '--scene-canvas-width-medium': 'min(100%, 620px)',
+      '--scene-canvas-width-mobile': 'min(100%, 92vw)',
     });
   });
 

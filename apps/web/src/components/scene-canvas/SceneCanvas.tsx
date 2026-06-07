@@ -57,8 +57,8 @@ export function SceneCanvas({
   onFocusCoordinate,
 }: SceneCanvasProps) {
   const maxCanvasSide = Math.max(canvasSize.width, canvasSize.height);
+  const canvasAspectScale = canvasSize.width / canvasSize.height;
   const canvasInlineScale = canvasSize.width / maxCanvasSide;
-  const canvasBlockScale = canvasSize.height / maxCanvasSide;
   const maxZoomScale = getMaxSceneCanvasZoomScale(canvasSize);
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomOrigin, setZoomOrigin] = useState<SceneCanvasZoomOrigin>({ x: 50, y: 50 });
@@ -75,12 +75,12 @@ export function SceneCanvas({
     '--scene-canvas-rows': canvasSize.height,
     '--scene-canvas-max-side': maxCanvasSide,
     '--scene-canvas-aspect-ratio': `${canvasSize.width} / ${canvasSize.height}`,
-    '--scene-canvas-width-large': createViewportShortSideCanvasWidth(canvasInlineScale),
-    '--scene-canvas-height-large': createViewportShortSideCanvasWidth(canvasBlockScale),
+    '--scene-canvas-width-large': createViewportContainedCanvasWidth(canvasAspectScale, 1),
+    '--scene-canvas-height-large': createViewportContainedCanvasHeight(canvasAspectScale, 1),
     '--scene-canvas-width-medium': createScaledCanvasWidth(canvasInlineScale, 100, '%', 620, 'px'),
     '--scene-canvas-width-mobile': createScaledCanvasWidth(canvasInlineScale, 100, '%', 92, 'vw'),
-    '--scene-canvas-render-width-large': createViewportShortSideCanvasWidth(canvasInlineScale * zoomScale),
-    '--scene-canvas-render-height-large': createViewportShortSideCanvasWidth(canvasBlockScale * zoomScale),
+    '--scene-canvas-render-width-large': createViewportContainedCanvasWidth(canvasAspectScale, zoomScale),
+    '--scene-canvas-render-height-large': createViewportContainedCanvasHeight(canvasAspectScale, zoomScale),
     '--scene-canvas-render-width-medium': createScaledCanvasWidth(canvasInlineScale * zoomScale, 100, '%', 620, 'px'),
     '--scene-canvas-render-width-mobile': createScaledCanvasWidth(canvasInlineScale * zoomScale, 100, '%', 92, 'vw'),
     '--scene-canvas-zoom-scale': formatSceneCanvasZoomScale(zoomScale),
@@ -816,8 +816,12 @@ function createScaledCanvasWidth(
   return `min(${terms.join(', ')})`;
 }
 
-function createViewportShortSideCanvasWidth(scale: number): string {
-  return `calc(min(100cqw, 100cqh) * ${formatScaledDimension(1, scale)})`;
+function createViewportContainedCanvasWidth(aspectScale: number, zoomScale: number): string {
+  return `calc(min(100cqw, ${formatScaledDimension(100, aspectScale)}cqh) * ${formatScaledDimension(1, zoomScale)})`;
+}
+
+function createViewportContainedCanvasHeight(aspectScale: number, zoomScale: number): string {
+  return `calc(min(${formatScaledDimension(100, 1 / aspectScale)}cqw, 100cqh) * ${formatScaledDimension(1, zoomScale)})`;
 }
 
 function formatScaledDimension(value: number, scale: number): string {
