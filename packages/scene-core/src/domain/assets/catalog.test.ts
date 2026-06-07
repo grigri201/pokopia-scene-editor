@@ -126,6 +126,7 @@ describe('asset catalog', () => {
     expect(getAssetById('wooden-bench')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
     expect(getAssetById('curved-eave')?.footprint).toEqual({ length: 2, width: 1, height: 1 });
     expect(getAssetById('cart')?.footprint).toEqual({ length: 1, width: 3, height: 1 });
+    expect(getAssetById('wheelbarrow')?.footprint).toEqual({ length: 1, width: 3, height: 1 });
     expect(getAssetById('canoe')?.footprint).toEqual({ length: 2, width: 1, height: 1 });
     expect(getAssetById('vending-machine')?.footprint).toEqual({ length: 2, width: 1, height: 2 });
     expect(getAssetById('firepit')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
