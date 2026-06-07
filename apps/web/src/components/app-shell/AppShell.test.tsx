@@ -59,14 +59,36 @@ describe('AppShell scene storage integration', () => {
 
     const dialog = screen.getByRole('dialog', { name: '快速说明' });
 
-    expect(within(dialog).getByText('这里可以新增层和选中层。')).toBeVisible();
-    expect(within(dialog).getByText('单击选中素材，双击锁定可以多次放置。')).toBeVisible();
-    expect(within(dialog).getByText('这里可以修改布景和选择当前宝可梦。')).toBeVisible();
-    expect(document.querySelectorAll('.help-guide-spotlight')).toHaveLength(3);
-    expect(document.querySelectorAll('.help-guide-arrow')).toHaveLength(3);
-    expect(within(dialog).queryByRole('button', { name: '下一步' })).not.toBeInTheDocument();
+    expect(within(dialog).getByText('左侧：功能、布景和建筑层')).toBeVisible();
+    expect(within(dialog).getByText('下载预览从顶部按钮进入；文件菜单里可以导出/导入字符串，也可以重置。')).toBeVisible();
+    expect(within(dialog).getByText('在布景设置里调整画布宽度和高度。')).toBeVisible();
+    expect(within(dialog).getByText('建筑层支持新增、选中当前层，并通过拖动整行排序。')).toBeVisible();
+    expect(within(dialog).queryByText('右侧：素材选择区和背包')).not.toBeInTheDocument();
+    expect(document.querySelectorAll('.help-guide-spotlight')).toHaveLength(1);
+    expect(document.querySelectorAll('.help-guide-arrow')).toHaveLength(1);
+    expect(within(dialog).queryByRole('button', { name: '明白了！' })).not.toBeInTheDocument();
 
+    fireEvent.click(within(dialog).getByRole('button', { name: '下一步' }));
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+    expect(within(dialog).getByText('右侧：素材选择区和背包')).toBeVisible();
+    expect(within(dialog).getByText('单击选中素材，双击锁定连续放置；类型筛选可以快速缩小结果。')).toBeVisible();
+    expect(within(dialog).getByText('把素材拖进背包后可随时快速取用，背包可以展开或收起。')).toBeVisible();
+    expect(within(dialog).queryByText('中间：编辑区域')).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '下一步' }));
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+    expect(within(dialog).getByText('中间：编辑区域')).toBeVisible();
+    expect(within(dialog).getByText('拖动画布查看大场景，滚轮或触控板可缩放。')).toBeVisible();
+    expect(within(dialog).getByText('锁定素材后左键拖动可矩形填充，右键拖动可批量清空/删除。')).toBeVisible();
+    expect(within(dialog).queryByText('底部：技能和备注')).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '下一步' }));
+    expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
+    expect(within(dialog).getByText('底部：技能和备注')).toBeVisible();
+    expect(within(dialog).getByText('为当前格子或素材设置需要的技能标记。')).toBeVisible();
+    expect(within(dialog).getByText('在当前建筑层添加、编辑或删除备注。')).toBeVisible();
     expect(within(dialog).queryByRole('button', { name: '关闭说明' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: '下一步' })).not.toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole('button', { name: '明白了！' }));
 
@@ -134,11 +156,27 @@ describe('AppShell scene storage integration', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Quick guide' });
 
-    expect(within(dialog).getByText('Use the building layers panel to add a new layer or select the active layer.')).toBeVisible();
-    expect(within(dialog).getByText('Click an asset to select it, or double-click to lock it for repeated placement.')).toBeVisible();
-    expect(within(dialog).getByText('Use the upper-left controls to choose another Pokemon or rename the scene.')).toBeVisible();
+    expect(within(dialog).getByText('Left: actions, scene, and layers')).toBeVisible();
+    expect(within(dialog).getByText('Use the top download preview button; export/import strings or reset from the file menu.')).toBeVisible();
+    expect(within(dialog).getByText('Adjust canvas width and height in the scene settings.')).toBeVisible();
+    expect(within(dialog).getByText('Add building layers, select the active layer, and drag whole rows to reorder them.')).toBeVisible();
+    expect(within(dialog).getByRole('button', { name: 'Next' })).toBeVisible();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
+    expect(within(dialog).getByText('Right: assets and backpack')).toBeVisible();
+    expect(within(dialog).getByText('Click to select an asset, double-click to lock repeated placement, and narrow results with type filters.')).toBeVisible();
+    expect(within(dialog).getByText('Drag assets into the backpack for quick access, then expand or collapse it as needed.')).toBeVisible();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
+    expect(within(dialog).getByText('Center: editing canvas')).toBeVisible();
+    expect(within(dialog).getByText('Drag the canvas to move around large scenes, and zoom with the wheel or trackpad.')).toBeVisible();
+    expect(within(dialog).getByText('With a locked asset, left-drag to fill a rectangle; right-drag to bulk clear/delete.')).toBeVisible();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
+    expect(within(dialog).getByText('Bottom: skills and notes')).toBeVisible();
+    expect(within(dialog).getByText('Set the required skill marker for the current cell or asset.')).toBeVisible();
+    expect(within(dialog).getByText('Add, edit, or delete notes on the current building layer.')).toBeVisible();
     expect(within(dialog).getByRole('button', { name: 'Got it!' })).toBeVisible();
-    expect(within(dialog).queryByRole('button', { name: 'Next' })).not.toBeInTheDocument();
   });
 
   it('autosaves the editable Open Design scene and restores it after remount', async () => {
@@ -861,7 +899,7 @@ describe('AppShell scene storage integration', () => {
 
   it('keeps drag preview out of storage and autosaves committed building layer reorder', async () => {
     const { unmount } = render(<AppShell />);
-    fireEvent.click(screen.getByRole('button', { name: '明白了！' }));
+    dismissHelpOverlayIfVisible();
 
     fireEvent.click(screen.getByRole('button', { name: '新建层' }));
     await waitFor(() => {
@@ -932,10 +970,7 @@ describe('AppShell scene storage integration', () => {
 
     unmount();
     render(<AppShell />);
-    const helpDismissButton = screen.queryByRole('button', { name: '明白了！' });
-    if (helpDismissButton) {
-      fireEvent.click(helpDismissButton);
-    }
+    dismissHelpOverlayIfVisible();
 
     await waitFor(() => {
       expect(screen.getAllByTestId('building-level-row').map((row) => row.getAttribute('aria-label'))).toEqual([
@@ -948,7 +983,7 @@ describe('AppShell scene storage integration', () => {
 
   it('does not write storage for canceled or same-order building layer drag', () => {
     render(<AppShell />);
-    fireEvent.click(screen.getByRole('button', { name: '明白了！' }));
+    dismissHelpOverlayIfVisible();
 
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
@@ -3405,6 +3440,24 @@ function mockBuildingLevelRowRects(): void {
       toJSON: () => ({}),
     }));
   });
+}
+
+function dismissHelpOverlayIfVisible(): void {
+  const dialog = screen.queryByRole('dialog', { name: /快速说明|Quick guide/ });
+  if (!dialog) {
+    return;
+  }
+
+  let nextButton = within(dialog).queryByRole('button', { name: /下一步|Next/ });
+  while (nextButton) {
+    fireEvent.click(nextButton);
+    nextButton = within(dialog).queryByRole('button', { name: /下一步|Next/ });
+  }
+
+  const confirmButton = within(dialog).queryByRole('button', { name: /明白了！|Got it!/ });
+  if (confirmButton) {
+    fireEvent.click(confirmButton);
+  }
 }
 
 function openFileActionsMenu(): HTMLElement {

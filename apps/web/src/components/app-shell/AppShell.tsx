@@ -196,6 +196,7 @@ export function AppShell() {
       initialViewportWidth >= helpOverlayMinimumWidth &&
       !initialUiPreferences.helpOverlayDismissed,
   );
+  const [helpGuideStepIndex, setHelpGuideStepIndex] = useState(0);
   const [helpGuideSnapshot, setHelpGuideSnapshot] = useState<HelpGuideSnapshot | null>(null);
   const helpOverlayAutoHandledRef = useRef(
     initialUiPreferences.helpOverlayDismissed ||
@@ -225,6 +226,10 @@ export function AppShell() {
   };
   const toastStackVisible = recoveryStatus !== 'idle' || notificationToasts.length > 0;
   const helpGuideLayouts = helpGuideSnapshot ? getHelpGuideLayouts(helpGuideSnapshot) : {};
+  const activeHelpGuideStepIndex = Math.min(helpGuideStepIndex, helpGuideTargets.length - 1);
+  const activeHelpGuideTarget = helpGuideTargets[activeHelpGuideStepIndex] ?? helpGuideTargets[0];
+  const visibleHelpGuideTargets = [activeHelpGuideTarget];
+  const isFinalHelpGuideStep = activeHelpGuideStepIndex === helpGuideTargets.length - 1;
   const activeBuildingLevelId = isReadOnly
     ? readOnlyViewingLevelId ?? scene.workspaceState.currentBuildingLevelId
     : scene.workspaceState.currentBuildingLevelId;
@@ -1819,12 +1824,18 @@ export function AppShell() {
       return;
     }
 
+    setHelpGuideStepIndex(0);
     setHelpOverlayOpen(true);
+  };
+
+  const advanceHelpOverlay = () => {
+    setHelpGuideStepIndex((currentStepIndex) => Math.min(currentStepIndex + 1, helpGuideTargets.length - 1));
   };
 
   const closeHelpOverlay = () => {
     helpOverlayAutoHandledRef.current = true;
     setHelpOverlayOpen(false);
+    setHelpGuideStepIndex(0);
     writeHelpOverlayDismissedPreferenceToStorage(getUiPreferencesStorage());
   };
 
@@ -2024,7 +2035,8 @@ export function AppShell() {
       {helpOverlayVisible && helpGuideSnapshot ? (
         <div
           className="help-guide-backdrop"
-          data-guide-step="single-page"
+          data-guide-step={activeHelpGuideTarget.key}
+          data-guide-step-index={activeHelpGuideStepIndex + 1}
           role="dialog"
           aria-modal="true"
           aria-label={t(locale, 'helpOverlayTitle')}
@@ -2044,7 +2056,7 @@ export function AppShell() {
                   height={helpGuideSnapshot.viewportHeight}
                   fill="white"
                 />
-                {helpGuideTargets.map((target) => {
+                {visibleHelpGuideTargets.map((target) => {
                   const targetRect = helpGuideSnapshot.targets[target.key];
                   if (!targetRect) {
                     return null;
@@ -2085,7 +2097,7 @@ export function AppShell() {
               className="help-guide-scrim"
               mask="url(#help-guide-mask)"
             />
-            {helpGuideTargets.map((target) => {
+            {visibleHelpGuideTargets.map((target) => {
               const targetRect = helpGuideSnapshot.targets[target.key];
               if (!targetRect) {
                 return null;
@@ -2105,7 +2117,7 @@ export function AppShell() {
                 />
               );
             })}
-            {helpGuideTargets.map((target) => {
+            {visibleHelpGuideTargets.map((target) => {
               const layout = helpGuideLayouts[target.key];
               if (!layout) {
                 return null;
@@ -2121,7 +2133,7 @@ export function AppShell() {
               );
             })}
           </svg>
-          {helpGuideTargets.map((target) => {
+          {visibleHelpGuideTargets.map((target) => {
             const layout = helpGuideLayouts[target.key];
             if (!layout) {
               return null;
@@ -2134,17 +2146,22 @@ export function AppShell() {
                 data-guide-target={target.key}
                 style={layout.noteStyle}
               >
-                <span>{t(locale, target.messageKey)}</span>
+                <span className="help-guide-note__title">{t(locale, target.titleKey)}</span>
+                <ul>
+                  {target.messageKeys.map((messageKey) => (
+                    <li key={messageKey}>{t(locale, messageKey)}</li>
+                  ))}
+                </ul>
               </div>
             );
           })}
           <button
             type="button"
             className="help-guide-confirm"
-            title={t(locale, 'closeHelpOverlay')}
-            onClick={closeHelpOverlay}
+            title={isFinalHelpGuideStep ? t(locale, 'closeHelpOverlay') : t(locale, 'helpOverlayNext')}
+            onClick={isFinalHelpGuideStep ? closeHelpOverlay : advanceHelpOverlay}
           >
-            {t(locale, 'helpOverlayConfirm')}
+            {t(locale, isFinalHelpGuideStep ? 'helpOverlayConfirm' : 'helpOverlayNext')}
           </button>
         </div>
       ) : null}

@@ -1,15 +1,14 @@
 import type { CSSProperties } from 'react';
+import type { MessageKey } from '../../i18n';
 
-export type HelpGuideTargetKey = 'layers' | 'assets' | 'scene-controls';
+export type HelpGuideTargetKey = 'left-workbench' | 'assets-backpack' | 'canvas-editing' | 'skills-notes';
 
 export interface HelpGuideTarget {
   key: HelpGuideTargetKey;
   selector: string;
   arrowSelector: string;
-  messageKey:
-    | 'helpOverlayLayers'
-    | 'helpOverlayAssets'
-    | 'helpOverlaySceneControls';
+  titleKey: MessageKey;
+  messageKeys: readonly MessageKey[];
 }
 
 export interface HelpGuideRect {
@@ -33,22 +32,45 @@ interface HelpGuideLayout {
 
 export const helpGuideTargets: HelpGuideTarget[] = [
   {
-    key: 'layers',
-    selector: '.level-panel',
-    arrowSelector: '.level-row--current input',
-    messageKey: 'helpOverlayLayers',
+    key: 'left-workbench',
+    selector: '.workbench-left',
+    arrowSelector: '.scene-controls',
+    titleKey: 'helpOverlayLeftTitle',
+    messageKeys: [
+      'helpOverlayLeftActions',
+      'helpOverlayLeftSceneSize',
+      'helpOverlayLeftLayers',
+    ],
   },
   {
-    key: 'assets',
-    selector: '.asset-picker .asset-row:first-of-type .asset-select-button',
-    arrowSelector: '.asset-picker .asset-row:first-of-type .asset-select-button',
-    messageKey: 'helpOverlayAssets',
+    key: 'assets-backpack',
+    selector: '.asset-sidebar',
+    arrowSelector: '.asset-staging',
+    titleKey: 'helpOverlayAssetsTitle',
+    messageKeys: [
+      'helpOverlayAssetsSelect',
+      'helpOverlayAssetsBackpack',
+    ],
   },
   {
-    key: 'scene-controls',
-    selector: '.scene-controls',
-    arrowSelector: '.scene-controls input',
-    messageKey: 'helpOverlaySceneControls',
+    key: 'canvas-editing',
+    selector: '.canvas-stage',
+    arrowSelector: '.scene-canvas-viewport',
+    titleKey: 'helpOverlayCanvasTitle',
+    messageKeys: [
+      'helpOverlayCanvasMoveZoom',
+      'helpOverlayCanvasRectangle',
+    ],
+  },
+  {
+    key: 'skills-notes',
+    selector: '.canvas-bottom-panels',
+    arrowSelector: '.selection-inspector',
+    titleKey: 'helpOverlayBottomTitle',
+    messageKeys: [
+      'helpOverlayBottomSkills',
+      'helpOverlayBottomNotes',
+    ],
   },
 ];
 
@@ -83,26 +105,35 @@ function getHelpGuideLayout(
   const viewportWidth = snapshot.viewportWidth;
   const viewportHeight = snapshot.viewportHeight;
   const noteWidth =
-    targetKey === 'assets' ? Math.min(400, viewportWidth - 36) : Math.min(330, viewportWidth - 36);
-  const noteHeight = 58;
+    targetKey === 'left-workbench'
+      ? Math.min(312, viewportWidth - 36)
+      : targetKey === 'assets-backpack'
+        ? Math.min(260, viewportWidth - 36)
+        : Math.min(360, viewportWidth - 36);
+  const noteHeight = targetKey === 'left-workbench' ? 162 : 138;
   const viewportPadding = 18;
   const targetPoint = getHelpGuideTargetPoint(arrowTargetRect, targetKey);
   let noteLeft = targetPoint.x - noteWidth / 2;
   let noteTop = targetRect.top + targetRect.height + 26;
 
-  if (targetKey === 'layers') {
-    noteLeft = targetRect.left + targetRect.width + 116;
-    noteTop = targetRect.top + 128;
+  if (targetKey === 'left-workbench') {
+    noteLeft = targetRect.left + 16;
+    noteTop = targetRect.top + targetRect.height - noteHeight - 28;
   }
 
-  if (targetKey === 'assets') {
-    noteLeft = targetRect.left - noteWidth - 116;
-    noteTop = targetRect.top + 172;
+  if (targetKey === 'assets-backpack') {
+    noteLeft = targetRect.left + Math.max(12, targetRect.width - noteWidth - 16);
+    noteTop = targetRect.top + 18;
   }
 
-  if (targetKey === 'scene-controls') {
-    noteLeft = targetRect.left + targetRect.width + 116;
-    noteTop = targetRect.top + 8;
+  if (targetKey === 'canvas-editing') {
+    noteLeft = targetRect.left + 24;
+    noteTop = targetRect.top + 28;
+  }
+
+  if (targetKey === 'skills-notes') {
+    noteLeft = targetRect.left + Math.min(24, targetRect.width * 0.12);
+    noteTop = targetRect.top - noteHeight - 18;
   }
 
   noteLeft = clamp(noteLeft, viewportPadding, viewportWidth - noteWidth - viewportPadding);
@@ -145,7 +176,7 @@ function getHelpGuideNoteArrowAnchorX(
 }
 
 function getHelpGuideRightArrowAnchorX(targetKey: HelpGuideTargetKey, noteWidth: number): number {
-  if (targetKey === 'assets') {
+  if (targetKey === 'assets-backpack') {
     return Math.min(noteWidth - 8, 292);
   }
 
@@ -232,17 +263,31 @@ function getHelpGuideTargetPoint(
   targetRect: HelpGuideRect,
   targetKey: HelpGuideTargetKey,
 ): { x: number; y: number } {
-  if (targetKey === 'layers') {
+  if (targetKey === 'left-workbench') {
     return {
       x: targetRect.left + targetRect.width * 0.48,
       y: targetRect.top + Math.min(116, targetRect.height * 0.38),
     };
   }
 
-  if (targetKey === 'assets') {
+  if (targetKey === 'assets-backpack') {
     return {
       x: targetRect.left + targetRect.width * 0.5,
-      y: targetRect.top + Math.min(210, targetRect.height * 0.34),
+      y: targetRect.top + Math.min(72, targetRect.height * 0.22),
+    };
+  }
+
+  if (targetKey === 'canvas-editing') {
+    return {
+      x: targetRect.left + targetRect.width * 0.55,
+      y: targetRect.top + targetRect.height * 0.5,
+    };
+  }
+
+  if (targetKey === 'skills-notes') {
+    return {
+      x: targetRect.left + targetRect.width * 0.5,
+      y: targetRect.top + targetRect.height * 0.4,
     };
   }
 
