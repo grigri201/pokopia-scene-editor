@@ -1088,6 +1088,10 @@ describe('SceneCanvas', () => {
     expect(ghost).toHaveAttribute('data-effective-footprint', formatFootprint(benchInstance.effectiveFootprint));
     expect(ghost).toHaveAttribute('data-rotation', '90');
     expect(ghost).toHaveAttribute('data-dye-color', '#56ccf2');
+    expect(ghost).toHaveStyle({
+      gridColumn: '3 / span 2',
+      gridRow: '4 / span 1',
+    });
     expect(ghost).toHaveStyle({ '--lower-layer-ghost-rotation': '90deg' });
     expect(ghost.querySelectorAll('img')).toHaveLength(1);
     expect(ghost.querySelector('.scene-lower-layer-ghost__rotation')).toHaveAttribute(

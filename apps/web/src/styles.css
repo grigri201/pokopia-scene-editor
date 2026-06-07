@@ -2210,8 +2210,6 @@ button:disabled {
   box-shadow: var(--scene-material-frame-shadow);
   opacity: 0.3;
   object-fit: contain;
-  transform: rotate(var(--lower-layer-ghost-rotation));
-  transform-origin: center;
 }
 
 .scene-lower-layer-ghost__rotation,
