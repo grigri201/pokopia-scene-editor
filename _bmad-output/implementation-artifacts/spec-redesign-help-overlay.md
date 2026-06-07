@@ -29,7 +29,7 @@ context:
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| Desktop first open | 1280px+ editable workbench with no dismissal preference | Help overlay opens on step 1 with separate callout sentences/arrows for download, file actions, scene size, and building layers | If a target is missing, omit only that target instead of crashing |
+| Desktop first open | 1280px+ editable workbench with no dismissal preference | Help overlay opens on step 1 with separate callout sentences/arrows for download, file actions, scene size, add-layer, and layer select/sort | If a target is missing, omit only that target instead of crashing |
 | Step advance | User clicks Next on steps 1-3 | Overlay advances to the next region, preserving per-control callouts and arrows, without closing or writing dismissal preference | No scene, autosave, saved scene, or staging storage writes |
 | Dismiss | User clicks the final confirmation button on step 4 | Overlay closes and only `helpOverlayDismissed` is persisted in UI preferences | No scene, autosave, saved scene, or staging storage writes |
 | Reopen | User dismissed previously, then clicks the header help button | Walkthrough starts again from step 1 | No duplicate preference writes until final confirmation |
@@ -73,7 +73,7 @@ Use the existing overlay shell rather than a new onboarding system. The four req
 - `pnpm --filter @pokopia-scene-editor/web test -- src/components/app-shell/AppShell.test.tsx` -- passed, 342 tests.
 - `pnpm --filter @pokopia-scene-editor/web typecheck` -- passed.
 - `git diff --check` -- passed.
-- Browser check at `http://127.0.0.1:5173/` -- passed: overlay advances through four steps at 1280px desktop with 4/3/2/2 notes, spotlights, and arrows by step; no note/button/spotlight overlaps detected.
+- Browser check at `http://127.0.0.1:5173/` -- passed: overlay advances through four steps at 1280px desktop with 5/3/2/2 notes, spotlights, and arrows by step; no note/button/spotlight overlaps detected.
 
 ## Suggested Review Order
 

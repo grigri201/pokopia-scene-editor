@@ -7,7 +7,8 @@ export type HelpGuideCalloutKey =
   | 'header-download'
   | 'header-file-actions'
   | 'scene-size'
-  | 'building-layers'
+  | 'building-layer-create'
+  | 'building-layer-select-sort'
   | 'asset-select'
   | 'asset-filter'
   | 'asset-backpack'
@@ -63,7 +64,7 @@ export const helpGuideSteps: HelpGuideStep[] = [
         selector: '.app-header__actions .app-header-icon-button:not(.file-actions-menu__trigger)',
         messageKey: 'helpOverlayHeaderDownload',
         placement: 'below',
-        noteWidth: 220,
+        noteWidth: 238,
         offsetX: -166,
         offsetY: 10,
       },
@@ -73,7 +74,7 @@ export const helpGuideSteps: HelpGuideStep[] = [
         messageKey: 'helpOverlayHeaderFileActions',
         placement: 'below',
         noteWidth: 250,
-        offsetX: 60,
+        offsetX: 84,
         offsetY: 10,
       },
       {
@@ -85,14 +86,23 @@ export const helpGuideSteps: HelpGuideStep[] = [
         offsetX: 16,
       },
       {
-        key: 'building-layers',
-        selector: '.level-panel',
-        arrowSelector: '.level-row--current',
-        messageKey: 'helpOverlayLeftLayers',
+        key: 'building-layer-create',
+        selector: '.level-create-button',
+        messageKey: 'helpOverlayLeftLayerCreate',
         placement: 'right',
-        noteWidth: 252,
+        noteWidth: 146,
         offsetX: 16,
-        offsetY: 36,
+        offsetY: -6,
+      },
+      {
+        key: 'building-layer-select-sort',
+        selector: '.level-list',
+        arrowSelector: '.level-row--current',
+        messageKey: 'helpOverlayLeftLayerSelectSort',
+        placement: 'right',
+        noteWidth: 226,
+        offsetX: 16,
+        offsetY: 46,
       },
     ],
   },
@@ -143,6 +153,7 @@ export const helpGuideSteps: HelpGuideStep[] = [
       {
         key: 'canvas-rectangle',
         selector: '.scene-canvas',
+        arrowSelector: '.scene-cell[data-coordinate="3,3"]',
         messageKey: 'helpOverlayCanvasRectangle',
         placement: 'inside-bottom',
         noteWidth: 326,
