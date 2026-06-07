@@ -1,14 +1,38 @@
 import type { CSSProperties } from 'react';
 import type { MessageKey } from '../../i18n';
 
-export type HelpGuideTargetKey = 'left-workbench' | 'assets-backpack' | 'canvas-editing' | 'skills-notes';
+export type HelpGuideStepKey = 'left-workbench' | 'assets-backpack' | 'canvas-editing' | 'skills-notes';
 
-export interface HelpGuideTarget {
-  key: HelpGuideTargetKey;
+export type HelpGuideCalloutKey =
+  | 'header-download'
+  | 'header-file-actions'
+  | 'scene-size'
+  | 'building-layers'
+  | 'asset-select'
+  | 'asset-filter'
+  | 'asset-backpack'
+  | 'canvas-pan-zoom'
+  | 'canvas-rectangle'
+  | 'bottom-skills'
+  | 'bottom-notes';
+
+type HelpGuideCalloutPlacement = 'above' | 'below' | 'left' | 'right' | 'inside-top' | 'inside-bottom';
+
+export interface HelpGuideCallout {
+  key: HelpGuideCalloutKey;
   selector: string;
-  arrowSelector: string;
-  titleKey: MessageKey;
-  messageKeys: readonly MessageKey[];
+  arrowSelector?: string;
+  messageKey: MessageKey;
+  placement: HelpGuideCalloutPlacement;
+  noteWidth?: number;
+  noteHeight?: number;
+  offsetX?: number;
+  offsetY?: number;
+}
+
+export interface HelpGuideStep {
+  key: HelpGuideStepKey;
+  callouts: readonly HelpGuideCallout[];
 }
 
 export interface HelpGuideRect {
@@ -21,8 +45,8 @@ export interface HelpGuideRect {
 export interface HelpGuideSnapshot {
   viewportWidth: number;
   viewportHeight: number;
-  targets: Partial<Record<HelpGuideTargetKey, HelpGuideRect>>;
-  arrowTargets: Partial<Record<HelpGuideTargetKey, HelpGuideRect>>;
+  targets: Partial<Record<HelpGuideCalloutKey, HelpGuideRect>>;
+  arrowTargets: Partial<Record<HelpGuideCalloutKey, HelpGuideRect>>;
 }
 
 interface HelpGuideLayout {
@@ -30,64 +54,145 @@ interface HelpGuideLayout {
   arrowPath: string;
 }
 
-export const helpGuideTargets: HelpGuideTarget[] = [
+export const helpGuideSteps: HelpGuideStep[] = [
   {
     key: 'left-workbench',
-    selector: '.workbench-left',
-    arrowSelector: '.scene-controls',
-    titleKey: 'helpOverlayLeftTitle',
-    messageKeys: [
-      'helpOverlayLeftActions',
-      'helpOverlayLeftSceneSize',
-      'helpOverlayLeftLayers',
+    callouts: [
+      {
+        key: 'header-download',
+        selector: '.app-header__actions .app-header-icon-button:not(.file-actions-menu__trigger)',
+        messageKey: 'helpOverlayHeaderDownload',
+        placement: 'below',
+        noteWidth: 220,
+        offsetX: -166,
+        offsetY: 10,
+      },
+      {
+        key: 'header-file-actions',
+        selector: '.file-actions-menu__trigger',
+        messageKey: 'helpOverlayHeaderFileActions',
+        placement: 'below',
+        noteWidth: 250,
+        offsetX: 60,
+        offsetY: 10,
+      },
+      {
+        key: 'scene-size',
+        selector: '.scene-size-control',
+        messageKey: 'helpOverlayLeftSceneSize',
+        placement: 'right',
+        noteWidth: 230,
+        offsetX: 16,
+      },
+      {
+        key: 'building-layers',
+        selector: '.level-panel',
+        arrowSelector: '.level-row--current',
+        messageKey: 'helpOverlayLeftLayers',
+        placement: 'right',
+        noteWidth: 252,
+        offsetX: 16,
+        offsetY: 36,
+      },
     ],
   },
   {
     key: 'assets-backpack',
-    selector: '.asset-sidebar',
-    arrowSelector: '.asset-staging',
-    titleKey: 'helpOverlayAssetsTitle',
-    messageKeys: [
-      'helpOverlayAssetsSelect',
-      'helpOverlayAssetsBackpack',
+    callouts: [
+      {
+        key: 'asset-backpack',
+        selector: '.asset-staging',
+        messageKey: 'helpOverlayAssetsBackpack',
+        placement: 'left',
+        noteWidth: 270,
+        offsetX: -12,
+      },
+      {
+        key: 'asset-filter',
+        selector: '.asset-filter-row',
+        arrowSelector: '.asset-category-select',
+        messageKey: 'helpOverlayAssetsFilter',
+        placement: 'left',
+        noteWidth: 252,
+        offsetX: -12,
+        offsetY: 18,
+      },
+      {
+        key: 'asset-select',
+        selector: '.asset-picker .asset-row:first-of-type .asset-select-button',
+        messageKey: 'helpOverlayAssetsSelect',
+        placement: 'left',
+        noteWidth: 282,
+        offsetX: -12,
+        offsetY: 38,
+      },
     ],
   },
   {
     key: 'canvas-editing',
-    selector: '.canvas-stage',
-    arrowSelector: '.scene-canvas-viewport',
-    titleKey: 'helpOverlayCanvasTitle',
-    messageKeys: [
-      'helpOverlayCanvasMoveZoom',
-      'helpOverlayCanvasRectangle',
+    callouts: [
+      {
+        key: 'canvas-pan-zoom',
+        selector: '.scene-canvas-viewport',
+        messageKey: 'helpOverlayCanvasMoveZoom',
+        placement: 'inside-top',
+        noteWidth: 300,
+        offsetX: 18,
+        offsetY: 16,
+      },
+      {
+        key: 'canvas-rectangle',
+        selector: '.scene-canvas',
+        messageKey: 'helpOverlayCanvasRectangle',
+        placement: 'inside-bottom',
+        noteWidth: 326,
+        offsetX: 18,
+        offsetY: -16,
+      },
     ],
   },
   {
     key: 'skills-notes',
-    selector: '.canvas-bottom-panels',
-    arrowSelector: '.selection-inspector',
-    titleKey: 'helpOverlayBottomTitle',
-    messageKeys: [
-      'helpOverlayBottomSkills',
-      'helpOverlayBottomNotes',
+    callouts: [
+      {
+        key: 'bottom-skills',
+        selector: '.current-selection-bar',
+        arrowSelector: '.current-selection-bar__actions',
+        messageKey: 'helpOverlayBottomSkills',
+        placement: 'above',
+        noteWidth: 300,
+        offsetX: -24,
+        offsetY: -14,
+      },
+      {
+        key: 'bottom-notes',
+        selector: '.layer-note-form',
+        messageKey: 'helpOverlayBottomNotes',
+        placement: 'above',
+        noteWidth: 286,
+        offsetX: 52,
+        offsetY: -14,
+      },
     ],
   },
 ];
 
+export const helpGuideCallouts = helpGuideSteps.flatMap((step) => step.callouts);
+
 export function getHelpGuideLayouts(
   snapshot: HelpGuideSnapshot,
-): Partial<Record<HelpGuideTargetKey, HelpGuideLayout>> {
-  return helpGuideTargets.reduce<Partial<Record<HelpGuideTargetKey, HelpGuideLayout>>>(
-    (layouts, target) => {
-      const targetRect = snapshot.targets[target.key];
+): Partial<Record<HelpGuideCalloutKey, HelpGuideLayout>> {
+  return helpGuideCallouts.reduce<Partial<Record<HelpGuideCalloutKey, HelpGuideLayout>>>(
+    (layouts, callout) => {
+      const targetRect = snapshot.targets[callout.key];
       if (!targetRect) {
         return layouts;
       }
 
-      layouts[target.key] = getHelpGuideLayout(
+      layouts[callout.key] = getHelpGuideLayout(
+        callout,
         targetRect,
-        snapshot.arrowTargets?.[target.key] ?? targetRect,
-        target.key,
+        snapshot.arrowTargets?.[callout.key] ?? targetRect,
         snapshot,
       );
       return layouts;
@@ -97,56 +202,51 @@ export function getHelpGuideLayouts(
 }
 
 function getHelpGuideLayout(
+  callout: HelpGuideCallout,
   targetRect: HelpGuideRect,
   arrowTargetRect: HelpGuideRect,
-  targetKey: HelpGuideTargetKey,
   snapshot: HelpGuideSnapshot,
 ): HelpGuideLayout {
-  const viewportWidth = snapshot.viewportWidth;
-  const viewportHeight = snapshot.viewportHeight;
-  const noteWidth =
-    targetKey === 'left-workbench'
-      ? Math.min(312, viewportWidth - 36)
-      : targetKey === 'assets-backpack'
-        ? Math.min(260, viewportWidth - 36)
-        : Math.min(360, viewportWidth - 36);
-  const noteHeight = targetKey === 'left-workbench' ? 162 : 138;
+  const noteWidth = Math.min(callout.noteWidth ?? 260, snapshot.viewportWidth - 36);
+  const noteHeight = callout.noteHeight ?? 74;
   const viewportPadding = 18;
-  const targetPoint = getHelpGuideTargetPoint(arrowTargetRect, targetKey);
+  const targetPoint = getHelpGuideTargetPoint(arrowTargetRect);
   let noteLeft = targetPoint.x - noteWidth / 2;
-  let noteTop = targetRect.top + targetRect.height + 26;
+  let noteTop = targetPoint.y - noteHeight / 2;
 
-  if (targetKey === 'left-workbench') {
-    noteLeft = targetRect.left + 16;
-    noteTop = targetRect.top + targetRect.height - noteHeight - 28;
-  }
-
-  if (targetKey === 'assets-backpack') {
-    noteLeft = targetRect.left + Math.max(12, targetRect.width - noteWidth - 16);
-    noteTop = targetRect.top + 18;
-  }
-
-  if (targetKey === 'canvas-editing') {
-    noteLeft = targetRect.left + 24;
-    noteTop = targetRect.top + 28;
-  }
-
-  if (targetKey === 'skills-notes') {
-    noteLeft = targetRect.left + Math.min(24, targetRect.width * 0.12);
+  if (callout.placement === 'above') {
     noteTop = targetRect.top - noteHeight - 18;
   }
 
-  noteLeft = clamp(noteLeft, viewportPadding, viewportWidth - noteWidth - viewportPadding);
-  noteTop = clamp(noteTop, viewportPadding, viewportHeight - noteHeight - viewportPadding);
+  if (callout.placement === 'below') {
+    noteTop = targetRect.top + targetRect.height + 18;
+  }
 
-  const noteAnchorX = getHelpGuideNoteArrowAnchorX(targetPoint, targetKey, noteLeft, noteWidth);
-  const noteAnchorY = 32;
-  const anchorX = noteLeft + noteAnchorX;
-  const anchorY = noteTop + noteAnchorY;
-  const targetEdgePoint = getHelpGuideTargetEdgePoint(arrowTargetRect, targetPoint, {
-    x: anchorX,
-    y: anchorY,
-  });
+  if (callout.placement === 'left') {
+    noteLeft = targetRect.left - noteWidth - 18;
+  }
+
+  if (callout.placement === 'right') {
+    noteLeft = targetRect.left + targetRect.width + 18;
+  }
+
+  if (callout.placement === 'inside-top') {
+    noteLeft = targetRect.left + 18;
+    noteTop = targetRect.top + 18;
+  }
+
+  if (callout.placement === 'inside-bottom') {
+    noteLeft = targetRect.left + 18;
+    noteTop = targetRect.top + targetRect.height - noteHeight - 18;
+  }
+
+  noteLeft += callout.offsetX ?? 0;
+  noteTop += callout.offsetY ?? 0;
+  noteLeft = clamp(noteLeft, viewportPadding, snapshot.viewportWidth - noteWidth - viewportPadding);
+  noteTop = clamp(noteTop, viewportPadding, snapshot.viewportHeight - noteHeight - viewportPadding);
+
+  const noteAnchor = getHelpGuideNoteAnchor(targetPoint, noteLeft, noteTop, noteWidth, noteHeight);
+  const targetEdgePoint = getHelpGuideTargetEdgePoint(arrowTargetRect, targetPoint, noteAnchor);
 
   return {
     noteStyle: {
@@ -154,33 +254,21 @@ function getHelpGuideLayout(
       top: `${noteTop}px`,
       width: `${noteWidth}px`,
     },
-    arrowPath: getHelpGuideArrowPath({ x: anchorX, y: anchorY }, targetEdgePoint),
+    arrowPath: getHelpGuideArrowPath(noteAnchor, targetEdgePoint),
   };
 }
 
-function getHelpGuideNoteArrowAnchorX(
+function getHelpGuideNoteAnchor(
   targetPoint: { x: number; y: number },
-  targetKey: HelpGuideTargetKey,
   noteLeft: number,
+  noteTop: number,
   noteWidth: number,
-): number {
-  if (targetPoint.x < noteLeft) {
-    return 8;
-  }
-
-  if (targetPoint.x > noteLeft + noteWidth) {
-    return getHelpGuideRightArrowAnchorX(targetKey, noteWidth);
-  }
-
-  return noteWidth / 2;
-}
-
-function getHelpGuideRightArrowAnchorX(targetKey: HelpGuideTargetKey, noteWidth: number): number {
-  if (targetKey === 'assets-backpack') {
-    return Math.min(noteWidth - 8, 292);
-  }
-
-  return noteWidth - 8;
+  noteHeight: number,
+): { x: number; y: number } {
+  return {
+    x: clamp(targetPoint.x, noteLeft + 8, noteLeft + noteWidth - 8),
+    y: clamp(targetPoint.y, noteTop + 8, noteTop + noteHeight - 8),
+  };
 }
 
 function getHelpGuideArrowPath(
@@ -190,7 +278,7 @@ function getHelpGuideArrowPath(
   const deltaX = endPoint.x - startPoint.x;
   const deltaY = endPoint.y - startPoint.y;
   const distance = Math.max(1, Math.hypot(deltaX, deltaY));
-  const downwardCurveOffset = clamp(distance * 0.32, 34, 96);
+  const downwardCurveOffset = clamp(distance * 0.24, 20, 76);
   const controlPoint = {
     x: startPoint.x + deltaX * 0.5,
     y: Math.max(startPoint.y, endPoint.y) + downwardCurveOffset,
@@ -259,38 +347,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function getHelpGuideTargetPoint(
-  targetRect: HelpGuideRect,
-  targetKey: HelpGuideTargetKey,
-): { x: number; y: number } {
-  if (targetKey === 'left-workbench') {
-    return {
-      x: targetRect.left + targetRect.width * 0.48,
-      y: targetRect.top + Math.min(116, targetRect.height * 0.38),
-    };
-  }
-
-  if (targetKey === 'assets-backpack') {
-    return {
-      x: targetRect.left + targetRect.width * 0.5,
-      y: targetRect.top + Math.min(72, targetRect.height * 0.22),
-    };
-  }
-
-  if (targetKey === 'canvas-editing') {
-    return {
-      x: targetRect.left + targetRect.width * 0.55,
-      y: targetRect.top + targetRect.height * 0.5,
-    };
-  }
-
-  if (targetKey === 'skills-notes') {
-    return {
-      x: targetRect.left + targetRect.width * 0.5,
-      y: targetRect.top + targetRect.height * 0.4,
-    };
-  }
-
+function getHelpGuideTargetPoint(targetRect: HelpGuideRect): { x: number; y: number } {
   return {
     x: targetRect.left + targetRect.width / 2,
     y: targetRect.top + targetRect.height / 2,

@@ -59,34 +59,38 @@ describe('AppShell scene storage integration', () => {
 
     const dialog = screen.getByRole('dialog', { name: '快速说明' });
 
-    expect(within(dialog).getByText('左侧：功能、布景和建筑层')).toBeVisible();
-    expect(within(dialog).getByText('下载预览从顶部按钮进入；文件菜单里可以导出/导入字符串，也可以重置。')).toBeVisible();
-    expect(within(dialog).getByText('在布景设置里调整画布宽度和高度。')).toBeVisible();
-    expect(within(dialog).getByText('建筑层支持新增、选中当前层，并通过拖动整行排序。')).toBeVisible();
-    expect(within(dialog).queryByText('右侧：素材选择区和背包')).not.toBeInTheDocument();
-    expect(document.querySelectorAll('.help-guide-spotlight')).toHaveLength(1);
-    expect(document.querySelectorAll('.help-guide-arrow')).toHaveLength(1);
+    expect(within(dialog).getByText('这个按钮打开下载预览，用来检查并下载布景图片。')).toBeVisible();
+    expect(within(dialog).getByText('文件菜单里可以导出/导入字符串，也可以重置当前布景。')).toBeVisible();
+    expect(within(dialog).getByText('这里调整布景画布的宽度和高度。')).toBeVisible();
+    expect(within(dialog).getByText('这里新增建筑层、选中当前层，也可以拖动整行排序。')).toBeVisible();
+    expect(within(dialog).queryByText('把素材拖进背包后可快速取用，背包也能展开或收起。')).not.toBeInTheDocument();
+    expect(document.querySelectorAll('.help-guide-spotlight')).toHaveLength(4);
+    expect(document.querySelectorAll('.help-guide-arrow')).toHaveLength(4);
     expect(within(dialog).queryByRole('button', { name: '明白了！' })).not.toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole('button', { name: '下一步' }));
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
-    expect(within(dialog).getByText('右侧：素材选择区和背包')).toBeVisible();
-    expect(within(dialog).getByText('单击选中素材，双击锁定连续放置；类型筛选可以快速缩小结果。')).toBeVisible();
-    expect(within(dialog).getByText('把素材拖进背包后可随时快速取用，背包可以展开或收起。')).toBeVisible();
-    expect(within(dialog).queryByText('中间：编辑区域')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('把素材拖进背包后可快速取用，背包也能展开或收起。')).toBeVisible();
+    expect(within(dialog).getByText('类型筛选在这里，先缩小范围再找素材。')).toBeVisible();
+    expect(within(dialog).getByText('素材行支持单击选中，双击锁定后可连续放置。')).toBeVisible();
+    expect(document.querySelectorAll('.help-guide-spotlight')).toHaveLength(3);
+    expect(document.querySelectorAll('.help-guide-arrow')).toHaveLength(3);
+    expect(within(dialog).queryByText('拖动画布查看大场景，滚轮或触控板可缩放。')).not.toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole('button', { name: '下一步' }));
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
-    expect(within(dialog).getByText('中间：编辑区域')).toBeVisible();
     expect(within(dialog).getByText('拖动画布查看大场景，滚轮或触控板可缩放。')).toBeVisible();
     expect(within(dialog).getByText('锁定素材后左键拖动可矩形填充，右键拖动可批量清空/删除。')).toBeVisible();
-    expect(within(dialog).queryByText('底部：技能和备注')).not.toBeInTheDocument();
+    expect(document.querySelectorAll('.help-guide-spotlight')).toHaveLength(2);
+    expect(document.querySelectorAll('.help-guide-arrow')).toHaveLength(2);
+    expect(within(dialog).queryByText('选中格子或素材后，技能按钮会出现在这里。')).not.toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole('button', { name: '下一步' }));
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
-    expect(within(dialog).getByText('底部：技能和备注')).toBeVisible();
-    expect(within(dialog).getByText('为当前格子或素材设置需要的技能标记。')).toBeVisible();
-    expect(within(dialog).getByText('在当前建筑层添加、编辑或删除备注。')).toBeVisible();
+    expect(within(dialog).getByText('选中格子或素材后，技能按钮会出现在这里。')).toBeVisible();
+    expect(within(dialog).getByText('当前建筑层的备注在这里添加、编辑或删除。')).toBeVisible();
+    expect(document.querySelectorAll('.help-guide-spotlight')).toHaveLength(2);
+    expect(document.querySelectorAll('.help-guide-arrow')).toHaveLength(2);
     expect(within(dialog).queryByRole('button', { name: '关闭说明' })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: '下一步' })).not.toBeInTheDocument();
 
@@ -156,26 +160,24 @@ describe('AppShell scene storage integration', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Quick guide' });
 
-    expect(within(dialog).getByText('Left: actions, scene, and layers')).toBeVisible();
-    expect(within(dialog).getByText('Use the top download preview button; export/import strings or reset from the file menu.')).toBeVisible();
-    expect(within(dialog).getByText('Adjust canvas width and height in the scene settings.')).toBeVisible();
-    expect(within(dialog).getByText('Add building layers, select the active layer, and drag whole rows to reorder them.')).toBeVisible();
+    expect(within(dialog).getByText('This button opens the download preview for checking and saving the scene image.')).toBeVisible();
+    expect(within(dialog).getByText('Use the file menu to export/import strings or reset the current scene.')).toBeVisible();
+    expect(within(dialog).getByText('Adjust the scene canvas width and height here.')).toBeVisible();
+    expect(within(dialog).getByText('Add building layers, select the active layer, or drag whole rows to reorder them here.')).toBeVisible();
     expect(within(dialog).getByRole('button', { name: 'Next' })).toBeVisible();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
-    expect(within(dialog).getByText('Right: assets and backpack')).toBeVisible();
-    expect(within(dialog).getByText('Click to select an asset, double-click to lock repeated placement, and narrow results with type filters.')).toBeVisible();
-    expect(within(dialog).getByText('Drag assets into the backpack for quick access, then expand or collapse it as needed.')).toBeVisible();
+    expect(within(dialog).getByText('Drag assets into the backpack for quick access; expand or collapse it as needed.')).toBeVisible();
+    expect(within(dialog).getByText('Use this type filter to narrow the asset list first.')).toBeVisible();
+    expect(within(dialog).getByText('Click an asset row to select it, or double-click to lock repeated placement.')).toBeVisible();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
-    expect(within(dialog).getByText('Center: editing canvas')).toBeVisible();
     expect(within(dialog).getByText('Drag the canvas to move around large scenes, and zoom with the wheel or trackpad.')).toBeVisible();
     expect(within(dialog).getByText('With a locked asset, left-drag to fill a rectangle; right-drag to bulk clear/delete.')).toBeVisible();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
-    expect(within(dialog).getByText('Bottom: skills and notes')).toBeVisible();
-    expect(within(dialog).getByText('Set the required skill marker for the current cell or asset.')).toBeVisible();
-    expect(within(dialog).getByText('Add, edit, or delete notes on the current building layer.')).toBeVisible();
+    expect(within(dialog).getByText('After selecting a cell or asset, skill buttons appear here.')).toBeVisible();
+    expect(within(dialog).getByText('Add, edit, or delete notes for the current building layer here.')).toBeVisible();
     expect(within(dialog).getByRole('button', { name: 'Got it!' })).toBeVisible();
   });
 

@@ -579,45 +579,27 @@ button:disabled {
 .help-guide-note {
   position: fixed;
   z-index: 93;
-  display: grid;
-  gap: 8px;
   border: 1px solid rgba(255, 255, 255, 0.58);
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 9px 11px;
   color: #fffefb;
   background: rgba(35, 31, 26, 0.78);
   box-shadow:
     0 16px 34px rgba(35, 31, 26, 0.34),
     inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-  font-size: 13px;
-  font-weight: 850;
-  line-height: 1.38;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.32;
   text-shadow:
     0 2px 4px rgba(35, 31, 26, 0.55),
     0 0 1px rgba(35, 31, 26, 0.7);
   pointer-events: none;
 }
 
-.help-guide-note__title {
+.help-guide-note__sentence {
   display: inline;
-  width: fit-content;
-  border-bottom: 2px dashed rgba(255, 255, 255, 0.96);
-  padding-bottom: 5px;
-  font-size: 15px;
-  font-weight: 950;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
-}
-
-.help-guide-note ul {
-  display: grid;
-  gap: 5px;
-  margin: 0;
-  padding-left: 1.1rem;
-}
-
-.help-guide-note li {
-  padding-left: 2px;
 }
 
 .help-guide-arrow {

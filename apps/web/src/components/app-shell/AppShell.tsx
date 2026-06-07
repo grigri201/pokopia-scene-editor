@@ -81,10 +81,11 @@ import {
 import {
   getHelpGuideLayouts,
   getPaddedHelpGuideRect,
-  helpGuideTargets,
+  helpGuideCallouts,
+  helpGuideSteps,
   type HelpGuideRect,
   type HelpGuideSnapshot,
-  type HelpGuideTargetKey,
+  type HelpGuideCalloutKey,
 } from './help-guide';
 import { MobilePreviewMode } from './mobile-preview-mode';
 import { resolveMobilePreviewState, type MobilePreviewState } from './mobile-preview-state';
@@ -226,10 +227,10 @@ export function AppShell() {
   };
   const toastStackVisible = recoveryStatus !== 'idle' || notificationToasts.length > 0;
   const helpGuideLayouts = helpGuideSnapshot ? getHelpGuideLayouts(helpGuideSnapshot) : {};
-  const activeHelpGuideStepIndex = Math.min(helpGuideStepIndex, helpGuideTargets.length - 1);
-  const activeHelpGuideTarget = helpGuideTargets[activeHelpGuideStepIndex] ?? helpGuideTargets[0];
-  const visibleHelpGuideTargets = [activeHelpGuideTarget];
-  const isFinalHelpGuideStep = activeHelpGuideStepIndex === helpGuideTargets.length - 1;
+  const activeHelpGuideStepIndex = Math.min(helpGuideStepIndex, helpGuideSteps.length - 1);
+  const activeHelpGuideStep = helpGuideSteps[activeHelpGuideStepIndex] ?? helpGuideSteps[0];
+  const visibleHelpGuideCallouts = activeHelpGuideStep.callouts;
+  const isFinalHelpGuideStep = activeHelpGuideStepIndex === helpGuideSteps.length - 1;
   const activeBuildingLevelId = isReadOnly
     ? readOnlyViewingLevelId ?? scene.workspaceState.currentBuildingLevelId
     : scene.workspaceState.currentBuildingLevelId;
@@ -425,27 +426,27 @@ export function AppShell() {
     }
 
     const updateHelpGuideSnapshot = () => {
-      const targets: Partial<Record<HelpGuideTargetKey, HelpGuideRect>> = {};
-      const arrowTargets: Partial<Record<HelpGuideTargetKey, HelpGuideRect>> = {};
+      const targets: Partial<Record<HelpGuideCalloutKey, HelpGuideRect>> = {};
+      const arrowTargets: Partial<Record<HelpGuideCalloutKey, HelpGuideRect>> = {};
 
-      for (const target of helpGuideTargets) {
-        const targetElement = document.querySelector<HTMLElement>(target.selector);
+      for (const callout of helpGuideCallouts) {
+        const targetElement = document.querySelector<HTMLElement>(callout.selector);
         if (!targetElement) {
           continue;
         }
 
         const rect = targetElement.getBoundingClientRect();
-        targets[target.key] = {
+        targets[callout.key] = {
           top: rect.top,
           left: rect.left,
           width: rect.width,
           height: rect.height,
         };
 
-        const arrowTargetElement = document.querySelector<HTMLElement>(target.arrowSelector);
+        const arrowTargetElement = document.querySelector<HTMLElement>(callout.arrowSelector ?? callout.selector);
         if (arrowTargetElement) {
           const arrowTargetRect = arrowTargetElement.getBoundingClientRect();
-          arrowTargets[target.key] = {
+          arrowTargets[callout.key] = {
             top: arrowTargetRect.top,
             left: arrowTargetRect.left,
             width: arrowTargetRect.width,
@@ -1829,7 +1830,7 @@ export function AppShell() {
   };
 
   const advanceHelpOverlay = () => {
-    setHelpGuideStepIndex((currentStepIndex) => Math.min(currentStepIndex + 1, helpGuideTargets.length - 1));
+    setHelpGuideStepIndex((currentStepIndex) => Math.min(currentStepIndex + 1, helpGuideSteps.length - 1));
   };
 
   const closeHelpOverlay = () => {
@@ -2035,7 +2036,7 @@ export function AppShell() {
       {helpOverlayVisible && helpGuideSnapshot ? (
         <div
           className="help-guide-backdrop"
-          data-guide-step={activeHelpGuideTarget.key}
+          data-guide-step={activeHelpGuideStep.key}
           data-guide-step-index={activeHelpGuideStepIndex + 1}
           role="dialog"
           aria-modal="true"
@@ -2056,8 +2057,8 @@ export function AppShell() {
                   height={helpGuideSnapshot.viewportHeight}
                   fill="white"
                 />
-                {visibleHelpGuideTargets.map((target) => {
-                  const targetRect = helpGuideSnapshot.targets[target.key];
+                {visibleHelpGuideCallouts.map((callout) => {
+                  const targetRect = helpGuideSnapshot.targets[callout.key];
                   if (!targetRect) {
                     return null;
                   }
@@ -2066,7 +2067,7 @@ export function AppShell() {
 
                   return (
                     <rect
-                      key={target.key}
+                      key={callout.key}
                       x={spotlightRect.left}
                       y={spotlightRect.top}
                       width={spotlightRect.width}
@@ -2097,8 +2098,8 @@ export function AppShell() {
               className="help-guide-scrim"
               mask="url(#help-guide-mask)"
             />
-            {visibleHelpGuideTargets.map((target) => {
-              const targetRect = helpGuideSnapshot.targets[target.key];
+            {visibleHelpGuideCallouts.map((callout) => {
+              const targetRect = helpGuideSnapshot.targets[callout.key];
               if (!targetRect) {
                 return null;
               }
@@ -2107,7 +2108,7 @@ export function AppShell() {
 
               return (
                 <rect
-                  key={target.key}
+                  key={callout.key}
                   className="help-guide-spotlight"
                   x={spotlightRect.left}
                   y={spotlightRect.top}
@@ -2117,15 +2118,15 @@ export function AppShell() {
                 />
               );
             })}
-            {visibleHelpGuideTargets.map((target) => {
-              const layout = helpGuideLayouts[target.key];
+            {visibleHelpGuideCallouts.map((callout) => {
+              const layout = helpGuideLayouts[callout.key];
               if (!layout) {
                 return null;
               }
 
               return (
                 <path
-                  key={target.key}
+                  key={callout.key}
                   className="help-guide-arrow"
                   d={layout.arrowPath}
                   markerEnd="url(#help-guide-arrow-head)"
@@ -2133,25 +2134,20 @@ export function AppShell() {
               );
             })}
           </svg>
-          {visibleHelpGuideTargets.map((target) => {
-            const layout = helpGuideLayouts[target.key];
+          {visibleHelpGuideCallouts.map((callout) => {
+            const layout = helpGuideLayouts[callout.key];
             if (!layout) {
               return null;
             }
 
             return (
               <div
-                key={target.key}
+                key={callout.key}
                 className="help-guide-note"
-                data-guide-target={target.key}
+                data-guide-target={callout.key}
                 style={layout.noteStyle}
               >
-                <span className="help-guide-note__title">{t(locale, target.titleKey)}</span>
-                <ul>
-                  {target.messageKeys.map((messageKey) => (
-                    <li key={messageKey}>{t(locale, messageKey)}</li>
-                  ))}
-                </ul>
+                <span className="help-guide-note__sentence">{t(locale, callout.messageKey)}</span>
               </div>
             );
           })}
