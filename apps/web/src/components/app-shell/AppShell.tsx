@@ -93,6 +93,8 @@ import {
   SceneStringImportModal,
   type SceneStringImportSubmitResult,
 } from '../scene-string-import-modal/scene-string-import-modal';
+import { AuthProvider } from '../../auth/AuthProvider';
+import { AuthStatusControl } from '../../auth/AuthStatusControl';
 
 const replacementConfirmationWindowMs = 15_000;
 const toastAutoDismissMs = 3_000;
@@ -1886,11 +1888,12 @@ export function AppShell() {
   };
 
   return (
-    <main
-      className="app-shell"
-      data-locale={locale}
-      aria-label="Pokopia scene editor workbench"
-    >
+    <AuthProvider>
+      <main
+        className="app-shell"
+        data-locale={locale}
+        aria-label="Pokopia scene editor workbench"
+      >
       <header
         className="app-header"
         aria-label="Application header"
@@ -1921,6 +1924,7 @@ export function AppShell() {
               ?
             </button>
           ) : null}
+          <AuthStatusControl locale={locale} />
           {!isReadOnly ? (
             <button
               type="button"
@@ -2382,7 +2386,8 @@ export function AppShell() {
         />
         </section>
       )}
-    </main>
+      </main>
+    </AuthProvider>
   );
 }
 
