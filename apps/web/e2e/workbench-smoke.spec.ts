@@ -27,6 +27,8 @@ const exportStringName = /导出字符串|Export String/;
 const previewExportName = /预览\/导出|Preview \/ export/;
 const resetName = /重置|Reset/;
 const newLayerName = /新建层|New layer/;
+const authMockRoutePattern = '**/__supabase_mock/auth/v1/**';
+const authSmokeEnabled = process.env.POKOPIA_AUTH_SMOKE === '1';
 const responsiveReleaseViewports = [
   { width: 1440, height: 900 },
   { width: 1280, height: 720 },
@@ -34,6 +36,75 @@ const responsiveReleaseViewports = [
   { width: 768, height: 1024 },
   { width: 390, height: 844 },
 ] as const;
+
+test('auth regression smoke keeps anonymous editing open with public auth config', async ({ page }) => {
+  test.skip(!authSmokeEnabled, 'Run with pnpm --filter @pokopia-scene-editor/web smoke:auth.');
+
+  await startWithHelpOverlayDismissed(page);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+
+  await expect(page.getByRole('button', { name: '账号: 登录' })).toBeVisible();
+  await expect(page.getByLabel('Pokopia scene editor workbench')).toBeVisible();
+  await expect(page.getByLabel('Pokemon scene controls')).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
+
+  const snapshot = await readSceneSnapshot(page);
+  const serializedSnapshot = JSON.stringify(snapshot);
+  expectScenePayloadHasNoLegacyFields(snapshot);
+  expect(serializedSnapshot).not.toContain('accessToken');
+  expect(serializedSnapshot).not.toContain('refreshToken');
+  expect(serializedSnapshot).not.toContain('access_token');
+  expect(serializedSnapshot).not.toContain('refresh_token');
+});
+
+test('auth regression smoke supports mocked login state without leaving local editing', async ({ page }) => {
+  test.skip(!authSmokeEnabled, 'Run with pnpm --filter @pokopia-scene-editor/web smoke:auth.');
+
+  await startWithHelpOverlayDismissed(page);
+  await page.route(authMockRoutePattern, async (route) => {
+    const requestUrl = new URL(route.request().url());
+
+    if (requestUrl.pathname.endsWith('/auth/v1/token') && requestUrl.searchParams.get('grant_type') === 'password') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(createAuthSmokeSession()),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'unexpected auth smoke route' }),
+    });
+  });
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+
+  await page.getByRole('button', { name: '账号: 登录' }).click();
+  const dialog = page.getByRole('dialog', { name: '账号' });
+  await dialog.getByLabel('邮箱').fill('playwright@example.com');
+  await dialog.getByLabel('密码').fill('password123');
+  await dialog.getByRole('button', { name: '登录' }).last().click();
+
+  await expect(page.getByRole('button', { name: '账号: 已登录' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: '账号' })).toContainText('playwright@example.com');
+  await expect(page.getByLabel('Pokopia scene editor workbench')).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
+
+  const snapshot = await readSceneSnapshot(page);
+  const serializedSnapshot = JSON.stringify(snapshot);
+  expectScenePayloadHasNoLegacyFields(snapshot);
+  expect(serializedSnapshot).not.toContain('playwright-user');
+  expect(serializedSnapshot).not.toContain('playwright@example.com');
+  expect(serializedSnapshot).not.toContain('playwright-access-token');
+  expect(serializedSnapshot).not.toContain('playwright-refresh-token');
+  expect(serializedSnapshot).not.toContain('access_token');
+  expect(serializedSnapshot).not.toContain('refresh_token');
+});
 
 test('renders the Open Design workbench as the first screen', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -1313,6 +1384,15 @@ async function dismissHelpOverlayIfVisible(page: Page): Promise<void> {
   }
 }
 
+async function startWithHelpOverlayDismissed(page: Page): Promise<void> {
+  await page.addInitScript((storageKey) => {
+    window.localStorage.setItem(storageKey, JSON.stringify({
+      schemaVersion: 1,
+      helpOverlayDismissed: true,
+    }));
+  }, uiPreferencesStorageKey);
+}
+
 async function readSceneSnapshot(page: Page): Promise<Record<string, unknown>> {
   const rawSnapshot = await page.evaluate(() => {
     const testWindow = window as unknown as { __pokopiaSceneSnapshot?: () => string };
@@ -2347,6 +2427,27 @@ function createTallThumbnailScene() {
       currentBuildingLevelId: 'level-0',
       selectedAssetId: null,
       selectedCoordinate: { x: 4, y: 2 },
+    },
+  };
+}
+
+function createAuthSmokeSession(): Record<string, unknown> {
+  const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+
+  return {
+    access_token: 'playwright-access-token',
+    token_type: 'bearer',
+    expires_in: 3600,
+    expires_at: expiresAt,
+    refresh_token: 'playwright-refresh-token',
+    user: {
+      id: 'playwright-user',
+      aud: 'authenticated',
+      role: 'authenticated',
+      email: 'playwright@example.com',
+      app_metadata: {},
+      user_metadata: {},
+      created_at: '2026-06-08T00:00:00.000Z',
     },
   };
 }

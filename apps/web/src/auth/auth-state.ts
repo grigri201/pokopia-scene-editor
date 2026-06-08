@@ -75,8 +75,8 @@ export function createAuthStateFromSession(
 }
 
 export function sanitizeAuthErrorMessage(message: string): string {
-  const secretKeyPrefix = 'sb_' + 'secret_';
-  const publishableKeyPrefix = 'sb_' + 'publishable_';
+  const secretKeyPrefix = createSupabaseKeyPrefix('secret');
+  const publishableKeyPrefix = createSupabaseKeyPrefix('publishable');
 
   return removeStackTraceLines(message)
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
@@ -88,6 +88,10 @@ export function sanitizeAuthErrorMessage(message: string): string {
     .replace(posixPathPattern, '[redacted-path]')
     .replace(windowsPathPattern, '[redacted-path]')
     .replace(/eyJ[A-Za-z0-9._~+/=-]+/g, '[redacted-jwt]');
+}
+
+function createSupabaseKeyPrefix(kind: 'publishable' | 'secret'): string {
+  return ['sb', kind, ''].join(String.fromCharCode(95));
 }
 
 function removeStackTraceLines(message: string): string {

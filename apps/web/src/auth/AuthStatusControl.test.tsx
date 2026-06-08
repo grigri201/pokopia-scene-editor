@@ -56,6 +56,27 @@ describe('AuthStatusControl', () => {
     expect(window.localStorage.getItem('pokopia.sceneDocument.autosave.v1')).toBe('{"schemaVersion":1}');
   });
 
+  it('shows expired sessions with the sign-in form available', async () => {
+    const expiredSession = createSession('expired-user', 'expired@example.com', Math.floor(Date.now() / 1000) - 60);
+    const client = createAuthClient({ session: expiredSession });
+
+    render(
+      <AuthProvider client={client}>
+        <AuthStatusControl locale="en-US" />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Account: Session expired' })).toBeVisible();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Account: Session expired' }));
+    const dialog = screen.getByRole('dialog', { name: 'Account' });
+    expect(dialog).toHaveTextContent('Session expired');
+    expect(within(dialog).getByLabelText('Email')).toBeVisible();
+    expect(within(dialog).getByLabelText('Password')).toBeVisible();
+  });
+
   it('shows auth unavailable errors without touching scene storage', async () => {
     const client = createAuthClient({
       getSessionError: `Session restore failed Bearer eyJrestore.payload.signature with ${'sb_' + 'secret_'}restore_key`,
@@ -474,9 +495,13 @@ function createAuthClient(options: {
   };
 }
 
-function createSession(id: string, email: string): SupabaseAuthSession {
+function createSession(
+  id: string,
+  email: string,
+  expiresAt = Math.floor(Date.now() / 1000) + 3600,
+): SupabaseAuthSession {
   return {
     user: { id, email },
-    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    expires_at: expiresAt,
   };
 }

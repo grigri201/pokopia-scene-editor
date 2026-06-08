@@ -10,6 +10,8 @@
     "test": "pnpm --filter @pokopia-scene-editor/scene-core test && pnpm --filter @pokopia-scene-editor/web test",
     "test:watch": "pnpm --filter @pokopia-scene-editor/web test:watch",
     "build": "pnpm --filter @pokopia-scene-editor/scene-core build && pnpm --filter @pokopia-scene-editor/web build",
+    "auth:bundle-secrets:verify": "node scripts/verify-auth-bundle-secrets.mjs",
+    "auth:smoke": "pnpm --filter @pokopia-scene-editor/scene-core build && pnpm --filter @pokopia-scene-editor/web smoke:auth",
     "data:pokopia:verify": "npm --prefix ../pokopia-data run release:verify",
     "data:xzonn:sync": "node scripts/sync-xzonn-data.mjs",
     "data:xzonn:check": "node scripts/sync-xzonn-data.mjs --check",
