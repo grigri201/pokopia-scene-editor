@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import type { Locale } from '../i18n';
 import { useAuth } from './AuthProvider';
 
@@ -7,6 +7,11 @@ interface AuthStatusControlProps {
 }
 
 type AuthFormMode = 'sign-in' | 'sign-up';
+type AuthPendingAction = AuthFormMode | 'sign-out';
+
+const authPopoverViewportMargin = 12;
+const authPopoverTriggerGap = 8;
+const authPopoverPreferredWidth = 300;
 
 const labels = {
   'zh-CN': {
@@ -21,8 +26,11 @@ const labels = {
     password: '密码',
     signedIn: '已登录',
     signIn: '登录',
+    signingIn: '登录中',
     signOut: '登出',
+    signingOut: '登出中',
     signUp: '注册',
+    signingUp: '注册中',
     submitSignIn: '登录',
     submitSignUp: '注册',
   },
@@ -38,8 +46,11 @@ const labels = {
     password: 'Password',
     signedIn: 'Signed in',
     signIn: 'Sign in',
+    signingIn: 'Signing in',
     signOut: 'Sign out',
+    signingOut: 'Signing out',
     signUp: 'Sign up',
+    signingUp: 'Signing up',
     submitSignIn: 'Sign in',
     submitSignUp: 'Sign up',
   },
@@ -48,36 +59,131 @@ const labels = {
 export function AuthStatusControl({ locale }: AuthStatusControlProps) {
   const { state, signInWithPassword, signOut, signUpWithPassword } = useAuth();
   const text = labels[locale];
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<AuthFormMode>('sign-in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [pendingAction, setPendingAction] = useState<AuthPendingAction | null>(null);
+  const [popoverStyle, setPopoverStyle] = useState<CSSProperties>();
 
   const identityLabel = state.user?.email ?? state.user?.id ?? text.anonymous;
   const canUseAuthForm = state.configured && state.status !== 'authenticated';
   const statusLabel = getStatusLabel(state.status, state.configured, text);
+  const pendingLabel = pendingAction ? getPendingActionLabel(pendingAction, text) : null;
+  const displayStatusLabel = pendingLabel ?? statusLabel;
+  const authActionPending = pendingAction !== null;
 
   const submitAuthForm = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!email || !password) {
+    if (authActionPending || !email || !password) {
       return;
     }
 
-    if (mode === 'sign-in') {
-      await signInWithPassword(email, password);
-    } else {
-      await signUpWithPassword(email, password);
+    const action = mode;
+    setPendingAction(action);
+
+    try {
+      if (action === 'sign-in') {
+        await signInWithPassword(email, password);
+      } else {
+        await signUpWithPassword(email, password);
+      }
+    } finally {
+      setPendingAction(null);
     }
   };
+
+  const submitSignOut = async () => {
+    if (authActionPending) {
+      return;
+    }
+
+    setPendingAction('sign-out');
+
+    try {
+      await signOut();
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const closePopoverOnOutsidePointerDown = useCallback((event: PointerEvent) => {
+    const target = event.target;
+    if (!(target instanceof Node)) {
+      return;
+    }
+
+    if (popoverRef.current?.contains(target) || triggerRef.current?.contains(target)) {
+      return;
+    }
+
+    setOpen(false);
+  }, []);
+
+  const updatePopoverPosition = useCallback(() => {
+    if (!open || !triggerRef.current || !popoverRef.current || typeof window === 'undefined') {
+      return;
+    }
+
+    const placement = getAuthStatusPopoverPlacement({
+      popoverRect: popoverRef.current.getBoundingClientRect(),
+      triggerRect: triggerRef.current.getBoundingClientRect(),
+      viewportHeight: window.visualViewport?.height ?? window.innerHeight,
+      viewportWidth: window.visualViewport?.width ?? window.innerWidth,
+    });
+
+    setPopoverStyle({
+      left: `${placement.left}px`,
+      maxHeight: `${placement.maxHeight}px`,
+      top: `${placement.top}px`,
+      width: `${placement.width}px`,
+    });
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open || typeof window === 'undefined') {
+      setPopoverStyle(undefined);
+      return;
+    }
+
+    updatePopoverPosition();
+
+    window.addEventListener('resize', updatePopoverPosition);
+    window.addEventListener('scroll', updatePopoverPosition, true);
+    window.visualViewport?.addEventListener('resize', updatePopoverPosition);
+    window.visualViewport?.addEventListener('scroll', updatePopoverPosition);
+
+    return () => {
+      window.removeEventListener('resize', updatePopoverPosition);
+      window.removeEventListener('scroll', updatePopoverPosition, true);
+      window.visualViewport?.removeEventListener('resize', updatePopoverPosition);
+      window.visualViewport?.removeEventListener('scroll', updatePopoverPosition);
+    };
+  }, [locale, mode, open, pendingAction, state.configured, state.error, state.status, updatePopoverPosition]);
+
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') {
+      return;
+    }
+
+    document.addEventListener('pointerdown', closePopoverOnOutsidePointerDown, true);
+
+    return () => {
+      document.removeEventListener('pointerdown', closePopoverOnOutsidePointerDown, true);
+    };
+  }, [closePopoverOnOutsidePointerDown, open]);
 
   return (
     <div className="auth-status" data-auth-status={state.status}>
       <button
         type="button"
         className="auth-status__trigger has-icon-tooltip"
-        aria-label={`${text.account}: ${statusLabel}`}
-        title={statusLabel}
-        data-tooltip={statusLabel}
+        ref={triggerRef}
+        aria-label={`${text.account}: ${displayStatusLabel}`}
+        title={displayStatusLabel}
+        data-tooltip={displayStatusLabel}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((currentOpen) => !currentOpen)}
@@ -86,23 +192,36 @@ export function AuthStatusControl({ locale }: AuthStatusControlProps) {
         <span className="auth-status__text">{statusLabel}</span>
       </button>
       {open ? (
-        <div className="auth-status__popover" role="dialog" aria-label={text.account}>
+        <div
+          className="auth-status__popover"
+          ref={popoverRef}
+          role="dialog"
+          aria-label={text.account}
+          aria-busy={authActionPending}
+          style={popoverStyle}
+        >
           <div className="auth-status__summary">
-            <strong>{statusLabel}</strong>
+            <strong>{displayStatusLabel}</strong>
             <span>{state.status === 'authenticated' ? identityLabel : text.anonymous}</span>
           </div>
           {state.error ? <p className="auth-status__error">{state.error}</p> : null}
           {state.status === 'authenticated' ? (
-            <button type="button" className="auth-status__submit" onClick={signOut}>
-              {text.signOut}
+            <button
+              type="button"
+              className="auth-status__submit"
+              disabled={authActionPending}
+              onClick={submitSignOut}
+            >
+              {pendingAction === 'sign-out' ? text.signingOut : text.signOut}
             </button>
           ) : null}
           {canUseAuthForm ? (
-            <form className="auth-status__form" onSubmit={submitAuthForm}>
+            <form className="auth-status__form" aria-busy={authActionPending} onSubmit={submitAuthForm}>
               <div className="auth-status__tabs" role="group" aria-label={text.account}>
                 <button
                   type="button"
                   className={mode === 'sign-in' ? 'is-active' : undefined}
+                  disabled={authActionPending}
                   onClick={() => setMode('sign-in')}
                 >
                   {text.signIn}
@@ -110,6 +229,7 @@ export function AuthStatusControl({ locale }: AuthStatusControlProps) {
                 <button
                   type="button"
                   className={mode === 'sign-up' ? 'is-active' : undefined}
+                  disabled={authActionPending}
                   onClick={() => setMode('sign-up')}
                 >
                   {text.signUp}
@@ -121,6 +241,7 @@ export function AuthStatusControl({ locale }: AuthStatusControlProps) {
                   type="email"
                   autoComplete="email"
                   value={email}
+                  disabled={authActionPending}
                   onChange={(event) => setEmail(event.target.value)}
                   required
                 />
@@ -131,12 +252,19 @@ export function AuthStatusControl({ locale }: AuthStatusControlProps) {
                   type="password"
                   autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
                   value={password}
+                  disabled={authActionPending}
                   onChange={(event) => setPassword(event.target.value)}
                   required
                 />
               </label>
-              <button type="submit" className="auth-status__submit">
-                {mode === 'sign-in' ? text.submitSignIn : text.submitSignUp}
+              <button type="submit" className="auth-status__submit" disabled={authActionPending}>
+                {pendingAction === 'sign-in'
+                  ? text.signingIn
+                  : pendingAction === 'sign-up'
+                    ? text.signingUp
+                    : mode === 'sign-in'
+                      ? text.submitSignIn
+                      : text.submitSignUp}
               </button>
             </form>
           ) : null}
@@ -165,6 +293,58 @@ function getStatusLabel(status: string, configured: boolean, text: typeof labels
   }
 }
 
+function getPendingActionLabel(action: AuthPendingAction, text: typeof labels[Locale]) {
+  switch (action) {
+    case 'sign-in':
+      return text.signingIn;
+    case 'sign-up':
+      return text.signingUp;
+    case 'sign-out':
+      return text.signingOut;
+  }
+}
+
+interface AuthStatusPopoverPlacementInput {
+  triggerRect: Pick<DOMRectReadOnly, 'bottom' | 'right' | 'top'>;
+  popoverRect: Pick<DOMRectReadOnly, 'height'>;
+  viewportWidth: number;
+  viewportHeight: number;
+}
+
+export function getAuthStatusPopoverPlacement({
+  popoverRect,
+  triggerRect,
+  viewportHeight,
+  viewportWidth,
+}: AuthStatusPopoverPlacementInput) {
+  const availableWidth = Math.max(0, viewportWidth - authPopoverViewportMargin * 2);
+  const width = Math.min(authPopoverPreferredWidth, availableWidth);
+  const left = clamp(
+    triggerRect.right - width,
+    authPopoverViewportMargin,
+    Math.max(authPopoverViewportMargin, viewportWidth - width - authPopoverViewportMargin),
+  );
+  const belowTop = triggerRect.bottom + authPopoverTriggerGap;
+  const aboveTop = triggerRect.top - authPopoverTriggerGap - popoverRect.height;
+  const top = belowTop + popoverRect.height <= viewportHeight - authPopoverViewportMargin
+    ? belowTop
+    : aboveTop >= authPopoverViewportMargin
+      ? aboveTop
+      : authPopoverViewportMargin;
+  const maxHeight = Math.max(0, viewportHeight - top - authPopoverViewportMargin);
+
+  return {
+    left: Math.round(left),
+    maxHeight: Math.round(maxHeight),
+    top: Math.round(top),
+    width: Math.round(width),
+  };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
 function AccountIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -173,4 +353,3 @@ function AccountIcon() {
     </svg>
   );
 }
-

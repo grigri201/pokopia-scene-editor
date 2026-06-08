@@ -1936,53 +1936,7 @@ export function AppShell() {
           </a>
         </div>
         <div className="app-header__actions" aria-label="Scene file actions">
-          {helpOverlayAvailable ? (
-            <button
-              type="button"
-              className="app-header-tool-button help-entry-button has-icon-tooltip"
-              aria-label={t(locale, 'openHelpOverlay')}
-              title={t(locale, 'openHelpOverlay')}
-              data-tooltip={t(locale, 'openHelpOverlay')}
-              onClick={openHelpOverlay}
-            >
-              <span className="app-header-tool-button__frame" aria-hidden="true" />
-              ?
-            </button>
-          ) : null}
           <AuthStatusControl locale={locale} />
-          {!isReadOnly ? (
-            <button
-              type="button"
-              className="app-header-tool-button app-header-icon-button has-icon-tooltip"
-              aria-label={t(locale, 'previewExportAction')}
-              title={t(locale, 'previewExportAction')}
-              data-tooltip={t(locale, 'previewExportAction')}
-              onClick={openExportPreview}
-            >
-              <span className="app-header-tool-button__frame" aria-hidden="true" />
-              <PreviewExportIcon />
-            </button>
-          ) : null}
-          <label
-            className="app-header-tool-button language-control has-icon-tooltip"
-            title={t(locale, 'language')}
-            data-tooltip={t(locale, 'language')}
-          >
-            <span className="app-header-tool-button__frame" aria-hidden="true" />
-            <span className="sr-only">{t(locale, 'language')}</span>
-            <LanguageIcon />
-            <select
-              aria-label={t(locale, 'language')}
-              value={locale}
-              onChange={(event) => updateLocale(event.target.value as Locale)}
-            >
-              {locales.map((option) => (
-                <option value={option} key={option}>
-                  {localeLabels[option]}
-                </option>
-              ))}
-            </select>
-          </label>
           {!isReadOnly ? (
             <div className="file-actions-menu">
               <button
@@ -2049,6 +2003,52 @@ export function AppShell() {
                 </div>
               ) : null}
             </div>
+          ) : null}
+          {!isReadOnly ? (
+            <button
+              type="button"
+              className="app-header-tool-button app-header-icon-button has-icon-tooltip"
+              aria-label={t(locale, 'previewExportAction')}
+              title={t(locale, 'previewExportAction')}
+              data-tooltip={t(locale, 'previewExportAction')}
+              onClick={openExportPreview}
+            >
+              <span className="app-header-tool-button__frame" aria-hidden="true" />
+              <PreviewExportIcon />
+            </button>
+          ) : null}
+          <label
+            className="app-header-tool-button language-control has-icon-tooltip"
+            title={t(locale, 'language')}
+            data-tooltip={t(locale, 'language')}
+          >
+            <span className="app-header-tool-button__frame" aria-hidden="true" />
+            <span className="sr-only">{t(locale, 'language')}</span>
+            <LanguageIcon />
+            <select
+              aria-label={t(locale, 'language')}
+              value={locale}
+              onChange={(event) => updateLocale(event.target.value as Locale)}
+            >
+              {locales.map((option) => (
+                <option value={option} key={option}>
+                  {localeLabels[option]}
+                </option>
+              ))}
+            </select>
+          </label>
+          {helpOverlayAvailable ? (
+            <button
+              type="button"
+              className="app-header-tool-button help-entry-button has-icon-tooltip"
+              aria-label={t(locale, 'openHelpOverlay')}
+              title={t(locale, 'openHelpOverlay')}
+              data-tooltip={t(locale, 'openHelpOverlay')}
+              onClick={openHelpOverlay}
+            >
+              <span className="app-header-tool-button__frame" aria-hidden="true" />
+              ?
+            </button>
           ) : null}
         </div>
       </header>

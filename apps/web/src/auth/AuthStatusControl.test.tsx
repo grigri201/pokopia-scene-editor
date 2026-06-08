@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider, type SupabaseAuthClient } from './AuthProvider';
-import { AuthStatusControl } from './AuthStatusControl';
+import { AuthStatusControl, getAuthStatusPopoverPlacement } from './AuthStatusControl';
 import { authReturnPathStorageKey } from './auth-return-path';
 import type { SupabaseAuthSession } from './auth-state';
 
@@ -119,6 +119,93 @@ describe('AuthStatusControl', () => {
     expect(window.localStorage.getItem('pokopia.sceneDocument.autosave.v1')).toBe('{"schemaVersion":1}');
   });
 
+  it('calculates a viewport-clamped account dialog placement', () => {
+    expect(getAuthStatusPopoverPlacement({
+      popoverRect: createRect({ height: 260 }),
+      triggerRect: createRect({ bottom: 40, right: 38, top: 8 }),
+      viewportHeight: 180,
+      viewportWidth: 320,
+    })).toEqual({
+      left: 12,
+      maxHeight: 156,
+      top: 12,
+      width: 296,
+    });
+  });
+
+  it('positions the open account dialog inside a narrow viewport', async () => {
+    const client = createAuthClient();
+    const previousInnerWidth = window.innerWidth;
+    const previousInnerHeight = window.innerHeight;
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      if (this.classList.contains('auth-status__trigger')) {
+        return createRect({ bottom: 40, height: 32, left: 4, right: 38, top: 8, width: 34 });
+      }
+
+      if (this.classList.contains('auth-status__popover')) {
+        return createRect({ bottom: 308, height: 260, left: -258, right: 38, top: 48, width: 296 });
+      }
+
+      return createRect();
+    });
+
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 180 });
+
+    try {
+      render(
+        <AuthProvider client={client}>
+          <AuthStatusControl locale="en-US" />
+        </AuthProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Account: Sign in' })).toBeVisible();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Account: Sign in' }));
+      const dialog = screen.getByRole('dialog', { name: 'Account' });
+
+      await waitFor(() => {
+        expect(dialog.style.left).toBe('12px');
+        expect(dialog.style.top).toBe('12px');
+        expect(dialog.style.width).toBe('296px');
+        expect(dialog.style.maxHeight).toBe('156px');
+      });
+    } finally {
+      rectSpy.mockRestore();
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: previousInnerWidth });
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: previousInnerHeight });
+    }
+  });
+
+  it('keeps the account dialog open for inside clicks and hides it for outside clicks', async () => {
+    const client = createAuthClient();
+
+    render(
+      <div>
+        <button type="button">Outside workbench</button>
+        <AuthProvider client={client}>
+          <AuthStatusControl locale="en-US" />
+        </AuthProvider>
+      </div>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Account: Sign in' })).toBeVisible();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Account: Sign in' }));
+    const dialog = screen.getByRole('dialog', { name: 'Account' });
+    fireEvent.pointerDown(within(dialog).getByLabelText('Email'));
+
+    expect(screen.getByRole('dialog', { name: 'Account' })).toBeVisible();
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Outside workbench' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Account' })).not.toBeInTheDocument();
+  });
+
   it('signs in with email and password', async () => {
     const signedInSession = createSession('user-2', 'signed-in@example.com');
     const client = createAuthClient({ signInSession: signedInSession });
@@ -145,6 +232,109 @@ describe('AuthStatusControl', () => {
     expect(client.auth.signInWithPassword).toHaveBeenCalledWith({
       email: 'signed-in@example.com',
       password: 'password123',
+    });
+  });
+
+  it('shows a signing-in state while the password sign-in request is pending', async () => {
+    const signInBarrier = createDeferred<void>();
+    const client = createAuthClient({ signInBeforeResponse: signInBarrier.promise });
+
+    render(
+      <AuthProvider client={client}>
+        <AuthStatusControl locale="zh-CN" />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 登录' })).toBeVisible();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '账号: 登录' }));
+    const dialog = screen.getByRole('dialog', { name: '账号' });
+    fireEvent.change(within(dialog).getByLabelText('邮箱'), { target: { value: 'pending-signin@example.com' } });
+    fireEvent.change(within(dialog).getByLabelText('密码'), { target: { value: 'password123' } });
+    fireEvent.click(within(dialog).getAllByRole('button', { name: '登录' }).at(-1)!);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 登录中' })).toBeVisible();
+    });
+    expect(dialog).toHaveTextContent('登录中');
+    expect(within(dialog).getByRole('button', { name: '登录中' })).toBeDisabled();
+    expect(within(dialog).getByLabelText('邮箱')).toBeDisabled();
+
+    signInBarrier.resolve();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 已登录' })).toBeVisible();
+    });
+  });
+
+  it('shows a signing-up state while the password sign-up request is pending', async () => {
+    const signUpBarrier = createDeferred<void>();
+    const client = createAuthClient({ signUpBeforeResponse: signUpBarrier.promise });
+
+    render(
+      <AuthProvider client={client}>
+        <AuthStatusControl locale="zh-CN" />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 登录' })).toBeVisible();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '账号: 登录' }));
+    const dialog = screen.getByRole('dialog', { name: '账号' });
+    fireEvent.click(within(dialog).getByRole('button', { name: '注册' }));
+    fireEvent.change(within(dialog).getByLabelText('邮箱'), { target: { value: 'pending-signup@example.com' } });
+    fireEvent.change(within(dialog).getByLabelText('密码'), { target: { value: 'password123' } });
+    fireEvent.click(within(dialog).getAllByRole('button', { name: '注册' }).at(-1)!);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 注册中' })).toBeVisible();
+    });
+    expect(dialog).toHaveTextContent('注册中');
+    expect(within(dialog).getByRole('button', { name: '注册中' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: '登录' })).toBeDisabled();
+
+    signUpBarrier.resolve();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 已登录' })).toBeVisible();
+    });
+  });
+
+  it('shows a signing-out state while sign-out is pending', async () => {
+    const signOutBarrier = createDeferred<void>();
+    const client = createAuthClient({
+      session: createSession('signout-user', 'signout@example.com'),
+      signOutBeforeResponse: signOutBarrier.promise,
+    });
+
+    render(
+      <AuthProvider client={client}>
+        <AuthStatusControl locale="zh-CN" />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 已登录' })).toBeVisible();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '账号: 已登录' }));
+    const dialog = screen.getByRole('dialog', { name: '账号' });
+    fireEvent.click(within(dialog).getByRole('button', { name: '登出' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 登出中' })).toBeVisible();
+    });
+    expect(dialog).toHaveTextContent('登出中');
+    expect(within(dialog).getByRole('button', { name: '登出中' })).toBeDisabled();
+
+    signOutBarrier.resolve();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 登录' })).toBeVisible();
     });
   });
 
@@ -420,6 +610,9 @@ function createAuthClient(options: {
   signInSession?: SupabaseAuthSession | null;
   signUpSession?: SupabaseAuthSession | null;
   signInError?: string;
+  signInBeforeResponse?: Promise<void>;
+  signUpBeforeResponse?: Promise<void>;
+  signOutBeforeResponse?: Promise<void>;
   getSessionError?: string;
   getSessionReject?: string;
 } = {}): SupabaseAuthClient {
@@ -460,6 +653,8 @@ function createAuthClient(options: {
         };
       }),
       signInWithPassword: vi.fn(async () => {
+        await options.signInBeforeResponse;
+
         if (options.signInError) {
           return {
             data: { session: null },
@@ -477,6 +672,8 @@ function createAuthClient(options: {
         };
       }),
       signUp: vi.fn(async () => {
+        await options.signUpBeforeResponse;
+
         currentSession = 'signUpSession' in options
           ? options.signUpSession ?? null
           : createSession('signed-up-user', 'signed-up@example.com');
@@ -487,12 +684,25 @@ function createAuthClient(options: {
         };
       }),
       signOut: vi.fn(async () => {
+        await options.signOutBeforeResponse;
+
         currentSession = null;
         notify('SIGNED_OUT');
         return { error: null };
       }),
     },
   };
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, reject, resolve };
 }
 
 function createSession(
@@ -503,5 +713,23 @@ function createSession(
   return {
     user: { id, email },
     expires_at: expiresAt,
+  };
+}
+
+function createRect(rect: Partial<DOMRectReadOnly> = {}): DOMRect {
+  const left = rect.left ?? 0;
+  const top = rect.top ?? 0;
+  const width = rect.width ?? 0;
+  const height = rect.height ?? 0;
+  return {
+    bottom: rect.bottom ?? top + height,
+    height,
+    left,
+    right: rect.right ?? left + width,
+    top,
+    width,
+    x: rect.x ?? left,
+    y: rect.y ?? top,
+    toJSON: () => ({}),
   };
 }

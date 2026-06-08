@@ -81,6 +81,23 @@ describe('AppShell scene storage integration', () => {
     );
   });
 
+  it('orders the header menu as login, file actions, export preview, language and help', async () => {
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '文件操作' })).toBeVisible();
+    });
+
+    const headerActions = screen.getByLabelText('Scene file actions');
+    expect(Array.from(headerActions.children).map(getHeaderActionKey)).toEqual([
+      'login',
+      'file-actions',
+      'preview-export',
+      'language',
+      'help',
+    ]);
+  });
+
   it('keeps anonymous local editing available when Supabase env is absent', async () => {
     vi.stubEnv('VITE_SUPABASE_URL', '');
     vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', '');
@@ -3761,6 +3778,31 @@ function openFileActionsMenu(): HTMLElement {
 function clickFileActionMenuItem(name: string | RegExp): void {
   const menu = openFileActionsMenu();
   fireEvent.click(within(menu).getByRole('menuitem', { name }));
+}
+
+function getHeaderActionKey(element: Element): string {
+  const action = element as HTMLElement;
+
+  if (action.classList.contains('auth-status')) {
+    return 'login';
+  }
+
+  if (action.classList.contains('file-actions-menu')) {
+    return 'file-actions';
+  }
+
+  if (action.classList.contains('language-control')) {
+    return 'language';
+  }
+
+  switch (action.getAttribute('aria-label')) {
+    case '预览/导出':
+      return 'preview-export';
+    case '打开说明':
+      return 'help';
+    default:
+      return `unknown:${action.outerHTML}`;
+  }
 }
 
 function openDesktopExportPreview(): void {
