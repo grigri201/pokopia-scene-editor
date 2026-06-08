@@ -95,6 +95,7 @@ import {
 } from '../scene-string-import-modal/scene-string-import-modal';
 import { AuthProvider } from '../../auth/AuthProvider';
 import { AuthStatusControl } from '../../auth/AuthStatusControl';
+import { authReturnPathRestoredEvent } from '../../auth/auth-return-path';
 
 const replacementConfirmationWindowMs = 15_000;
 const toastAutoDismissMs = 3_000;
@@ -191,6 +192,7 @@ export function AppShell() {
     createInitialRemoteSceneImportState(window.location.search),
   );
   const remoteSceneImportRequestIdRef = useRef(0);
+  const automaticallyImportedRemoteSceneSearchRef = useRef<string | null>(null);
   const hasEnteredEditModeRef = useRef(initialInteractionMode === 'edit');
   const fileActionsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const fileActionsMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1551,6 +1553,21 @@ export function AppShell() {
     handleRemoteSceneFetchResult(result);
   };
 
+  const runRemoteSceneImportForCurrentSearch = () => {
+    const currentSearch = window.location.search;
+    const query = getSceneIdFromSearch(currentSearch);
+    if (query.status === 'no-scene-id') {
+      return;
+    }
+
+    if (automaticallyImportedRemoteSceneSearchRef.current === currentSearch) {
+      return;
+    }
+
+    automaticallyImportedRemoteSceneSearchRef.current = currentSearch;
+    void runRemoteSceneImport();
+  };
+
   const handleRemoteSceneFetchResult = (result: RemoteSceneFetchResult) => {
     switch (result.status) {
       case 'no-scene-id':
@@ -1610,12 +1627,20 @@ export function AppShell() {
   };
 
   useEffect(() => {
-    const query = getSceneIdFromSearch(window.location.search);
-    if (query.status === 'no-scene-id') {
-      return;
-    }
+    runRemoteSceneImportForCurrentSearch();
+  }, []);
 
-    void runRemoteSceneImport();
+  useEffect(() => {
+    const runRestoredRemoteSceneImport = () => {
+      runRemoteSceneImportForCurrentSearch();
+    };
+
+    window.addEventListener(authReturnPathRestoredEvent, runRestoredRemoteSceneImport);
+    runRemoteSceneImportForCurrentSearch();
+
+    return () => {
+      window.removeEventListener(authReturnPathRestoredEvent, runRestoredRemoteSceneImport);
+    };
   }, []);
 
   useEffect(() => {

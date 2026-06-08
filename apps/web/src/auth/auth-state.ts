@@ -78,12 +78,32 @@ export function sanitizeAuthErrorMessage(message: string): string {
   const secretKeyPrefix = 'sb_' + 'secret_';
   const publishableKeyPrefix = 'sb_' + 'publishable_';
 
-  return message
+  return removeStackTraceLines(message)
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
+    .replace(sensitiveQuotedFieldPattern, (_match, prefix: string, quote: string) => `${prefix}${quote}[redacted]${quote}`)
+    .replace(sensitiveBareFieldPattern, '$1[redacted]')
     .replace(new RegExp(`${secretKeyPrefix}[A-Za-z0-9_-]+`, 'gi'), `${secretKeyPrefix}[redacted]`)
     .replace(new RegExp(`${publishableKeyPrefix}[A-Za-z0-9_-]+`, 'gi'), `${publishableKeyPrefix}[redacted]`)
+    .replace(/(?:\/[A-Za-z0-9._~+@-]+)+\/[A-Za-z0-9._~+@-]+:\d+:\d+/g, '[redacted-stack]')
+    .replace(posixPathPattern, '[redacted-path]')
+    .replace(windowsPathPattern, '[redacted-path]')
     .replace(/eyJ[A-Za-z0-9._~+/=-]+/g, '[redacted-jwt]');
 }
+
+function removeStackTraceLines(message: string): string {
+  return message
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*at\s+/.test(line))
+    .join(' ')
+    .replace(/\s+at\s+[^)]*\([^)]*:\d+:\d+\).*/g, '')
+    .replace(/\s+at\s+[^\s]+\s+(?:\/|[A-Za-z]:\\).+:\d+:\d+.*/g, '');
+}
+
+const sensitiveFieldNames = 'access_token|refresh_token|token_hash|provider_token|provider_refresh_token|client_secret|secret|password|api_key|apikey|key';
+const sensitiveQuotedFieldPattern = new RegExp(`(["']?\\b(?:${sensitiveFieldNames})\\b["']?\\s*[=:]\\s*)(["'])(?:\\\\.|(?!\\2).)*\\2`, 'gi');
+const sensitiveBareFieldPattern = new RegExp(`(["']?\\b(?:${sensitiveFieldNames})\\b["']?\\s*[=:]\\s*)([^\\s"',}&]+)`, 'gi');
+const posixPathPattern = /\/(?:Users|home|var|tmp|private|Volumes|workspace|app)(?:\/[^,\n\r()]+)+\.[A-Za-z0-9]+(?::\d+:\d+)?/g;
+const windowsPathPattern = /[A-Za-z]:\\(?:[^\\\n\r()]+\\)*[^\\\n\r()]+\.[A-Za-z0-9]+(?::\d+:\d+)?/g;
 
 function isExpiredSession(session: SupabaseAuthSession): boolean {
   return typeof session.expires_at === 'number' && session.expires_at * 1000 <= Date.now();

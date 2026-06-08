@@ -20,6 +20,7 @@ import {
   unsafeScriptText,
 } from '../../test/fixtures/unsafe-text';
 import type { SupabaseAuthClient } from '../../auth/AuthProvider';
+import { authReturnPathStorageKey } from '../../auth/auth-return-path';
 import type { SupabaseAuthSession } from '../../auth/auth-state';
 import { AppShell } from './AppShell';
 import { helpGuideSteps } from './help-guide';
@@ -44,6 +45,7 @@ describe('AppShell scene storage integration', () => {
   beforeEach(() => {
     window.history.replaceState(null, '', '/');
     window.localStorage.clear();
+    window.sessionStorage.clear();
     setViewportWidth(1280);
     createSupabaseClientMock.mockReset();
     createSupabaseClientMock.mockReturnValue(createAppShellAuthClient());
@@ -57,6 +59,7 @@ describe('AppShell scene storage integration', () => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
     window.localStorage.clear();
+    window.sessionStorage.clear();
   });
 
   it('points the rectangle editing help arrow at the 3,3 canvas cell', () => {
@@ -151,6 +154,96 @@ describe('AppShell scene storage integration', () => {
       expectForbiddenAuthKeysAbsent(rawAutosavePayload ?? '');
     });
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+  });
+
+  it('shows expired sessions with a re-login path while preserving local scene state', async () => {
+    const localScene = createDefaultSceneDocument({
+      sceneId: 'scene-expired-auth-local',
+      sceneName: 'Expired Auth Local Scene',
+      now: '2026-06-08T02:00:00.000Z',
+    });
+    writeSceneDocumentToStorage(window.localStorage, localScene, 'autosave');
+    configureSupabaseAuthClient(createAppShellAuthClient({
+      session: createAppShellSession('expired-user', 'expired@example.com', Math.floor(Date.now() / 1000) - 60),
+    }));
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 登录已过期' })).toBeVisible();
+    });
+    expect(screen.getByLabelText('布景')).toHaveValue('Expired Auth Local Scene');
+    expect(readSceneSnapshot()).toContain('Expired Auth Local Scene');
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toContain('Expired Auth Local Scene');
+
+    fireEvent.click(screen.getByRole('button', { name: '账号: 登录已过期' }));
+    const dialog = screen.getByRole('dialog', { name: '账号' });
+    expect(within(dialog).getByLabelText('邮箱')).toBeVisible();
+    expect(within(dialog).getByLabelText('密码')).toBeVisible();
+  });
+
+  it('keeps current scene document and storage unchanged on sign-out', async () => {
+    const session = createAppShellSession('sign-out-user', 'sign-out@example.com');
+    configureSupabaseAuthClient(createAppShellAuthClient({ session }));
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 已登录' })).toBeVisible();
+    });
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Sign Out Local Scene' } });
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem(autosavedSceneStorageKey)).toContain('Sign Out Local Scene');
+    });
+    const beforeSnapshot = readSceneSnapshot();
+    const beforeAutosave = window.localStorage.getItem(autosavedSceneStorageKey);
+
+    fireEvent.click(screen.getByRole('button', { name: '账号: 已登录' }));
+    fireEvent.click(screen.getByRole('button', { name: '登出' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 登录' })).toBeVisible();
+    });
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(beforeAutosave);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+  });
+
+  it('restores auth callback scene_id into mobile preview without desktop editing controls', async () => {
+    const remoteScene = createDefaultSceneDocument({
+      sceneId: 'scene-mobile-auth-callback',
+      sceneName: 'Mobile Auth Callback Scene',
+      now: '2026-06-08T02:10:00.000Z',
+    });
+    const fetchMock = vi.fn(async () => remoteSceneResponse('mobile-auth-callback', encodeSceneDocumentString(remoteScene)));
+    vi.stubGlobal('fetch', fetchMock);
+    setViewportWidth(390);
+    window.sessionStorage.setItem(authReturnPathStorageKey, '/?scene_id=mobile-auth-callback');
+    window.history.replaceState(null, '', '/auth/callback?code=auth-code');
+    configureSupabaseAuthClient(createAppShellAuthClient({
+      session: createAppShellSession('mobile-callback-user', 'mobile-callback@example.com'),
+    }));
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/remote-scenes/mobile-auth-callback', {
+        headers: { Accept: 'application/json' },
+      });
+    });
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/?scene_id=mobile-auth-callback');
+    expect(window.sessionStorage.getItem(authReturnPathStorageKey)).toBeNull();
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
+        'data-mobile-preview-state',
+        'preview-ready',
+      );
+    });
+    expect(screen.getByRole('heading', { name: 'Mobile Auth Callback Scene' })).toBeVisible();
+    expect(screen.queryByLabelText('Open Design editing workbench')).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Asset picker' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Building level panel')).not.toBeInTheDocument();
   });
 
   it('shows the desktop help overlay by default and closes it with a UI-only marker', () => {
@@ -3532,10 +3625,14 @@ function createAppShellAuthClient(options: {
   };
 }
 
-function createAppShellSession(id: string, email: string): SupabaseAuthSession {
+function createAppShellSession(
+  id: string,
+  email: string,
+  expiresAt = Math.floor(Date.now() / 1000) + 3600,
+): SupabaseAuthSession {
   return {
     user: { id, email },
-    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    expires_at: expiresAt,
   };
 }
 

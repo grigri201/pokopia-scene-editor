@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   anonymousAuthState,
   createAuthErrorState,
@@ -6,6 +6,16 @@ import {
   type AuthState,
   type SupabaseAuthSession,
 } from './auth-state';
+import {
+  authCallbackPath,
+  clearAuthCallbackLocation,
+  clearAuthReturnPath,
+  createAuthCallbackUrl,
+  isAuthRedirectCallbackLocation,
+  rememberCurrentAuthReturnPath,
+  readAuthCallbackError,
+  restoreAuthReturnPathAfterCallback,
+} from './auth-return-path';
 import { createBrowserSupabaseClient, getBrowserSupabasePublicConfig } from './supabase-client';
 
 interface AuthProviderProps {
@@ -23,11 +33,9 @@ interface AuthContextValue {
 export interface SupabaseAuthClient {
   auth: {
     getSession: () => Promise<SupabaseSessionResponse>;
-    onAuthStateChange: (
-      callback: (event: string, session: SupabaseAuthSession | null) => void,
-    ) => SupabaseSubscriptionResponse;
+    onAuthStateChange: (callback: SupabaseAuthStateChangeCallback) => SupabaseSubscriptionResponse;
     signInWithPassword: (credentials: SupabaseEmailPasswordCredentials) => Promise<SupabaseSessionResponse>;
-    signUp: (credentials: SupabaseEmailPasswordCredentials) => Promise<SupabaseSessionResponse>;
+    signUp: (credentials: SupabaseSignUpCredentials) => Promise<SupabaseSessionResponse>;
     signOut: () => Promise<{ error: SupabaseAuthError | null }>;
   };
 }
@@ -36,6 +44,14 @@ interface SupabaseEmailPasswordCredentials {
   email: string;
   password: string;
 }
+
+interface SupabaseSignUpCredentials extends SupabaseEmailPasswordCredentials {
+  options?: {
+    emailRedirectTo?: string;
+  };
+}
+
+type SupabaseAuthStateChangeCallback = (event: string, session: SupabaseAuthSession | null) => void;
 
 interface SupabaseSessionResponse {
   data: {
@@ -80,6 +96,7 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
     configured: authClient !== null,
     status: authClient ? 'loading' : 'anonymous',
   }));
+  const callbackRestoreFailedRef = useRef(false);
 
   useEffect(() => {
     if (!authClient) {
@@ -89,26 +106,56 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
 
     let active = true;
 
-    authClient.auth.getSession()
-      .then(({ data, error }) => {
-        if (!active) {
-          return;
-        }
+    const callbackError = readAuthCallbackError();
+    if (callbackError) {
+      clearAuthReturnPath();
+      clearAuthCallbackLocation();
+      setState(createAuthErrorState(callbackError));
+    } else {
+      authClient.auth.getSession()
+        .then(({ data, error }) => {
+          if (!active) {
+            return;
+          }
 
-        setState(error
-          ? createAuthErrorState(error.message)
-          : createAuthStateFromSession(data.session));
-      })
-      .catch((error: unknown) => {
-        if (!active) {
-          return;
-        }
+          if (error) {
+            if (isCurrentLocationAuthCallback()) {
+              clearAuthReturnPath();
+              clearAuthCallbackLocation();
+              callbackRestoreFailedRef.current = true;
+            }
+            setState(createAuthErrorState(error.message));
+            return;
+          }
 
-        setState(createAuthErrorState(error instanceof Error ? error.message : 'Auth session restore failed.'));
-      });
+          setState(createAuthStateFromSession(data.session));
+          if (data.session) {
+            restoreAuthReturnPathForCurrentLocation();
+          }
+        })
+        .catch((error: unknown) => {
+          if (!active) {
+            return;
+          }
 
-    const { data } = authClient.auth.onAuthStateChange((_event, session) => {
+          if (isCurrentLocationAuthCallback()) {
+            clearAuthReturnPath();
+            clearAuthCallbackLocation();
+            callbackRestoreFailedRef.current = true;
+          }
+          setState(createAuthErrorState(error instanceof Error ? error.message : 'Auth session restore failed.'));
+        });
+    }
+
+    const { data } = authClient.auth.onAuthStateChange((event, session) => {
+      if (callbackError || callbackRestoreFailedRef.current) {
+        return;
+      }
+
       setState(createAuthStateFromSession(session));
+      if (session && event === 'SIGNED_IN' && isCurrentLocationAuthCallback()) {
+        restoreAuthReturnPathForCurrentLocation();
+      }
     });
 
     return () => {
@@ -125,8 +172,12 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
         return;
       }
 
+      rememberCurrentAuthReturnPath();
       setState((currentState) => ({ ...currentState, status: 'loading', error: null }));
       const { data, error } = await authClient.auth.signInWithPassword({ email, password });
+      if (!error && data.session) {
+        clearAuthReturnPath();
+      }
       setState(error ? createAuthErrorState(error.message) : createAuthStateFromSession(data.session));
     },
     signUpWithPassword: async (email, password) => {
@@ -135,8 +186,16 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
         return;
       }
 
+      rememberCurrentAuthReturnPath();
       setState((currentState) => ({ ...currentState, status: 'loading', error: null }));
-      const { data, error } = await authClient.auth.signUp({ email, password });
+      const { data, error } = await authClient.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: createAuthCallbackUrl() },
+      });
+      if (!error && data.session) {
+        clearAuthReturnPath();
+      }
       setState(error ? createAuthErrorState(error.message) : createAuthStateFromSession(data.session));
     },
     signOut: async () => {
@@ -160,4 +219,14 @@ export function useAuth(): AuthContextValue {
   }
 
   return context;
+}
+
+function restoreAuthReturnPathForCurrentLocation(): string | null {
+  return restoreAuthReturnPathAfterCallback({
+    requireCallbackLocation: window.location.pathname !== authCallbackPath,
+  });
+}
+
+function isCurrentLocationAuthCallback(): boolean {
+  return window.location.pathname === authCallbackPath || isAuthRedirectCallbackLocation(window.location);
 }
