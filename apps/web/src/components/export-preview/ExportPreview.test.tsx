@@ -185,6 +185,17 @@ describe('ExportPreview', () => {
     expect(screen.getByLabelText('pokokit 彩色 logo')).toHaveTextContent('pokokit');
   });
 
+  it('keeps auth and ownership fields out of shared export preview content', () => {
+    const summary = buildImageExportSummary(withForbiddenAuthFields(createPreviewScene()));
+
+    render(<ExportPreviewContent summary={summary} />);
+
+    const content = screen.getByLabelText('图片导出内容');
+    expectForbiddenAuthKeysAbsent(summary);
+    expectForbiddenAuthKeysAbsent(content.textContent ?? '');
+    expectForbiddenAuthAttributesAbsent(content);
+  });
+
   it('keeps desktop modal and inline content in parity for the same scene summary', () => {
     const scene = createPreviewScene();
     const summary = buildImageExportSummary(scene);
@@ -520,6 +531,72 @@ function createPreviewScene() {
       }),
     ],
   };
+}
+
+function withForbiddenAuthFields<T extends object>(scene: T): T {
+  const contaminated = scene as unknown as Record<string, unknown>;
+  contaminated['userId'] = 'auth-user';
+  contaminated['session'] = { accessToken: 'session-token' };
+  contaminated['owner'] = 'auth-owner';
+  contaminated['visibility'] = 'private';
+  contaminated['accessToken'] = 'access-token';
+  contaminated['refreshToken'] = 'refresh-token';
+  contaminated['workspaceState'] = {
+    ...(typeof contaminated['workspaceState'] === 'object' && contaminated['workspaceState'] !== null
+      ? contaminated['workspaceState']
+      : {}),
+    owner: 'nested-owner',
+    session: { accessToken: 'nested-session-token' },
+    refreshToken: 'nested-refresh-token',
+  };
+
+  return scene;
+}
+
+function expectForbiddenAuthKeysAbsent(value: unknown): void {
+  const raw = typeof value === 'string' ? value : JSON.stringify(value);
+  for (const key of ['userId', 'session', 'owner', 'visibility', 'accessToken', 'refreshToken']) {
+    expect(raw).not.toContain(key);
+  }
+}
+
+function expectForbiddenAuthAttributesAbsent(root: HTMLElement): void {
+  const forbiddenNames = ['userId', 'session', 'owner', 'visibility', 'accessToken', 'refreshToken'];
+  const forbiddenValues = [
+    'auth-user',
+    'auth-owner',
+    'private',
+    'access-token',
+    'refresh-token',
+    'session-token',
+    'nested-owner',
+    'nested-session-token',
+    'nested-refresh-token',
+  ];
+  const nodes = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+  const attributeNames = new Set<string>();
+  const attributeValues: string[] = [];
+
+  for (const node of nodes) {
+    for (const attribute of Array.from(node.attributes)) {
+      attributeNames.add(attribute.name.toLowerCase());
+      attributeValues.push(attribute.value);
+    }
+  }
+
+  const serializedAttributeValues = JSON.stringify(attributeValues);
+
+  for (const name of forbiddenNames) {
+    const normalizedForbiddenName = name.toLowerCase();
+    const kebabForbiddenName = name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`).toLowerCase();
+    expect(attributeNames).not.toContain(normalizedForbiddenName);
+    expect(attributeNames).not.toContain(`data-${kebabForbiddenName}`);
+    expect(serializedAttributeValues).not.toContain(`"${name}"`);
+  }
+
+  for (const value of forbiddenValues) {
+    expect(serializedAttributeValues).not.toContain(value);
+  }
 }
 
 function collectSharedExportContentSnapshot(scene: SceneDocument): Record<string, number | string> {

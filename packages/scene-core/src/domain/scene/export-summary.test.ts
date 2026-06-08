@@ -366,6 +366,15 @@ describe('image export summary', () => {
     expect(JSON.stringify(scene)).not.toContain('stackingRelations');
   });
 
+  it('does not copy auth or session fields into image export summaries', () => {
+    const scene = withForbiddenAuthFields(createExportScene());
+    const summary = buildImageExportSummary(scene);
+
+    expectForbiddenAuthKeysAbsent(summary);
+    expectForbiddenAuthKeysAbsent(summary.layers);
+    expectForbiddenAuthKeysAbsent(summary.overallMaterials);
+  });
+
   it('rejects scenes when a standalone skill marker cannot be represented in layer cell graphics', () => {
     const scene = {
       ...createExportScene(),
@@ -458,4 +467,32 @@ function createExportScene() {
       }),
     ],
   };
+}
+
+const forbiddenAuthKeys = ['userId', 'session', 'owner', 'visibility', 'accessToken', 'refreshToken'];
+
+function withForbiddenAuthFields<T extends object>(scene: T): T {
+  const contaminated = scene as unknown as Record<string, unknown>;
+  contaminated['userId'] = 'auth-user';
+  contaminated['session'] = { accessToken: 'session-token' };
+  contaminated['owner'] = 'auth-owner';
+  contaminated['visibility'] = 'private';
+  contaminated['accessToken'] = 'access-token';
+  contaminated['refreshToken'] = 'refresh-token';
+  contaminated['workspaceState'] = {
+    ...(typeof contaminated['workspaceState'] === 'object' && contaminated['workspaceState'] !== null
+      ? contaminated['workspaceState']
+      : {}),
+    owner: 'nested-owner',
+    accessToken: 'nested-access-token',
+  };
+
+  return scene;
+}
+
+function expectForbiddenAuthKeysAbsent(value: unknown): void {
+  const raw = JSON.stringify(value);
+  for (const key of forbiddenAuthKeys) {
+    expect(raw).not.toContain(`"${key}"`);
+  }
 }

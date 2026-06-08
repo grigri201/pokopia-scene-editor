@@ -1,10 +1,18 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider, type SupabaseAuthClient } from './AuthProvider';
 import { AuthStatusControl } from './AuthStatusControl';
 import type { SupabaseAuthSession } from './auth-state';
 
 describe('AuthStatusControl', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
   it('keeps the editor auth entry in anonymous mode when Supabase env is not configured', () => {
     render(
       <AuthProvider client={null}>
@@ -41,6 +49,48 @@ describe('AuthStatusControl', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '账号: 登录' })).toBeVisible();
     });
+    expect(window.localStorage.getItem('pokopia.sceneDocument.autosave.v1')).toBe('{"schemaVersion":1}');
+  });
+
+  it('shows auth unavailable errors without touching scene storage', async () => {
+    const client = createAuthClient({
+      getSessionError: `Session restore failed Bearer eyJrestore.payload.signature with ${'sb_' + 'secret_'}restore_key`,
+    });
+    window.localStorage.setItem('pokopia.sceneDocument.autosave.v1', '{"schemaVersion":1}');
+
+    render(
+      <AuthProvider client={client}>
+        <AuthStatusControl locale="en-US" />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Account: Auth error' })).toBeVisible();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Account: Auth error' }));
+    expect(screen.getByRole('dialog', { name: 'Account' })).toHaveTextContent('Session restore failed');
+    expect(screen.getByText(/Bearer \[redacted\]/)).toBeVisible();
+    expect(screen.getByText(new RegExp(`${'sb_' + 'secret_'}\\[redacted\\]`))).toBeVisible();
+    expect(screen.queryByText(/eyJrestore/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/restore_key/)).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('pokopia.sceneDocument.autosave.v1')).toBe('{"schemaVersion":1}');
+  });
+
+  it('keeps signed-out auth state isolated from scene storage', async () => {
+    const client = createAuthClient();
+    window.localStorage.setItem('pokopia.sceneDocument.autosave.v1', '{"schemaVersion":1}');
+
+    render(
+      <AuthProvider client={client}>
+        <AuthStatusControl locale="en-US" />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Account: Sign in' })).toBeVisible();
+    });
+
     expect(window.localStorage.getItem('pokopia.sceneDocument.autosave.v1')).toBe('{"schemaVersion":1}');
   });
 
@@ -108,6 +158,7 @@ function createAuthClient(options: {
   session?: SupabaseAuthSession | null;
   signInSession?: SupabaseAuthSession | null;
   signInError?: string;
+  getSessionError?: string;
 } = {}): SupabaseAuthClient {
   let currentSession = options.session ?? null;
   const subscribers = new Set<(event: string, session: SupabaseAuthSession | null) => void>();
@@ -121,7 +172,7 @@ function createAuthClient(options: {
     auth: {
       getSession: vi.fn(async () => ({
         data: { session: currentSession },
-        error: null,
+        error: options.getSessionError ? { message: options.getSessionError } : null,
       })),
       onAuthStateChange: vi.fn((callback) => {
         subscribers.add(callback);

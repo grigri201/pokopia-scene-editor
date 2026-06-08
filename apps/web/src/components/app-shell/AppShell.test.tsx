@@ -19,8 +19,18 @@ import {
   unsafeCombinedText,
   unsafeScriptText,
 } from '../../test/fixtures/unsafe-text';
+import type { SupabaseAuthClient } from '../../auth/AuthProvider';
+import type { SupabaseAuthSession } from '../../auth/auth-state';
 import { AppShell } from './AppShell';
 import { helpGuideSteps } from './help-guide';
+
+const { createSupabaseClientMock } = vi.hoisted(() => ({
+  createSupabaseClientMock: vi.fn(),
+}));
+
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: createSupabaseClientMock,
+}));
 
 vi.mock('html-to-image', () => ({
   toBlob: vi.fn(),
@@ -35,6 +45,8 @@ describe('AppShell scene storage integration', () => {
     window.history.replaceState(null, '', '/');
     window.localStorage.clear();
     setViewportWidth(1280);
+    createSupabaseClientMock.mockReset();
+    createSupabaseClientMock.mockReturnValue(createAppShellAuthClient());
     toBlobMock.mockReset();
     toBlobMock.mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
   });
@@ -43,6 +55,7 @@ describe('AppShell scene storage integration', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     window.localStorage.clear();
   });
 
@@ -63,6 +76,81 @@ describe('AppShell scene storage integration', () => {
       'href',
       'https://www.pokokit.com',
     );
+  });
+
+  it('keeps anonymous local editing available when Supabase env is absent', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', '');
+    vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', '');
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 身份未配置' })).toBeVisible();
+    });
+    expect(screen.getByRole('grid', { name: /17x17 canvas with main and outer regions/ })).toBeVisible();
+    expect(screen.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
+
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Anonymous Auth Boundary' } });
+
+    await waitFor(() => {
+      const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
+      expect(rawAutosavePayload).not.toBeNull();
+      expect(JSON.parse(rawAutosavePayload ?? '{}')).toMatchObject({
+        sceneName: 'Anonymous Auth Boundary',
+      });
+      expectForbiddenAuthKeysAbsent(rawAutosavePayload ?? '');
+    });
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+  });
+
+  it('keeps local editing available when Supabase session restore is unavailable', async () => {
+    configureSupabaseAuthClient(createAppShellAuthClient({
+      getSessionError: 'Session restore failed while Supabase was unavailable.',
+    }));
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 登录异常' })).toBeVisible();
+    });
+    expect(screen.getByRole('grid', { name: /17x17 canvas with main and outer regions/ })).toBeVisible();
+    expect(screen.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
+
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Unavailable Auth Boundary' } });
+
+    await waitFor(() => {
+      const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
+      expect(rawAutosavePayload).not.toBeNull();
+      expect(JSON.parse(rawAutosavePayload ?? '{}')).toMatchObject({
+        sceneName: 'Unavailable Auth Boundary',
+      });
+      expectForbiddenAuthKeysAbsent(rawAutosavePayload ?? '');
+    });
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+  });
+
+  it('keeps signed-out local editing isolated from scene storage', async () => {
+    configureSupabaseAuthClient(createAppShellAuthClient());
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 登录' })).toBeVisible();
+    });
+    expect(screen.getByRole('grid', { name: /17x17 canvas with main and outer regions/ })).toBeVisible();
+    expect(screen.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
+
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Signed Out Auth Boundary' } });
+
+    await waitFor(() => {
+      const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey);
+      expect(rawAutosavePayload).not.toBeNull();
+      expect(JSON.parse(rawAutosavePayload ?? '{}')).toMatchObject({
+        sceneName: 'Signed Out Auth Boundary',
+      });
+      expectForbiddenAuthKeysAbsent(rawAutosavePayload ?? '');
+    });
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
   });
 
   it('shows the desktop help overlay by default and closes it with a UI-only marker', () => {
@@ -1016,6 +1104,7 @@ describe('AppShell scene storage integration', () => {
   }, 20_000);
 
   it('downloads the image export preview without changing scene or storage', async () => {
+    const signedInSession = createAppShellSession('auth-export-user', 'export-user@example.com');
     const createObjectURL = vi.fn((blob: Blob) => {
       void blob;
       return 'blob:image-export';
@@ -1045,8 +1134,12 @@ describe('AppShell scene storage integration', () => {
         toJSON: () => ({}),
       };
     });
+    configureSupabaseAuthClient(createAppShellAuthClient({ session: signedInSession }));
 
     render(<AppShell />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '账号: 已登录' })).toBeVisible();
+    });
     const beforeSnapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
     openDesktopExportPreview();
     fireEvent.click(screen.getByRole('button', { name: '下载图片' }));
@@ -1067,6 +1160,12 @@ describe('AppShell scene storage integration', () => {
         type: 'image/png',
       }),
     );
+    const capturedPreview = toBlobMock.mock.calls[0]?.[0] as HTMLElement;
+    expect(capturedPreview).toBe(screen.getByRole('dialog', { name: '下载预览' }));
+    expect(capturedPreview).not.toHaveTextContent(signedInSession.user.email ?? '');
+    expect(capturedPreview).not.toHaveTextContent(signedInSession.user.id);
+    expectForbiddenAuthKeysAbsent(capturedPreview.textContent ?? '');
+    expectForbiddenAuthKeysAbsent(collectElementAttributes(capturedPreview));
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:image-export');
     expect(screen.getByRole('status', { name: '图片导出提示' })).toHaveTextContent('图片已准备下载');
     expect((window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.()).toBe(beforeSnapshot);
@@ -3357,6 +3456,87 @@ function setViewportWidth(width: number): void {
 function expectNoSaveStatus(): void {
   expect(screen.queryByLabelText('Save status')).not.toBeInTheDocument();
   expect(screen.queryByRole('status', { name: 'Save status' })).not.toBeInTheDocument();
+}
+
+function expectForbiddenAuthKeysAbsent(raw: string): void {
+  for (const key of ['userId', 'session', 'owner', 'visibility', 'accessToken', 'refreshToken']) {
+    expect(raw).not.toContain(`"${key}"`);
+  }
+}
+
+function collectElementAttributes(root: HTMLElement): string {
+  const nodes = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+
+  return JSON.stringify(nodes.map((node) => Array.from(node.attributes).map((attribute) => [
+    attribute.name,
+    attribute.value,
+  ])));
+}
+
+function configureSupabaseAuthClient(client: SupabaseAuthClient): void {
+  vi.stubEnv('VITE_SUPABASE_URL', 'https://auth-boundary.supabase.co');
+  vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_auth_boundary');
+  createSupabaseClientMock.mockReturnValue(client);
+}
+
+function createAppShellAuthClient(options: {
+  session?: SupabaseAuthSession | null;
+  getSessionError?: string;
+} = {}): SupabaseAuthClient {
+  let currentSession = options.session ?? null;
+  const subscribers = new Set<(event: string, session: SupabaseAuthSession | null) => void>();
+  const notify = (event: string) => {
+    for (const subscriber of subscribers) {
+      subscriber(event, currentSession);
+    }
+  };
+
+  return {
+    auth: {
+      getSession: vi.fn(async () => ({
+        data: { session: currentSession },
+        error: options.getSessionError ? { message: options.getSessionError } : null,
+      })),
+      onAuthStateChange: vi.fn((callback) => {
+        subscribers.add(callback);
+        return {
+          data: {
+            subscription: {
+              unsubscribe: () => subscribers.delete(callback),
+            },
+          },
+        };
+      }),
+      signInWithPassword: vi.fn(async () => {
+        currentSession = createAppShellSession('signed-in-user', 'signed-in@example.com');
+        notify('SIGNED_IN');
+        return {
+          data: { session: currentSession },
+          error: null,
+        };
+      }),
+      signUp: vi.fn(async () => {
+        currentSession = createAppShellSession('signed-up-user', 'signed-up@example.com');
+        notify('SIGNED_IN');
+        return {
+          data: { session: currentSession },
+          error: null,
+        };
+      }),
+      signOut: vi.fn(async () => {
+        currentSession = null;
+        notify('SIGNED_OUT');
+        return { error: null };
+      }),
+    },
+  };
+}
+
+function createAppShellSession(id: string, email: string): SupabaseAuthSession {
+  return {
+    user: { id, email },
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+  };
 }
 
 function selectPokemonBySearch(query: string, optionName: RegExp): HTMLElement {

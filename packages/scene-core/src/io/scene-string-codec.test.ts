@@ -134,6 +134,24 @@ describe('SceneDocument short string codec', () => {
     expect(decoded.scene.canvasSize).toEqual({ width: 17, height: 17 });
   });
 
+  it('does not encode or recover auth and session fields', () => {
+    const scene = withForbiddenAuthFields(createDefaultSceneDocument({
+      sceneId: 'scene-auth-boundary-codec',
+      sceneName: 'Auth Boundary Codec',
+      now: '2026-06-08T00:00:00.000Z',
+    }));
+
+    const encoded = encodeSceneDocumentString(scene);
+    const decoded = decodeSceneDocumentString(encoded, '2026-06-08T00:10:00.000Z');
+
+    expectForbiddenAuthKeysAbsent(encoded);
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      throw new Error('Expected auth-boundary scene string decode to pass.');
+    }
+    expectForbiddenAuthKeysAbsent(decoded.scene);
+  });
+
   it('continues to decode legacy PSE1 strings as 5x5 scenes on a 7x7 canvas', () => {
     const decoded = decodeSceneDocumentString('PSE1~Legacy.0.0._._~0.1%E5%B1%82~0.m.Gy.0._._._~_', '2026-05-29T00:00:00.000Z');
 
@@ -633,3 +651,31 @@ describe('SceneDocument short string codec', () => {
     ]);
   });
 });
+
+const forbiddenAuthKeys = ['userId', 'session', 'owner', 'visibility', 'accessToken', 'refreshToken'];
+
+function withForbiddenAuthFields<T extends object>(scene: T): T {
+  const contaminated = scene as unknown as Record<string, unknown>;
+  contaminated['userId'] = 'auth-user';
+  contaminated['session'] = { accessToken: 'session-token' };
+  contaminated['owner'] = 'auth-owner';
+  contaminated['visibility'] = 'private';
+  contaminated['accessToken'] = 'access-token';
+  contaminated['refreshToken'] = 'refresh-token';
+  contaminated['workspaceState'] = {
+    ...(typeof contaminated['workspaceState'] === 'object' && contaminated['workspaceState'] !== null
+      ? contaminated['workspaceState']
+      : {}),
+    session: { refreshToken: 'nested-refresh-token' },
+    refreshToken: 'nested-refresh-token',
+  };
+
+  return scene;
+}
+
+function expectForbiddenAuthKeysAbsent(value: unknown): void {
+  const raw = typeof value === 'string' ? value : JSON.stringify(value);
+  for (const key of forbiddenAuthKeys) {
+    expect(raw).not.toContain(`"${key}"`);
+  }
+}

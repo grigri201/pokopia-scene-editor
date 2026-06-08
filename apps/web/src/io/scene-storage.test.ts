@@ -118,6 +118,20 @@ describe('scene storage', () => {
     );
   });
 
+  it('does not persist auth or session fields into saved or autosaved SceneDocument payloads', () => {
+    const scene = withForbiddenAuthFields(createScene());
+    const payload = writeSceneDocumentToAllStorageSlots(window.localStorage, scene);
+    const rawSaved = window.localStorage.getItem(savedSceneStorageKey);
+    const rawAutosaved = window.localStorage.getItem(autosavedSceneStorageKey);
+
+    expect(rawSaved).not.toBeNull();
+    expect(rawAutosaved).not.toBeNull();
+    expect(rawSaved).toBe(rawAutosaved);
+    expectForbiddenAuthKeysAbsent(payload);
+    expectForbiddenAuthKeysAbsent(rawSaved ?? '');
+    expectForbiddenAuthKeysAbsent(rawAutosaved ?? '');
+  });
+
   it('stores the shared footprint fixture without persisting derived occupancy fields', () => {
     writeSceneDocumentToAllStorageSlots(window.localStorage, createFootprintContractScene());
 
@@ -252,4 +266,30 @@ function createScene(options: CreateSceneOptions = {}): SceneDocument {
     },
     ...options,
   };
+}
+
+const forbiddenAuthKeys = ['userId', 'session', 'owner', 'visibility', 'accessToken', 'refreshToken'];
+
+function withForbiddenAuthFields(scene: SceneDocument): SceneDocument {
+  const contaminated = scene as SceneDocument & Record<string, unknown>;
+  contaminated.userId = 'auth-user';
+  contaminated.session = { accessToken: 'session-token' };
+  contaminated.owner = 'auth-owner';
+  contaminated.visibility = 'private';
+  contaminated.accessToken = 'access-token';
+  contaminated.refreshToken = 'refresh-token';
+  contaminated.workspaceState = {
+    ...scene.workspaceState,
+    session: { accessToken: 'nested-session-token' },
+    accessToken: 'nested-access-token',
+  } as SceneDocument['workspaceState'];
+
+  return contaminated;
+}
+
+function expectForbiddenAuthKeysAbsent(value: unknown): void {
+  const raw = typeof value === 'string' ? value : JSON.stringify(value);
+  for (const key of forbiddenAuthKeys) {
+    expect(raw).not.toContain(`"${key}"`);
+  }
 }
