@@ -174,6 +174,7 @@ const assetFootprintOverridesByAssetId: Readonly<Record<string, AssetFootprint>>
   'modern-door': { length: 1, width: 1, height: 2 },
   'sash-window': { length: 1, width: 1, height: 2 },
   'swinging-doors': { length: 1, width: 2, height: 1 },
+  'grate-fencing': { length: 1, width: 2, height: 2 },
   'iron-scaffold': { length: 1, width: 2, height: 1 },
   'simple-door': { length: 1, width: 1, height: 2 },
   'boat-door': { length: 1, width: 1, height: 2 },
