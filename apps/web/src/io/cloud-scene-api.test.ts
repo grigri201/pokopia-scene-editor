@@ -14,7 +14,7 @@ describe('cloud scene api', () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ data: cloudSceneRecord('scene-1') }, { status: 201 }));
 
     const result = await saveCloudScene({
-      accessToken: 'user-token',
+      auth: { kind: 'bearer', accessToken: 'user-token' },
       endpointMode: 'production',
       payload: {
         name: 'Cloud room',
@@ -52,7 +52,7 @@ describe('cloud scene api', () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ data: cloudSceneRecord('scene-1') }));
 
     const result = await saveCloudScene({
-      accessToken: 'user-token',
+      auth: { kind: 'bearer', accessToken: 'user-token' },
       endpointMode: 'development',
       sceneId: 'scene-1',
       payload: {
@@ -77,7 +77,7 @@ describe('cloud scene api', () => {
     );
 
     await expect(saveCloudScene({
-      accessToken: 'user-token',
+      auth: { kind: 'bearer', accessToken: 'user-token' },
       endpointMode: 'development',
       payload: {
         name: 'Overflow',
@@ -90,6 +90,37 @@ describe('cloud scene api', () => {
       ok: false,
       code: 'scene_limit_reached',
       message: 'Each user can save at most 10 scenes.',
+    });
+  });
+
+  it('can save with the domain session cookie without sending a bearer token', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({ data: cloudSceneRecord('scene-cookie') }, { status: 201 }));
+
+    await saveCloudScene({
+      auth: { kind: 'domain-session' },
+      endpointMode: 'production',
+      payload: {
+        name: 'Cookie cloud room',
+        pse: 'PSE2-cookie-cloud',
+        pokemon: 'eevee',
+        visibility: 'private',
+      },
+      fetchImpl,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith('https://scene-api.pokokit.com/api/v1/scenes', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: 'Cookie cloud room',
+        pse: 'PSE2-cookie-cloud',
+        pokemon: 'eevee',
+        visibility: 'private',
+      }),
     });
   });
 });

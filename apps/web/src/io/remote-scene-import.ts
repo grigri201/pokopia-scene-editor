@@ -62,8 +62,12 @@ export type RemoteSceneFetchResult =
   | RemoteSceneNetworkErrorResult
   | RemoteSceneInvalidResponseResult;
 
+export type RemoteSceneAuth =
+  | { kind: 'bearer'; accessToken: string }
+  | { kind: 'domain-session' };
+
 interface FetchRemoteSceneStringOptions {
-  accessToken?: string | null;
+  auth?: RemoteSceneAuth | null;
   endpointMode?: RemoteSceneEndpointMode;
   fetchImpl?: typeof fetch;
 }
@@ -149,13 +153,14 @@ export async function fetchRemoteSceneString(
   const headers: Record<string, string> = {
     Accept: 'application/json',
   };
-  if (options.accessToken) {
-    headers.Authorization = `Bearer ${options.accessToken}`;
+  if (options.auth?.kind === 'bearer') {
+    headers.Authorization = `Bearer ${options.auth.accessToken}`;
   }
   let response: Response;
 
   try {
     response = await fetchImpl(endpoint, {
+      ...(options.auth?.kind === 'domain-session' ? { credentials: 'include' as const } : {}),
       headers,
     });
   } catch (error) {

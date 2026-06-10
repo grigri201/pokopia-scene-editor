@@ -37,6 +37,7 @@ import {
 import {
   applyRecoveredSceneDocument,
   autosavedSceneStorageKey,
+  type CloudSceneAuth,
   type CloudSceneRecord,
   type CloudSceneVisibility,
   createImageExportFile,
@@ -48,6 +49,7 @@ import {
   getUiPreferencesStorage,
   readLatestSceneDocumentFromStorage,
   readUiPreferencesFromStorage,
+  type RemoteSceneAuth,
   type RemoteCloudSceneContext,
   savedSceneStorageKey,
   saveCloudScene,
@@ -1593,7 +1595,7 @@ export function AppShell() {
 
     setRemoteSceneImportState({ status: 'loading', sceneId: query.sceneId });
     const result = await fetchRemoteSceneString(window.location.search, {
-      accessToken: authStateSnapshot.accessToken,
+      auth: createSceneApiAuth(authStateSnapshot),
     });
 
     if (remoteSceneImportRequestIdRef.current !== requestId) {
@@ -1694,7 +1696,7 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
-    if (authStateSnapshot.status !== 'authenticated' || !authStateSnapshot.accessToken) {
+    if (!createSceneApiAuth(authStateSnapshot)) {
       return;
     }
 
@@ -1704,7 +1706,7 @@ export function AppShell() {
 
     automaticallyImportedRemoteSceneSearchRef.current = null;
     runRemoteSceneImportForCurrentSearch();
-  }, [authStateSnapshot.accessToken, authStateSnapshot.status, remoteSceneImportState.status]);
+  }, [authStateSnapshot.accessToken, authStateSnapshot.source, authStateSnapshot.status, remoteSceneImportState.status]);
 
   useEffect(() => {
     if (!fileActionsMenuOpen) {
@@ -2513,7 +2515,7 @@ function SaveToGalleryMenuItem({
   onOpenDialog: () => void;
 }) {
   const { state } = useAuth();
-  const canSaveToGallery = state.status === 'authenticated' && Boolean(state.accessToken);
+  const canSaveToGallery = createSceneApiAuth(state) !== null;
 
   return (
     <button
@@ -2579,7 +2581,8 @@ function SaveToGalleryDialog({
       return;
     }
 
-    if (state.status !== 'authenticated' || !state.accessToken) {
+    const auth = createSceneApiAuth(state);
+    if (!auth) {
       setError(t(locale, 'saveToGalleryLoginRequired'));
       return;
     }
@@ -2602,7 +2605,7 @@ function SaveToGalleryDialog({
     setPending(true);
     setError(null);
     const saveRequest = {
-      accessToken: state.accessToken,
+      auth,
       payload: {
         name: trimmedName,
         pokemon: trimmedPokemon,
@@ -2679,6 +2682,19 @@ function SaveToGalleryDialog({
       </section>
     </div>
   );
+}
+
+function createSceneApiAuth(state: AuthState): (CloudSceneAuth & RemoteSceneAuth) | null {
+  if (state.status !== 'authenticated') {
+    return null;
+  }
+  if (state.accessToken) {
+    return { kind: 'bearer', accessToken: state.accessToken };
+  }
+  if (state.source === 'domain-session') {
+    return { kind: 'domain-session' };
+  }
+  return null;
 }
 
 function createInitialRemoteSceneImportState(search: string): RemoteSceneImportState {

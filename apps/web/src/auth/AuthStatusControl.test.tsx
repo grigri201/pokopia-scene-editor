@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider, type SupabaseAuthClient } from './AuthProvider';
 import { AuthStatusControl, getAuthStatusPopoverPlacement } from './AuthStatusControl';
 import { authReturnPathStorageKey } from './auth-return-path';
-import type { SupabaseAuthSession } from './auth-state';
+import type { DomainSessionAuthContext, SupabaseAuthSession } from './auth-state';
+import type { DomainSessionClient } from './domain-session-client';
 
 describe('AuthStatusControl', () => {
   beforeEach(() => {
@@ -33,16 +34,20 @@ describe('AuthStatusControl', () => {
   it('restores a signed-in session and signs out without touching scene storage', async () => {
     const session = createSession('user-1', 'user@example.com');
     const client = createAuthClient({ session });
+    const domainSessionClient = createDomainSessionClientMock({ restoreSession: createDomainSession('user-1') });
     window.localStorage.setItem('pokopia.sceneDocument.autosave.v1', '{"schemaVersion":1}');
 
     render(
-      <AuthProvider client={client}>
+      <AuthProvider client={client} domainSessionClient={domainSessionClient}>
         <AuthStatusControl locale="zh-CN" />
       </AuthProvider>,
     );
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '账号: 已登录' })).toBeVisible();
+    });
+    await waitFor(() => {
+      expect(domainSessionClient.sync).toHaveBeenCalledWith(session);
     });
 
     fireEvent.click(screen.getByRole('button', { name: '账号: 已登录' }));
@@ -53,7 +58,28 @@ describe('AuthStatusControl', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '账号: 登录' })).toBeVisible();
     });
+    expect(domainSessionClient.clear).toHaveBeenCalled();
     expect(window.localStorage.getItem('pokopia.sceneDocument.autosave.v1')).toBe('{"schemaVersion":1}');
+  });
+
+  it('restores a signed-in account from the Pokokit domain session when Supabase storage is empty', async () => {
+    const client = createAuthClient();
+    const domainSessionClient = createDomainSessionClientMock({ restoreSession: createDomainSession('domain-user') });
+
+    render(
+      <AuthProvider client={client} domainSessionClient={domainSessionClient}>
+        <AuthStatusControl locale="en-US" />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Account: Signed in' })).toBeVisible();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Account: Signed in' }));
+    expect(screen.getByRole('dialog', { name: 'Account' })).toHaveTextContent('domain-user');
+    expect(domainSessionClient.getSession).toHaveBeenCalled();
+    expect(domainSessionClient.sync).not.toHaveBeenCalled();
   });
 
   it('shows expired sessions with the sign-in form available', async () => {
@@ -209,9 +235,10 @@ describe('AuthStatusControl', () => {
   it('signs in with email and password', async () => {
     const signedInSession = createSession('user-2', 'signed-in@example.com');
     const client = createAuthClient({ signInSession: signedInSession });
+    const domainSessionClient = createDomainSessionClientMock();
 
     render(
-      <AuthProvider client={client}>
+      <AuthProvider client={client} domainSessionClient={domainSessionClient}>
         <AuthStatusControl locale="en-US" />
       </AuthProvider>,
     );
@@ -233,6 +260,37 @@ describe('AuthStatusControl', () => {
       email: 'signed-in@example.com',
       password: 'password123',
     });
+    expect(domainSessionClient.sync).toHaveBeenCalledWith(signedInSession);
+  });
+
+  it('keeps a restored signed-in session when domain session sync fails', async () => {
+    const session = createSession('domain-failed-user', 'domain-failed@example.com');
+    const domainSessionClient = createDomainSessionClientMock({
+      restoreSession: createDomainSession('domain-failed-user'),
+      syncError: `Pokokit domain session sync failed Bearer eyJdomain.payload.signature with ${'sb_' + 'secret_'}domain_key`,
+    });
+    const client = createAuthClient({ session });
+
+    render(
+      <AuthProvider client={client} domainSessionClient={domainSessionClient}>
+        <AuthStatusControl locale="en-US" />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Account: Signed in' })).toBeVisible();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Account: Signed in' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Account' });
+    await waitFor(() => {
+      expect(dialog).toHaveTextContent('Pokokit domain session sync failed');
+      expect(dialog).toHaveTextContent('Bearer [redacted]');
+      expect(dialog).toHaveTextContent(`${'sb_' + 'secret_'}[redacted]`);
+    });
+    expect(dialog).toHaveTextContent('domain-failed@example.com');
+    expect(dialog).not.toHaveTextContent('eyJdomain');
+    expect(dialog).not.toHaveTextContent('domain_key');
   });
 
   it('shows a signing-in state while the password sign-in request is pending', async () => {
@@ -705,6 +763,35 @@ function createDeferred<T>() {
   return { promise, reject, resolve };
 }
 
+function createDomainSessionClientMock(options: { restoreSession?: DomainSessionAuthContext | null; restoreError?: string; syncError?: string; clearError?: string } = {}) {
+  return {
+    getSession: vi.fn(async () => {
+      if (options.restoreError) {
+        throw new Error(options.restoreError);
+      }
+      return options.restoreSession ?? null;
+    }),
+    sync: vi.fn(async (_session: SupabaseAuthSession) => {
+      if (options.syncError) {
+        throw new Error(options.syncError);
+      }
+    }),
+    clear: vi.fn(async () => {
+      if (options.clearError) {
+        throw new Error(options.clearError);
+      }
+    }),
+  } satisfies DomainSessionClient;
+}
+
+function createDomainSession(id: string): DomainSessionAuthContext {
+  return {
+    user: {
+      id,
+    },
+  };
+}
+
 function createSession(
   id: string,
   email: string,
@@ -712,6 +799,7 @@ function createSession(
 ): SupabaseAuthSession {
   return {
     user: { id, email },
+    access_token: `${id}-access-token`,
     expires_at: expiresAt,
   };
 }

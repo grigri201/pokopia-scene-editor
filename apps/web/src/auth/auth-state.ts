@@ -1,4 +1,5 @@
 export type AuthStatus = 'loading' | 'anonymous' | 'authenticated' | 'expired' | 'error';
+export type AuthSource = 'anonymous' | 'supabase' | 'domain-session';
 
 export interface AuthUser {
   id: string;
@@ -11,6 +12,7 @@ export interface AuthState {
   error: string | null;
   configured: boolean;
   accessToken: string | null;
+  source: AuthSource;
 }
 
 export interface SupabasePublicConfig {
@@ -24,6 +26,7 @@ export const anonymousAuthState: AuthState = {
   error: null,
   configured: false,
   accessToken: null,
+  source: 'anonymous',
 };
 
 export function getSupabasePublicConfig(env: ImportMetaEnv): SupabasePublicConfig | null {
@@ -44,6 +47,7 @@ export function createAuthErrorState(message: string, configured = true): AuthSt
     error: sanitizeAuthErrorMessage(message),
     configured,
     accessToken: null,
+    source: 'anonymous',
   };
 }
 
@@ -58,6 +62,7 @@ export function createAuthStateFromSession(
       error: null,
       configured,
       accessToken: null,
+      source: 'anonymous',
     };
   }
 
@@ -68,6 +73,7 @@ export function createAuthStateFromSession(
       error: null,
       configured,
       accessToken: session.access_token ?? null,
+      source: 'supabase',
     };
   }
 
@@ -77,6 +83,21 @@ export function createAuthStateFromSession(
     error: null,
     configured,
     accessToken: session.access_token ?? null,
+    source: 'supabase',
+  };
+}
+
+export function createAuthStateFromDomainSession(session: DomainSessionAuthContext, configured = true): AuthState {
+  return {
+    status: 'authenticated',
+    user: {
+      id: session.user.id,
+      email: null,
+    },
+    error: null,
+    configured,
+    accessToken: null,
+    source: 'domain-session',
   };
 }
 
@@ -135,4 +156,12 @@ export interface SupabaseAuthSession {
   user: SupabaseAuthUser;
   access_token?: string | null;
   expires_at?: number | null;
+}
+
+export interface DomainSessionAuthContext {
+  user: {
+    id: string;
+  };
+  expiresAt?: number;
+  role?: string;
 }

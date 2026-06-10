@@ -4,6 +4,8 @@ import { relative, resolve } from 'node:path';
 const repoRoot = resolve(import.meta.dirname, '..');
 const distRoot = resolve(repoRoot, 'apps/web/dist');
 const forbiddenMarkers = [
+  'POKOKIT_SESSION_SECRET',
+  'pokokit_session',
   'sb_secret_',
   'service_role',
   'SUPABASE_SERVICE_ROLE',

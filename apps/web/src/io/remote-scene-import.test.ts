@@ -132,7 +132,7 @@ describe('remote scene import adapter', () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ id: '82AY', meta: { name: 'Fixture' }, pse: 'PSE1~fixture' }));
 
     await fetchRemoteSceneString('?scene_id=82AY', {
-      accessToken: 'user-token',
+      auth: { kind: 'bearer', accessToken: 'user-token' },
       endpointMode: 'production',
       fetchImpl,
     });
@@ -141,6 +141,23 @@ describe('remote scene import adapter', () => {
       headers: {
         Accept: 'application/json',
         Authorization: 'Bearer user-token',
+      },
+    });
+  });
+
+  it('sends credentials without bearer when loading with a domain session', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({ id: '82AY', meta: { name: 'Fixture' }, pse: 'PSE1~fixture' }));
+
+    await fetchRemoteSceneString('?scene_id=82AY', {
+      auth: { kind: 'domain-session' },
+      endpointMode: 'production',
+      fetchImpl,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith('https://scene-api.pokokit.com/api/v1/scenes/82AY', {
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
       },
     });
   });

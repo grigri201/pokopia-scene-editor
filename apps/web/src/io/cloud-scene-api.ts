@@ -24,8 +24,12 @@ export interface SaveCloudScenePayload {
   visibility: CloudSceneVisibility;
 }
 
+export type CloudSceneAuth =
+  | { kind: 'bearer'; accessToken: string }
+  | { kind: 'domain-session' };
+
 export interface SaveCloudSceneOptions {
-  accessToken: string;
+  auth: CloudSceneAuth;
   sceneId?: string;
   payload: SaveCloudScenePayload;
   endpointMode?: RemoteSceneEndpointMode;
@@ -53,11 +57,10 @@ export async function saveCloudScene(options: SaveCloudSceneOptions): Promise<Sa
   try {
     response = await fetchImpl(endpoint, {
       method: operation === 'update' ? 'PUT' : 'POST',
-      headers: {
+      ...createAuthRequestInit(options.auth, {
         Accept: 'application/json',
-        Authorization: `Bearer ${options.accessToken}`,
         'Content-Type': 'application/json',
-      },
+      }),
       body: JSON.stringify(options.payload),
     });
   } catch {
@@ -100,6 +103,22 @@ export async function saveCloudScene(options: SaveCloudSceneOptions): Promise<Sa
     ok: true,
     operation,
     record: body.data,
+  };
+}
+
+function createAuthRequestInit(auth: CloudSceneAuth, headers: Record<string, string>): RequestInit {
+  if (auth.kind === 'bearer') {
+    return {
+      headers: {
+        ...headers,
+        Authorization: `Bearer ${auth.accessToken}`,
+      },
+    };
+  }
+
+  return {
+    credentials: 'include',
+    headers,
   };
 }
 
