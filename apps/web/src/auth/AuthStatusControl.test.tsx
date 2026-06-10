@@ -293,6 +293,73 @@ describe('AuthStatusControl', () => {
     expect(dialog).not.toHaveTextContent('domain_key');
   });
 
+  it('updates nickname from the signed-in account menu', async () => {
+    const client = createAuthClient({ session: createSession('profile-user', 'profile@example.com') });
+    const domainSessionClient = createDomainSessionClientMock({
+      restoreSession: createDomainSession('profile-user'),
+      profileSession: createDomainSession('profile-user', 'Old Panda'),
+      updatedProfileSession: createDomainSession('profile-user', 'New Panda'),
+    });
+
+    render(
+      <AuthProvider client={client} domainSessionClient={domainSessionClient}>
+        <AuthStatusControl locale="en-US" />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Account: Signed in' })).toBeVisible();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Account: Signed in' }));
+    const dialog = screen.getByRole('dialog', { name: 'Account' });
+
+    await waitFor(() => {
+      expect(within(dialog).getByLabelText('Nickname')).toHaveValue('Old Panda');
+    });
+    fireEvent.change(within(dialog).getByLabelText('Nickname'), { target: { value: 'New Panda' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save nickname' }));
+
+    await waitFor(() => {
+      expect(domainSessionClient.updateProfile).toHaveBeenCalledWith('New Panda', 'profile-user-access-token');
+    });
+    expect(await within(dialog).findByText('Nickname saved')).toBeVisible();
+    expect(within(dialog).getByText('New Panda')).toBeVisible();
+  });
+
+  it('does not show a saved notice when nickname update fails', async () => {
+    const client = createAuthClient({ session: createSession('profile-error-user', 'profile-error@example.com') });
+    const domainSessionClient = createDomainSessionClientMock({
+      restoreSession: createDomainSession('profile-error-user'),
+      profileSession: createDomainSession('profile-error-user', 'Old Panda'),
+      updateProfileError: 'Pokokit profile update failed.',
+    });
+
+    render(
+      <AuthProvider client={client} domainSessionClient={domainSessionClient}>
+        <AuthStatusControl locale="en-US" />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Account: Signed in' })).toBeVisible();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Account: Signed in' }));
+    const dialog = screen.getByRole('dialog', { name: 'Account' });
+    await waitFor(() => {
+      expect(within(dialog).getByLabelText('Nickname')).toHaveValue('Old Panda');
+    });
+
+    fireEvent.change(within(dialog).getByLabelText('Nickname'), { target: { value: 'New Panda' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save nickname' }));
+
+    await waitFor(() => {
+      expect(dialog).toHaveTextContent('Pokokit profile update failed.');
+    });
+    expect(within(dialog).queryByText('Nickname saved')).not.toBeInTheDocument();
+  });
+
   it('shows a signing-in state while the password sign-in request is pending', async () => {
     const signInBarrier = createDeferred<void>();
     const client = createAuthClient({ signInBeforeResponse: signInBarrier.promise });
@@ -345,6 +412,7 @@ describe('AuthStatusControl', () => {
     const dialog = screen.getByRole('dialog', { name: '账号' });
     fireEvent.click(within(dialog).getByRole('button', { name: '注册' }));
     fireEvent.change(within(dialog).getByLabelText('邮箱'), { target: { value: 'pending-signup@example.com' } });
+    fireEvent.change(within(dialog).getByLabelText('昵称'), { target: { value: '待处理用户' } });
     fireEvent.change(within(dialog).getByLabelText('密码'), { target: { value: 'password123' } });
     fireEvent.click(within(dialog).getAllByRole('button', { name: '注册' }).at(-1)!);
 
@@ -354,6 +422,7 @@ describe('AuthStatusControl', () => {
     expect(dialog).toHaveTextContent('注册中');
     expect(within(dialog).getByRole('button', { name: '注册中' })).toBeDisabled();
     expect(within(dialog).getByRole('button', { name: '登录' })).toBeDisabled();
+    expect(within(dialog).getByLabelText('昵称')).toBeDisabled();
 
     signUpBarrier.resolve();
 
@@ -441,6 +510,7 @@ describe('AuthStatusControl', () => {
     const dialog = screen.getByRole('dialog', { name: 'Account' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Sign up' }));
     fireEvent.change(within(dialog).getByLabelText('Email'), { target: { value: 'redirect-signup@example.com' } });
+    fireEvent.change(within(dialog).getByLabelText('Nickname'), { target: { value: 'Pixel Panda' } });
     fireEvent.change(within(dialog).getByLabelText('Password'), { target: { value: 'password123' } });
     fireEvent.click(within(dialog).getAllByRole('button', { name: 'Sign up' }).at(-1)!);
 
@@ -450,7 +520,12 @@ describe('AuthStatusControl', () => {
     expect(client.auth.signUp).toHaveBeenCalledWith({
       email: 'redirect-signup@example.com',
       password: 'password123',
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        data: {
+          nickname: 'Pixel Panda',
+        },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
     expect(window.sessionStorage.getItem(authReturnPathStorageKey)).toBe('/signup-start?scene_id=fixture#mobile');
     expect(window.localStorage.getItem(authReturnPathStorageKey)).toBeNull();
@@ -763,7 +838,16 @@ function createDeferred<T>() {
   return { promise, reject, resolve };
 }
 
-function createDomainSessionClientMock(options: { restoreSession?: DomainSessionAuthContext | null; restoreError?: string; syncError?: string; clearError?: string } = {}) {
+function createDomainSessionClientMock(options: {
+  restoreSession?: DomainSessionAuthContext | null;
+  profileSession?: DomainSessionAuthContext;
+  updatedProfileSession?: DomainSessionAuthContext;
+  restoreError?: string;
+  profileError?: string;
+  updateProfileError?: string;
+  syncError?: string;
+  clearError?: string;
+} = {}) {
   return {
     getSession: vi.fn(async () => {
       if (options.restoreError) {
@@ -771,10 +855,22 @@ function createDomainSessionClientMock(options: { restoreSession?: DomainSession
       }
       return options.restoreSession ?? null;
     }),
+    getProfile: vi.fn(async () => {
+      if (options.profileError) {
+        throw new Error(options.profileError);
+      }
+      return options.profileSession ?? options.restoreSession ?? createDomainSession('profile-user');
+    }),
     sync: vi.fn(async (_session: SupabaseAuthSession) => {
       if (options.syncError) {
         throw new Error(options.syncError);
       }
+    }),
+    updateProfile: vi.fn(async () => {
+      if (options.updateProfileError) {
+        throw new Error(options.updateProfileError);
+      }
+      return options.updatedProfileSession ?? options.profileSession ?? options.restoreSession ?? createDomainSession('profile-user');
     }),
     clear: vi.fn(async () => {
       if (options.clearError) {
@@ -784,10 +880,11 @@ function createDomainSessionClientMock(options: { restoreSession?: DomainSession
   } satisfies DomainSessionClient;
 }
 
-function createDomainSession(id: string): DomainSessionAuthContext {
+function createDomainSession(id: string, nickname: string | null = null): DomainSessionAuthContext {
   return {
     user: {
       id,
+      nickname,
     },
   };
 }

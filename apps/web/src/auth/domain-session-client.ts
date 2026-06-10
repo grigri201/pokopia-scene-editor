@@ -3,12 +3,15 @@ import { sceneApiBaseUrl } from '../io/remote-scene-import-config';
 
 export interface DomainSessionClient {
   getSession(): Promise<DomainSessionAuthContext | null>;
+  getProfile(accessToken?: string | null): Promise<DomainSessionAuthContext>;
   sync(session: SupabaseAuthSession): Promise<void>;
+  updateProfile(nickname: string, accessToken?: string | null): Promise<DomainSessionAuthContext>;
   clear(): Promise<void>;
 }
 
 export function createDomainSessionClient(fetchImpl: typeof fetch = globalThis.fetch): DomainSessionClient {
   const endpoint = `${sceneApiBaseUrl}/api/v1/auth/session`;
+  const profileEndpoint = `${sceneApiBaseUrl}/api/v1/auth/profile`;
   return {
     async getSession() {
       const response = await fetchImpl(endpoint, {
@@ -31,6 +34,25 @@ export function createDomainSessionClient(fetchImpl: typeof fetch = globalThis.f
       }
       return session;
     },
+    async getProfile(accessToken) {
+      const response = await fetchImpl(profileEndpoint, createProfileRequestInit(accessToken));
+      if (!response.ok) {
+        throw new Error('Pokokit profile restore failed.');
+      }
+
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        throw new Error('Pokokit profile returned invalid JSON.');
+      }
+
+      const profile = parseDomainSessionEnvelope(body);
+      if (!profile) {
+        throw new Error('Pokokit profile returned an invalid payload.');
+      }
+      return profile;
+    },
     async sync(session) {
       if (!session.access_token) {
         throw new Error('Supabase access token is unavailable.');
@@ -46,6 +68,33 @@ export function createDomainSessionClient(fetchImpl: typeof fetch = globalThis.f
         throw new Error('Pokokit domain session sync failed.');
       }
     },
+    async updateProfile(nickname, accessToken) {
+      const response = await fetchImpl(profileEndpoint, {
+        ...createProfileRequestInit(accessToken),
+        method: 'PATCH',
+        headers: {
+          ...createProfileRequestHeaders(accessToken),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ nickname }),
+      });
+      if (!response.ok) {
+        throw new Error('Pokokit profile update failed.');
+      }
+
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        throw new Error('Pokokit profile returned invalid JSON.');
+      }
+
+      const profile = parseDomainSessionEnvelope(body);
+      if (!profile) {
+        throw new Error('Pokokit profile returned an invalid payload.');
+      }
+      return profile;
+    },
     async clear() {
       const response = await fetchImpl(endpoint, {
         method: 'DELETE',
@@ -56,6 +105,16 @@ export function createDomainSessionClient(fetchImpl: typeof fetch = globalThis.f
       }
     },
   };
+}
+
+function createProfileRequestInit(accessToken: string | null | undefined): RequestInit {
+  return accessToken
+    ? { headers: createProfileRequestHeaders(accessToken) }
+    : { credentials: 'include' };
+}
+
+function createProfileRequestHeaders(accessToken: string | null | undefined): Record<string, string> {
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 
 function parseDomainSessionEnvelope(value: unknown): DomainSessionAuthContext | null | undefined {
@@ -74,6 +133,7 @@ function parseDomainSessionEnvelope(value: unknown): DomainSessionAuthContext | 
   const session: DomainSessionAuthContext = {
     user: {
       id: user.id,
+      nickname: typeof user.nickname === 'string' ? user.nickname : null,
     },
   };
   if (typeof value.data.expiresAt === 'number') {

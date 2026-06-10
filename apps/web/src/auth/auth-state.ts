@@ -4,6 +4,7 @@ export type AuthSource = 'anonymous' | 'supabase' | 'domain-session';
 export interface AuthUser {
   id: string;
   email: string | null;
+  nickname: string | null;
 }
 
 export interface AuthState {
@@ -93,6 +94,7 @@ export function createAuthStateFromDomainSession(session: DomainSessionAuthConte
     user: {
       id: session.user.id,
       email: null,
+      nickname: session.user.nickname ?? null,
     },
     error: null,
     configured,
@@ -144,12 +146,14 @@ function toAuthUser(user: SupabaseAuthUser): AuthUser {
   return {
     id: user.id,
     email: user.email ?? null,
+    nickname: readNicknameFromMetadata(user.user_metadata) ?? null,
   };
 }
 
 export interface SupabaseAuthUser {
   id: string;
   email?: string | null;
+  user_metadata?: unknown;
 }
 
 export interface SupabaseAuthSession {
@@ -161,7 +165,24 @@ export interface SupabaseAuthSession {
 export interface DomainSessionAuthContext {
   user: {
     id: string;
+    nickname?: string | null;
   };
   expiresAt?: number;
   role?: string;
+}
+
+function readNicknameFromMetadata(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return null;
+  }
+  for (const field of ['nickname', 'display_name', 'name', 'username']) {
+    const candidate = (value as Record<string, unknown>)[field];
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (trimmed.length > 0 && trimmed.length <= 80) {
+        return trimmed;
+      }
+    }
+  }
+  return null;
 }

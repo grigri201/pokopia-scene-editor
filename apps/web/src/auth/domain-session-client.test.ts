@@ -13,6 +13,7 @@ describe('domain session client', () => {
     await expect(client.getSession()).resolves.toEqual({
       user: {
         id: 'domain-user',
+        nickname: null,
       },
       expiresAt: 1780000000,
     });
@@ -40,6 +41,47 @@ describe('domain session client', () => {
       headers: {
         Authorization: 'Bearer access-token-1',
       },
+    });
+  });
+
+  it('loads the auth profile with bearer auth when an access token is available', async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(JSON.stringify({ data: { user: { id: 'user-1', nickname: 'Pixel Panda' } } }), { status: 200 }),
+    );
+    const client = createDomainSessionClient(fetchImpl);
+
+    await expect(client.getProfile('access-token-1')).resolves.toEqual({
+      user: {
+        id: 'user-1',
+        nickname: 'Pixel Panda',
+      },
+    });
+    expect(fetchImpl).toHaveBeenCalledWith('https://scene-api.pokokit.com/api/v1/auth/profile', {
+      headers: {
+        Authorization: 'Bearer access-token-1',
+      },
+    });
+  });
+
+  it('updates the auth profile nickname with cookie auth when no access token is available', async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(JSON.stringify({ data: { user: { id: 'domain-user', nickname: 'New Panda' } } }), { status: 200 }),
+    );
+    const client = createDomainSessionClient(fetchImpl);
+
+    await expect(client.updateProfile('New Panda')).resolves.toEqual({
+      user: {
+        id: 'domain-user',
+        nickname: 'New Panda',
+      },
+    });
+    expect(fetchImpl).toHaveBeenCalledWith('https://scene-api.pokokit.com/api/v1/auth/profile', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ nickname: 'New Panda' }),
     });
   });
 

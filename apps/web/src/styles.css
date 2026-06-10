@@ -278,9 +278,20 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.auth-status__notice {
+  margin: -2px 0 8px;
+  color: #256f68;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .auth-status__form {
   display: grid;
   gap: 9px;
+}
+
+.auth-status__profile-form {
+  margin-bottom: 9px;
 }
 
 .auth-status__form label {

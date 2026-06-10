@@ -31,7 +31,8 @@ interface AuthProviderProps {
 interface AuthContextValue {
   state: AuthState;
   signInWithPassword: (email: string, password: string) => Promise<void>;
-  signUpWithPassword: (email: string, password: string) => Promise<void>;
+  signUpWithPassword: (email: string, password: string, nickname: string) => Promise<void>;
+  updateNickname: (nickname: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -52,6 +53,9 @@ interface SupabaseEmailPasswordCredentials {
 
 interface SupabaseSignUpCredentials extends SupabaseEmailPasswordCredentials {
   options?: {
+    data?: {
+      nickname?: string;
+    };
     emailRedirectTo?: string;
   };
 }
@@ -169,6 +173,12 @@ export function AuthProvider({ children, client, domainSessionClient }: AuthProv
               ? createAuthStateFromDomainSession(domainRestore.session)
               : createAuthStateFromSession(null);
           setState(nextState);
+          void refreshProfileForState(nextState, domainClient).then(profile => {
+            if (!active || !profile) {
+              return;
+            }
+            setState(currentState => applyAuthProfile(currentState, profile));
+          });
           if (data.session) {
             void syncDomainSession(data.session, domainClient, lastDomainSessionAccessTokenRef).then(syncResult => {
               if (!active || syncResult.ok) {
@@ -240,8 +250,15 @@ export function AuthProvider({ children, client, domainSessionClient }: AuthProv
       }
       const nextState = error ? createAuthErrorState(error.message) : createAuthStateFromSession(data.session);
       setState(syncResult.ok ? nextState : withDomainSessionError(nextState, syncResult.message));
+      if (!error) {
+        void refreshProfileForState(nextState, domainClient).then(profile => {
+          if (profile) {
+            setState(currentState => applyAuthProfile(currentState, profile));
+          }
+        });
+      }
     },
-    signUpWithPassword: async (email, password) => {
+    signUpWithPassword: async (email, password, nickname) => {
       if (!authClient) {
         setState(createAuthErrorState('Supabase Auth is not configured.', false));
         return;
@@ -252,7 +269,12 @@ export function AuthProvider({ children, client, domainSessionClient }: AuthProv
       const { data, error } = await authClient.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: createAuthCallbackUrl() },
+        options: {
+          data: {
+            nickname: nickname.trim(),
+          },
+          emailRedirectTo: createAuthCallbackUrl(),
+        },
       });
       const syncResult = !error && data.session ? await syncDomainSession(data.session, domainClient, lastDomainSessionAccessTokenRef) : { ok: true as const };
       if (!error && data.session) {
@@ -260,6 +282,40 @@ export function AuthProvider({ children, client, domainSessionClient }: AuthProv
       }
       const nextState = error ? createAuthErrorState(error.message) : createAuthStateFromSession(data.session);
       setState(syncResult.ok ? nextState : withDomainSessionError(nextState, syncResult.message));
+      if (!error) {
+        void refreshProfileForState(nextState, domainClient).then(profile => {
+          if (profile) {
+            setState(currentState => applyAuthProfile(currentState, profile));
+          }
+        });
+      }
+    },
+    updateNickname: async (nickname) => {
+      const nextNickname = nickname.trim();
+      if (!authClient || state.status !== 'authenticated' || !state.user) {
+        const message = 'Sign in before updating your nickname.';
+        setState(currentState => withDomainSessionError(currentState, message));
+        throw new Error(message);
+      }
+      if (!nextNickname || nextNickname.length > 80) {
+        const message = 'Nickname must be between 1 and 80 characters.';
+        setState(currentState => withDomainSessionError(currentState, message));
+        throw new Error(message);
+      }
+      if (!domainClient) {
+        const message = 'Pokokit profile updates are not configured.';
+        setState(currentState => withDomainSessionError(currentState, message));
+        throw new Error(message);
+      }
+
+      try {
+        const profile = await domainClient.updateProfile(nextNickname, state.accessToken);
+        setState(currentState => applyAuthProfile({ ...currentState, error: null }, profile));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Pokokit profile update failed.';
+        setState(currentState => withDomainSessionError(currentState, message));
+        throw new Error(message);
+      }
     },
     signOut: async () => {
       if (!authClient) {
@@ -349,6 +405,30 @@ async function clearDomainSession(domainClient: DomainSessionClient | null): Pro
   } catch {
     return { ok: false, message: 'Pokokit domain session clear failed.' };
   }
+}
+
+async function refreshProfileForState(state: AuthState, domainClient: DomainSessionClient | null): Promise<DomainSessionAuthContext | null> {
+  if (!domainClient || state.status !== 'authenticated' || !state.user) {
+    return null;
+  }
+  try {
+    return await domainClient.getProfile(state.accessToken);
+  } catch {
+    return null;
+  }
+}
+
+function applyAuthProfile(state: AuthState, profile: DomainSessionAuthContext): AuthState {
+  if (state.status !== 'authenticated' || !state.user || state.user.id !== profile.user.id) {
+    return state;
+  }
+  return {
+    ...state,
+    user: {
+      ...state.user,
+      nickname: profile.user.nickname ?? null,
+    },
+  };
 }
 
 function withDomainSessionError(state: AuthState, message: string): AuthState {

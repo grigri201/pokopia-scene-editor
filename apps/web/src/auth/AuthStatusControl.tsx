@@ -7,7 +7,7 @@ interface AuthStatusControlProps {
 }
 
 type AuthFormMode = 'sign-in' | 'sign-up';
-type AuthPendingAction = AuthFormMode | 'sign-out';
+type AuthPendingAction = AuthFormMode | 'sign-out' | 'nickname';
 
 const authPopoverViewportMargin = 12;
 const authPopoverTriggerGap = 8;
@@ -23,7 +23,11 @@ const labels = {
     error: '登录异常',
     expired: '登录已过期',
     loading: '读取登录状态',
+    nickname: '昵称',
+    nicknameSaved: '昵称已保存',
     password: '密码',
+    saveNickname: '保存昵称',
+    savingNickname: '保存中',
     signedIn: '已登录',
     signIn: '登录',
     signingIn: '登录中',
@@ -43,7 +47,11 @@ const labels = {
     error: 'Auth error',
     expired: 'Session expired',
     loading: 'Loading account',
+    nickname: 'Nickname',
+    nicknameSaved: 'Nickname saved',
     password: 'Password',
+    saveNickname: 'Save nickname',
+    savingNickname: 'Saving',
     signedIn: 'Signed in',
     signIn: 'Sign in',
     signingIn: 'Signing in',
@@ -57,18 +65,22 @@ const labels = {
 } as const;
 
 export function AuthStatusControl({ locale }: AuthStatusControlProps) {
-  const { state, signInWithPassword, signOut, signUpWithPassword } = useAuth();
+  const { state, signInWithPassword, signOut, signUpWithPassword, updateNickname } = useAuth();
   const text = labels[locale];
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<AuthFormMode>('sign-in');
   const [email, setEmail] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [profileNickname, setProfileNickname] = useState('');
+  const [profileNotice, setProfileNotice] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [pendingAction, setPendingAction] = useState<AuthPendingAction | null>(null);
   const [popoverStyle, setPopoverStyle] = useState<CSSProperties>();
 
-  const identityLabel = state.user?.email ?? state.user?.id ?? text.anonymous;
+  const identityLabel = state.user?.nickname ?? state.user?.email ?? state.user?.id ?? text.anonymous;
+  const identityDetail = state.user?.email ?? state.user?.id ?? text.anonymous;
   const canUseAuthForm = state.configured && state.status !== 'authenticated';
   const statusLabel = getStatusLabel(state.status, state.configured, text);
   const pendingLabel = pendingAction ? getPendingActionLabel(pendingAction, text) : null;
@@ -88,7 +100,7 @@ export function AuthStatusControl({ locale }: AuthStatusControlProps) {
       if (action === 'sign-in') {
         await signInWithPassword(email, password);
       } else {
-        await signUpWithPassword(email, password);
+        await signUpWithPassword(email, password, normalizeNickname(nickname, email));
       }
     } finally {
       setPendingAction(null);
@@ -108,6 +120,36 @@ export function AuthStatusControl({ locale }: AuthStatusControlProps) {
       setPendingAction(null);
     }
   };
+
+  const submitNickname = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (authActionPending || !profileNickname.trim()) {
+      return;
+    }
+
+    setProfileNotice(null);
+    setPendingAction('nickname');
+
+    try {
+      await updateNickname(profileNickname);
+      setProfileNotice(text.nicknameSaved);
+    } catch {
+      // The provider owns the sanitized error state shown in the same popover.
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  useEffect(() => {
+    if (pendingAction === 'nickname') {
+      return;
+    }
+    setProfileNickname(state.user?.nickname ?? '');
+  }, [pendingAction, state.user?.id, state.user?.nickname]);
+
+  useEffect(() => {
+    setProfileNotice(null);
+  }, [state.user?.id]);
 
   const closePopoverOnOutsidePointerDown = useCallback((event: PointerEvent) => {
     const target = event.target;
@@ -203,17 +245,40 @@ export function AuthStatusControl({ locale }: AuthStatusControlProps) {
           <div className="auth-status__summary">
             <strong>{displayStatusLabel}</strong>
             <span>{state.status === 'authenticated' ? identityLabel : text.anonymous}</span>
+            {state.status === 'authenticated' && identityDetail !== identityLabel ? <span>{identityDetail}</span> : null}
           </div>
           {state.error ? <p className="auth-status__error">{state.error}</p> : null}
           {state.status === 'authenticated' ? (
-            <button
-              type="button"
-              className="auth-status__submit"
-              disabled={authActionPending}
-              onClick={submitSignOut}
-            >
-              {pendingAction === 'sign-out' ? text.signingOut : text.signOut}
-            </button>
+            <>
+              <form className="auth-status__form auth-status__profile-form" onSubmit={submitNickname}>
+                <label>
+                  <span>{text.nickname}</span>
+                  <input
+                    type="text"
+                    autoComplete="nickname"
+                    value={profileNickname}
+                    disabled={authActionPending}
+                    maxLength={80}
+                    onChange={(event) => {
+                      setProfileNickname(event.target.value);
+                      setProfileNotice(null);
+                    }}
+                  />
+                </label>
+                <button type="submit" className="auth-status__submit" disabled={authActionPending || !profileNickname.trim()}>
+                  {pendingAction === 'nickname' ? text.savingNickname : text.saveNickname}
+                </button>
+              </form>
+              {profileNotice ? <p className="auth-status__notice">{profileNotice}</p> : null}
+              <button
+                type="button"
+                className="auth-status__submit"
+                disabled={authActionPending}
+                onClick={submitSignOut}
+              >
+                {pendingAction === 'sign-out' ? text.signingOut : text.signOut}
+              </button>
+            </>
           ) : null}
           {canUseAuthForm ? (
             <form className="auth-status__form" aria-busy={authActionPending} onSubmit={submitAuthForm}>
@@ -246,6 +311,19 @@ export function AuthStatusControl({ locale }: AuthStatusControlProps) {
                   required
                 />
               </label>
+              {mode === 'sign-up' ? (
+                <label>
+                  <span>{text.nickname}</span>
+                  <input
+                    type="text"
+                    autoComplete="nickname"
+                    value={nickname}
+                    disabled={authActionPending}
+                    maxLength={80}
+                    onChange={(event) => setNickname(event.target.value)}
+                  />
+                </label>
+              ) : null}
               <label>
                 <span>{text.password}</span>
                 <input
@@ -272,6 +350,15 @@ export function AuthStatusControl({ locale }: AuthStatusControlProps) {
       ) : null}
     </div>
   );
+}
+
+function normalizeNickname(value: string, email: string): string {
+  const nickname = value.trim();
+  if (nickname) {
+    return nickname;
+  }
+
+  return email.trim().split('@')[0]?.trim() || 'pokokit-user';
 }
 
 function getStatusLabel(status: string, configured: boolean, text: typeof labels[Locale]) {
@@ -301,6 +388,8 @@ function getPendingActionLabel(action: AuthPendingAction, text: typeof labels[Lo
       return text.signingUp;
     case 'sign-out':
       return text.signingOut;
+    case 'nickname':
+      return text.savingNickname;
   }
 }
 
