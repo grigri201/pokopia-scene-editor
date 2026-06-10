@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { type AssetSkillType, type PokemonKey, type RotationDegrees } from '@pokopia-scene-editor/scene-core';
 import { AssetPicker, type AssetSelectionMode } from '../asset-picker/AssetPicker';
 import { BuildingLevelPanel } from '../building-level-panel/BuildingLevelPanel';
@@ -37,6 +37,8 @@ import {
 import {
   applyRecoveredSceneDocument,
   autosavedSceneStorageKey,
+  type CloudSceneRecord,
+  type CloudSceneVisibility,
   createImageExportFile,
   createLayeredImageExportFiles,
   decodeSceneDocumentStringWithLossyRecovery,
@@ -46,7 +48,9 @@ import {
   getUiPreferencesStorage,
   readLatestSceneDocumentFromStorage,
   readUiPreferencesFromStorage,
+  type RemoteCloudSceneContext,
   savedSceneStorageKey,
+  saveCloudScene,
   writeHelpOverlayDismissedPreferenceToStorage,
   type RecoveryError,
   type RemoteSceneFetchResult,
@@ -93,9 +97,10 @@ import {
   SceneStringImportModal,
   type SceneStringImportSubmitResult,
 } from '../scene-string-import-modal/scene-string-import-modal';
-import { AuthProvider } from '../../auth/AuthProvider';
+import { AuthProvider, useAuth } from '../../auth/AuthProvider';
 import { AuthStatusControl } from '../../auth/AuthStatusControl';
 import { authReturnPathRestoredEvent } from '../../auth/auth-return-path';
+import { anonymousAuthState, type AuthState } from '../../auth/auth-state';
 
 const replacementConfirmationWindowMs = 15_000;
 const toastAutoDismissMs = 3_000;
@@ -132,10 +137,13 @@ type RemoteSceneImportState =
     }
   | {
       status: 'lossy-confirmation';
+      cloudScene: RemoteCloudSceneContext | null;
       droppedTileDetails: string[];
       sceneId: string;
       sceneString: string;
     };
+
+type CloudSceneContext = RemoteCloudSceneContext;
 
 interface SceneStringImportContext {
   interactionMode: InteractionMode;
@@ -188,6 +196,9 @@ export function AppShell() {
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(initialInteractionMode);
   const [sceneStringImportModalOpen, setSceneStringImportModalOpen] = useState(false);
   const [fileActionsMenuOpen, setFileActionsMenuOpen] = useState(false);
+  const [saveToGalleryDialogOpen, setSaveToGalleryDialogOpen] = useState(false);
+  const [cloudSceneContext, setCloudSceneContext] = useState<CloudSceneContext | null>(null);
+  const [authStateSnapshot, setAuthStateSnapshot] = useState<AuthState>(anonymousAuthState);
   const [remoteSceneImportState, setRemoteSceneImportState] = useState<RemoteSceneImportState>(() =>
     createInitialRemoteSceneImportState(window.location.search),
   );
@@ -1195,6 +1206,7 @@ export function AppShell() {
     setSelectedInstanceId(null);
     setPlacementRequiresSkill(false);
     setAssetSelectionMode('single');
+    setCloudSceneContext(null);
     replacementConfirmationExpiresAtRef.current = 0;
     setPlacementFeedback(null);
   };
@@ -1222,6 +1234,37 @@ export function AppShell() {
 
   const openSceneStringImportModal = () => {
     setSceneStringImportModalOpen(true);
+  };
+
+  const openSaveToGalleryDialog = () => {
+    setSaveToGalleryDialogOpen(true);
+  };
+
+  const closeSaveToGalleryDialog = () => {
+    setSaveToGalleryDialogOpen(false);
+  };
+
+  const showSaveToGalleryLoginPrompt = (configured: boolean) => {
+    showNotificationToast({
+      id: 'save-to-gallery',
+      tone: 'warning',
+      title: t(locale, 'saveToGalleryToastTitle'),
+      message: configured ? t(locale, 'saveToGalleryLoginRequired') : t(locale, 'saveToGalleryAuthNotConfigured'),
+    });
+  };
+
+  const handleCloudSceneSaved = (record: CloudSceneRecord, operation: 'create' | 'update') => {
+    setCloudSceneContext({
+      sceneId: record.id,
+      ownerUserId: record.owner_user_id,
+      visibility: record.visibility,
+    });
+    showNotificationToast({
+      id: 'save-to-gallery',
+      tone: 'success',
+      title: t(locale, 'saveToGalleryToastTitle'),
+      message: operation === 'update' ? t(locale, 'saveToGalleryUpdated') : t(locale, 'saveToGalleryCreated'),
+    });
   };
 
   const closeSceneStringImportModal = () => {
@@ -1480,6 +1523,7 @@ export function AppShell() {
       remoteSceneImportRequestIdRef.current += 1;
       dismissNotificationToast('remote-scene-import');
       setRemoteSceneImportState({ status: 'idle' });
+      setCloudSceneContext(null);
     }
 
     return result;
@@ -1489,17 +1533,21 @@ export function AppShell() {
     sceneId: string,
     sceneString: string,
     options: { allowLossy: boolean },
+    cloudScene: RemoteCloudSceneContext | null,
   ) => {
     const result = applySceneStringImport(sceneString, { ...options, source: 'remote-scene-id' });
 
     if (result.status === 'success') {
+      setCloudSceneContext(cloudScene);
       setRemoteSceneImportState({ status: 'success', sceneId });
+      removeSceneIdFromCurrentUrl();
       return;
     }
 
     if (result.status === 'lossy') {
       setRemoteSceneImportState({
         status: 'lossy-confirmation',
+        cloudScene,
         droppedTileDetails: result.droppedTileDetails,
         sceneId,
         sceneString,
@@ -1544,7 +1592,9 @@ export function AppShell() {
     }
 
     setRemoteSceneImportState({ status: 'loading', sceneId: query.sceneId });
-    const result = await fetchRemoteSceneString(window.location.search);
+    const result = await fetchRemoteSceneString(window.location.search, {
+      accessToken: authStateSnapshot.accessToken,
+    });
 
     if (remoteSceneImportRequestIdRef.current !== requestId) {
       return;
@@ -1581,7 +1631,7 @@ export function AppShell() {
         });
         return;
       case 'success':
-        handleRemoteSceneString(result.sceneId, result.sceneString, { allowLossy: false });
+        handleRemoteSceneString(result.sceneId, result.sceneString, { allowLossy: false }, result.cloudScene);
         return;
       case 'not-found':
         setRemoteSceneImportState({
@@ -1613,7 +1663,7 @@ export function AppShell() {
 
     handleRemoteSceneString(remoteSceneImportState.sceneId, remoteSceneImportState.sceneString, {
       allowLossy: true,
-    });
+    }, remoteSceneImportState.cloudScene);
   };
 
   const cancelRemoteLossyImport = () => {
@@ -1642,6 +1692,19 @@ export function AppShell() {
       window.removeEventListener(authReturnPathRestoredEvent, runRestoredRemoteSceneImport);
     };
   }, []);
+
+  useEffect(() => {
+    if (authStateSnapshot.status !== 'authenticated' || !authStateSnapshot.accessToken) {
+      return;
+    }
+
+    if (remoteSceneImportState.status === 'success' || remoteSceneImportState.status === 'lossy-confirmation') {
+      return;
+    }
+
+    automaticallyImportedRemoteSceneSearchRef.current = null;
+    runRemoteSceneImportForCurrentSearch();
+  }, [authStateSnapshot.accessToken, authStateSnapshot.status, remoteSceneImportState.status]);
 
   useEffect(() => {
     if (!fileActionsMenuOpen) {
@@ -1914,6 +1977,7 @@ export function AppShell() {
 
   return (
     <AuthProvider>
+      <AuthStateBridge onChange={setAuthStateSnapshot} />
       <main
         className="app-shell"
         data-locale={locale}
@@ -1984,6 +2048,11 @@ export function AppShell() {
                     >
                       {t(locale, 'importSceneString')}
                     </button>
+                    <SaveToGalleryMenuItem
+                      locale={locale}
+                      onLoginRequired={showSaveToGalleryLoginPrompt}
+                      onOpenDialog={() => runFileAction(openSaveToGalleryDialog, { restoreFocus: false })}
+                    />
                   </div>
                   <div
                     className="file-actions-menu__group file-actions-menu__group--danger"
@@ -2288,6 +2357,14 @@ export function AppShell() {
         onClose={closeSceneStringImportModal}
         onSubmit={submitSceneStringImport}
       />
+      <SaveToGalleryDialog
+        cloudSceneContext={cloudSceneContext}
+        locale={locale}
+        onClose={closeSaveToGalleryDialog}
+        onSaved={handleCloudSceneSaved}
+        open={saveToGalleryDialogOpen}
+        scene={scene}
+      />
       {mobilePreviewState ? (
         <MobilePreviewMode
           downloadDisabled={imageDownloadPending}
@@ -2416,6 +2493,194 @@ export function AppShell() {
   );
 }
 
+function AuthStateBridge({ onChange }: { onChange: (state: AuthState) => void }) {
+  const { state } = useAuth();
+
+  useEffect(() => {
+    onChange(state);
+  }, [onChange, state]);
+
+  return null;
+}
+
+function SaveToGalleryMenuItem({
+  locale,
+  onLoginRequired,
+  onOpenDialog,
+}: {
+  locale: Locale;
+  onLoginRequired: (configured: boolean) => void;
+  onOpenDialog: () => void;
+}) {
+  const { state } = useAuth();
+  const canSaveToGallery = state.status === 'authenticated' && Boolean(state.accessToken);
+
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className="file-actions-menu__item"
+      onClick={() => {
+        if (!canSaveToGallery) {
+          onLoginRequired(state.configured);
+          return;
+        }
+
+        onOpenDialog();
+      }}
+    >
+      {t(locale, 'saveToGallery')}
+    </button>
+  );
+}
+
+function SaveToGalleryDialog({
+  cloudSceneContext,
+  locale,
+  onClose,
+  onSaved,
+  open,
+  scene,
+}: {
+  cloudSceneContext: CloudSceneContext | null;
+  locale: Locale;
+  onClose: () => void;
+  onSaved: (record: CloudSceneRecord, operation: 'create' | 'update') => void;
+  open: boolean;
+  scene: SceneDocument;
+}) {
+  const { state } = useAuth();
+  const [name, setName] = useState(scene.sceneName);
+  const [pokemon, setPokemon] = useState(scene.selectedPokemonKey);
+  const [visibility, setVisibility] = useState<CloudSceneVisibility>(cloudSceneContext?.visibility ?? 'private');
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isOwnerCloudScene = Boolean(cloudSceneContext && state.user?.id === cloudSceneContext.ownerUserId);
+  const operation = isOwnerCloudScene ? 'update' : 'create';
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    setName(scene.sceneName);
+    setPokemon(scene.selectedPokemonKey);
+    setVisibility(cloudSceneContext?.visibility ?? 'private');
+    setError(null);
+  }, [cloudSceneContext?.sceneId, cloudSceneContext?.visibility, open, scene.sceneName, scene.selectedPokemonKey]);
+
+  if (!open) {
+    return null;
+  }
+
+  const submitSave = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (pending) {
+      return;
+    }
+
+    if (state.status !== 'authenticated' || !state.accessToken) {
+      setError(t(locale, 'saveToGalleryLoginRequired'));
+      return;
+    }
+
+    const trimmedName = name.trim();
+    const trimmedPokemon = pokemon.trim();
+    if (!trimmedName || !trimmedPokemon) {
+      setError(t(locale, 'saveToGalleryValidationRequired'));
+      return;
+    }
+
+    let pse: string;
+    try {
+      pse = encodeSceneDocumentString(scene);
+    } catch {
+      setError(t(locale, 'saveToGalleryPseFailed'));
+      return;
+    }
+
+    setPending(true);
+    setError(null);
+    const saveRequest = {
+      accessToken: state.accessToken,
+      payload: {
+        name: trimmedName,
+        pokemon: trimmedPokemon,
+        pse,
+        visibility,
+      },
+    };
+    const result = await saveCloudScene(
+      isOwnerCloudScene && cloudSceneContext
+        ? { ...saveRequest, sceneId: cloudSceneContext.sceneId }
+        : saveRequest,
+    );
+    setPending(false);
+
+    if (!result.ok) {
+      setError(result.code === 'scene_limit_reached' ? t(locale, 'saveToGalleryLimitReached') : result.message);
+      return;
+    }
+
+    onSaved(result.record, result.operation);
+    onClose();
+  };
+
+  return (
+    <div className="save-to-gallery-backdrop" role="presentation">
+      <section
+        className="save-to-gallery-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t(locale, 'saveToGalleryDialogTitle')}
+      >
+        <div className="save-to-gallery-dialog__header">
+          <div>
+            <p className="eyebrow">{t(locale, 'saveToGallery')}</p>
+            <h2>{t(locale, 'saveToGalleryDialogTitle')}</h2>
+          </div>
+          <button type="button" className="save-to-gallery-dialog__close" onClick={onClose}>
+            {t(locale, 'close')}
+          </button>
+        </div>
+        <form className="save-to-gallery-form" onSubmit={(event) => void submitSave(event)}>
+          <label>
+            <span>{t(locale, 'saveToGalleryName')}</span>
+            <input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} />
+          </label>
+          <label>
+            <span>{t(locale, 'saveToGalleryPokemon')}</span>
+            <input value={pokemon} maxLength={80} onChange={(event) => setPokemon(event.target.value)} />
+          </label>
+          <label>
+            <span>{t(locale, 'saveToGalleryVisibility')}</span>
+            <select value={visibility} onChange={(event) => setVisibility(event.target.value as CloudSceneVisibility)}>
+              <option value="private">{t(locale, 'saveToGalleryPrivate')}</option>
+              <option value="public">{t(locale, 'saveToGalleryPublic')}</option>
+            </select>
+          </label>
+          <p className="save-to-gallery-dialog__mode">
+            {operation === 'update' ? t(locale, 'saveToGalleryUpdateMode') : t(locale, 'saveToGalleryCreateMode')}
+          </p>
+          {error ? <p className="save-to-gallery-dialog__error">{error}</p> : null}
+          <div className="save-to-gallery-dialog__actions">
+            <button type="button" onClick={onClose} disabled={pending}>
+              {t(locale, 'cancel')}
+            </button>
+            <button type="submit" className="app-action-button" disabled={pending}>
+              {pending
+                ? t(locale, 'saveToGallerySaving')
+                : operation === 'update'
+                  ? t(locale, 'saveToGalleryUpdateAction')
+                  : t(locale, 'saveToGalleryCreateAction')}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 function createInitialRemoteSceneImportState(search: string): RemoteSceneImportState {
   const query = getSceneIdFromSearch(search);
 
@@ -2434,6 +2699,15 @@ function createInitialRemoteSceneImportState(search: string): RemoteSceneImportS
     status: 'loading',
     sceneId: query.sceneId,
   };
+}
+
+function removeSceneIdFromCurrentUrl(): void {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has('scene_id')) {
+    return;
+  }
+  url.searchParams.delete('scene_id');
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
 function getNextPlacementRotation(rotationDegrees: RotationDegrees): RotationDegrees {

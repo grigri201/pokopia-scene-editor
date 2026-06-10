@@ -10,6 +10,7 @@ export interface AuthState {
   user: AuthUser | null;
   error: string | null;
   configured: boolean;
+  accessToken: string | null;
 }
 
 export interface SupabasePublicConfig {
@@ -22,6 +23,7 @@ export const anonymousAuthState: AuthState = {
   user: null,
   error: null,
   configured: false,
+  accessToken: null,
 };
 
 export function getSupabasePublicConfig(env: ImportMetaEnv): SupabasePublicConfig | null {
@@ -41,6 +43,7 @@ export function createAuthErrorState(message: string, configured = true): AuthSt
     user: null,
     error: sanitizeAuthErrorMessage(message),
     configured,
+    accessToken: null,
   };
 }
 
@@ -54,6 +57,7 @@ export function createAuthStateFromSession(
       user: null,
       error: null,
       configured,
+      accessToken: null,
     };
   }
 
@@ -63,6 +67,7 @@ export function createAuthStateFromSession(
       user: session.user ? toAuthUser(session.user) : null,
       error: null,
       configured,
+      accessToken: session.access_token ?? null,
     };
   }
 
@@ -71,6 +76,7 @@ export function createAuthStateFromSession(
     user: toAuthUser(session.user),
     error: null,
     configured,
+    accessToken: session.access_token ?? null,
   };
 }
 
@@ -127,5 +133,6 @@ export interface SupabaseAuthUser {
 
 export interface SupabaseAuthSession {
   user: SupabaseAuthUser;
+  access_token?: string | null;
   expires_at?: number | null;
 }

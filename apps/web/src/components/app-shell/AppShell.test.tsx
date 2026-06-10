@@ -245,11 +245,10 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/remote-scenes/mobile-auth-callback', {
-        headers: { Accept: 'application/json' },
+      expect(fetchMock).toHaveBeenCalledWith('/api/v1/scenes/mobile-auth-callback', {
+        headers: expect.objectContaining({ Accept: 'application/json' }),
       });
     });
-    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/?scene_id=mobile-auth-callback');
     expect(window.sessionStorage.getItem(authReturnPathStorageKey)).toBeNull();
     await waitFor(() => {
       expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
@@ -257,6 +256,7 @@ describe('AppShell scene storage integration', () => {
         'preview-ready',
       );
     });
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/');
     expect(screen.getByRole('heading', { name: 'Mobile Auth Callback Scene' })).toBeVisible();
     expect(screen.queryByLabelText('Open Design editing workbench')).not.toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: 'Asset picker' })).not.toBeInTheDocument();
@@ -732,16 +732,11 @@ describe('AppShell scene storage integration', () => {
   });
 
   it('imports a remote scene_id into the desktop workbench without prompt or confirm', async () => {
-    window.history.replaceState(null, '', '/?scene_id=fixture');
+    window.history.replaceState(null, '', '/?scene_id=fixture&utm_source=gallery#editor');
     const promptSpy = vi.spyOn(window, 'prompt');
     const confirmSpy = vi.spyOn(window, 'confirm');
-    const remoteScene = createDefaultSceneDocument({
-      sceneId: 'scene-remote-desktop',
-      sceneName: 'Remote Desktop Garden',
-      selectedPokemonKey: 'pikachu',
-      now: '2026-06-01T01:00:00.000Z',
-    });
-    const fetchMock = vi.fn(async () => remoteSceneResponse('fixture', encodeSceneDocumentString(remoteScene)));
+    const remoteSceneString = 'PSE1~Remote%20Desktop%20Garden.0.0._._~0.%E7%B4%A0%E6%9D%90%E5%B1%82~_~_';
+    const fetchMock = vi.fn(async () => remoteSceneResponse('fixture', remoteSceneString));
     vi.stubGlobal('fetch', fetchMock);
 
     render(<AppShell />);
@@ -752,7 +747,11 @@ describe('AppShell scene storage integration', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('布景')).toHaveValue('Remote Desktop Garden');
     }, { timeout: 5_000 });
-    expect(fetchMock).toHaveBeenCalledWith('/api/remote-scenes/fixture', {
+    expect(screen.getByRole('grid', { name: '7x7 canvas with main and outer regions' })).toBeVisible();
+    expect(screen.getByLabelText('宽度')).toHaveValue('7');
+    expect(screen.getByLabelText('高度')).toHaveValue('7');
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/?utm_source=gallery#editor');
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/scenes/fixture', {
       headers: {
         Accept: 'application/json',
       },
@@ -1496,6 +1495,7 @@ describe('AppShell scene storage integration', () => {
       );
       expect(screen.getByRole('heading', { name: 'Mobile Remote Garden' })).toBeVisible();
     });
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/');
     expect(screen.getByLabelText('皮卡丘导出预览宝可梦图片')).toBeVisible();
     expect(screen.queryByLabelText('Open Design editing workbench')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '下载预览' })).not.toBeInTheDocument();
@@ -1706,6 +1706,7 @@ describe('AppShell scene storage integration', () => {
     });
     expect(screen.getByText(/远程布景包含 1 个不兼容素材/)).toBeVisible();
     expect(screen.getByText(/地基（7,2）木地板/)).toBeVisible();
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/?scene_id=lossy-remote');
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: '取消远程导入' }));
@@ -1725,6 +1726,7 @@ describe('AppShell scene storage integration', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Remote Lossy Mobile' })).toBeVisible();
     });
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/');
     expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}').tileInstances).toEqual([
       expect.objectContaining({
         assetId: 'bread-oven',
@@ -3199,6 +3201,145 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
+  it('shows a login prompt when an anonymous user clicks Save to Gallery without changing local scene storage', async () => {
+    render(<AppShell />);
+    const beforeSnapshot = readSceneSnapshot();
+
+    clickFileActionMenuItem(/保存到 Gallery|Save to Gallery/);
+
+    expect(screen.getByLabelText('Gallery 保存')).toHaveTextContent('请先登录');
+    expect(readSceneSnapshot()).toBe(beforeSnapshot);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
+  });
+
+  it('creates a Gallery scene from the current SceneDocument without persisting cloud metadata locally', async () => {
+    createSupabaseClientMock.mockReturnValue(createAppShellAuthClient({
+      session: createAppShellSession('owner-1', 'owner@example.com'),
+    }));
+    const saveRequests: Array<{
+      body: {
+        name?: unknown;
+        pokemon?: unknown;
+        pse?: unknown;
+        visibility?: unknown;
+        owner_user_id?: unknown;
+      };
+      headers: Headers;
+      input: string;
+      method: string | undefined;
+    }> = [];
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const body = JSON.parse(String(init?.body));
+      saveRequests.push({
+        body,
+        headers: new Headers(init?.headers),
+        input: String(input),
+        method: init?.method,
+      });
+      return cloudSceneApiResponse({
+        id: 'cloud-created',
+        ownerUserId: 'owner-1',
+        name: String(body.name),
+        pokemon: String(body.pokemon),
+        pse: String(body.pse),
+        visibility: body.visibility === 'public' ? 'public' : 'private',
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+    await waitFor(() => expect(screen.getByRole('button', { name: '账号: 已登录' })).toBeVisible());
+    fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Cloud Save Test' } });
+    await waitFor(() => expect(window.localStorage.getItem(autosavedSceneStorageKey)).not.toBeNull());
+
+    clickFileActionMenuItem(/保存到 Gallery|Save to Gallery/);
+    const dialog = screen.getByRole('dialog', { name: '保存到 Gallery' });
+    fireEvent.change(within(dialog).getByLabelText('公开状态'), { target: { value: 'public' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '新增到 Gallery' }));
+
+    await waitFor(() => expect(screen.getByLabelText('Gallery 保存')).toHaveTextContent('已新增到 Gallery'));
+    const [saveRequest] = saveRequests;
+    expect(saveRequest).toBeDefined();
+    if (!saveRequest) {
+      throw new Error('Expected Save to Gallery to send one Scene API request.');
+    }
+    expect(saveRequest.input).toBe('/api/v1/scenes');
+    expect(saveRequest.method).toBe('POST');
+    expect(saveRequest.headers.get('authorization')).toBe('Bearer owner-1-token');
+    expect(saveRequest.body).toMatchObject({
+      name: 'Cloud Save Test',
+      pokemon: 'ditto',
+      visibility: 'public',
+    });
+    expect(saveRequest.body).not.toHaveProperty('owner_user_id');
+    expect(saveRequest.body.pse).toEqual(expect.stringMatching(/^PSE/));
+    const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey) ?? '';
+    expect(rawAutosavePayload).toContain('Cloud Save Test');
+    expect(rawAutosavePayload).not.toContain('owner_user_id');
+    expect(rawAutosavePayload).not.toContain('"visibility"');
+    expect(rawAutosavePayload).not.toContain('cloud-created');
+    expect(rawAutosavePayload).not.toContain('owner-1-token');
+  });
+
+  it('updates an owner cloud scene opened through the Scene API v1 scene_id path', async () => {
+    const remoteScene = createDefaultSceneDocument({
+      sceneId: 'local-remote-fixture',
+      sceneName: 'Remote Owner Scene',
+      selectedPokemonKey: 'pikachu',
+      now: '2026-06-08T00:00:00.000Z',
+    });
+    const remotePse = encodeSceneDocumentString(remoteScene);
+    createSupabaseClientMock.mockReturnValue(createAppShellAuthClient({
+      session: createAppShellSession('owner-1', 'owner@example.com'),
+    }));
+    window.history.replaceState(null, '', '/?scene_id=cloud-owner');
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const method = init?.method ?? 'GET';
+      if (method === 'PUT') {
+        expect(String(input)).toBe('/api/v1/scenes/cloud-owner');
+        expect(init?.headers).toMatchObject({
+          Authorization: 'Bearer owner-1-token',
+        });
+        const body = JSON.parse(String(init?.body));
+        return cloudSceneApiResponse({
+          id: 'cloud-owner',
+          ownerUserId: 'owner-1',
+          name: body.name,
+          pokemon: body.pokemon,
+          pse: body.pse,
+          visibility: body.visibility,
+        });
+      }
+
+      return cloudSceneApiResponse({
+        id: 'cloud-owner',
+        ownerUserId: 'owner-1',
+        name: 'Remote Owner Scene',
+        pokemon: 'pikachu',
+        pse: remotePse,
+        visibility: 'private',
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => call[0] === '/api/v1/scenes/cloud-owner')).toBe(true);
+    });
+    await waitFor(() => expect(screen.getByLabelText('布景')).toHaveValue('Remote Owner Scene'));
+
+    clickFileActionMenuItem(/保存到 Gallery|Save to Gallery/);
+    const dialog = screen.getByRole('dialog', { name: '保存到 Gallery' });
+    expect(dialog).toHaveTextContent('将更新当前账号拥有的 cloud scene');
+    fireEvent.click(within(dialog).getByRole('button', { name: '更新 Gallery' }));
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => call[1]?.method === 'PUT')).toBe(true);
+    });
+    expect(screen.getByLabelText('Gallery 保存')).toHaveTextContent('已更新 Gallery scene');
+  });
+
   it('keeps mobile preview mode from writing scene storage', () => {
     setViewportWidth(390);
 
@@ -3648,6 +3789,7 @@ function createAppShellSession(
   expiresAt = Math.floor(Date.now() / 1000) + 3600,
 ): SupabaseAuthSession {
   return {
+    access_token: `${id}-token`,
     user: { id, email },
     expires_at: expiresAt,
   };
@@ -3838,6 +3980,39 @@ function remoteSceneResponse(sceneId: string, sceneString: string): Response {
       name: 'Remote fixture',
     },
     pse: sceneString,
+  }), {
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+    },
+  });
+}
+
+function cloudSceneApiResponse({
+  id,
+  name,
+  ownerUserId,
+  pokemon,
+  pse,
+  visibility,
+}: {
+  id: string;
+  name: string;
+  ownerUserId: string;
+  pokemon: string;
+  pse: string;
+  visibility: 'public' | 'private';
+}): Response {
+  return new Response(JSON.stringify({
+    data: {
+      id,
+      owner_user_id: ownerUserId,
+      name,
+      pse,
+      pokemon,
+      visibility,
+      created_at: '2026-06-08T00:00:00.000Z',
+      updated_at: '2026-06-08T00:00:00.000Z',
+    },
   }), {
     headers: {
       'content-type': 'application/json; charset=utf-8',

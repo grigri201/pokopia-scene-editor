@@ -19,6 +19,7 @@ export interface RemoteSceneSuccessResult {
   endpoint: string;
   sceneId: string;
   sceneString: string;
+  cloudScene: RemoteCloudSceneContext | null;
 }
 
 export interface RemoteSceneNotFoundResult {
@@ -62,14 +63,36 @@ export type RemoteSceneFetchResult =
   | RemoteSceneInvalidResponseResult;
 
 interface FetchRemoteSceneStringOptions {
+  accessToken?: string | null;
   endpointMode?: RemoteSceneEndpointMode;
   fetchImpl?: typeof fetch;
 }
 
-interface RemoteSceneApiResponse {
+export interface RemoteCloudSceneContext {
+  sceneId: string;
+  ownerUserId: string;
+  visibility: 'public' | 'private';
+}
+
+interface LegacyRemoteSceneApiResponse {
   id: string;
   meta: Record<string, unknown>;
   pse: string;
+}
+
+interface SceneApiV1Envelope {
+  data: SceneApiV1Record;
+}
+
+interface SceneApiV1Record {
+  id: string;
+  owner_user_id: string;
+  name: string;
+  pse: string;
+  pokemon: string;
+  visibility: 'public' | 'private';
+  created_at: string;
+  updated_at: string;
 }
 
 const pathSegmentSafeSceneIdPattern = /^[A-Za-z0-9_-]+$/;
@@ -123,13 +146,17 @@ export async function fetchRemoteSceneString(
   const { sceneId } = queryResult;
   const endpoint = resolveRemoteSceneEndpoint(sceneId, options.endpointMode);
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+  };
+  if (options.accessToken) {
+    headers.Authorization = `Bearer ${options.accessToken}`;
+  }
   let response: Response;
 
   try {
     response = await fetchImpl(endpoint, {
-      headers: {
-        Accept: 'application/json',
-      },
+      headers,
     });
   } catch (error) {
     return {
@@ -166,11 +193,12 @@ export async function fetchRemoteSceneString(
     return { status: 'invalid-response', endpoint, httpStatus: response.status, reason: 'json-parse', sceneId };
   }
 
-  if (!isRemoteSceneApiResponse(payload)) {
+  const parsedPayload = parseRemoteSceneApiResponse(payload);
+  if (!parsedPayload) {
     return { status: 'invalid-response', endpoint, httpStatus: response.status, reason: 'response-shape', sceneId };
   }
 
-  if (payload.id !== sceneId) {
+  if (parsedPayload.id !== sceneId) {
     return {
       status: 'invalid-response',
       endpoint,
@@ -180,7 +208,7 @@ export async function fetchRemoteSceneString(
     };
   }
 
-  if (payload.pse.trim().length === 0) {
+  if (parsedPayload.pse.trim().length === 0) {
     return {
       status: 'invalid-response',
       endpoint,
@@ -194,7 +222,8 @@ export async function fetchRemoteSceneString(
     status: 'success',
     endpoint,
     sceneId,
-    sceneString: payload.pse,
+    sceneString: parsedPayload.pse,
+    cloudScene: parsedPayload.cloudScene,
   };
 }
 
@@ -202,15 +231,63 @@ function getDefaultRemoteSceneEndpointMode(): RemoteSceneEndpointMode {
   return import.meta.env.DEV ? 'development' : 'production';
 }
 
-function isRemoteSceneApiResponse(payload: unknown): payload is RemoteSceneApiResponse {
+function parseRemoteSceneApiResponse(payload: unknown): { id: string; pse: string; cloudScene: RemoteCloudSceneContext | null } | null {
+  if (isSceneApiV1Envelope(payload)) {
+    return {
+      id: payload.data.id,
+      pse: payload.data.pse,
+      cloudScene: {
+        sceneId: payload.data.id,
+        ownerUserId: payload.data.owner_user_id,
+        visibility: payload.data.visibility,
+      },
+    };
+  }
+
+  if (isLegacyRemoteSceneApiResponse(payload)) {
+    return {
+      id: payload.id,
+      pse: payload.pse,
+      cloudScene: null,
+    };
+  }
+
+  return null;
+}
+
+function isSceneApiV1Envelope(payload: unknown): payload is SceneApiV1Envelope {
+  if (typeof payload !== 'object' || payload === null) {
+    return false;
+  }
+  const data = (payload as Partial<SceneApiV1Envelope>).data;
+  return isSceneApiV1Record(data);
+}
+
+function isSceneApiV1Record(payload: unknown): payload is SceneApiV1Record {
   return (
     typeof payload === 'object' &&
     payload !== null &&
-    typeof (payload as Partial<RemoteSceneApiResponse>).id === 'string' &&
-    typeof (payload as Partial<RemoteSceneApiResponse>).meta === 'object' &&
-    (payload as Partial<RemoteSceneApiResponse>).meta !== null &&
-    !Array.isArray((payload as Partial<RemoteSceneApiResponse>).meta) &&
-    typeof (payload as Partial<RemoteSceneApiResponse>).pse === 'string'
+    typeof (payload as Partial<SceneApiV1Record>).id === 'string' &&
+    typeof (payload as Partial<SceneApiV1Record>).owner_user_id === 'string' &&
+    typeof (payload as Partial<SceneApiV1Record>).name === 'string' &&
+    typeof (payload as Partial<SceneApiV1Record>).pse === 'string' &&
+    typeof (payload as Partial<SceneApiV1Record>).pokemon === 'string' &&
+    ((payload as Partial<SceneApiV1Record>).visibility === 'public' ||
+      (payload as Partial<SceneApiV1Record>).visibility === 'private') &&
+    typeof (payload as Partial<SceneApiV1Record>).created_at === 'string' &&
+    typeof (payload as Partial<SceneApiV1Record>).updated_at === 'string'
+  );
+}
+
+function isLegacyRemoteSceneApiResponse(payload: unknown): payload is LegacyRemoteSceneApiResponse {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    typeof (payload as Partial<LegacyRemoteSceneApiResponse>).id === 'string' &&
+    typeof (payload as Partial<LegacyRemoteSceneApiResponse>).meta === 'object' &&
+    (payload as Partial<LegacyRemoteSceneApiResponse>).meta !== null &&
+    !Array.isArray((payload as Partial<LegacyRemoteSceneApiResponse>).meta) &&
+    typeof (payload as Partial<LegacyRemoteSceneApiResponse>).pse === 'string'
   );
 }
 

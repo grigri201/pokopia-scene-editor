@@ -3,11 +3,11 @@ import react from '@vitejs/plugin-react';
 import { createReadStream, cpSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Plugin, ResolvedConfig } from 'vite';
+import { loadEnv, type Plugin, type ResolvedConfig } from 'vite';
 import {
   getRemoteSceneDevProxyRequestHeaders,
-  remoteSceneApiBaseUrl,
   remoteSceneDevProxyContextPattern,
+  resolveRemoteSceneApiBaseUrl,
   rewriteRemoteSceneDevProxyPath,
 } from './src/io/remote-scene-import-config';
 
@@ -35,67 +35,72 @@ const runtimeImageContentTypes: Record<string, string> = {
   webp: 'image/webp',
 };
 
-export default defineConfig({
-  base: process.env.VITE_PUBLIC_BASE_PATH ?? './',
-  plugins: [react(), copyPokopiaRuntimeAssets()],
-  resolve: {
-    alias: {
-      '@pokopia-scene-editor/scene-core': sceneCoreSourceEntry,
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, configDir, '');
+  const remoteSceneProxyTarget = resolveRemoteSceneApiBaseUrl(env.VITE_SCENE_API_URL);
+
+  return {
+    base: process.env.VITE_PUBLIC_BASE_PATH ?? './',
+    plugins: [react(), copyPokopiaRuntimeAssets()],
+    resolve: {
+      alias: {
+        '@pokopia-scene-editor/scene-core': sceneCoreSourceEntry,
+      },
     },
-  },
-  build: {
-    rolldownOptions: {
-      output: {
-        codeSplitting: {
-          groups: [
-            {
-              name: 'react-vendor',
-              test: /node_modules[\\/](react|react-dom)[\\/]/,
-              priority: 30,
-            },
-            {
-              name: 'export-vendor',
-              test: /node_modules[\\/]html-to-image[\\/]/,
-              priority: 20,
-            },
-            {
-              name: 'schema-vendor',
-              test: /node_modules[\\/]zod[\\/]/,
-              priority: 20,
-            },
-            {
-              name: 'pokopia-catalog',
-              test: /src[\\/]domain[\\/]assets[\\/]source-/,
-              priority: 10,
-            },
-          ],
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: 'react-vendor',
+                test: /node_modules[\\/](react|react-dom)[\\/]/,
+                priority: 30,
+              },
+              {
+                name: 'export-vendor',
+                test: /node_modules[\\/]html-to-image[\\/]/,
+                priority: 20,
+              },
+              {
+                name: 'schema-vendor',
+                test: /node_modules[\\/]zod[\\/]/,
+                priority: 20,
+              },
+              {
+                name: 'pokopia-catalog',
+                test: /src[\\/]domain[\\/]assets[\\/]source-/,
+                priority: 10,
+              },
+            ],
+          },
         },
       },
     },
-  },
-  server: {
-    proxy: {
-      [remoteSceneDevProxyContextPattern]: {
-        target: remoteSceneApiBaseUrl,
-        changeOrigin: true,
-        rewrite: rewriteRemoteSceneDevProxyPath,
-        configure(proxy) {
-          proxy.on('proxyReq', (proxyRequest) => {
-            for (const [headerName, headerValue] of Object.entries(getRemoteSceneDevProxyRequestHeaders())) {
-              proxyRequest.setHeader(headerName, headerValue);
-            }
-          });
+    server: {
+      proxy: {
+        [remoteSceneDevProxyContextPattern]: {
+          target: remoteSceneProxyTarget,
+          changeOrigin: true,
+          rewrite: rewriteRemoteSceneDevProxyPath,
+          configure(proxy) {
+            proxy.on('proxyReq', (proxyRequest) => {
+              for (const [headerName, headerValue] of Object.entries(getRemoteSceneDevProxyRequestHeaders())) {
+                proxyRequest.setHeader(headerName, headerValue);
+              }
+            });
+          },
         },
       },
     },
-  },
-  test: {
-    environment: 'jsdom',
-    globals: true,
-    include: ['src/**/*.test.{ts,tsx}'],
-    exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
-    setupFiles: ['./src/test/setup.ts'],
-  },
+    test: {
+      environment: 'jsdom',
+      globals: true,
+      include: ['src/**/*.test.{ts,tsx}'],
+      exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
+      setupFiles: ['./src/test/setup.ts'],
+    },
+  };
 });
 
 function copyPokopiaRuntimeAssets(): Plugin {

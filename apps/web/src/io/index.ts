@@ -8,6 +8,7 @@ export const sceneIoBoundary: SceneIoBoundary = {
 
 export * from './image-export';
 export * from './asset-staging-preferences';
+export * from './cloud-scene-api';
 export * from './remote-scene-import';
 export * from '@pokopia-scene-editor/scene-core';
 export * from './scene-storage';
