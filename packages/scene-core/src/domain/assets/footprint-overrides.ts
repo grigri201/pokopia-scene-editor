@@ -161,6 +161,7 @@ const assetFootprintOverridesByAssetId: Readonly<Record<string, AssetFootprint>>
   'utility-pole': { length: 1, width: 1, height: 3 },
   'crossing-gate': { length: 1, width: 2, height: 1 },
   'lift-platform': { length: 2, width: 2, height: 2 },
+  'smelting-furnace': { length: 2, width: 2, height: 2 },
   'metallic-smelting-furnace': { length: 2, width: 2, height: 2 },
   'elevator-platform': { length: 2, width: 2, height: 2 },
   'town-streetlight': { length: 1, width: 1, height: 3 },
