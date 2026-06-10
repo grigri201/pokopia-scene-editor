@@ -80,7 +80,6 @@ export function AuthStatusControl({ locale }: AuthStatusControlProps) {
   const [popoverStyle, setPopoverStyle] = useState<CSSProperties>();
 
   const identityLabel = state.user?.nickname ?? state.user?.email ?? state.user?.id ?? text.anonymous;
-  const identityDetail = state.user?.email ?? state.user?.id ?? text.anonymous;
   const canUseAuthForm = state.configured && state.status !== 'authenticated';
   const statusLabel = getStatusLabel(state.status, state.configured, text);
   const pendingLabel = pendingAction ? getPendingActionLabel(pendingAction, text) : null;
@@ -245,7 +244,6 @@ export function AuthStatusControl({ locale }: AuthStatusControlProps) {
           <div className="auth-status__summary">
             <strong>{displayStatusLabel}</strong>
             <span>{state.status === 'authenticated' ? identityLabel : text.anonymous}</span>
-            {state.status === 'authenticated' && identityDetail !== identityLabel ? <span>{identityDetail}</span> : null}
           </div>
           {state.error ? <p className="auth-status__error">{state.error}</p> : null}
           {state.status === 'authenticated' ? (
