@@ -145,6 +145,7 @@ const assetFootprintOverridesByAssetId: Readonly<Record<string, AssetFootprint>>
   'raichu-sign': { length: 1, width: 2, height: 1 },
   'vending-machine': { length: 2, width: 1, height: 2 },
   'wooden-birdhouse': { length: 1, width: 1, height: 2 },
+  'signpost': { length: 1, width: 1, height: 2 },
   'sandbags': { length: 1, width: 1, height: 2 },
   'bike': { length: 1, width: 2, height: 1 },
   'photo-cutout-board': { length: 1, width: 2, height: 1 },
