@@ -123,6 +123,8 @@ describe('asset catalog', () => {
     expect(getAssetById('straw-table')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('modern-sink')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('recycling-bin')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
+    expect(getAssetById('sandbags')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
+    expect(getAssetById('metal-drum')?.footprint).toEqual({ length: 1, width: 1, height: 1 });
     expect(getAssetById('wooden-bench')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
     expect(getAssetById('curved-eave')?.footprint).toEqual({ length: 2, width: 1, height: 1 });
     expect(getAssetById('cart')?.footprint).toEqual({ length: 1, width: 3, height: 1 });
