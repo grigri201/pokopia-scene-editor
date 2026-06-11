@@ -3344,12 +3344,55 @@ describe('AppShell scene storage integration', () => {
     });
 
     const menu = openFileActionsMenu();
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter((call) => isGalleryQuotaRequest(call[0]))).toHaveLength(2);
+    });
     const saveItem = within(menu).getByRole('menuitem', { name: /保存到 Gallery|Save to Gallery/ });
-    expect(saveItem).toBeDisabled();
+    await waitFor(() => expect(saveItem).toBeDisabled());
     expect(within(menu).getByText('Gallery 保存达到上限，新增入口已停用。更新已有 scene 不受影响。')).toBeVisible();
 
     fireEvent.click(saveItem);
     expect(screen.queryByRole('dialog', { name: '保存到 Gallery' })).not.toBeInTheDocument();
+  });
+
+  it('refreshes stale Gallery quota when opening the file actions menu', async () => {
+    createSupabaseClientMock.mockReturnValue(createAppShellAuthClient({
+      session: createAppShellSession('owner-1', 'owner@example.com'),
+    }));
+    let quotaRequestCount = 0;
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      if (isGalleryQuotaRequest(input)) {
+        quotaRequestCount += 1;
+        return quotaRequestCount === 1
+          ? galleryQuotaApiResponse({
+            isVip: false,
+            savedCount: 5,
+            limit: 5,
+            remaining: 0,
+            canCreate: false,
+          })
+          : galleryQuotaApiResponse({
+            isVip: false,
+            savedCount: 3,
+            limit: 5,
+            remaining: 2,
+            canCreate: true,
+          });
+      }
+      return domainSessionEmptyResponse();
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+    await waitFor(() => expect(screen.getByRole('button', { name: '账号: 已登录' })).toBeVisible());
+    await waitFor(() => expect(quotaRequestCount).toBe(1));
+
+    const menu = openFileActionsMenu();
+    await waitFor(() => expect(quotaRequestCount).toBeGreaterThanOrEqual(2));
+    await waitFor(() => {
+      expect(within(menu).getByRole('menuitem', { name: /保存到 Gallery|Save to Gallery/ })).not.toBeDisabled();
+    });
+    expect(within(menu).queryByText('Gallery 保存达到上限，新增入口已停用。更新已有 scene 不受影响。')).not.toBeInTheDocument();
   });
 
   it('updates an owner cloud scene opened through the Scene API v1 scene_id path', async () => {

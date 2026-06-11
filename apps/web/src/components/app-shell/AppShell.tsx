@@ -214,6 +214,7 @@ export function AppShell() {
   const [remoteSceneImportState, setRemoteSceneImportState] = useState<RemoteSceneImportState>(() =>
     createInitialRemoteSceneImportState(window.location.search),
   );
+  const galleryQuotaRequestIdRef = useRef(0);
   const remoteSceneImportRequestIdRef = useRef(0);
   const automaticallyImportedRemoteSceneSearchRef = useRef<string | null>(null);
   const hasEnteredEditModeRef = useRef(initialInteractionMode === 'edit');
@@ -1367,6 +1368,9 @@ export function AppShell() {
   };
 
   const toggleFileActionsMenu = () => {
+    if (!fileActionsMenuOpen) {
+      refreshGalleryQuota();
+    }
     setFileActionsMenuOpen((open) => !open);
   };
 
@@ -1779,26 +1783,44 @@ export function AppShell() {
     };
   }, []);
 
-  useEffect(() => {
+  const refreshGalleryQuota = () => {
     const auth = createSceneApiAuth(authStateSnapshot);
+    const requestId = galleryQuotaRequestIdRef.current + 1;
+    galleryQuotaRequestIdRef.current = requestId;
+
     if (!auth) {
       setGalleryQuotaState({ status: 'idle' });
-      return undefined;
+      return;
     }
 
-    let cancelled = false;
-    setGalleryQuotaState({ status: 'loading' });
-    fetchGalleryQuota({ auth }).then((result) => {
-      if (cancelled) {
+    setGalleryQuotaState((current) => current.status === 'loaded' ? current : { status: 'loading' });
+    void fetchGalleryQuota({ auth }).then((result) => {
+      if (galleryQuotaRequestIdRef.current !== requestId) {
         return;
       }
       setGalleryQuotaState(result.ok
         ? { status: 'loaded', quota: result.quota }
         : { status: 'error', message: result.message });
     });
+  };
+
+  useEffect(() => {
+    refreshGalleryQuota();
+  }, [authStateSnapshot.accessToken, authStateSnapshot.source, authStateSnapshot.status, authStateSnapshot.user?.id]);
+
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        refreshGalleryQuota();
+      }
+    };
+
+    window.addEventListener('focus', refreshGalleryQuota);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
 
     return () => {
-      cancelled = true;
+      window.removeEventListener('focus', refreshGalleryQuota);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, [authStateSnapshot.accessToken, authStateSnapshot.source, authStateSnapshot.status, authStateSnapshot.user?.id]);
 
@@ -2696,7 +2718,7 @@ function SaveToGalleryDialog({
 }) {
   const { state } = useAuth();
   const [name, setName] = useState(scene.sceneName);
-  const [pokemon, setPokemon] = useState(scene.selectedPokemonKey);
+  const [pokemon, setPokemon] = useState<string>(scene.selectedPokemonKey);
   const [visibility, setVisibility] = useState<CloudSceneVisibility>(cloudSceneContext?.visibility ?? 'private');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
