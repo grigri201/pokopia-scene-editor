@@ -18,7 +18,7 @@ describe('cloud scene api', () => {
       endpointMode: 'production',
       payload: {
         name: 'Cloud room',
-        pse: 'PSE2-cloud',
+        pse: 'PSE3-cloud',
         pokemon: 'pikachu',
         visibility: 'private',
       },
@@ -34,7 +34,7 @@ describe('cloud scene api', () => {
       },
       body: JSON.stringify({
         name: 'Cloud room',
-        pse: 'PSE2-cloud',
+        pse: 'PSE3-cloud',
         pokemon: 'pikachu',
         visibility: 'private',
       }),
@@ -56,15 +56,17 @@ describe('cloud scene api', () => {
       endpointMode: 'development',
       sceneId: 'scene-1',
       payload: {
-        name: 'Cloud room',
-        pse: 'PSE2-cloud',
-        pokemon: 'eevee',
-        visibility: 'public',
+        pse: 'PSE3-cloud',
       },
       fetchImpl,
     });
 
-    expect(fetchImpl).toHaveBeenCalledWith('/api/v1/scenes/scene-1', expect.objectContaining({ method: 'PUT' }));
+    expect(fetchImpl).toHaveBeenCalledWith('/api/v1/scenes/scene-1', expect.objectContaining({
+      body: JSON.stringify({
+        pse: 'PSE3-cloud',
+      }),
+      method: 'PUT',
+    }));
     expect(result).toMatchObject({
       ok: true,
       operation: 'update',
@@ -81,7 +83,7 @@ describe('cloud scene api', () => {
       endpointMode: 'development',
       payload: {
         name: 'Overflow',
-        pse: 'PSE2-overflow',
+        pse: 'PSE3-overflow',
         pokemon: 'pikachu',
         visibility: 'private',
       },
@@ -101,7 +103,7 @@ describe('cloud scene api', () => {
       endpointMode: 'production',
       payload: {
         name: 'Cookie cloud room',
-        pse: 'PSE2-cookie-cloud',
+        pse: 'PSE3-cookie-cloud',
         pokemon: 'eevee',
         visibility: 'private',
       },
@@ -117,7 +119,7 @@ describe('cloud scene api', () => {
       },
       body: JSON.stringify({
         name: 'Cookie cloud room',
-        pse: 'PSE2-cookie-cloud',
+        pse: 'PSE3-cookie-cloud',
         pokemon: 'eevee',
         visibility: 'private',
       }),
@@ -130,7 +132,7 @@ function cloudSceneRecord(id: string) {
     id,
     owner_user_id: 'user-1',
     name: 'Cloud room',
-    pse: 'PSE2-cloud',
+    pse: 'PSE3-cloud',
     pokemon: 'pikachu',
     visibility: 'private',
     created_at: '2026-06-08T00:00:00.000Z',

@@ -91,6 +91,8 @@ export const sceneDocumentV1Schema = z.object({
   schemaVersion: z.literal(1),
   sceneId: z.string().min(1),
   sceneName: z.string().min(1),
+  sceneAuthor: z.string().default(''),
+  sceneRef: z.string().default(''),
   selectedPokemonKey: z.string().refine(isKnownPokemonKey, 'Expected known Decor Dex Pokemon key'),
   sceneSize: gridSizeSchema,
   canvasSize: gridSizeSchema,

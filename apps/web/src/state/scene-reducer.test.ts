@@ -9,7 +9,9 @@ import {
   selectCoordinate,
   selectPokemon,
   setSelectedAsset,
+  updateSceneAuthor,
   updateSceneName,
+  updateSceneRef,
 } from './scene-reducer';
 
 describe('scene reducer selection rules', () => {
@@ -186,13 +188,19 @@ describe('scene reducer selection rules', () => {
       now: '2026-05-16T07:00:00.000Z',
     });
     const renamed = updateSceneName(scene, 'Garden 5x5 Layout', 'edit', '2026-05-16T08:00:00.000Z');
-    const themed = selectPokemon(renamed, 'eevee', 'edit', '2026-05-16T08:01:00.000Z');
-    const saved = saveScene(themed, 'edit', '2026-05-16T08:02:00.000Z');
+    const authored = updateSceneAuthor(renamed, 'https://example.test/author/builder-zero', 'edit', '2026-05-16T08:01:00.000Z');
+    const referenced = updateSceneRef(authored, 'https://example.test/ref', 'edit', '2026-05-16T08:02:00.000Z');
+    const themed = selectPokemon(referenced, 'eevee', 'edit', '2026-05-16T08:03:00.000Z');
+    const saved = saveScene(themed, 'edit', '2026-05-16T08:04:00.000Z');
 
     expect(renamed.sceneName).toBe('Garden 5x5 Layout');
     expect(renamed.metadata.updatedAt).toBe('2026-05-16T08:00:00.000Z');
+    expect(authored.sceneAuthor).toBe('https://example.test/author/builder-zero');
+    expect(authored.metadata.updatedAt).toBe('2026-05-16T08:01:00.000Z');
+    expect(referenced.sceneRef).toBe('https://example.test/ref');
+    expect(referenced.metadata.updatedAt).toBe('2026-05-16T08:02:00.000Z');
     expect(themed.selectedPokemonKey).toBe('eevee');
-    expect(saved.metadata.lastSavedAt).toBe('2026-05-16T08:02:00.000Z');
+    expect(saved.metadata.lastSavedAt).toBe('2026-05-16T08:04:00.000Z');
   });
 
   it('selects the current placement asset through guarded scene workspace state', () => {
@@ -274,6 +282,8 @@ describe('scene reducer selection rules', () => {
     });
 
     expect(updateSceneName(scene, 'Blocked 5x5 Layout', 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
+    expect(updateSceneAuthor(scene, 'https://example.test/author/blocked', 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
+    expect(updateSceneRef(scene, 'https://example.test/ref/blocked', 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
     expect(selectPokemon(scene, 'pikachu', 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
     expect(resizeSceneCanvas(scene, { width: 6, height: 6 }, 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
     expect(saveScene(scene, 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);

@@ -11,9 +11,13 @@ describe('PokemonSceneControls', () => {
         canvasSize={defaultCanvasSize}
         selectedPokemonKey="pikachu"
         sceneName="星光庭院"
+        sceneAuthor=""
+        sceneRef=""
         onCanvasSizeChange={() => undefined}
         onPokemonChange={() => undefined}
         onSceneNameChange={() => undefined}
+        onSceneAuthorChange={() => undefined}
+        onSceneRefChange={() => undefined}
       />,
     );
 
@@ -24,6 +28,8 @@ describe('PokemonSceneControls', () => {
     expect(container.querySelector('.scene-controls__fields')).not.toHaveAttribute('hidden');
     expect(container.querySelector('.scene-controls__fields')).not.toHaveAttribute('inert');
     expect(screen.getByLabelText('布景')).toBeVisible();
+    expect(screen.getByLabelText('作者链接')).toBeVisible();
+    expect(screen.getByLabelText('Ref 链接')).toBeVisible();
     expect(screen.getByLabelText('Current Pokemon')).toBeVisible();
     expect(screen.getByRole('group', { name: '编辑区域大小' })).toBeVisible();
   });
@@ -32,6 +38,8 @@ describe('PokemonSceneControls', () => {
     const onCanvasSizeChange = vi.fn();
     const onPokemonChange = vi.fn();
     const onSceneNameChange = vi.fn();
+    const onSceneAuthorChange = vi.fn();
+    const onSceneRefChange = vi.fn();
 
     const { container } = render(
       <PokemonSceneControls
@@ -39,9 +47,13 @@ describe('PokemonSceneControls', () => {
         canvasSize={defaultCanvasSize}
         selectedPokemonKey="pikachu"
         sceneName="星光庭院"
+        sceneAuthor="https://example.test/author/grigri"
+        sceneRef="https://example.test/source"
         onCanvasSizeChange={onCanvasSizeChange}
         onPokemonChange={onPokemonChange}
         onSceneNameChange={onSceneNameChange}
+        onSceneAuthorChange={onSceneAuthorChange}
+        onSceneRefChange={onSceneRefChange}
       />,
     );
 
@@ -86,10 +98,12 @@ describe('PokemonSceneControls', () => {
     expect(pokemonOptionValues.indexOf('peakychu')).toBeLessThan(pokemonOptionValues.indexOf('pikachu'));
     expect(pokemonOptionValues.at(-1)).toBe('mew');
     const fieldLabels = Array.from(container.querySelectorAll('.scene-controls__fields > label'));
-    expect(fieldLabels).toHaveLength(2);
+    expect(fieldLabels).toHaveLength(4);
     expect(fieldLabels[0]?.querySelector('input')).toHaveAccessibleName('布景');
-    expect(fieldLabels[1]?.childNodes[0]?.textContent?.trim()).toBe('宝可梦');
-    expect(fieldLabels[1]?.querySelector('input')).toHaveAccessibleName('Current Pokemon');
+    expect(fieldLabels[1]?.querySelector('input')).toHaveAccessibleName('作者链接');
+    expect(fieldLabels[2]?.querySelector('input')).toHaveAccessibleName('Ref 链接');
+    expect(fieldLabels[3]?.childNodes[0]?.textContent?.trim()).toBe('宝可梦');
+    expect(fieldLabels[3]?.querySelector('input')).toHaveAccessibleName('Current Pokemon');
     expect(screen.getByRole('group', { name: '编辑区域大小' })).toBeVisible();
     expect(container.querySelector('.scene-size-control legend')).toBeNull();
     expect(screen.getByLabelText('宽度')).toHaveValue(`${defaultCanvasSize.width}`);
@@ -116,11 +130,15 @@ describe('PokemonSceneControls', () => {
     fireEvent.change(screen.getByLabelText('Current Pokemon'), { target: { value: 'eevee' } });
     fireEvent.mouseDown(screen.getByRole('option', { name: /#280.*伊布.*Eevee/ }));
     fireEvent.change(screen.getByLabelText('布景'), { target: { value: '月光庭院' } });
+    fireEvent.change(screen.getByLabelText('作者链接'), { target: { value: 'https://example.test/author/guest-builder' } });
+    fireEvent.change(screen.getByLabelText('Ref 链接'), { target: { value: 'https://example.test/updated' } });
     fireEvent.change(screen.getByLabelText('宽度'), { target: { value: '12' } });
     fireEvent.change(screen.getByLabelText('高度'), { target: { value: '9' } });
 
     expect(onPokemonChange).toHaveBeenCalledWith('eevee');
     expect(onSceneNameChange).toHaveBeenCalledWith('月光庭院');
+    expect(onSceneAuthorChange).toHaveBeenCalledWith('https://example.test/author/guest-builder');
+    expect(onSceneRefChange).toHaveBeenCalledWith('https://example.test/updated');
     expect(onCanvasSizeChange).toHaveBeenNthCalledWith(1, { width: 12, height: defaultCanvasSize.height });
     expect(onCanvasSizeChange).toHaveBeenNthCalledWith(2, { width: defaultCanvasSize.width, height: 9 });
     expect(screen.queryByRole('button', { name: /Save scene/ })).not.toBeInTheDocument();
@@ -136,9 +154,13 @@ describe('PokemonSceneControls', () => {
         canvasSize={defaultCanvasSize}
         selectedPokemonKey="pikachu"
         sceneName="星光庭院"
+        sceneAuthor=""
+        sceneRef=""
         onCanvasSizeChange={() => undefined}
         onPokemonChange={onPokemonChange}
         onSceneNameChange={() => undefined}
+        onSceneAuthorChange={() => undefined}
+        onSceneRefChange={() => undefined}
       />,
     );
 
@@ -180,9 +202,13 @@ describe('PokemonSceneControls', () => {
         canvasSize={defaultCanvasSize}
         selectedPokemonKey="pikachu"
         sceneName="星光庭院"
+        sceneAuthor=""
+        sceneRef=""
         onCanvasSizeChange={() => undefined}
         onPokemonChange={() => undefined}
         onSceneNameChange={onSceneNameChange}
+        onSceneAuthorChange={() => undefined}
+        onSceneRefChange={() => undefined}
         onSceneNameValidationError={onSceneNameValidationError}
       />,
     );
@@ -205,9 +231,13 @@ describe('PokemonSceneControls', () => {
         canvasSize={defaultCanvasSize}
         selectedPokemonKey="pikachu"
         sceneName="星光庭院"
+        sceneAuthor=""
+        sceneRef=""
         onCanvasSizeChange={() => undefined}
         onPokemonChange={() => undefined}
         onSceneNameChange={() => undefined}
+        onSceneAuthorChange={() => undefined}
+        onSceneRefChange={() => undefined}
       />,
     );
 
@@ -223,14 +253,20 @@ describe('PokemonSceneControls', () => {
         canvasSize={defaultCanvasSize}
         selectedPokemonKey="pikachu"
         sceneName="星光庭院"
+        sceneAuthor="https://example.test/author/readonly"
+        sceneRef="https://example.test/ref/readonly"
         onCanvasSizeChange={() => undefined}
         onPokemonChange={() => undefined}
         onSceneNameChange={() => undefined}
+        onSceneAuthorChange={() => undefined}
+        onSceneRefChange={() => undefined}
       />,
     );
 
     expect(screen.getByLabelText('Current Pokemon')).toBeDisabled();
     expect(screen.getByLabelText('布景')).toHaveAttribute('readonly', '');
+    expect(screen.getByLabelText('作者链接')).toHaveAttribute('readonly', '');
+    expect(screen.getByLabelText('Ref 链接')).toHaveAttribute('readonly', '');
     expect(screen.getByLabelText('宽度')).toBeDisabled();
     expect(screen.getByLabelText('高度')).toBeDisabled();
     expect(screen.queryByRole('button', { name: /Save scene/ })).not.toBeInTheDocument();

@@ -91,6 +91,18 @@ describe('SceneDocument v1 schema', () => {
     }
   });
 
+  it('defaults missing author and ref for older v1 payloads', () => {
+    const payload = createValidPayload();
+    const legacyPayload = removeField(removeField(payload, 'sceneAuthor'), 'sceneRef');
+    const result = parseSceneDocument(legacyPayload);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.scene.sceneAuthor).toBe('');
+      expect(result.scene.sceneRef).toBe('');
+    }
+  });
+
   it('defaults missing building level notes for older v1 payloads', () => {
     const payload = createValidPayload();
     const result = parseSceneDocument({

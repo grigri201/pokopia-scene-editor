@@ -54,6 +54,8 @@ export interface SceneDocument {
   schemaVersion: SceneSchemaVersion;
   sceneId: string;
   sceneName: string;
+  sceneAuthor: string;
+  sceneRef: string;
   selectedPokemonKey: PokemonKey;
   sceneSize: GridSize;
   canvasSize: GridSize;

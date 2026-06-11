@@ -24,6 +24,18 @@ export type SceneAction =
       now: string;
     }
   | {
+      type: 'update-scene-author';
+      sceneAuthor: string;
+      interactionMode: InteractionMode;
+      now: string;
+    }
+  | {
+      type: 'update-scene-ref';
+      sceneRef: string;
+      interactionMode: InteractionMode;
+      now: string;
+    }
+  | {
       type: 'select-pokemon';
       pokemonKey: PokemonKey;
       interactionMode: InteractionMode;
@@ -59,6 +71,10 @@ export function sceneReducer(scene: SceneDocument, action: SceneAction): SceneDo
       return selectCoordinate(scene, action.coordinate, action.interactionMode);
     case 'update-scene-name':
       return updateSceneName(scene, action.sceneName, action.interactionMode, action.now);
+    case 'update-scene-author':
+      return updateSceneAuthor(scene, action.sceneAuthor, action.interactionMode, action.now);
+    case 'update-scene-ref':
+      return updateSceneRef(scene, action.sceneRef, action.interactionMode, action.now);
     case 'select-pokemon':
       return selectPokemon(scene, action.pokemonKey, action.interactionMode, action.now);
     case 'resize-scene-canvas':
@@ -70,6 +86,44 @@ export function sceneReducer(scene: SceneDocument, action: SceneAction): SceneDo
     case 'save-scene':
       return saveScene(scene, action.interactionMode, action.now);
   }
+}
+
+export function updateSceneAuthor(
+  scene: SceneDocument,
+  sceneAuthor: string,
+  interactionMode: InteractionMode,
+  now: string,
+): SceneDocument {
+  if (interactionMode === 'readOnly' || sceneAuthor === scene.sceneAuthor) {
+    return scene;
+  }
+
+  return markSceneDirty(
+    {
+      ...scene,
+      sceneAuthor,
+    },
+    now,
+  );
+}
+
+export function updateSceneRef(
+  scene: SceneDocument,
+  sceneRef: string,
+  interactionMode: InteractionMode,
+  now: string,
+): SceneDocument {
+  if (interactionMode === 'readOnly' || sceneRef === scene.sceneRef) {
+    return scene;
+  }
+
+  return markSceneDirty(
+    {
+      ...scene,
+      sceneRef,
+    },
+    now,
+  );
 }
 
 export function selectCoordinate(

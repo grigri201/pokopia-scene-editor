@@ -28,6 +28,7 @@ import type { SceneDocumentV1, SceneDocumentValidationError } from './scene-sche
 
 const legacyCodecPrefix = 'PSE1';
 const dimensionedCodecPrefix = 'PSE2';
+const currentCodecPrefix = 'PSE3';
 const empty = '_';
 const radixAlphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 const rotationValues: readonly RotationDegrees[] = [0, 90, 180, 270];
@@ -52,6 +53,7 @@ export function encodeSceneDocumentString(scene: SceneDocument): string {
   const currentLevelIndex = levelIndexById.get(payload.workspaceState.currentBuildingLevelId) ?? 0;
 
   const dimensions = getPayloadDimensions(payload);
+  const [encodedAuthor, encodedRef] = encodeAttributionFields(payload);
   const encodedHeader = encodeHeader(payload, currentLevelIndex, dimensions);
   const encodedLevels = payload.buildingLevels.map(encodeLevel).join(';') || empty;
   const encodedInstances =
@@ -59,19 +61,11 @@ export function encodeSceneDocumentString(scene: SceneDocument): string {
   const encodedMarkers =
     payload.skillMarkers.map((marker) => encodeSkillMarker(marker, levelIndexById, dimensions)).join(';') || empty;
 
-  if (isLegacySceneDimensions(dimensions)) {
-    return [
-      legacyCodecPrefix,
-      encodedHeader,
-      encodedLevels,
-      encodedInstances,
-      encodedMarkers,
-    ].join('~');
-  }
-
   return [
-    dimensionedCodecPrefix,
+    currentCodecPrefix,
     encodeDimensions(dimensions),
+    encodedAuthor,
+    encodedRef,
     encodedHeader,
     encodedLevels,
     encodedInstances,
@@ -107,7 +101,7 @@ export function summarizeSceneDocumentStringDimensions(value: string): SceneDime
     return summarizeSceneDimensions(legacySceneDimensions);
   }
 
-  if (prefix !== dimensionedCodecPrefix) {
+  if (prefix !== dimensionedCodecPrefix && prefix !== currentCodecPrefix) {
     return null;
   }
 
@@ -172,13 +166,14 @@ function encodeSkillMarker(
 function decodeSceneDocumentPayload(value: string, now: string): SceneDocumentV1 {
   const [prefix, ...parts] = value.split('~');
   const isLegacy = prefix === legacyCodecPrefix;
-  const isDimensioned = prefix === dimensionedCodecPrefix;
+  const isDimensioned = prefix === dimensionedCodecPrefix || prefix === currentCodecPrefix;
 
   if (!isLegacy && !isDimensioned) {
     throw new Error('Invalid scene string format.');
   }
 
   const dimensions = isLegacy ? legacySceneDimensions : decodeDimensions(parts.shift());
+  const attribution = decodePse3Attribution(prefix, parts);
   const [encodedHeader, encodedLevels, encodedInstances, encodedMarkers, ...extra] = parts;
   if (!encodedHeader || !encodedLevels || extra.length > 0) {
     throw new Error('Invalid scene string format.');
@@ -200,6 +195,8 @@ function decodeSceneDocumentPayload(value: string, now: string): SceneDocumentV1
     schemaVersion: 1,
     sceneId: `scene-import-${now.replace(/[^0-9]/g, '').slice(0, 17)}`,
     sceneName: header.sceneName,
+    sceneAuthor: attribution.sceneAuthor,
+    sceneRef: attribution.sceneRef,
     selectedPokemonKey: header.selectedPokemonKey,
     sceneSize: { ...dimensions.sceneSize },
     canvasSize: { ...dimensions.canvasSize },
@@ -218,6 +215,66 @@ function decodeSceneDocumentPayload(value: string, now: string): SceneDocumentV1
       lastSavedAt: now,
       lastAutosavedAt: null,
     },
+  };
+}
+
+function encodeAttributionFields(payload: SceneDocumentV1): [string, string] {
+  return [
+    payload.sceneAuthor ? encodeText(payload.sceneAuthor) : empty,
+    payload.sceneRef ? encodeText(payload.sceneRef) : empty,
+  ];
+}
+
+function decodePse3Attribution(prefix: string, parts: string[]): Pick<SceneDocumentV1, 'sceneAuthor' | 'sceneRef'> {
+  if (prefix !== currentCodecPrefix) {
+    return createEmptyAttribution();
+  }
+
+  if (parts.length === 6) {
+    return decodeAttributionFields(parts.shift(), parts.shift());
+  }
+
+  if (parts.length === 5) {
+    return decodeLegacyCombinedAttribution(parts.shift());
+  }
+
+  return createEmptyAttribution();
+}
+
+function decodeAttributionFields(
+  sceneAuthor: string | undefined,
+  sceneRef: string | undefined,
+): Pick<SceneDocumentV1, 'sceneAuthor' | 'sceneRef'> {
+  if (sceneAuthor === undefined || sceneRef === undefined) {
+    throw new Error('Invalid scene string attribution.');
+  }
+
+  return {
+    sceneAuthor: sceneAuthor === empty ? '' : decodeText(sceneAuthor),
+    sceneRef: sceneRef === empty ? '' : decodeText(sceneRef),
+  };
+}
+
+function decodeLegacyCombinedAttribution(value: string | undefined): Pick<SceneDocumentV1, 'sceneAuthor' | 'sceneRef'> {
+  if (!value || value === empty) {
+    return createEmptyAttribution();
+  }
+
+  const [sceneAuthor, sceneRef, ...extra] = value.split('.');
+  if (sceneAuthor === undefined || sceneRef === undefined || extra.length > 0) {
+    throw new Error('Invalid scene string attribution.');
+  }
+
+  return {
+    sceneAuthor: sceneAuthor === empty ? '' : decodeText(sceneAuthor),
+    sceneRef: sceneRef === empty ? '' : decodeText(sceneRef),
+  };
+}
+
+function createEmptyAttribution(): Pick<SceneDocumentV1, 'sceneAuthor' | 'sceneRef'> {
+  return {
+    sceneAuthor: '',
+    sceneRef: '',
   };
 }
 
@@ -469,16 +526,6 @@ function getPayloadDimensions(payload: SceneDocumentV1): SceneDimensions {
     canvasSize: { ...payload.canvasSize },
     outerPadding: payload.outerPadding,
   };
-}
-
-function isLegacySceneDimensions(dimensions: SceneDimensions): boolean {
-  return (
-    dimensions.sceneSize.width === legacySceneDimensions.sceneSize.width &&
-    dimensions.sceneSize.height === legacySceneDimensions.sceneSize.height &&
-    dimensions.canvasSize.width === legacySceneDimensions.canvasSize.width &&
-    dimensions.canvasSize.height === legacySceneDimensions.canvasSize.height &&
-    dimensions.outerPadding === legacySceneDimensions.outerPadding
-  );
 }
 
 function encodeDimensions(dimensions: SceneDimensions): string {

@@ -16,9 +16,13 @@ interface PokemonSceneControlsProps {
   canvasSize: GridSize;
   selectedPokemonKey: PokemonKey;
   sceneName: string;
+  sceneAuthor: string;
+  sceneRef: string;
   onCanvasSizeChange: (canvasSize: GridSize) => void;
   onPokemonChange: (pokemonKey: PokemonKey) => void;
   onSceneNameChange: (sceneName: string) => void;
+  onSceneAuthorChange: (sceneAuthor: string) => void;
+  onSceneRefChange: (sceneRef: string) => void;
   onSceneNameValidationError?: (message: string) => void;
 }
 
@@ -28,9 +32,13 @@ export function PokemonSceneControls({
   canvasSize,
   selectedPokemonKey,
   sceneName,
+  sceneAuthor,
+  sceneRef,
   onCanvasSizeChange,
   onPokemonChange,
   onSceneNameChange,
+  onSceneAuthorChange,
+  onSceneRefChange,
   onSceneNameValidationError,
 }: PokemonSceneControlsProps) {
   const pokemonListboxId = useId();
@@ -199,6 +207,22 @@ export function PokemonSceneControls({
     }
   };
 
+  const handleSceneAuthorChange = (value: string) => {
+    if (readOnly) {
+      return;
+    }
+
+    onSceneAuthorChange(value);
+  };
+
+  const handleSceneRefChange = (value: string) => {
+    if (readOnly) {
+      return;
+    }
+
+    onSceneRefChange(value);
+  };
+
   const handleCanvasSizeChange = (axis: 'width' | 'height', value: string) => {
     if (readOnly) {
       return;
@@ -226,6 +250,30 @@ export function PokemonSceneControls({
             value={sceneNameDraft}
             onBlur={handleSceneNameCommit}
             onChange={(event) => handleSceneNameChange(event.target.value)}
+            readOnly={readOnly}
+          />
+        </label>
+        <label>
+          {t(locale, 'sceneAuthor')}
+          <input
+            aria-label={t(locale, 'sceneAuthor')}
+            inputMode="url"
+            pattern="https://.*"
+            type="url"
+            value={sceneAuthor}
+            onChange={(event) => handleSceneAuthorChange(event.target.value)}
+            readOnly={readOnly}
+          />
+        </label>
+        <label>
+          {t(locale, 'sceneRef')}
+          <input
+            aria-label={t(locale, 'sceneRef')}
+            inputMode="url"
+            pattern="https://.*"
+            type="url"
+            value={sceneRef}
+            onChange={(event) => handleSceneRefChange(event.target.value)}
             readOnly={readOnly}
           />
         </label>

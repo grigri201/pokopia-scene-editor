@@ -26,6 +26,8 @@ describe('SceneDocument short string codec', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-short-code',
       sceneName: '庭院 A',
+      sceneAuthor: 'https://example.test/author/builder-zero',
+      sceneRef: 'https://example.test/ref?scene=庭院.A',
       selectedPokemonKey: 'pikachu',
       now: '2026-05-23T09:00:00.000Z',
     });
@@ -79,8 +81,12 @@ describe('SceneDocument short string codec', () => {
       },
     });
     const decoded = decodeSceneDocumentString(encoded, '2026-05-23T09:30:00.000Z');
+    const encodedParts = encoded.split('~');
 
-    expect(encoded).toMatch(/^PSE2~/);
+    expect(encoded).toMatch(/^PSE3~/);
+    expect(encodedParts).toHaveLength(8);
+    expect(encodedParts[getAuthorIndex(encoded)]).toBe('https%3A%2F%2Fexample%2Etest%2Fauthor%2Fbuilder-zero');
+    expect(encodedParts[getRefIndex(encoded)]).toBe('https%3A%2F%2Fexample%2Etest%2Fref%3Fscene%3D%E5%BA%AD%E9%99%A2%2EA');
     expect(encoded).not.toContain('{');
     expect(encoded).not.toContain('schemaVersion');
     expect(encoded).toBe(encodedWithoutSelectedAsset);
@@ -92,6 +98,8 @@ describe('SceneDocument short string codec', () => {
 
     expect(decoded.scene).toMatchObject({
       sceneName: '庭院 A',
+      sceneAuthor: 'https://example.test/author/builder-zero',
+      sceneRef: 'https://example.test/ref?scene=庭院.A',
       selectedPokemonKey: 'pikachu',
       buildingLevels: [
         { id: 'level-0', levelNumber: 0, name: '1层' },
@@ -134,6 +142,48 @@ describe('SceneDocument short string codec', () => {
     expect(decoded.scene.canvasSize).toEqual({ width: 17, height: 17 });
   });
 
+  it('decodes PSE3 strings exported before the attribution segment as empty author and ref', () => {
+    const encoded = encodeSceneDocumentString(createDefaultSceneDocument({
+      sceneId: 'scene-old-pse3-attribution',
+      sceneName: 'Old PSE3',
+      now: '2026-06-10T00:00:00.000Z',
+    }));
+    const legacyPse3Parts = encoded.split('~');
+    legacyPse3Parts.splice(getAuthorIndex(encoded), 2);
+
+    const decoded = decodeSceneDocumentString(legacyPse3Parts.join('~'), '2026-06-10T00:05:00.000Z');
+
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      throw new Error('Expected legacy PSE3 scene string decode to pass.');
+    }
+    expect(decoded.scene.sceneAuthor).toBe('');
+    expect(decoded.scene.sceneRef).toBe('');
+  });
+
+  it('decodes PSE3 strings exported with the legacy combined attribution segment', () => {
+    const encoded = encodeSceneDocumentString(createDefaultSceneDocument({
+      sceneId: 'scene-combined-pse3-attribution',
+      sceneName: 'Combined PSE3',
+      sceneAuthor: 'https://example.test/author/combined',
+      sceneRef: 'https://example.test/ref/combined',
+      now: '2026-06-10T00:00:00.000Z',
+    }));
+    const legacyPse3Parts = encoded.split('~');
+    const encodedAuthor = legacyPse3Parts[getAuthorIndex(encoded)];
+    const encodedRef = legacyPse3Parts[getRefIndex(encoded)];
+    legacyPse3Parts.splice(getAuthorIndex(encoded), 2, `${encodedAuthor}.${encodedRef}`);
+
+    const decoded = decodeSceneDocumentString(legacyPse3Parts.join('~'), '2026-06-10T00:05:00.000Z');
+
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      throw new Error('Expected combined-attribution PSE3 scene string decode to pass.');
+    }
+    expect(decoded.scene.sceneAuthor).toBe('https://example.test/author/combined');
+    expect(decoded.scene.sceneRef).toBe('https://example.test/ref/combined');
+  });
+
   it('does not encode or recover auth and session fields', () => {
     const scene = withForbiddenAuthFields(createDefaultSceneDocument({
       sceneId: 'scene-auth-boundary-codec',
@@ -162,6 +212,8 @@ describe('SceneDocument short string codec', () => {
     expect(decoded.scene.sceneSize).toEqual({ width: 5, height: 5 });
     expect(decoded.scene.canvasSize).toEqual({ width: 7, height: 7 });
     expect(decoded.scene.outerPadding).toBe(1);
+    expect(decoded.scene.sceneAuthor).toBe('');
+    expect(decoded.scene.sceneRef).toBe('');
     expect(decoded.scene.tileInstances[0]).toMatchObject({
       assetId: 'leafy-plant',
       coordinate: { x: 6, y: 6 },
@@ -201,7 +253,7 @@ describe('SceneDocument short string codec', () => {
       ],
     };
     const encoded = encodeSceneDocumentString(scene);
-    const encodedAssetId = encoded.split('~')[4]?.split('.')[2];
+    const encodedAssetId = encoded.split('~')[getTileInstancesIndex(encoded)]?.split('.')[2];
 
     expect(encodedAssetId).toBe('Gy');
   });
@@ -217,6 +269,8 @@ describe('SceneDocument short string codec', () => {
     expect(decoded.scene.selectedPokemonKey).toBe('pikachu');
     expect(decoded.scene.sceneSize).toEqual({ width: 15, height: 15 });
     expect(decoded.scene.canvasSize).toEqual({ width: 17, height: 17 });
+    expect(decoded.scene.sceneAuthor).toBe('');
+    expect(decoded.scene.sceneRef).toBe('');
     expect(decoded.scene.workspaceState).toMatchObject({
       currentBuildingLevelId: 'level-1',
       selectedAssetId: null,
@@ -284,16 +338,23 @@ describe('SceneDocument short string codec', () => {
     });
   });
 
-  it('summarizes dimensions from PSE1, PSE2, and unsupported dimensioned strings', () => {
+  it('summarizes dimensions from PSE1, PSE2, PSE3, and unsupported dimensioned strings', () => {
     const defaultString = encodeSceneDocumentString(createDefaultSceneDocument({
       sceneId: 'scene-default-dimensions-summary',
       now: '2026-05-23T09:00:00.000Z',
     }));
     const legacyString = encodeSceneDocumentString(createFootprintContractScene());
+    const legacyDimensionedString = defaultString.replace(/^PSE3~/, 'PSE2~');
     const unsupportedParts = defaultString.split('~');
     unsupportedParts[1] = 'J.J.1';
 
     expect(summarizeSceneDocumentStringDimensions(defaultString)).toEqual({
+      sceneSize: { width: 15, height: 15 },
+      canvasSize: { width: 17, height: 17 },
+      outerPadding: 1,
+      classification: 'default-17x17',
+    });
+    expect(summarizeSceneDocumentStringDimensions(legacyDimensionedString)).toEqual({
       sceneSize: { width: 15, height: 15 },
       canvasSize: { width: 17, height: 17 },
       outerPadding: 1,
@@ -402,7 +463,10 @@ describe('SceneDocument short string codec', () => {
         selectedCoordinate: { x: 1, y: 4 },
       },
     };
-    const encodedParts = encodeSceneDocumentString(sourceScene).split('~');
+    const encodedParts = [
+      'PSE1',
+      ...getPse3SceneBodyWithoutDimensionsOrAttribution(encodeSceneDocumentString(sourceScene)),
+    ];
     encodedParts[2] = (encodedParts[2] ?? '')
       .split(';')
       .map((record) => record.split('.').slice(0, 2).join('.'))
@@ -456,7 +520,7 @@ describe('SceneDocument short string codec', () => {
     });
     const encoded = encodeSceneDocumentString(scene);
     const parts = encoded.split('~');
-    const headerIndex = encoded.startsWith('PSE2~') ? 2 : 1;
+    const headerIndex = getHeaderIndex(encoded);
     const headerParts = parts[headerIndex].split('.');
     headerParts[3] = 'Gy';
     parts[headerIndex] = headerParts.join('.');
@@ -487,7 +551,7 @@ describe('SceneDocument short string codec', () => {
     });
   });
 
-  it('keeps footprint data out of PSE2 strings and validates decoded default scenes with current occupancy rules', () => {
+  it('keeps footprint data out of PSE3 strings and validates decoded default scenes with current occupancy rules', () => {
     const scene = createDefaultSceneDocument({
       sceneId: 'scene-short-code-footprint',
       sceneName: '短字符串大型素材',
@@ -507,13 +571,14 @@ describe('SceneDocument short string codec', () => {
 
     const validEncoded = encodeSceneDocumentString(sourceScene);
     const parts = validEncoded.split('~');
-    const tileFields = parts[4].split('.');
+    const tileInstanceIndex = getTileInstancesIndex(validEncoded);
+    const tileFields = parts[tileInstanceIndex].split('.');
     tileFields[1] = 'o';
-    parts[4] = tileFields.join('.');
+    parts[tileInstanceIndex] = tileFields.join('.');
     const encoded = parts.join('~');
     const decoded = decodeSceneDocumentString(encoded, '2026-05-23T09:30:00.000Z');
 
-    expect(encoded).toMatch(/^PSE2~/);
+    expect(encoded).toMatch(/^PSE3~/);
     expect(encoded).not.toContain('footprint');
     expect(encoded).not.toContain('occupiedCells');
     expect(encoded).not.toContain('blocking');
@@ -585,11 +650,11 @@ describe('SceneDocument short string codec', () => {
     ]);
   });
 
-  it('roundtrips the shared footprint contract fixture through PSE1 without encoded derived fields', () => {
+  it('roundtrips the shared footprint contract fixture through PSE3 without encoded derived fields', () => {
     const encoded = encodeSceneDocumentString(createFootprintContractScene());
     const decoded = decodeSceneDocumentString(encoded, '2026-05-27T00:10:00.000Z');
 
-    expect(encoded).toMatch(/^PSE1~/);
+    expect(encoded).toMatch(/^PSE3~/);
     expect(encoded).not.toContain('footprint');
     expect(encoded).not.toContain('effectiveFootprint');
     expect(encoded).not.toContain('occupiedCells');
@@ -630,11 +695,11 @@ describe('SceneDocument short string codec', () => {
     );
   });
 
-  it('roundtrips legal stacking scenes through PSE1 without encoded stacking fields', () => {
+  it('roundtrips legal stacking scenes through PSE3 without encoded stacking fields', () => {
     const encoded = encodeSceneDocumentString(createStackingPlateFoodScene());
     const decoded = decodeSceneDocumentString(encoded, '2026-05-28T00:10:00.000Z');
 
-    expect(encoded).toMatch(/^PSE1~/);
+    expect(encoded).toMatch(/^PSE3~/);
     expect(encoded).not.toContain('stacking');
     expect(encoded).not.toContain('stackingRelations');
     expect(encoded).not.toContain('supportedBy');
@@ -651,6 +716,54 @@ describe('SceneDocument short string codec', () => {
     ]);
   });
 });
+
+function getAuthorIndex(sceneString: string): number {
+  if (!sceneString.startsWith('PSE3~')) {
+    throw new Error('Expected PSE3 string.');
+  }
+
+  return 2;
+}
+
+function getRefIndex(sceneString: string): number {
+  if (!sceneString.startsWith('PSE3~')) {
+    throw new Error('Expected PSE3 string.');
+  }
+
+  return 3;
+}
+
+function getHeaderIndex(sceneString: string): number {
+  const prefix = sceneString.split('~')[0];
+
+  if (prefix === 'PSE1') {
+    return 1;
+  }
+
+  if (prefix === 'PSE3') {
+    return 4;
+  }
+
+  return 2;
+}
+
+function getTileInstancesIndex(sceneString: string): number {
+  const prefix = sceneString.split('~')[0];
+
+  if (prefix === 'PSE1') {
+    return 3;
+  }
+
+  if (prefix === 'PSE3') {
+    return 6;
+  }
+
+  return 4;
+}
+
+function getPse3SceneBodyWithoutDimensionsOrAttribution(sceneString: string): string[] {
+  return sceneString.split('~').slice(getHeaderIndex(sceneString));
+}
 
 const forbiddenAuthKeys = ['userId', 'session', 'owner', 'visibility', 'accessToken', 'refreshToken'];
 

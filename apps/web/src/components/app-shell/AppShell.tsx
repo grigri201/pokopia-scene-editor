@@ -199,6 +199,7 @@ export function AppShell() {
   const [sceneStringImportModalOpen, setSceneStringImportModalOpen] = useState(false);
   const [fileActionsMenuOpen, setFileActionsMenuOpen] = useState(false);
   const [saveToGalleryDialogOpen, setSaveToGalleryDialogOpen] = useState(false);
+  const [cloudSceneSavePending, setCloudSceneSavePending] = useState(false);
   const [cloudSceneContext, setCloudSceneContext] = useState<CloudSceneContext | null>(null);
   const [authStateSnapshot, setAuthStateSnapshot] = useState<AuthState>(anonymousAuthState);
   const [remoteSceneImportState, setRemoteSceneImportState] = useState<RemoteSceneImportState>(() =>
@@ -663,6 +664,24 @@ export function AppShell() {
     dispatch({
       type: 'update-scene-name',
       sceneName,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+  };
+
+  const updateSceneAuthor = (sceneAuthor: string) => {
+    dispatch({
+      type: 'update-scene-author',
+      sceneAuthor,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+  };
+
+  const updateSceneRef = (sceneRef: string) => {
+    dispatch({
+      type: 'update-scene-ref',
+      sceneRef,
       interactionMode,
       now: getCurrentIsoTimestamp(),
     });
@@ -1269,6 +1288,57 @@ export function AppShell() {
     });
   };
 
+  const saveCurrentCloudScenePse = async () => {
+    if (cloudSceneSavePending) {
+      return;
+    }
+
+    const auth = createSceneApiAuth(authStateSnapshot);
+    if (!auth) {
+      showSaveToGalleryLoginPrompt(authStateSnapshot.configured);
+      return;
+    }
+
+    const updateContext = getActiveCloudSceneUpdateContext(cloudSceneContext, authStateSnapshot);
+    if (!updateContext) {
+      openSaveToGalleryDialog();
+      return;
+    }
+
+    let pse: string;
+    try {
+      pse = encodeSceneDocumentString(scene);
+    } catch {
+      showNotificationToast({
+        id: 'save-to-gallery',
+        tone: 'error',
+        title: t(locale, 'saveToGalleryToastTitle'),
+        message: t(locale, 'saveToGalleryPseFailed'),
+      });
+      return;
+    }
+
+    setCloudSceneSavePending(true);
+    const result = await saveCloudScene({
+      auth,
+      sceneId: updateContext.sceneId,
+      payload: { pse },
+    });
+    setCloudSceneSavePending(false);
+
+    if (!result.ok) {
+      showNotificationToast({
+        id: 'save-to-gallery',
+        tone: 'error',
+        title: t(locale, 'saveToGalleryToastTitle'),
+        message: result.message,
+      });
+      return;
+    }
+
+    handleCloudSceneSaved(result.record, result.operation);
+  };
+
   const closeSceneStringImportModal = () => {
     setSceneStringImportModalOpen(false);
   };
@@ -1526,6 +1596,7 @@ export function AppShell() {
       dismissNotificationToast('remote-scene-import');
       setRemoteSceneImportState({ status: 'idle' });
       setCloudSceneContext(null);
+      removeSceneIdFromCurrentUrl();
     }
 
     return result;
@@ -1542,7 +1613,6 @@ export function AppShell() {
     if (result.status === 'success') {
       setCloudSceneContext(cloudScene);
       setRemoteSceneImportState({ status: 'success', sceneId });
-      removeSceneIdFromCurrentUrl();
       return;
     }
 
@@ -2051,9 +2121,14 @@ export function AppShell() {
                       {t(locale, 'importSceneString')}
                     </button>
                     <SaveToGalleryMenuItem
+                      cloudSceneContext={cloudSceneContext}
+                      pending={cloudSceneSavePending}
                       locale={locale}
                       onLoginRequired={showSaveToGalleryLoginPrompt}
                       onOpenDialog={() => runFileAction(openSaveToGalleryDialog, { restoreFocus: false })}
+                      onSaveCurrentScene={() => runFileAction(() => void saveCurrentCloudScenePse(), {
+                        restoreFocus: false,
+                      })}
                     />
                   </div>
                   <div
@@ -2398,9 +2473,13 @@ export function AppShell() {
             canvasSize={scene.canvasSize}
             selectedPokemonKey={scene.selectedPokemonKey}
             sceneName={scene.sceneName}
+            sceneAuthor={scene.sceneAuthor}
+            sceneRef={scene.sceneRef}
             onCanvasSizeChange={updateCanvasSize}
             onPokemonChange={updatePokemon}
             onSceneNameChange={updateSceneName}
+            onSceneAuthorChange={updateSceneAuthor}
+            onSceneRefChange={updateSceneRef}
             onSceneNameValidationError={showSceneNameValidationError}
           />
           <BuildingLevelPanel
@@ -2506,32 +2585,47 @@ function AuthStateBridge({ onChange }: { onChange: (state: AuthState) => void })
 }
 
 function SaveToGalleryMenuItem({
+  cloudSceneContext,
+  pending,
   locale,
   onLoginRequired,
   onOpenDialog,
+  onSaveCurrentScene,
 }: {
+  cloudSceneContext: CloudSceneContext | null;
+  pending: boolean;
   locale: Locale;
   onLoginRequired: (configured: boolean) => void;
   onOpenDialog: () => void;
+  onSaveCurrentScene: () => void;
 }) {
   const { state } = useAuth();
   const canSaveToGallery = createSceneApiAuth(state) !== null;
+  const activeUpdateContext = getActiveCloudSceneUpdateContext(cloudSceneContext, state);
 
   return (
     <button
       type="button"
       role="menuitem"
       className="file-actions-menu__item"
+      disabled={pending && Boolean(activeUpdateContext)}
       onClick={() => {
         if (!canSaveToGallery) {
           onLoginRequired(state.configured);
           return;
         }
 
+        if (activeUpdateContext) {
+          onSaveCurrentScene();
+          return;
+        }
+
         onOpenDialog();
       }}
     >
-      {t(locale, 'saveToGallery')}
+      {activeUpdateContext
+        ? pending ? t(locale, 'saveToGallerySaving') : t(locale, 'saveToGalleryUpdateAction')
+        : t(locale, 'saveToGallery')}
     </button>
   );
 }
@@ -2557,8 +2651,8 @@ function SaveToGalleryDialog({
   const [visibility, setVisibility] = useState<CloudSceneVisibility>(cloudSceneContext?.visibility ?? 'private');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isOwnerCloudScene = Boolean(cloudSceneContext && state.user?.id === cloudSceneContext.ownerUserId);
-  const operation = isOwnerCloudScene ? 'update' : 'create';
+  const activeUpdateContext = getActiveCloudSceneUpdateContext(cloudSceneContext, state);
+  const operation = activeUpdateContext ? 'update' : 'create';
 
   useEffect(() => {
     if (!open) {
@@ -2567,9 +2661,9 @@ function SaveToGalleryDialog({
 
     setName(scene.sceneName);
     setPokemon(scene.selectedPokemonKey);
-    setVisibility(cloudSceneContext?.visibility ?? 'private');
+    setVisibility(activeUpdateContext?.visibility ?? 'private');
     setError(null);
-  }, [cloudSceneContext?.sceneId, cloudSceneContext?.visibility, open, scene.sceneName, scene.selectedPokemonKey]);
+  }, [activeUpdateContext?.sceneId, activeUpdateContext?.visibility, open, scene.sceneName, scene.selectedPokemonKey]);
 
   if (!open) {
     return null;
@@ -2614,8 +2708,8 @@ function SaveToGalleryDialog({
       },
     };
     const result = await saveCloudScene(
-      isOwnerCloudScene && cloudSceneContext
-        ? { ...saveRequest, sceneId: cloudSceneContext.sceneId }
+      activeUpdateContext
+        ? { ...saveRequest, sceneId: activeUpdateContext.sceneId }
         : saveRequest,
     );
     setPending(false);
@@ -2697,6 +2791,31 @@ function createSceneApiAuth(state: AuthState): (CloudSceneAuth & RemoteSceneAuth
   return null;
 }
 
+function getActiveCloudSceneUpdateContext(
+  cloudSceneContext: CloudSceneContext | null,
+  state: AuthState,
+  search = window.location.search,
+): CloudSceneContext | null {
+  if (state.status !== 'authenticated' || !state.user || !cloudSceneContext) {
+    return null;
+  }
+
+  const query = getSceneIdFromSearch(search);
+  if (query.status !== 'valid') {
+    return null;
+  }
+
+  if (cloudSceneContext.sceneId !== query.sceneId) {
+    return null;
+  }
+
+  if (cloudSceneContext.ownerUserId !== state.user.id) {
+    return null;
+  }
+
+  return cloudSceneContext;
+}
+
 function createInitialRemoteSceneImportState(search: string): RemoteSceneImportState {
   const query = getSceneIdFromSearch(search);
 
@@ -2718,12 +2837,17 @@ function createInitialRemoteSceneImportState(search: string): RemoteSceneImportS
 }
 
 function removeSceneIdFromCurrentUrl(): void {
-  const url = new URL(window.location.href);
-  if (!url.searchParams.has('scene_id')) {
+  const searchParams = new URLSearchParams(window.location.search);
+  if (!searchParams.has('scene_id')) {
     return;
   }
-  url.searchParams.delete('scene_id');
-  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  searchParams.delete('scene_id');
+  const nextSearch = searchParams.toString();
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`,
+  );
 }
 
 function getNextPlacementRotation(rotationDegrees: RotationDegrees): RotationDegrees {

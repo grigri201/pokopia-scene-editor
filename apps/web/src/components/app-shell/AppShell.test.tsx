@@ -256,7 +256,9 @@ describe('AppShell scene storage integration', () => {
         'preview-ready',
       );
     });
-    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/');
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe(
+      '/?scene_id=mobile-auth-callback',
+    );
     expect(screen.getByRole('heading', { name: 'Mobile Auth Callback Scene' })).toBeVisible();
     expect(screen.queryByLabelText('Open Design editing workbench')).not.toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: 'Asset picker' })).not.toBeInTheDocument();
@@ -406,7 +408,11 @@ describe('AppShell scene storage integration', () => {
     expect(screen.queryByRole('button', { name: 'Save scene from scene controls' })).not.toBeInTheDocument();
 
     expect(screen.getByLabelText('布景')).toBeVisible();
+    expect(screen.getByLabelText('作者链接')).toBeVisible();
+    expect(screen.getByLabelText('Ref 链接')).toBeVisible();
     fireEvent.change(screen.getByLabelText('布景'), { target: { value: 'Autosaved Garden Layout' } });
+    fireEvent.change(screen.getByLabelText('作者链接'), { target: { value: 'https://example.test/author/autosave' } });
+    fireEvent.change(screen.getByLabelText('Ref 链接'), { target: { value: 'https://example.test/autosave' } });
     expectNoSaveStatus();
 
     let rawAutosavePayload: string | null = null;
@@ -417,6 +423,8 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(JSON.parse(rawAutosavePayload ?? '{}')).toMatchObject({
       sceneName: 'Autosaved Garden Layout',
+      sceneAuthor: 'https://example.test/author/autosave',
+      sceneRef: 'https://example.test/autosave',
       selectedPokemonKey: 'ditto',
     });
     expect(JSON.parse(rawAutosavePayload ?? '{}').workspaceState).not.toHaveProperty('saveStatus');
@@ -425,6 +433,8 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     expect(screen.getByLabelText('布景')).toHaveValue('Autosaved Garden Layout');
+    expect(screen.getByLabelText('作者链接')).toHaveValue('https://example.test/author/autosave');
+    expect(screen.getByLabelText('Ref 链接')).toHaveValue('https://example.test/autosave');
     expectNoSaveStatus();
   }, 20_000);
 
@@ -436,6 +446,8 @@ describe('AppShell scene storage integration', () => {
     expect(screen.queryByRole('button', { name: '展开场景设置' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '收起场景设置' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('布景')).toBeVisible();
+    expect(screen.getByLabelText('作者链接')).toBeVisible();
+    expect(screen.getByLabelText('Ref 链接')).toBeVisible();
     expect(screen.getByLabelText('Current Pokemon')).toBeVisible();
     expect(screen.getByRole('group', { name: '编辑区域大小' })).toBeVisible();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
@@ -595,7 +607,7 @@ describe('AppShell scene storage integration', () => {
     clickFileActionMenuItem('导出字符串');
 
     const exportedString = promptSpy.mock.calls[0]?.[1];
-    expect(exportedString).toMatch(/^PSE2~/);
+    expect(exportedString).toMatch(/^PSE3~/);
     expect(exportedString).not.toContain('{');
     expect(exportedString).not.toContain('schemaVersion');
     expect(screen.getByRole('status', { name: '字符串提示' })).toHaveTextContent(
@@ -665,7 +677,7 @@ describe('AppShell scene storage integration', () => {
     clickFileActionMenuItem('导出字符串');
 
     const exportedString = promptSpy.mock.calls[0]?.[1] ?? '';
-    expect(exportedString).toMatch(/^PSE2~/);
+    expect(exportedString).toMatch(/^PSE3~/);
     const decodedExport = decodeSceneDocumentString(exportedString, '2026-06-06T08:00:00.000Z');
     expect(decodedExport.ok).toBe(true);
     if (!decodedExport.ok) {
@@ -750,7 +762,9 @@ describe('AppShell scene storage integration', () => {
     expect(screen.getByRole('grid', { name: '7x7 canvas with main and outer regions' })).toBeVisible();
     expect(screen.getByLabelText('宽度')).toHaveValue('7');
     expect(screen.getByLabelText('高度')).toHaveValue('7');
-    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/?utm_source=gallery#editor');
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe(
+      '/?scene_id=fixture&utm_source=gallery#editor',
+    );
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/scenes/fixture', {
       headers: {
         Accept: 'application/json',
@@ -1046,6 +1060,8 @@ describe('AppShell scene storage integration', () => {
     expect(screen.queryByRole('button', { name: 'Expand scene settings' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Collapse scene settings' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Scene name')).toBeVisible();
+    expect(screen.getByLabelText('Author URL')).toBeVisible();
+    expect(screen.getByLabelText('Ref URL')).toBeVisible();
     expect(screen.getByLabelText('Current Pokemon')).toHaveValue('Ditto');
     fireEvent.focus(screen.getByLabelText('Current Pokemon'));
     expect(screen.getByRole('option', { name: /#047.*Ditto.*百变怪/ })).toHaveAttribute(
@@ -1495,7 +1511,7 @@ describe('AppShell scene storage integration', () => {
       );
       expect(screen.getByRole('heading', { name: 'Mobile Remote Garden' })).toBeVisible();
     });
-    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/');
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/?scene_id=mobile-fixture');
     expect(screen.getByLabelText('皮卡丘导出预览宝可梦图片')).toBeVisible();
     expect(screen.queryByLabelText('Open Design editing workbench')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '下载预览' })).not.toBeInTheDocument();
@@ -1588,9 +1604,14 @@ describe('AppShell scene storage integration', () => {
     const remoteJsonConsumed = new Promise<void>((resolve) => {
       resolveRemoteJsonConsumed = resolve;
     });
-    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => {
-      resolveFetch = resolve;
-    }));
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (isDomainSessionEndpoint(String(input))) {
+        return Promise.resolve(domainSessionEmptyResponse());
+      }
+      return new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      });
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<AppShell />);
@@ -1644,14 +1665,20 @@ describe('AppShell scene storage integration', () => {
       now: '2026-06-01T02:35:00.000Z',
     });
     let resolveFetch: (response: Response) => void = () => undefined;
-    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => {
-      resolveFetch = resolve;
-    }));
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (isDomainSessionEndpoint(String(input))) {
+        return Promise.resolve(domainSessionEmptyResponse());
+      }
+      return new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      });
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<AppShell />);
 
     await screen.findByRole('status', { name: '正在加载远程布景' });
+    await waitFor(() => expect(fetchMock.mock.calls.some((call) => call[0] === '/api/v1/scenes/slow-mobile')).toBe(true));
 
     setViewportWidth(390);
 
@@ -1726,7 +1753,7 @@ describe('AppShell scene storage integration', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Remote Lossy Mobile' })).toBeVisible();
     });
-    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/');
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/?scene_id=lossy-remote');
     expect(JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}').tileInstances).toEqual([
       expect.objectContaining({
         assetId: 'bread-oven',
@@ -3273,7 +3300,7 @@ describe('AppShell scene storage integration', () => {
       visibility: 'public',
     });
     expect(saveRequest.body).not.toHaveProperty('owner_user_id');
-    expect(saveRequest.body.pse).toEqual(expect.stringMatching(/^PSE/));
+    expect(saveRequest.body.pse).toEqual(expect.stringMatching(/^PSE3~/));
     const rawAutosavePayload = window.localStorage.getItem(autosavedSceneStorageKey) ?? '';
     expect(rawAutosavePayload).toContain('Cloud Save Test');
     expect(rawAutosavePayload).not.toContain('owner_user_id');
@@ -3305,10 +3332,10 @@ describe('AppShell scene storage integration', () => {
         return cloudSceneApiResponse({
           id: 'cloud-owner',
           ownerUserId: 'owner-1',
-          name: body.name,
-          pokemon: body.pokemon,
+          name: 'Remote Owner Scene',
+          pokemon: 'pikachu',
           pse: body.pse,
-          visibility: body.visibility,
+          visibility: 'private',
         });
       }
 
@@ -3329,15 +3356,27 @@ describe('AppShell scene storage integration', () => {
     });
     await waitFor(() => expect(screen.getByLabelText('布景')).toHaveValue('Remote Owner Scene'));
 
-    clickFileActionMenuItem(/保存到 Gallery|Save to Gallery/);
-    const dialog = screen.getByRole('dialog', { name: '保存到 Gallery' });
-    expect(dialog).toHaveTextContent('将更新当前账号拥有的 cloud scene');
-    fireEvent.click(within(dialog).getByRole('button', { name: '更新 Gallery' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: '账号: 已登录' })).toBeVisible());
+
+    const menu = openFileActionsMenu();
+    expect(within(menu).getByRole('menuitem', { name: '保存' })).toBeVisible();
+    expect(within(menu).queryByRole('menuitem', { name: /保存到 Gallery|Save to Gallery/ })).not.toBeInTheDocument();
+    fireEvent.click(within(menu).getByRole('menuitem', { name: '保存' }));
 
     await waitFor(() => {
       expect(fetchMock.mock.calls.some((call) => call[1]?.method === 'PUT')).toBe(true);
     });
-    expect(screen.getByLabelText('Gallery 保存')).toHaveTextContent('已更新 Gallery scene');
+    const updateCall = fetchMock.mock.calls.find((call) => call[1]?.method === 'PUT');
+    expect(updateCall).toBeDefined();
+    if (!updateCall) {
+      throw new Error('Expected Save to send one Scene API update request.');
+    }
+    expect(updateCall[0]).toBe('/api/v1/scenes/cloud-owner');
+    expect(JSON.parse(String(updateCall[1]?.body))).toEqual({
+      pse: expect.stringMatching(/^PSE3~/),
+    });
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/?scene_id=cloud-owner');
+    expect(screen.getByLabelText('Gallery 保存')).toHaveTextContent('已保存');
   });
 
   it('keeps mobile preview mode from writing scene storage', () => {
@@ -3727,7 +3766,41 @@ function collectElementAttributes(root: HTMLElement): string {
 function configureSupabaseAuthClient(client: SupabaseAuthClient): void {
   vi.stubEnv('VITE_SUPABASE_URL', 'https://auth-boundary.supabase.co');
   vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_auth_boundary');
+  if (!vi.isMockFunction(globalThis.fetch)) {
+    vi.stubGlobal('fetch', createDomainSessionFetchFallback(globalThis.fetch));
+  }
   createSupabaseClientMock.mockReturnValue(client);
+}
+
+function createDomainSessionFetchFallback(fetchImpl: typeof fetch): typeof fetch {
+  return vi.fn(async (input, init) => {
+    const url = String(input);
+    if (isDomainSessionEndpoint(url)) {
+      return domainSessionEmptyResponse();
+    }
+    if (url === 'https://scene-api.pokokit.com/api/v1/auth/profile') {
+      return new Response(JSON.stringify({ error: { code: 'profile_not_found' } }), {
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+        },
+        status: 404,
+      });
+    }
+
+    return fetchImpl(input, init);
+  });
+}
+
+function isDomainSessionEndpoint(input: string): boolean {
+  return input === 'https://scene-api.pokokit.com/api/v1/auth/session';
+}
+
+function domainSessionEmptyResponse(): Response {
+  return new Response(JSON.stringify({ data: null }), {
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+    },
+  });
 }
 
 function createAppShellAuthClient(options: {

@@ -17,24 +17,35 @@ export interface CloudSceneRecord {
   updated_at: string;
 }
 
-export interface SaveCloudScenePayload {
+export interface CreateCloudScenePayload {
   name: string;
   pse: string;
   pokemon: string;
   visibility: CloudSceneVisibility;
 }
 
+export type UpdateCloudScenePayload = Partial<CreateCloudScenePayload>;
+
 export type CloudSceneAuth =
   | { kind: 'bearer'; accessToken: string }
   | { kind: 'domain-session' };
 
-export interface SaveCloudSceneOptions {
+interface SaveCloudSceneOptionsBase {
   auth: CloudSceneAuth;
-  sceneId?: string;
-  payload: SaveCloudScenePayload;
   endpointMode?: RemoteSceneEndpointMode;
   fetchImpl?: typeof fetch;
 }
+
+export type SaveCloudSceneOptions = SaveCloudSceneOptionsBase & (
+  | {
+      sceneId?: undefined;
+      payload: CreateCloudScenePayload;
+    }
+  | {
+      sceneId: string;
+      payload: UpdateCloudScenePayload;
+    }
+);
 
 export type SaveCloudSceneResult =
   | {

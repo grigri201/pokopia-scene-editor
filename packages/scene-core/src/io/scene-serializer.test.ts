@@ -28,6 +28,8 @@ describe('SceneDocument v1 serializer', () => {
       schemaVersion: 1,
       sceneId: 'scene-serialize',
       sceneName: 'Ditto 5x5 serialization',
+      sceneAuthor: '',
+      sceneRef: '',
       selectedPokemonKey: 'ditto',
       sceneSize: { width: 15, height: 15 },
       canvasSize: { width: 17, height: 17 },

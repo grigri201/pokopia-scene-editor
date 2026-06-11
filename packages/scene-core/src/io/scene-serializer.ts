@@ -17,6 +17,8 @@ export function createSceneDocumentV1PayloadInput(scene: SceneDocument): unknown
     schemaVersion: 1,
     sceneId: scene.sceneId,
     sceneName: scene.sceneName,
+    sceneAuthor: scene.sceneAuthor ?? '',
+    sceneRef: scene.sceneRef ?? '',
     selectedPokemonKey: scene.selectedPokemonKey,
     sceneSize: { ...scene.sceneSize },
     canvasSize: { ...scene.canvasSize },

@@ -18,6 +18,8 @@ export const defaultSceneName = '15x15 布景';
 export interface CreateDefaultSceneDocumentOptions {
   sceneId?: string;
   sceneName?: string;
+  sceneAuthor?: string;
+  sceneRef?: string;
   initialBuildingLevelName?: string;
   selectedPokemonKey?: string;
   selectedCoordinate?: GridCoordinate | null;
@@ -78,6 +80,8 @@ export function createDefaultSceneDocument(
     schemaVersion: 1,
     sceneId: options.sceneId ?? createSceneId(),
     sceneName,
+    sceneAuthor: options.sceneAuthor ?? '',
+    sceneRef: options.sceneRef ?? '',
     selectedPokemonKey,
     sceneSize: { width: sceneSize, height: sceneSize },
     canvasSize: { width: canvasSize, height: canvasSize },
