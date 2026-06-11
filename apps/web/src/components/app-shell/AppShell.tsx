@@ -45,6 +45,8 @@ import {
   decodeSceneDocumentStringWithLossyRecovery,
   encodeSceneDocumentString,
   fetchRemoteSceneString,
+  fetchGalleryQuota,
+  type GalleryQuota,
   getSceneIdFromSearch,
   getUiPreferencesStorage,
   readLatestSceneDocumentFromStorage,
@@ -147,6 +149,12 @@ type RemoteSceneImportState =
 
 type CloudSceneContext = RemoteCloudSceneContext;
 
+type GalleryQuotaState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'loaded'; quota: GalleryQuota }
+  | { status: 'error'; message: string };
+
 interface SceneStringImportContext {
   interactionMode: InteractionMode;
   isReadOnly: boolean;
@@ -201,6 +209,7 @@ export function AppShell() {
   const [saveToGalleryDialogOpen, setSaveToGalleryDialogOpen] = useState(false);
   const [cloudSceneSavePending, setCloudSceneSavePending] = useState(false);
   const [cloudSceneContext, setCloudSceneContext] = useState<CloudSceneContext | null>(null);
+  const [galleryQuotaState, setGalleryQuotaState] = useState<GalleryQuotaState>({ status: 'idle' });
   const [authStateSnapshot, setAuthStateSnapshot] = useState<AuthState>(anonymousAuthState);
   const [remoteSceneImportState, setRemoteSceneImportState] = useState<RemoteSceneImportState>(() =>
     createInitialRemoteSceneImportState(window.location.search),
@@ -1280,6 +1289,11 @@ export function AppShell() {
       ownerUserId: record.owner_user_id,
       visibility: record.visibility,
     });
+    if (operation === 'create') {
+      setGalleryQuotaState((current) => current.status === 'loaded'
+        ? { status: 'loaded', quota: incrementGalleryQuota(current.quota) }
+        : current);
+    }
     showNotificationToast({
       id: 'save-to-gallery',
       tone: 'success',
@@ -1766,6 +1780,29 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
+    const auth = createSceneApiAuth(authStateSnapshot);
+    if (!auth) {
+      setGalleryQuotaState({ status: 'idle' });
+      return undefined;
+    }
+
+    let cancelled = false;
+    setGalleryQuotaState({ status: 'loading' });
+    fetchGalleryQuota({ auth }).then((result) => {
+      if (cancelled) {
+        return;
+      }
+      setGalleryQuotaState(result.ok
+        ? { status: 'loaded', quota: result.quota }
+        : { status: 'error', message: result.message });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authStateSnapshot.accessToken, authStateSnapshot.source, authStateSnapshot.status, authStateSnapshot.user?.id]);
+
+  useEffect(() => {
     if (!createSceneApiAuth(authStateSnapshot)) {
       return;
     }
@@ -2122,6 +2159,7 @@ export function AppShell() {
                     </button>
                     <SaveToGalleryMenuItem
                       cloudSceneContext={cloudSceneContext}
+                      galleryQuotaState={galleryQuotaState}
                       pending={cloudSceneSavePending}
                       locale={locale}
                       onLoginRequired={showSaveToGalleryLoginPrompt}
@@ -2436,6 +2474,7 @@ export function AppShell() {
       />
       <SaveToGalleryDialog
         cloudSceneContext={cloudSceneContext}
+        galleryQuotaState={galleryQuotaState}
         locale={locale}
         onClose={closeSaveToGalleryDialog}
         onSaved={handleCloudSceneSaved}
@@ -2586,6 +2625,7 @@ function AuthStateBridge({ onChange }: { onChange: (state: AuthState) => void })
 
 function SaveToGalleryMenuItem({
   cloudSceneContext,
+  galleryQuotaState,
   pending,
   locale,
   onLoginRequired,
@@ -2593,6 +2633,7 @@ function SaveToGalleryMenuItem({
   onSaveCurrentScene,
 }: {
   cloudSceneContext: CloudSceneContext | null;
+  galleryQuotaState: GalleryQuotaState;
   pending: boolean;
   locale: Locale;
   onLoginRequired: (configured: boolean) => void;
@@ -2602,36 +2643,47 @@ function SaveToGalleryMenuItem({
   const { state } = useAuth();
   const canSaveToGallery = createSceneApiAuth(state) !== null;
   const activeUpdateContext = getActiveCloudSceneUpdateContext(cloudSceneContext, state);
+  const quotaFull = !activeUpdateContext && isGalleryQuotaFull(galleryQuotaState);
+  const quotaNoticeId = 'save-to-gallery-quota-notice';
 
   return (
-    <button
-      type="button"
-      role="menuitem"
-      className="file-actions-menu__item"
-      disabled={pending && Boolean(activeUpdateContext)}
-      onClick={() => {
-        if (!canSaveToGallery) {
-          onLoginRequired(state.configured);
-          return;
-        }
+    <>
+      <button
+        type="button"
+        role="menuitem"
+        className="file-actions-menu__item"
+        aria-describedby={quotaFull ? quotaNoticeId : undefined}
+        disabled={(pending && Boolean(activeUpdateContext)) || quotaFull}
+        onClick={() => {
+          if (!canSaveToGallery) {
+            onLoginRequired(state.configured);
+            return;
+          }
 
-        if (activeUpdateContext) {
-          onSaveCurrentScene();
-          return;
-        }
+          if (activeUpdateContext) {
+            onSaveCurrentScene();
+            return;
+          }
 
-        onOpenDialog();
-      }}
-    >
-      {activeUpdateContext
-        ? pending ? t(locale, 'saveToGallerySaving') : t(locale, 'saveToGalleryUpdateAction')
-        : t(locale, 'saveToGallery')}
-    </button>
+          onOpenDialog();
+        }}
+      >
+        {activeUpdateContext
+          ? pending ? t(locale, 'saveToGallerySaving') : t(locale, 'saveToGalleryUpdateAction')
+          : t(locale, 'saveToGallery')}
+      </button>
+      {quotaFull ? (
+        <p id={quotaNoticeId} className="file-actions-menu__notice" role="note">
+          {t(locale, 'saveToGalleryQuotaFull')}
+        </p>
+      ) : null}
+    </>
   );
 }
 
 function SaveToGalleryDialog({
   cloudSceneContext,
+  galleryQuotaState,
   locale,
   onClose,
   onSaved,
@@ -2639,6 +2691,7 @@ function SaveToGalleryDialog({
   scene,
 }: {
   cloudSceneContext: CloudSceneContext | null;
+  galleryQuotaState: GalleryQuotaState;
   locale: Locale;
   onClose: () => void;
   onSaved: (record: CloudSceneRecord, operation: 'create' | 'update') => void;
@@ -2678,6 +2731,11 @@ function SaveToGalleryDialog({
     const auth = createSceneApiAuth(state);
     if (!auth) {
       setError(t(locale, 'saveToGalleryLoginRequired'));
+      return;
+    }
+
+    if (!activeUpdateContext && isGalleryQuotaFull(galleryQuotaState)) {
+      setError(t(locale, 'saveToGalleryQuotaFull'));
       return;
     }
 
@@ -2776,6 +2834,29 @@ function SaveToGalleryDialog({
       </section>
     </div>
   );
+}
+
+function isGalleryQuotaFull(state: GalleryQuotaState): boolean {
+  return state.status === 'loaded' && !state.quota.can_create;
+}
+
+function incrementGalleryQuota(quota: GalleryQuota): GalleryQuota {
+  const savedCount = quota.saved_count + 1;
+  if (quota.is_vip) {
+    return {
+      ...quota,
+      saved_count: savedCount,
+    };
+  }
+
+  const limit = quota.limit ?? 0;
+  const remaining = Math.max(0, limit - savedCount);
+  return {
+    ...quota,
+    saved_count: savedCount,
+    remaining,
+    can_create: remaining > 0,
+  };
 }
 
 function createSceneApiAuth(state: AuthState): (CloudSceneAuth & RemoteSceneAuth) | null {

@@ -17,6 +17,14 @@ export interface CloudSceneRecord {
   updated_at: string;
 }
 
+export interface GalleryQuota {
+  is_vip: boolean;
+  saved_count: number;
+  limit: number | null;
+  remaining: number | null;
+  can_create: boolean;
+}
+
 export interface CreateCloudScenePayload {
   name: string;
   pse: string;
@@ -52,6 +60,17 @@ export type SaveCloudSceneResult =
       ok: true;
       record: CloudSceneRecord;
       operation: 'create' | 'update';
+    }
+  | {
+      ok: false;
+      code: string;
+      message: string;
+    };
+
+export type FetchGalleryQuotaResult =
+  | {
+      ok: true;
+      quota: GalleryQuota;
     }
   | {
       ok: false;
@@ -117,6 +136,60 @@ export async function saveCloudScene(options: SaveCloudSceneOptions): Promise<Sa
   };
 }
 
+export async function fetchGalleryQuota(options: SaveCloudSceneOptionsBase): Promise<FetchGalleryQuotaResult> {
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  const endpoint = resolveGalleryQuotaEndpoint(options.endpointMode);
+
+  let response: Response;
+  try {
+    response = await fetchImpl(endpoint, {
+      method: 'GET',
+      ...createAuthRequestInit(options.auth, {
+        Accept: 'application/json',
+      }),
+    });
+  } catch {
+    return {
+      ok: false,
+      code: 'network_error',
+      message: 'Scene API is unavailable.',
+    };
+  }
+
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    return {
+      ok: false,
+      code: 'invalid_response',
+      message: 'Scene API returned invalid JSON.',
+    };
+  }
+
+  if (!response.ok) {
+    const error = readApiError(body);
+    return {
+      ok: false,
+      code: error.code,
+      message: error.message,
+    };
+  }
+
+  if (!isGalleryQuotaEnvelope(body)) {
+    return {
+      ok: false,
+      code: 'invalid_response',
+      message: 'Scene API returned an invalid Gallery quota.',
+    };
+  }
+
+  return {
+    ok: true,
+    quota: body.data,
+  };
+}
+
 function createAuthRequestInit(auth: CloudSceneAuth, headers: Record<string, string>): RequestInit {
   if (auth.kind === 'bearer') {
     return {
@@ -147,12 +220,42 @@ export function resolveCloudSceneSaveEndpoint(
     : `${remoteSceneApiBaseUrl}/${encodedSceneId}`;
 }
 
+export function resolveGalleryQuotaEndpoint(
+  mode: RemoteSceneEndpointMode = getDefaultRemoteSceneEndpointMode(),
+): string {
+  return mode === 'development'
+    ? `${remoteSceneDevProxyPathPrefix}/quota`
+    : `${remoteSceneApiBaseUrl}/quota`;
+}
+
 function getDefaultRemoteSceneEndpointMode(): RemoteSceneEndpointMode {
   return import.meta.env.DEV ? 'development' : 'production';
 }
 
 function isCloudSceneRecordEnvelope(value: unknown): value is { data: CloudSceneRecord } {
   return typeof value === 'object' && value !== null && isCloudSceneRecord((value as { data?: unknown }).data);
+}
+
+function isGalleryQuotaEnvelope(value: unknown): value is { data: GalleryQuota } {
+  return typeof value === 'object' && value !== null && isGalleryQuota((value as { data?: unknown }).data);
+}
+
+function isGalleryQuota(value: unknown): value is GalleryQuota {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const quota = value as Partial<GalleryQuota>;
+  if (
+    typeof quota.is_vip === 'boolean' &&
+    isNonNegativeNumber(quota.saved_count) &&
+    typeof quota.can_create === 'boolean'
+  ) {
+    return quota.is_vip
+      ? quota.limit === null && quota.remaining === null && quota.can_create
+      : isNonNegativeNumber(quota.limit) && isNonNegativeNumber(quota.remaining);
+  }
+
+  return false;
 }
 
 function isCloudSceneRecord(value: unknown): value is CloudSceneRecord {
@@ -189,4 +292,8 @@ function readApiError(value: unknown): { code: string; message: string } {
     code: 'api_error',
     message: 'Scene API request failed.',
   };
+}
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }

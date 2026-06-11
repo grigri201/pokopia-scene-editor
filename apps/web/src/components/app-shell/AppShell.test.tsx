@@ -3257,6 +3257,15 @@ describe('AppShell scene storage integration', () => {
       method: string | undefined;
     }> = [];
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      if (isGalleryQuotaRequest(input)) {
+        return galleryQuotaApiResponse({
+          isVip: false,
+          savedCount: 4,
+          limit: 5,
+          remaining: 1,
+          canCreate: true,
+        });
+      }
       const body = JSON.parse(String(init?.body));
       saveRequests.push({
         body,
@@ -3309,6 +3318,39 @@ describe('AppShell scene storage integration', () => {
     expect(rawAutosavePayload).not.toContain('owner-1-token');
   });
 
+  it('disables Save to Gallery create when the current non-VIP quota is full', async () => {
+    createSupabaseClientMock.mockReturnValue(createAppShellAuthClient({
+      session: createAppShellSession('owner-1', 'owner@example.com'),
+    }));
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      if (isGalleryQuotaRequest(input)) {
+        return galleryQuotaApiResponse({
+          isVip: false,
+          savedCount: 5,
+          limit: 5,
+          remaining: 0,
+          canCreate: false,
+        });
+      }
+      return domainSessionEmptyResponse();
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AppShell />);
+    await waitFor(() => expect(screen.getByRole('button', { name: '账号: 已登录' })).toBeVisible());
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => isGalleryQuotaRequest(call[0]))).toBe(true);
+    });
+
+    const menu = openFileActionsMenu();
+    const saveItem = within(menu).getByRole('menuitem', { name: /保存到 Gallery|Save to Gallery/ });
+    expect(saveItem).toBeDisabled();
+    expect(within(menu).getByText('Gallery 保存达到上限，新增入口已停用。更新已有 scene 不受影响。')).toBeVisible();
+
+    fireEvent.click(saveItem);
+    expect(screen.queryByRole('dialog', { name: '保存到 Gallery' })).not.toBeInTheDocument();
+  });
+
   it('updates an owner cloud scene opened through the Scene API v1 scene_id path', async () => {
     const remoteScene = createDefaultSceneDocument({
       sceneId: 'local-remote-fixture',
@@ -3322,9 +3364,22 @@ describe('AppShell scene storage integration', () => {
     }));
     window.history.replaceState(null, '', '/?scene_id=cloud-owner');
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (isDomainSessionEndpoint(url) || url === 'https://scene-api.pokokit.com/api/v1/auth/profile') {
+        return domainSessionUserResponse('owner-1');
+      }
+      if (isGalleryQuotaRequest(input)) {
+        return galleryQuotaApiResponse({
+          isVip: false,
+          savedCount: 5,
+          limit: 5,
+          remaining: 0,
+          canCreate: false,
+        });
+      }
       const method = init?.method ?? 'GET';
       if (method === 'PUT') {
-        expect(String(input)).toBe('/api/v1/scenes/cloud-owner');
+        expect(url).toBe('/api/v1/scenes/cloud-owner');
         expect(init?.headers).toMatchObject({
           Authorization: 'Bearer owner-1-token',
         });
@@ -3337,6 +3392,9 @@ describe('AppShell scene storage integration', () => {
           pse: body.pse,
           visibility: 'private',
         });
+      }
+      if (url !== '/api/v1/scenes/cloud-owner') {
+        return remoteSceneErrorResponse(404);
       }
 
       return cloudSceneApiResponse({
@@ -3803,6 +3861,21 @@ function domainSessionEmptyResponse(): Response {
   });
 }
 
+function domainSessionUserResponse(userId: string, nickname: string | null = null): Response {
+  return new Response(JSON.stringify({
+    data: {
+      user: {
+        id: userId,
+        nickname,
+      },
+    },
+  }), {
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+    },
+  });
+}
+
 function createAppShellAuthClient(options: {
   session?: SupabaseAuthSession | null;
   getSessionError?: string;
@@ -4091,6 +4164,38 @@ function cloudSceneApiResponse({
       'content-type': 'application/json; charset=utf-8',
     },
   });
+}
+
+function galleryQuotaApiResponse({
+  isVip,
+  savedCount,
+  limit,
+  remaining,
+  canCreate,
+}: {
+  isVip: boolean;
+  savedCount: number;
+  limit: number | null;
+  remaining: number | null;
+  canCreate: boolean;
+}): Response {
+  return new Response(JSON.stringify({
+    data: {
+      is_vip: isVip,
+      saved_count: savedCount,
+      limit,
+      remaining,
+      can_create: canCreate,
+    },
+  }), {
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+    },
+  });
+}
+
+function isGalleryQuotaRequest(input: unknown): boolean {
+  return String(input) === '/api/v1/scenes/quota' || String(input) === 'https://scene-api.pokokit.com/api/v1/scenes/quota';
 }
 
 function remoteSceneErrorResponse(status: number): Response {

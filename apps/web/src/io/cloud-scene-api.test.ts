@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { resolveCloudSceneSaveEndpoint, saveCloudScene } from './cloud-scene-api';
+import { fetchGalleryQuota, resolveCloudSceneSaveEndpoint, resolveGalleryQuotaEndpoint, saveCloudScene } from './cloud-scene-api';
 
 describe('cloud scene api', () => {
   it('resolves create and update endpoints for dev and production', () => {
@@ -8,6 +8,8 @@ describe('cloud scene api', () => {
     expect(resolveCloudSceneSaveEndpoint('scene-1', 'development')).toBe('/api/v1/scenes/scene-1');
     expect(resolveCloudSceneSaveEndpoint(undefined, 'production')).toBe('https://scene-api.pokokit.com/api/v1/scenes');
     expect(resolveCloudSceneSaveEndpoint('scene-1', 'production')).toBe('https://scene-api.pokokit.com/api/v1/scenes/scene-1');
+    expect(resolveGalleryQuotaEndpoint('development')).toBe('/api/v1/scenes/quota');
+    expect(resolveGalleryQuotaEndpoint('production')).toBe('https://scene-api.pokokit.com/api/v1/scenes/quota');
   });
 
   it('creates a cloud scene with bearer auth', async () => {
@@ -75,7 +77,7 @@ describe('cloud scene api', () => {
 
   it('surfaces explicit API errors such as scene_limit_reached', async () => {
     const fetchImpl = vi.fn(async () =>
-      jsonResponse({ error: { code: 'scene_limit_reached', message: 'Each user can save at most 10 scenes.' } }, { status: 409 }),
+      jsonResponse({ error: { code: 'scene_limit_reached', message: 'Gallery save quota reached.' } }, { status: 409 }),
     );
 
     await expect(saveCloudScene({
@@ -91,7 +93,121 @@ describe('cloud scene api', () => {
     })).resolves.toEqual({
       ok: false,
       code: 'scene_limit_reached',
-      message: 'Each user can save at most 10 scenes.',
+      message: 'Gallery save quota reached.',
+    });
+  });
+
+  it('fetches non-VIP Gallery quota with bearer auth', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({
+      data: {
+        is_vip: false,
+        saved_count: 4,
+        limit: 5,
+        remaining: 1,
+        can_create: true,
+      },
+    }));
+
+    const result = await fetchGalleryQuota({
+      auth: { kind: 'bearer', accessToken: 'user-token' },
+      endpointMode: 'production',
+      fetchImpl,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith('https://scene-api.pokokit.com/api/v1/scenes/quota', {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer user-token',
+      },
+    });
+    expect(result).toEqual({
+      ok: true,
+      quota: {
+        is_vip: false,
+        saved_count: 4,
+        limit: 5,
+        remaining: 1,
+        can_create: true,
+      },
+    });
+  });
+
+  it('fetches VIP Gallery quota with domain session auth', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({
+      data: {
+        is_vip: true,
+        saved_count: 8,
+        limit: null,
+        remaining: null,
+        can_create: true,
+      },
+    }));
+
+    const result = await fetchGalleryQuota({
+      auth: { kind: 'domain-session' },
+      endpointMode: 'development',
+      fetchImpl,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith('/api/v1/scenes/quota', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      quota: {
+        is_vip: true,
+        limit: null,
+        remaining: null,
+      },
+    });
+  });
+
+  it('rejects malformed Gallery quota payloads', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({
+      data: {
+        is_vip: 'yes',
+        saved_count: -1,
+        limit: 5,
+        remaining: 6,
+        can_create: true,
+      },
+    }));
+
+    await expect(fetchGalleryQuota({
+      auth: { kind: 'bearer', accessToken: 'user-token' },
+      endpointMode: 'development',
+      fetchImpl,
+    })).resolves.toEqual({
+      ok: false,
+      code: 'invalid_response',
+      message: 'Scene API returned an invalid Gallery quota.',
+    });
+  });
+
+  it('rejects inconsistent Gallery quota payloads', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({
+      data: {
+        is_vip: false,
+        saved_count: 5,
+        limit: null,
+        remaining: null,
+        can_create: true,
+      },
+    }));
+
+    await expect(fetchGalleryQuota({
+      auth: { kind: 'bearer', accessToken: 'user-token' },
+      endpointMode: 'development',
+      fetchImpl,
+    })).resolves.toEqual({
+      ok: false,
+      code: 'invalid_response',
+      message: 'Scene API returned an invalid Gallery quota.',
     });
   });
 
