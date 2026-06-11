@@ -3228,13 +3228,14 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
-  it('shows a login prompt when an anonymous user clicks Save to Gallery without changing local scene storage', async () => {
+  it('hides Save to Gallery when an anonymous user opens the file actions menu', async () => {
     render(<AppShell />);
     const beforeSnapshot = readSceneSnapshot();
 
-    clickFileActionMenuItem(/保存到 Gallery|Save to Gallery/);
+    const menu = openFileActionsMenu();
 
-    expect(screen.getByLabelText('Gallery 保存')).toHaveTextContent('请先登录');
+    expect(within(menu).queryByRole('menuitem', { name: /保存到 Gallery|Save to Gallery/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Gallery 保存')).not.toBeInTheDocument();
     expect(readSceneSnapshot()).toBe(beforeSnapshot);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();

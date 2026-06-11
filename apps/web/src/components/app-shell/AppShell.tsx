@@ -2162,7 +2162,6 @@ export function AppShell() {
                       galleryQuotaState={galleryQuotaState}
                       pending={cloudSceneSavePending}
                       locale={locale}
-                      onLoginRequired={showSaveToGalleryLoginPrompt}
                       onOpenDialog={() => runFileAction(openSaveToGalleryDialog, { restoreFocus: false })}
                       onSaveCurrentScene={() => runFileAction(() => void saveCurrentCloudScenePse(), {
                         restoreFocus: false,
@@ -2628,7 +2627,6 @@ function SaveToGalleryMenuItem({
   galleryQuotaState,
   pending,
   locale,
-  onLoginRequired,
   onOpenDialog,
   onSaveCurrentScene,
 }: {
@@ -2636,7 +2634,6 @@ function SaveToGalleryMenuItem({
   galleryQuotaState: GalleryQuotaState;
   pending: boolean;
   locale: Locale;
-  onLoginRequired: (configured: boolean) => void;
   onOpenDialog: () => void;
   onSaveCurrentScene: () => void;
 }) {
@@ -2645,6 +2642,10 @@ function SaveToGalleryMenuItem({
   const activeUpdateContext = getActiveCloudSceneUpdateContext(cloudSceneContext, state);
   const quotaFull = !activeUpdateContext && isGalleryQuotaFull(galleryQuotaState);
   const quotaNoticeId = 'save-to-gallery-quota-notice';
+
+  if (!canSaveToGallery) {
+    return null;
+  }
 
   return (
     <>
@@ -2655,11 +2656,6 @@ function SaveToGalleryMenuItem({
         aria-describedby={quotaFull ? quotaNoticeId : undefined}
         disabled={(pending && Boolean(activeUpdateContext)) || quotaFull}
         onClick={() => {
-          if (!canSaveToGallery) {
-            onLoginRequired(state.configured);
-            return;
-          }
-
           if (activeUpdateContext) {
             onSaveCurrentScene();
             return;
