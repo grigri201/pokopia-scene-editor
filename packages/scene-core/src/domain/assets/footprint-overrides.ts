@@ -167,6 +167,7 @@ const assetFootprintOverridesByAssetId: Readonly<Record<string, AssetFootprint>>
   'double-streetlight': { length: 1, width: 1, height: 3 },
   'curved-eave': { length: 2, width: 1, height: 1 },
   'rustic-door': { length: 1, width: 1, height: 2 },
+  'iron-door': { length: 1, width: 2, height: 1 },
   'large-wooden-door': { length: 1, width: 2, height: 2 },
   'wooden-gate': { length: 1, width: 2, height: 1 },
   'iron-gate': { length: 1, width: 2, height: 1 },
