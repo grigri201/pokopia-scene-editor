@@ -16,7 +16,7 @@ import { assetStackingOverrideAssetIds, defaultAssetStacking } from './stacking-
 
 describe('asset catalog', () => {
   it('provides complete static metadata for each seed asset', () => {
-    expect(assetCatalog).toHaveLength(1161);
+    expect(assetCatalog).toHaveLength(1162);
 
     for (const asset of assetCatalog) {
       expect(asset.assetId).not.toBe('');
@@ -104,6 +104,20 @@ describe('asset catalog', () => {
       category: 'nature',
       thumbnailUrl: '/assets/pokopia_image_sources/item_portraits/1220-vine.png',
       thumbnailAlt: '藤蔓缩略图',
+    });
+  });
+
+  it('includes the Sableye adventure kit as a placeable toy', () => {
+    expect(getAssetById('adventure-kit')).toMatchObject({
+      officialId: '2371',
+      sceneCodecOfficialId: '2371',
+      name: '冒险套组',
+      englishName: 'Adventure kit',
+      category: 'misc',
+      tags: ['玩具'],
+      footprint: { length: 1, width: 1, height: 1 },
+      thumbnailUrl: '/assets/pokopia_image_sources/item_portraits/0473-adventure-kit.png',
+      thumbnailAlt: '冒险套组缩略图',
     });
   });
 
@@ -250,12 +264,13 @@ describe('asset catalog', () => {
     const allAssets = filterAssetsByFavorite(assetCatalog, 'eevee', false);
     const eeveeFavoriteIds = eeveeFavorites.map((asset) => asset.assetId);
 
-    expect(eeveeFavorites).toHaveLength(193);
+    expect(eeveeFavorites).toHaveLength(194);
     expect(eeveeFavoriteIds).toEqual(expect.arrayContaining([
       'ditto-doll',
       'wooden-bench',
       'stone-brick-wall',
       'stone',
+      'adventure-kit',
     ]));
     expect(eeveeFavoriteIds).not.toContain('wooden-fencing');
     expect(eeveeFavoriteIds).not.toContain('leafy-plant');

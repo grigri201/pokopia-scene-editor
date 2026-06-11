@@ -1218,7 +1218,7 @@ export const sourcePlaceableAssetNameTranslations: Readonly<Record<number, strin
   2368: "露营椅",
   2369: "露营锅",
   2370: "宝藏",
-  2371: "冒险套装",
+  2371: "冒险套组",
   2372: "帐篷套装",
   2373: "红色水晶碎片",
   2374: "藤蔓",

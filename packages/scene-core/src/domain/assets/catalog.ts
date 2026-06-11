@@ -122,6 +122,7 @@ interface AssetCatalogOverride {
 const seedAssetOverridesByOfficialId: Record<string, AssetCatalogOverride> = {};
 
 const reservedSeedAssetIds = new Set(Object.values(seedAssetOverridesByOfficialId).map((asset) => asset.assetId));
+const allowedPlaceableKitWordSlugs = new Set(['adventure-kit']);
 
 const favoriteCategoryIdsByPokemonKey: Readonly<Partial<Record<PokemonKey, readonly number[]>>> = {
   ditto: [],
@@ -201,6 +202,7 @@ function isFilteredSourcePlaceableItem(sourceItem: PokopiaItemRecord): boolean {
   const translatedName = translationsData.itemNameById[String(sourceItem.id)] ?? '';
   const sourceCategory = sourceItem.sourceCategory ?? '';
   const searchable = `${sourceItem.name} ${sourceItem.slug} ${sourceItem.menuCategory} ${sourceCategory} ${sourceItem.tags.join(' ')} ${sourceItem.sourceTags?.join(' ') ?? ''}`;
+  const isAllowedPlaceableKitWord = allowedPlaceableKitWordSlugs.has(sourceItem.slug);
 
   return (
     sourceItem.menuCategory === 'Kits' ||
@@ -208,7 +210,7 @@ function isFilteredSourcePlaceableItem(sourceItem: PokopiaItemRecord): boolean {
     sourceCategory === '套组' ||
     sourceCategory === '重要物品' ||
     translatedName.includes('套件') ||
-    /\bkit\b/i.test(searchable)
+    (!isAllowedPlaceableKitWord && /\bkit\b/i.test(searchable))
   );
 }
 
