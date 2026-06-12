@@ -158,6 +158,56 @@ describe('scene reducer selection rules', () => {
     });
   });
 
+  it('uses the previous axis size to choose the edge for one-cell resize steps', () => {
+    expect(createSceneResizePlan({ width: 8, height: 8 }, { width: 9, height: 9 })).toMatchObject({
+      xOffset: 0,
+      yOffset: 0,
+      leftAdded: 0,
+      rightAdded: 1,
+      topAdded: 0,
+      bottomAdded: 1,
+    });
+
+    expect(createSceneResizePlan({ width: 9, height: 9 }, { width: 10, height: 10 })).toMatchObject({
+      xOffset: 1,
+      yOffset: 1,
+      leftAdded: 1,
+      rightAdded: 0,
+      topAdded: 1,
+      bottomAdded: 0,
+    });
+
+    expect(createSceneResizePlan({ width: 9, height: 9 }, { width: 8, height: 8 })).toMatchObject({
+      xOffset: 0,
+      yOffset: 0,
+      leftRemoved: 0,
+      rightRemoved: 1,
+      topRemoved: 0,
+      bottomRemoved: 1,
+      survivor: {
+        minX: 0,
+        maxXExclusive: 8,
+        minY: 0,
+        maxYExclusive: 8,
+      },
+    });
+
+    expect(createSceneResizePlan({ width: 8, height: 8 }, { width: 7, height: 7 })).toMatchObject({
+      xOffset: -1,
+      yOffset: -1,
+      leftRemoved: 1,
+      rightRemoved: 0,
+      topRemoved: 1,
+      bottomRemoved: 0,
+      survivor: {
+        minX: 1,
+        maxXExclusive: 8,
+        minY: 1,
+        maxYExclusive: 8,
+      },
+    });
+  });
+
   it('grows the editable canvas by migrating content with alternating-edge offsets', () => {
     const scene = createSceneWithCanvasSize({
       canvasSize: { width: 7, height: 7 },

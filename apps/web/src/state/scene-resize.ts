@@ -170,35 +170,44 @@ export function isSceneResizeSurvivorCoordinate(coordinate: GridCoordinate, plan
 }
 
 function createAxisResizePlan(currentSize: number, nextSize: number): AxisResizePlan {
-  const delta = nextSize - currentSize;
+  let leadingAdded = 0;
+  let trailingAdded = 0;
+  let leadingRemoved = 0;
+  let trailingRemoved = 0;
 
-  if (delta >= 0) {
-    const leadingAdded = Math.ceil(delta / 2);
-
-    return {
-      offset: leadingAdded,
-      leadingAdded,
-      trailingAdded: Math.floor(delta / 2),
-      leadingRemoved: 0,
-      trailingRemoved: 0,
-      survivorStart: 0,
-      survivorEndExclusive: currentSize,
-    };
+  for (let sizeBeforeStep = currentSize; sizeBeforeStep < nextSize; sizeBeforeStep += 1) {
+    if (shouldGrowLeadingEdge(sizeBeforeStep)) {
+      leadingAdded += 1;
+    } else {
+      trailingAdded += 1;
+    }
   }
 
-  const shrinkDelta = Math.abs(delta);
-  const leadingRemoved = Math.ceil(shrinkDelta / 2);
-  const trailingRemoved = Math.floor(shrinkDelta / 2);
+  for (let sizeBeforeStep = currentSize; sizeBeforeStep > nextSize; sizeBeforeStep -= 1) {
+    if (shouldShrinkLeadingEdge(sizeBeforeStep)) {
+      leadingRemoved += 1;
+    } else {
+      trailingRemoved += 1;
+    }
+  }
 
   return {
-    offset: -leadingRemoved,
-    leadingAdded: 0,
-    trailingAdded: 0,
+    offset: leadingAdded - leadingRemoved,
+    leadingAdded,
+    trailingAdded,
     leadingRemoved,
     trailingRemoved,
     survivorStart: leadingRemoved,
     survivorEndExclusive: currentSize - trailingRemoved,
   };
+}
+
+function shouldGrowLeadingEdge(sizeBeforeStep: number): boolean {
+  return sizeBeforeStep % 2 === 1;
+}
+
+function shouldShrinkLeadingEdge(sizeBeforeStep: number): boolean {
+  return sizeBeforeStep % 2 === 0;
 }
 
 function doesTileInstanceSurviveResize(instance: TileInstance, plan: SceneResizePlan): boolean {
