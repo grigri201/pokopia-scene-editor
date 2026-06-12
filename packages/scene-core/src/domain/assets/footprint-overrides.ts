@@ -134,7 +134,7 @@ const assetFootprintOverridesByAssetId: Readonly<Record<string, AssetFootprint>>
   'gravestone': { length: 1, width: 1, height: 2 },
   'fishing-rod': { length: 1, width: 1, height: 2 },
   'iron-pipes': { length: 1, width: 2, height: 1 },
-  'cart': { length: 1, width: 3, height: 1 },
+  'cart': { length: 1, width: 2, height: 1 },
   'wheelbarrow': { length: 1, width: 3, height: 1 },
   'canoe': { length: 2, width: 1, height: 1 },
   'inflatable-boat': { length: 2, width: 2, height: 1 },
