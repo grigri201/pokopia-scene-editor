@@ -600,6 +600,110 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
   });
 
+  it('cancels destructive canvas shrink before dispatching or autosaving', async () => {
+    writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
+    writeSceneDocumentToStorage(window.localStorage, createResizeConfirmationScene(), 'autosave');
+    const beforeAutosave = window.localStorage.getItem(autosavedSceneStorageKey);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('宽度')).toHaveValue('10');
+      expect(screen.getByLabelText('高度')).toHaveValue('12');
+    });
+
+    fireEvent.change(screen.getByLabelText('宽度'), { target: { value: '7' } });
+
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('1 个素材'));
+    expect(screen.getByLabelText('宽度')).toHaveValue('10');
+    expect(screen.getByLabelText('高度')).toHaveValue('12');
+    expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(beforeAutosave);
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+    expect(JSON.parse(readSceneSnapshot())).toMatchObject({
+      canvasSize: { width: 10, height: 12 },
+      workspaceState: {
+        selectedCoordinate: { x: 2, y: 4 },
+      },
+    });
+  });
+
+  it('confirms destructive canvas shrink and autosaves the migrated scene', async () => {
+    writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
+    writeSceneDocumentToStorage(window.localStorage, createResizeConfirmationScene(), 'autosave');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('宽度')).toHaveValue('10');
+    });
+
+    fireEvent.change(screen.getByLabelText('宽度'), { target: { value: '7' } });
+
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('1 个素材'));
+    await waitFor(() => {
+      expect(screen.getByLabelText('7x12 scene canvas workspace')).toBeVisible();
+    });
+    await waitFor(() => {
+      const autosavePayload = JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}');
+      expect(autosavePayload).toMatchObject({
+        canvasSize: { width: 7, height: 12 },
+        sceneSize: { width: 5, height: 10 },
+        tileInstances: [
+          expect.objectContaining({
+            instanceId: 'resize-kept',
+            coordinate: { x: 0, y: 4 },
+          }),
+        ],
+        workspaceState: {
+          selectedCoordinate: { x: 0, y: 4 },
+        },
+      });
+      expect(autosavePayload.tileInstances).toHaveLength(1);
+    });
+    expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
+  });
+
+  it('shrinks directly without confirmation when no scene content is deleted', async () => {
+    writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
+    writeSceneDocumentToStorage(
+      window.localStorage,
+      {
+        ...createResizeConfirmationScene(),
+        tileInstances: [
+          createTileInstance({
+            instanceId: 'resize-kept',
+            assetId: 'leafy-plant',
+            coordinate: { x: 2, y: 4 },
+            buildingLevelId: 'level-0',
+            dimensions: {
+              sceneSize: { width: 8, height: 10 },
+              canvasSize: { width: 10, height: 12 },
+              outerPadding: 1,
+            },
+          }),
+        ],
+        skillMarkers: [],
+      },
+      'autosave',
+    );
+    const confirmSpy = vi.spyOn(window, 'confirm');
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('宽度')).toHaveValue('10');
+    });
+
+    fireEvent.change(screen.getByLabelText('宽度'), { target: { value: '9' } });
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByLabelText('9x12 scene canvas workspace')).toBeVisible();
+    });
+  });
+
   it('exports the current scene as a short restorable string without writing storage', () => {
     const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(null);
 
@@ -3835,6 +3939,42 @@ describe('AppShell scene storage integration', () => {
     });
   });
 });
+
+function createResizeConfirmationScene() {
+  const dimensions = {
+    sceneSize: { width: 8, height: 10 },
+    canvasSize: { width: 10, height: 12 },
+    outerPadding: 1,
+  };
+  const scene = createDefaultSceneDocument({
+    sceneId: 'scene-resize-confirmation',
+    sceneName: 'Resize Confirmation Garden',
+    selectedCoordinate: { x: 2, y: 4 },
+    now: '2026-05-16T07:00:00.000Z',
+  });
+
+  return {
+    ...scene,
+    ...dimensions,
+    tileInstances: [
+      createTileInstance({
+        instanceId: 'resize-kept',
+        assetId: 'leafy-plant',
+        coordinate: { x: 2, y: 4 },
+        buildingLevelId: 'level-0',
+        dimensions,
+      }),
+      createTileInstance({
+        instanceId: 'resize-deleted',
+        assetId: 'leafy-plant',
+        coordinate: { x: 1, y: 4 },
+        buildingLevelId: 'level-0',
+        dimensions,
+      }),
+    ],
+    skillMarkers: [],
+  };
+}
 
 function setViewportWidth(width: number): void {
   Object.defineProperty(window, 'innerWidth', {

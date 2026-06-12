@@ -24,9 +24,12 @@ import {
   fillSceneRectangleWithSelectedAsset,
   getAssetPlacementPreview,
   getInteractionMode,
+  createSceneResizePlan,
+  hasSceneResizeDeletion,
   placeSelectedAsset,
   sceneReducer,
   saveCellSkillMarker,
+  summarizeSceneResizeDeletion,
   type AssetInstanceEditResult,
   type AssetPlacementPreview,
   type BuildingLayerEditResult,
@@ -698,6 +701,19 @@ export function AppShell() {
   };
 
   const updateCanvasSize = (canvasSize: GridSize) => {
+    const resizePlan = createSceneResizePlan(scene.canvasSize, canvasSize);
+    const deletionSummary = summarizeSceneResizeDeletion(scene, resizePlan);
+
+    if (
+      hasSceneResizeDeletion(deletionSummary) &&
+      !window.confirm(t(locale, 'sceneResizeDeletionConfirm', {
+        skillCount: deletionSummary.skillMarkerCount,
+        tileCount: deletionSummary.tileInstanceCount,
+      }))
+    ) {
+      return;
+    }
+
     setHoveredCoordinate(null);
     setFocusedCoordinate(null);
     setReadOnlySelectedCoordinate(null);

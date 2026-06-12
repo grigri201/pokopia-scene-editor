@@ -272,6 +272,32 @@ describe('PokemonSceneControls', () => {
     expect(screen.queryByRole('button', { name: /Save scene/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Save status')).not.toBeInTheDocument();
   });
+
+  it('keeps size selects controlled when a parent cancels the requested resize', () => {
+    const onCanvasSizeChange = vi.fn();
+    const props = {
+      readOnly: false,
+      canvasSize: { width: 10, height: 12 },
+      selectedPokemonKey: 'pikachu' as const,
+      sceneName: '星光庭院',
+      sceneAuthor: '',
+      sceneRef: '',
+      onCanvasSizeChange,
+      onPokemonChange: () => undefined,
+      onSceneNameChange: () => undefined,
+      onSceneAuthorChange: () => undefined,
+      onSceneRefChange: () => undefined,
+    };
+
+    const { rerender } = render(<PokemonSceneControls {...props} />);
+
+    fireEvent.change(screen.getByLabelText('宽度'), { target: { value: '7' } });
+    rerender(<PokemonSceneControls {...props} />);
+
+    expect(onCanvasSizeChange).toHaveBeenCalledWith({ width: 7, height: 12 });
+    expect(screen.getByLabelText('宽度')).toHaveValue('10');
+    expect(screen.getByLabelText('高度')).toHaveValue('12');
+  });
 });
 
 const defaultCanvasSize = createDefaultSceneDocument({

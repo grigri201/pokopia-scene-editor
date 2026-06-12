@@ -1,8 +1,6 @@
 import {
   assertCanvasCoordinate,
   assertSceneNameLabelsSceneSize,
-  calculateAreaType,
-  createSceneDimensionsForCanvasSize,
   defaultSceneDimensions,
   type GridCoordinate,
   type GridSize,
@@ -10,6 +8,7 @@ import {
 } from '@pokopia-scene-editor/scene-core';
 import { assertKnownAssetId, assertKnownPokemonKey, type PokemonKey } from '@pokopia-scene-editor/scene-core';
 import type { InteractionMode } from './interaction-mode';
+import { createSceneResizePlan, resizeSceneDocumentWithPlan } from './scene-resize';
 
 export type SceneAction =
   | {
@@ -215,45 +214,12 @@ export function resizeSceneCanvas(
     return scene;
   }
 
-  const dimensions = createSceneDimensionsForCanvasSize(canvasSize);
-  if (scene.canvasSize.width === dimensions.canvasSize.width && scene.canvasSize.height === dimensions.canvasSize.height) {
+  const plan = createSceneResizePlan(scene.canvasSize, canvasSize);
+  if (scene.canvasSize.width === plan.nextCanvasSize.width && scene.canvasSize.height === plan.nextCanvasSize.height) {
     return scene;
   }
 
-  const isInsideCanvas = (coordinate: GridCoordinate) =>
-    coordinate.x >= 0 &&
-    coordinate.y >= 0 &&
-    coordinate.x < dimensions.canvasSize.width &&
-    coordinate.y < dimensions.canvasSize.height;
-
-  return markSceneDirty(
-    {
-      ...scene,
-      sceneSize: dimensions.sceneSize,
-      canvasSize: dimensions.canvasSize,
-      outerPadding: dimensions.outerPadding,
-      tileInstances: scene.tileInstances
-        .filter((instance) => isInsideCanvas(instance.coordinate))
-        .map((instance) => ({
-          ...instance,
-          areaType: calculateAreaType(instance.coordinate, dimensions),
-        })),
-      skillMarkers: scene.skillMarkers
-        .filter((marker) => isInsideCanvas(marker.coordinate))
-        .map((marker) => ({
-          ...marker,
-          areaType: calculateAreaType(marker.coordinate, dimensions),
-        })),
-      workspaceState: {
-        ...scene.workspaceState,
-        selectedCoordinate:
-          scene.workspaceState.selectedCoordinate && isInsideCanvas(scene.workspaceState.selectedCoordinate)
-            ? scene.workspaceState.selectedCoordinate
-            : null,
-      },
-    },
-    now,
-  );
+  return markSceneDirty(resizeSceneDocumentWithPlan(scene, plan), now);
 }
 
 export function selectAsset(
