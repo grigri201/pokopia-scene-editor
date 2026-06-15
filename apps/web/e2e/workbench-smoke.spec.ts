@@ -136,6 +136,12 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('宽度')).toHaveValue('17');
   await expect(page.getByLabel('高度')).toHaveValue('17');
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
+  await expect.poll(() => getDesktopWorkbenchColumnAlignment(page)).toMatchObject({
+    assetSidebarAlignedWithHeader: true,
+    assetStagingAlignedWithHeader: true,
+    workbenchContentStartsBelowHeader: true,
+    noVerticalOverflow: true,
+  });
   await expect(page.locator('.asset-row')).toHaveCount(10);
   await expect(page.locator('[data-asset-id="pecha-berry"]')).toContainText('桃桃果');
   await expect(page.locator('[data-asset-id="pecha-berry"]')).toContainText('食物');
@@ -1750,6 +1756,38 @@ async function expectSceneCanvasZoomViewportAtMax(page: Page): Promise<void> {
   const metrics = await getSceneCanvasZoomViewportMetrics(page);
   expect(metrics.visibleColumns).toBeGreaterThan(6);
   expect(metrics.visibleRows).toBeGreaterThan(6);
+}
+
+async function getDesktopWorkbenchColumnAlignment(page: Page): Promise<{
+  assetSidebarAlignedWithHeader: boolean;
+  assetStagingAlignedWithHeader: boolean;
+  workbenchContentStartsBelowHeader: boolean;
+  noVerticalOverflow: boolean;
+}> {
+  return page.evaluate(() => {
+    const getRect = (selector: string): DOMRect => {
+      const element = document.querySelector<HTMLElement>(selector);
+
+      if (!element) {
+        throw new Error(`Expected ${selector} to be present.`);
+      }
+
+      return element.getBoundingClientRect();
+    };
+    const headerRect = getRect('.app-header');
+    const leftColumnRect = getRect('.workbench-left');
+    const canvasStageRect = getRect('.canvas-stage');
+    const assetSidebarRect = getRect('.asset-sidebar');
+    const assetStagingRect = getRect('.asset-staging');
+    const isAligned = (a: number, b: number): boolean => Math.abs(a - b) <= 1;
+
+    return {
+      assetSidebarAlignedWithHeader: isAligned(assetSidebarRect.top, headerRect.top),
+      assetStagingAlignedWithHeader: isAligned(assetStagingRect.top, headerRect.top),
+      workbenchContentStartsBelowHeader: leftColumnRect.top > headerRect.top && canvasStageRect.top > headerRect.top,
+      noVerticalOverflow: document.documentElement.scrollHeight <= window.innerHeight + 1,
+    };
+  });
 }
 
 async function getSceneCanvasZoomViewportMetrics(page: Page): Promise<{

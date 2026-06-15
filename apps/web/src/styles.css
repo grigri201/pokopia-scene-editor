@@ -1927,9 +1927,9 @@ button:disabled {
 .workbench-grid {
   display: grid;
   grid-column: 1 / -1;
-  grid-row: 2;
+  grid-row: 1 / -1;
   grid-template-columns: var(--workbench-left-column) var(--workbench-center-column) var(--workbench-right-column);
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: var(--app-header-height) minmax(0, 1fr) auto;
   gap: 10px;
   align-items: stretch;
   max-width: none;
@@ -1947,7 +1947,7 @@ button:disabled {
   position: relative;
   top: auto;
   grid-column: 1;
-  grid-row: 1 / span 2;
+  grid-row: 2 / span 2;
   align-self: start;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -2014,7 +2014,7 @@ button:disabled {
 .canvas-stage {
   position: relative;
   grid-column: 2;
-  grid-row: 1;
+  grid-row: 2;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -2935,7 +2935,7 @@ button:disabled {
 .canvas-bottom-panels {
   --canvas-bottom-panel-max-height: 14rem;
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 3;
   align-self: end;
   display: block;
   width: 100%;
@@ -3753,7 +3753,7 @@ button:disabled {
 
 .asset-sidebar {
   grid-column: 3;
-  grid-row: 1 / span 2;
+  grid-row: 1 / span 3;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
