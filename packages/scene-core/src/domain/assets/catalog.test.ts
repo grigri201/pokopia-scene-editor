@@ -154,12 +154,14 @@ describe('asset catalog', () => {
     expect(getAssetById('large-boulder')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
     expect(getAssetById('chansey-plant')?.footprint).toEqual({ length: 2, width: 2, height: 3 });
     expect(getAssetById('bread-oven')?.footprint).toEqual({ length: 1, width: 1, height: 2 });
+    expect(getAssetById('dining-cabinet')?.footprint).toEqual({ length: 1, width: 1, height: 2 });
     expect(getAssetById('rustic-door')?.footprint).toEqual({ length: 1, width: 1, height: 2 });
     expect(getAssetById('iron-door')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
     expect(getAssetById('bike')?.footprint).toEqual({ length: 1, width: 2, height: 1 });
     expect(getAssetById('signpost')?.footprint).toEqual({ length: 1, width: 1, height: 2 });
     expect(getAssetById('arch-bridge')?.footprint).toEqual({ length: 1, width: 2, height: 2 });
     expect(getAssetById('slide')?.footprint).toEqual({ length: 1, width: 3, height: 2 });
+    expect(getAssetById('wooden-partition')?.footprint).toEqual({ length: 1, width: 1, height: 2 });
     expect(getAssetById('grate-fencing')?.footprint).toEqual({ length: 1, width: 2, height: 2 });
     expect(assetFootprintOverrideAssetIds.every((assetId) => getAssetById(assetId))).toBe(true);
   });
