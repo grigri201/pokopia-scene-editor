@@ -415,6 +415,58 @@ describe('SceneCanvas', () => {
     expect(screen.getByTestId('scene-canvas-viewport')).toHaveAttribute('data-rectangle-gesture', 'idle');
   });
 
+  it('pans from a Ctrl cell drag instead of starting rectangle fill or single-cell actions', () => {
+    const onFillRectangle = vi.fn();
+    const onSelectCoordinate = vi.fn();
+    const onDeleteCoordinate = vi.fn();
+    render(
+      <SceneCanvas
+        {...defaultProps}
+        readOnly={false}
+        rectangleFillEnabled
+        onFillRectangle={onFillRectangle}
+        onSelectCoordinate={onSelectCoordinate}
+        onDeleteCoordinate={onDeleteCoordinate}
+      />,
+    );
+
+    const viewport = screen.getByTestId('scene-canvas-viewport');
+    const setPointerCapture = vi.fn();
+    const releasePointerCapture = vi.fn();
+    let pointerCaptured = false;
+    const hasPointerCapture = vi.fn(() => pointerCaptured);
+    setPointerCapture.mockImplementation(() => {
+      pointerCaptured = true;
+    });
+    releasePointerCapture.mockImplementation(() => {
+      pointerCaptured = false;
+    });
+    Object.assign(viewport, {
+      setPointerCapture,
+      releasePointerCapture,
+      hasPointerCapture,
+    });
+
+    const startCell = getRenderedCell('2,2');
+    fireEvent.pointerDown(startCell, { button: 0, ctrlKey: true, clientX: 100, clientY: 100, pointerId: 19 });
+    fireEvent.pointerMove(viewport, { button: 0, ctrlKey: true, clientX: 128, clientY: 116, pointerId: 19 });
+    fireEvent.pointerUp(viewport, { button: 0, ctrlKey: true, clientX: 128, clientY: 116, pointerId: 19 });
+    fireEvent.click(startCell, { ctrlKey: true });
+
+    const contextMenuEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, ctrlKey: true });
+    startCell.dispatchEvent(contextMenuEvent);
+
+    expect(setPointerCapture).toHaveBeenCalledWith(19);
+    expect(releasePointerCapture).toHaveBeenCalledWith(19);
+    expect(viewport).toHaveAttribute('data-rectangle-gesture', 'idle');
+    expect(viewport).toHaveAttribute('data-rectangle-range', '');
+    expect(viewport).toHaveAttribute('data-zoom-pan', '28,16');
+    expect(contextMenuEvent.defaultPrevented).toBe(true);
+    expect(onFillRectangle).not.toHaveBeenCalled();
+    expect(onSelectCoordinate).not.toHaveBeenCalled();
+    expect(onDeleteCoordinate).not.toHaveBeenCalled();
+  });
+
   it('emits a rectangle clear callback from right-drag without also running single-cell delete', () => {
     const onClearRectangle = vi.fn();
     const onDeleteCoordinate = vi.fn();

@@ -192,6 +192,7 @@ export function SceneCanvas({
         startClientX: event.clientX,
         startClientY: event.clientY,
         startPan: canvasPanRef.current,
+        suppressContextMenu: event.ctrlKey,
         moved: false,
       };
     },
@@ -266,8 +267,10 @@ export function SceneCanvas({
 
     if (dragState.moved) {
       suppressViewportClickRef.current = true;
+      suppressCellContextMenuRef.current = dragState.suppressContextMenu;
       window.setTimeout(() => {
         suppressViewportClickRef.current = false;
+        suppressCellContextMenuRef.current = false;
       }, 0);
     }
   }, [canvasSize, onClearRectangle, onFillRectangle]);
@@ -511,6 +514,12 @@ export function SceneCanvas({
                     return;
                   }
 
+                  if (event.ctrlKey) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                  }
+
                   handleCellPointerSelect(readOnly, interactionCoordinate, onSelectCoordinate, onViewCoordinate);
                 }}
                 onContextMenu={(event) => {
@@ -518,6 +527,12 @@ export function SceneCanvas({
                     event.preventDefault();
                     event.stopPropagation();
                     suppressCellContextMenuRef.current = false;
+                    return;
+                  }
+
+                  if (event.ctrlKey) {
+                    event.preventDefault();
+                    event.stopPropagation();
                     return;
                   }
 
@@ -780,6 +795,7 @@ interface SceneCanvasDragState {
   startClientX: number;
   startClientY: number;
   startPan: SceneCanvasPan;
+  suppressContextMenu: boolean;
   moved: boolean;
 }
 
@@ -919,7 +935,7 @@ function startRectangleDrag(
     rectangleDragRef: MutableRefObject<SceneCanvasRectangleDragState | null>;
   },
 ): void {
-  if (input.readOnly) {
+  if (input.readOnly || event.ctrlKey) {
     return;
   }
 
