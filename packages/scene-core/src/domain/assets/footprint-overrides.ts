@@ -86,7 +86,6 @@ const assetFootprintOverridesByAssetId: Readonly<Record<string, AssetFootprint>>
   'push-cart': { length: 1, width: 2, height: 1 },
   'berry-bed': { length: 2, width: 2, height: 1 },
   'berry-table': { length: 2, width: 2, height: 1 },
-  'wall-storage-box': { length: 1, width: 2, height: 1 },
   'antique-chest': { length: 1, width: 2, height: 1 },
   'pokemon-center-counter': { length: 1, width: 2, height: 1 },
   'antique-table': { length: 1, width: 2, height: 1 },
