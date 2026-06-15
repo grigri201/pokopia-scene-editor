@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createBuildingLevel,
@@ -54,18 +54,24 @@ describe('SceneCanvas', () => {
 
     const cells = screen.getAllByRole('gridcell');
     const coordinateWatermarks = document.querySelectorAll('.cell-coordinate-watermark');
+    const viewport = screen.getByTestId('scene-canvas-viewport');
 
     expect(screen.getByRole('grid', { name: `${scene.canvasSize.width}x${scene.canvasSize.height} canvas with main and outer regions` })).toBeVisible();
+    expect(viewport).toHaveAttribute('data-viewport-gutter-cells', '1');
+    expect(viewport).toHaveStyle({
+      '--scene-canvas-viewport-gutter-cells': '1',
+    });
     expect(screen.getByTestId('scene-canvas')).toHaveAttribute('data-canvas-density', 'compact');
     expect(screen.getByTestId('scene-canvas')).toHaveStyle({
       '--scene-canvas-columns': `${scene.canvasSize.width}`,
       '--scene-canvas-rows': `${scene.canvasSize.height}`,
       '--scene-canvas-max-side': `${Math.max(scene.canvasSize.width, scene.canvasSize.height)}`,
       '--scene-canvas-aspect-ratio': `${scene.canvasSize.width} / ${scene.canvasSize.height}`,
-      '--scene-canvas-width-large': 'calc(min(100cqw, 100cqh) * 1)',
-      '--scene-canvas-height-large': 'calc(min(100cqw, 100cqh) * 1)',
-      '--scene-canvas-render-width-large': 'calc(min(100cqw, 100cqh) * 1)',
-      '--scene-canvas-render-height-large': 'calc(min(100cqw, 100cqh) * 1)',
+      '--scene-canvas-viewport-gutter-cells': '1',
+      '--scene-canvas-width-large': 'calc(min(89.4737cqw, 89.4737cqh) * 1)',
+      '--scene-canvas-height-large': 'calc(min(89.4737cqw, 89.4737cqh) * 1)',
+      '--scene-canvas-render-width-large': 'calc(min(89.4737cqw, 89.4737cqh) * 1)',
+      '--scene-canvas-render-height-large': 'calc(min(89.4737cqw, 89.4737cqh) * 1)',
     });
     expect(cells).toHaveLength(defaultCanvasCellCount);
     expect(screen.getByLabelText('Cell 0,0, outer area, level-0, placeable')).toBeVisible();
@@ -209,10 +215,10 @@ describe('SceneCanvas', () => {
       '--scene-canvas-rows': '20',
       '--scene-canvas-max-side': '20',
       '--scene-canvas-aspect-ratio': '6 / 20',
-      '--scene-canvas-width-large': 'calc(min(100cqw, 30cqh) * 1)',
-      '--scene-canvas-height-large': 'calc(min(333.3333cqw, 100cqh) * 1)',
-      '--scene-canvas-width-medium': 'min(30%, 186px)',
-      '--scene-canvas-width-mobile': 'min(30%, 27.6vw)',
+      '--scene-canvas-width-large': 'calc(min(75cqw, 27.2727cqh) * 1)',
+      '--scene-canvas-height-large': 'calc(min(250cqw, 90.9091cqh) * 1)',
+      '--scene-canvas-width-medium': 'min(27.2727%, 169.0909px)',
+      '--scene-canvas-width-mobile': 'min(27.2727%, 25.0909vw)',
     });
   });
 
@@ -235,10 +241,10 @@ describe('SceneCanvas', () => {
       '--scene-canvas-rows': '6',
       '--scene-canvas-max-side': '20',
       '--scene-canvas-aspect-ratio': '20 / 6',
-      '--scene-canvas-width-large': 'calc(min(100cqw, 333.3333cqh) * 1)',
-      '--scene-canvas-height-large': 'calc(min(30cqw, 100cqh) * 1)',
-      '--scene-canvas-width-medium': 'min(100%, 620px)',
-      '--scene-canvas-width-mobile': 'min(100%, 92vw)',
+      '--scene-canvas-width-large': 'calc(min(90.9091cqw, 250cqh) * 1)',
+      '--scene-canvas-height-large': 'calc(min(27.2727cqw, 75cqh) * 1)',
+      '--scene-canvas-width-medium': 'min(90.9091%, 563.6364px)',
+      '--scene-canvas-width-mobile': 'min(90.9091%, 83.6364vw)',
     });
   });
 
@@ -255,8 +261,8 @@ describe('SceneCanvas', () => {
     expect(canvas).toHaveStyle({
       '--scene-canvas-zoom-scale': '1',
       '--scene-canvas-zoom-max-scale': '2.8333',
-      '--scene-canvas-render-width-large': 'calc(min(100cqw, 100cqh) * 1)',
-      '--scene-canvas-render-height-large': 'calc(min(100cqw, 100cqh) * 1)',
+      '--scene-canvas-render-width-large': 'calc(min(89.4737cqw, 89.4737cqh) * 1)',
+      '--scene-canvas-render-height-large': 'calc(min(89.4737cqw, 89.4737cqh) * 1)',
     });
   });
 
@@ -270,8 +276,8 @@ describe('SceneCanvas', () => {
 
     expect(viewport).toHaveAttribute('data-zoom-scale', '2.8333');
     expect(canvas).toHaveStyle({
-      '--scene-canvas-render-width-large': 'calc(min(100cqw, 100cqh) * 2.8333)',
-      '--scene-canvas-render-height-large': 'calc(min(100cqw, 100cqh) * 2.8333)',
+      '--scene-canvas-render-width-large': 'calc(min(89.4737cqw, 89.4737cqh) * 2.8333)',
+      '--scene-canvas-render-height-large': 'calc(min(89.4737cqw, 89.4737cqh) * 2.8333)',
     });
   });
 
@@ -360,6 +366,37 @@ describe('SceneCanvas', () => {
     expect(viewport).toHaveAttribute('data-zoom-scale', '1');
     expect(viewport).toHaveAttribute('data-zoom-origin', '50,50');
     expect(viewport).toHaveAttribute('data-zoom-pan', '0,0');
+    expect(viewport).toHaveAttribute('data-viewport-motion', 'smooth');
+  });
+
+  it('keeps programmatic viewport changes smooth for 500ms before returning to idle', () => {
+    vi.useFakeTimers();
+
+    try {
+      render(<SceneCanvas {...defaultProps} readOnly={false} />);
+
+      const viewport = screen.getByTestId('scene-canvas-viewport');
+
+      expect(viewport).toHaveAttribute('data-viewport-motion', 'idle');
+
+      fireEvent.wheel(viewport, { deltaY: -1200 });
+
+      expect(viewport).toHaveAttribute('data-viewport-motion', 'smooth');
+
+      act(() => {
+        vi.advanceTimersByTime(499);
+      });
+
+      expect(viewport).toHaveAttribute('data-viewport-motion', 'smooth');
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+
+      expect(viewport).toHaveAttribute('data-viewport-motion', 'idle');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('pans the editable canvas by dragging the viewport without selecting a cell', () => {

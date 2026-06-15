@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type {
   CSSProperties,
   FocusEvent,
@@ -31,6 +31,9 @@ import { moveCoordinate } from '../../state';
 import type { AssetPlacementPreview, SceneEdgeResizeRequest, SceneResizeEdge, SceneResizeEdgeDelta } from '../../state';
 import { defaultLocale, getAssetDisplay, getSkillDisplay, t, type Locale, type MessageKey } from '../../i18n';
 import { formatStackingFootprint, getStackingShortSideSplitAxis, getStackingSplitDisplay } from '../stacking-display';
+
+const sceneCanvasViewportGutterCells = 1;
+const sceneCanvasViewportTransitionMs = 500;
 
 interface SceneCanvasProps {
   locale?: Locale;
@@ -87,20 +90,25 @@ export function SceneCanvas({
   onResizeEdge,
 }: SceneCanvasProps) {
   const maxCanvasSide = Math.max(canvasSize.width, canvasSize.height);
-  const canvasAspectScale = canvasSize.width / canvasSize.height;
-  const canvasInlineScale = canvasSize.width / maxCanvasSide;
-  const canvasBlockScale = canvasSize.height / maxCanvasSide;
+  const canvasVirtualMaxSide = maxCanvasSide + sceneCanvasViewportGutterCells * 2;
+  const canvasInlineScale = canvasSize.width / canvasVirtualMaxSide;
+  const canvasBlockScale = canvasSize.height / canvasVirtualMaxSide;
   const maxZoomScale = getMaxSceneCanvasZoomScale(canvasSize);
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomOrigin, setZoomOrigin] = useState<SceneCanvasZoomOrigin>({ x: 50, y: 50 });
   const [canvasPan, setCanvasPan] = useState<SceneCanvasPan>({ x: 0, y: 0 });
   const [draggingCanvas, setDraggingCanvas] = useState(false);
+  const [viewportMotion, setViewportMotion] = useState<SceneCanvasViewportMotion>('idle');
+  const [canvasRenderSize, setCanvasRenderSize] = useState<SceneCanvasRenderSize | null>(null);
   const [rectanglePreview, setRectanglePreview] = useState<SceneCanvasRectanglePreview | null>(null);
   const [activeResizeEdge, setActiveResizeEdge] = useState<SceneResizeEdge | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const zoomScaleRef = useRef(1);
   const gestureStartZoomRef = useRef(1);
   const canvasPanRef = useRef<SceneCanvasPan>({ x: 0, y: 0 });
+  const viewportTransitionTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const viewportSizeKeyRef = useRef<string | null>(null);
   const canvasDragRef = useRef<SceneCanvasDragState | null>(null);
   const rectangleDragRef = useRef<SceneCanvasRectangleDragState | null>(null);
   const suppressViewportClickRef = useRef(false);
@@ -111,18 +119,25 @@ export function SceneCanvas({
     '--scene-canvas-rows': canvasSize.height,
     '--scene-canvas-max-side': maxCanvasSide,
     '--scene-canvas-aspect-ratio': `${canvasSize.width} / ${canvasSize.height}`,
-    '--scene-canvas-width-large': createViewportContainedCanvasWidth(canvasAspectScale, 1),
-    '--scene-canvas-height-large': createViewportContainedCanvasHeight(canvasAspectScale, 1),
+    '--scene-canvas-viewport-gutter-cells': sceneCanvasViewportGutterCells,
+    '--scene-canvas-width-large': createViewportContainedCanvasWidth(canvasSize, sceneCanvasViewportGutterCells, 1),
+    '--scene-canvas-height-large': createViewportContainedCanvasHeight(canvasSize, sceneCanvasViewportGutterCells, 1),
     '--scene-canvas-width-medium': createScaledCanvasWidth(canvasInlineScale, 100, '%', 620, 'px'),
     '--scene-canvas-height-medium': createScaledCanvasWidth(canvasBlockScale, 100, '%', 620, 'px'),
     '--scene-canvas-width-mobile': createScaledCanvasWidth(canvasInlineScale, 100, '%', 92, 'vw'),
     '--scene-canvas-height-mobile': createScaledCanvasWidth(canvasBlockScale, 100, '%', 92, 'vw'),
-    '--scene-canvas-render-width-large': createViewportContainedCanvasWidth(canvasAspectScale, zoomScale),
-    '--scene-canvas-render-height-large': createViewportContainedCanvasHeight(canvasAspectScale, zoomScale),
+    '--scene-canvas-render-width-large': createViewportContainedCanvasWidth(canvasSize, sceneCanvasViewportGutterCells, zoomScale),
+    '--scene-canvas-render-height-large': createViewportContainedCanvasHeight(canvasSize, sceneCanvasViewportGutterCells, zoomScale),
     '--scene-canvas-render-width-medium': createScaledCanvasWidth(canvasInlineScale * zoomScale, 100, '%', 620, 'px'),
     '--scene-canvas-render-height-medium': createScaledCanvasWidth(canvasBlockScale * zoomScale, 100, '%', 620, 'px'),
     '--scene-canvas-render-width-mobile': createScaledCanvasWidth(canvasInlineScale * zoomScale, 100, '%', 92, 'vw'),
     '--scene-canvas-render-height-mobile': createScaledCanvasWidth(canvasBlockScale * zoomScale, 100, '%', 92, 'vw'),
+    ...(canvasRenderSize
+      ? {
+          '--scene-canvas-measured-render-width': `${formatSceneCanvasPan(canvasRenderSize.width)}px`,
+          '--scene-canvas-measured-render-height': `${formatSceneCanvasPan(canvasRenderSize.height)}px`,
+        }
+      : {}),
     '--scene-canvas-zoom-scale': formatSceneCanvasZoomScale(zoomScale),
     '--scene-canvas-zoom-max-scale': formatSceneCanvasZoomScale(maxZoomScale),
     '--scene-canvas-zoom-origin-x': `${formatSceneCanvasZoomPercent(zoomOrigin.x)}%`,
@@ -150,6 +165,79 @@ export function SceneCanvas({
   });
   const rectanglePreviewCells = buildRectanglePreviewCellSet(rectanglePreview);
 
+  const clearViewportTransitionTimer = useCallback(() => {
+    if (viewportTransitionTimerRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(viewportTransitionTimerRef.current);
+    viewportTransitionTimerRef.current = null;
+  }, []);
+
+  const cancelViewportTransition = useCallback(() => {
+    clearViewportTransitionTimer();
+    setViewportMotion('idle');
+  }, [clearViewportTransitionTimer]);
+
+  const runSmoothViewportTransition = useCallback((applyViewportState: () => void) => {
+    clearViewportTransitionTimer();
+    setViewportMotion('smooth');
+    applyViewportState();
+    viewportTransitionTimerRef.current = window.setTimeout(() => {
+      setViewportMotion('idle');
+      viewportTransitionTimerRef.current = null;
+    }, sceneCanvasViewportTransitionMs);
+  }, [clearViewportTransitionTimer]);
+
+  useEffect(() => () => {
+    clearViewportTransitionTimer();
+  }, [clearViewportTransitionTimer]);
+
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+
+    if (!canvas) {
+      return undefined;
+    }
+
+    const updateCanvasRenderSize = () => {
+      const rect = canvas.getBoundingClientRect();
+
+      if (rect.width <= 0 || rect.height <= 0) {
+        return;
+      }
+
+      setCanvasRenderSize((currentSize) => {
+        if (
+          currentSize &&
+          Math.abs(currentSize.width - rect.width) < 0.5 &&
+          Math.abs(currentSize.height - rect.height) < 0.5
+        ) {
+          return currentSize;
+        }
+
+        return { width: rect.width, height: rect.height };
+      });
+    };
+
+    updateCanvasRenderSize();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateCanvasRenderSize);
+
+      return () => {
+        window.removeEventListener('resize', updateCanvasRenderSize);
+      };
+    }
+
+    const resizeObserver = new ResizeObserver(updateCanvasRenderSize);
+    resizeObserver.observe(canvas);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [canvasSize.height, canvasSize.width, zoomScale]);
+
   useEffect(() => {
     zoomScaleRef.current = zoomScale;
   }, [zoomScale]);
@@ -159,15 +247,32 @@ export function SceneCanvas({
   }, [canvasPan]);
 
   useEffect(() => {
-    setZoomOrigin({ x: 50, y: 50 });
-    setCanvasPan({ x: 0, y: 0 });
-    setZoomScale((currentScale) => {
-      const nextScale = clampSceneCanvasZoomScale(currentScale, maxZoomScale);
-      zoomScaleRef.current = nextScale;
+    const viewportSizeKey = `${canvasSize.width}:${canvasSize.height}:${maxZoomScale}`;
+    const applyViewportState = () => {
+      setZoomOrigin({ x: 50, y: 50 });
+      canvasPanRef.current = { x: 0, y: 0 };
+      setCanvasPan({ x: 0, y: 0 });
+      setZoomScale((currentScale) => {
+        const nextScale = clampSceneCanvasZoomScale(currentScale, maxZoomScale);
+        zoomScaleRef.current = nextScale;
 
-      return nextScale;
-    });
-  }, [canvasSize.height, canvasSize.width, maxZoomScale]);
+        return nextScale;
+      });
+    };
+
+    if (viewportSizeKeyRef.current === null) {
+      viewportSizeKeyRef.current = viewportSizeKey;
+      applyViewportState();
+      return;
+    }
+
+    if (viewportSizeKeyRef.current === viewportSizeKey) {
+      return;
+    }
+
+    viewportSizeKeyRef.current = viewportSizeKey;
+    runSmoothViewportTransition(applyViewportState);
+  }, [canvasSize.height, canvasSize.width, maxZoomScale, runSmoothViewportTransition]);
 
   const handleWheelZoom = useCallback(
     (event: WheelEvent<HTMLDivElement>) => {
@@ -188,19 +293,23 @@ export function SceneCanvas({
       event.preventDefault();
       zoomScaleRef.current = nextScale;
       const viewport = viewportRef.current ?? event.currentTarget;
-      setZoomOrigin(getSceneCanvasZoomOriginFromPoint(viewport, event.clientX, event.clientY));
-      setZoomScale(nextScale);
+      runSmoothViewportTransition(() => {
+        setZoomOrigin(getSceneCanvasZoomOriginFromPoint(viewport, event.clientX, event.clientY));
+        setZoomScale(nextScale);
+      });
     },
-    [maxZoomScale, readOnly],
+    [maxZoomScale, readOnly, runSmoothViewportTransition],
   );
 
   const handleResetViewport = useCallback(() => {
     zoomScaleRef.current = 1;
     canvasPanRef.current = { x: 0, y: 0 };
-    setZoomOrigin({ x: 50, y: 50 });
-    setCanvasPan({ x: 0, y: 0 });
-    setZoomScale(1);
-  }, []);
+    runSmoothViewportTransition(() => {
+      setZoomOrigin({ x: 50, y: 50 });
+      setCanvasPan({ x: 0, y: 0 });
+      setZoomScale(1);
+    });
+  }, [runSmoothViewportTransition]);
 
   const handleResizeEdgeZoneEnter = useCallback((edge: SceneResizeEdge) => {
     setActiveResizeEdge(edge);
@@ -235,6 +344,7 @@ export function SceneCanvas({
         return;
       }
 
+      cancelViewportTransition();
       canvasDragRef.current = {
         pointerId: event.pointerId,
         startClientX: event.clientX,
@@ -244,7 +354,7 @@ export function SceneCanvas({
         moved: false,
       };
     },
-    [readOnly],
+    [cancelViewportTransition, readOnly],
   );
 
   const handleViewportPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
@@ -274,6 +384,7 @@ export function SceneCanvas({
     }
     dragState.moved = true;
     setDraggingCanvas(true);
+    setViewportMotion('dragging');
     setCanvasPan({
       x: dragState.startPan.x + deltaX,
       y: dragState.startPan.y + deltaY,
@@ -308,6 +419,7 @@ export function SceneCanvas({
 
     canvasDragRef.current = null;
     setDraggingCanvas(false);
+    setViewportMotion('idle');
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -371,6 +483,7 @@ export function SceneCanvas({
     const handleGestureStart = (event: Event) => {
       event.preventDefault();
       gestureStartZoomRef.current = zoomScaleRef.current;
+      cancelViewportTransition();
       const gestureEvent = event as SceneCanvasGestureEvent;
       setZoomOrigin(getSceneCanvasZoomOriginFromPoint(viewport, gestureEvent.clientX, gestureEvent.clientY));
     };
@@ -395,7 +508,7 @@ export function SceneCanvas({
       gestureTarget.removeEventListener('gesturestart', handleGestureStart, listenerOptions);
       gestureTarget.removeEventListener('gesturechange', handleGestureChange, listenerOptions);
     };
-  }, [maxZoomScale, readOnly]);
+  }, [cancelViewportTransition, maxZoomScale, readOnly]);
 
   return (
     <div
@@ -408,6 +521,8 @@ export function SceneCanvas({
       data-zoom-origin={`${formatSceneCanvasZoomPercent(zoomOrigin.x)},${formatSceneCanvasZoomPercent(zoomOrigin.y)}`}
       data-zoom-pan={`${formatSceneCanvasPan(canvasPan.x)},${formatSceneCanvasPan(canvasPan.y)}`}
       data-dragging-canvas={draggingCanvas}
+      data-viewport-motion={viewportMotion}
+      data-viewport-gutter-cells={sceneCanvasViewportGutterCells}
       data-rectangle-gesture={rectanglePreview?.mode ?? 'idle'}
       data-rectangle-range={formatRectanglePreviewRange(rectanglePreview)}
       onClickCapture={handleViewportClickCapture}
@@ -472,6 +587,7 @@ export function SceneCanvas({
       ) : null}
       <div
         className="scene-canvas"
+        ref={canvasRef}
         role="grid"
         aria-label={
           readOnly
@@ -879,6 +995,13 @@ interface SceneCanvasZoomOrigin {
   x: number;
   y: number;
 }
+
+interface SceneCanvasRenderSize {
+  width: number;
+  height: number;
+}
+
+type SceneCanvasViewportMotion = 'idle' | 'smooth' | 'dragging';
 
 interface SceneCanvasDragState {
   pointerId: number;
@@ -1335,12 +1458,28 @@ function createScaledCanvasWidth(
   return `min(${terms.join(', ')})`;
 }
 
-function createViewportContainedCanvasWidth(aspectScale: number, zoomScale: number): string {
-  return `calc(min(100cqw, ${formatScaledDimension(100, aspectScale)}cqh) * ${formatScaledDimension(1, zoomScale)})`;
+function createViewportContainedCanvasWidth(
+  canvasSize: GridSize,
+  gutterCells: number,
+  zoomScale: number,
+): string {
+  const inlineScale = canvasSize.width / (canvasSize.width + gutterCells * 2);
+  const blockScale = canvasSize.height / (canvasSize.height + gutterCells * 2);
+  const widthFromBlockScale = blockScale * (canvasSize.width / canvasSize.height);
+
+  return `calc(min(${formatScaledDimension(100, inlineScale)}cqw, ${formatScaledDimension(100, widthFromBlockScale)}cqh) * ${formatScaledDimension(1, zoomScale)})`;
 }
 
-function createViewportContainedCanvasHeight(aspectScale: number, zoomScale: number): string {
-  return `calc(min(${formatScaledDimension(100, 1 / aspectScale)}cqw, 100cqh) * ${formatScaledDimension(1, zoomScale)})`;
+function createViewportContainedCanvasHeight(
+  canvasSize: GridSize,
+  gutterCells: number,
+  zoomScale: number,
+): string {
+  const inlineScale = canvasSize.width / (canvasSize.width + gutterCells * 2);
+  const blockScale = canvasSize.height / (canvasSize.height + gutterCells * 2);
+  const heightFromInlineScale = inlineScale * (canvasSize.height / canvasSize.width);
+
+  return `calc(min(${formatScaledDimension(100, heightFromInlineScale)}cqw, ${formatScaledDimension(100, blockScale)}cqh) * ${formatScaledDimension(1, zoomScale)})`;
 }
 
 function formatScaledDimension(value: number, scale: number): string {

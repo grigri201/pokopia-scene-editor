@@ -1521,6 +1521,7 @@ async function mockRemoteSceneApi(
     });
   };
 
+  await page.route('https://scene-api.pokokit.com/api/v1/scenes/*', routeRemoteScene);
   await page.route('https://scene-api.pokokit.com/api/scenes/*', routeRemoteScene);
   await page.route('**/api/remote-scenes/*', routeRemoteScene);
 

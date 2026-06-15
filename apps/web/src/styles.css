@@ -25,6 +25,12 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
   min-width: 320px;
   margin: 0;
@@ -84,6 +90,22 @@ button:disabled {
   transition:
     background-color 180ms ease,
     color 180ms ease;
+}
+
+@media (min-width: 1280px) {
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .app-shell {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
 }
 
 .app-header {
@@ -1905,27 +1927,27 @@ button:disabled {
 .workbench-grid {
   display: grid;
   grid-column: 1 / -1;
-  grid-row: 1 / -1;
+  grid-row: 2;
   grid-template-columns: var(--workbench-left-column) var(--workbench-center-column) var(--workbench-right-column);
-  grid-template-rows: var(--app-header-height) minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: stretch;
   max-width: none;
-  height: calc(100vh - 24px);
+  height: 100%;
   min-height: 0;
   margin: 0;
   border: 0;
   padding: 0;
   background: transparent;
   box-shadow: none;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .workbench-left {
   position: relative;
   top: auto;
   grid-column: 1;
-  grid-row: 2 / span 2;
+  grid-row: 1 / span 2;
   align-self: start;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -1992,7 +2014,7 @@ button:disabled {
 .canvas-stage {
   position: relative;
   grid-column: 2;
-  grid-row: 1 / span 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -2015,14 +2037,14 @@ button:disabled {
 }
 
 .scene-canvas-viewport {
-  --scene-canvas-active-render-width: var(--scene-canvas-render-width-large, var(--scene-canvas-width-large, min(72vh, 660px, 100%)));
-  --scene-canvas-active-render-height: var(--scene-canvas-render-height-large, var(--scene-canvas-height-large, min(72vh, 660px, 100%)));
+  --scene-canvas-active-render-width: var(--scene-canvas-measured-render-width, var(--scene-canvas-render-width-large, var(--scene-canvas-width-large, min(72vh, 660px, 100%))));
+  --scene-canvas-active-render-height: var(--scene-canvas-measured-render-height, var(--scene-canvas-render-height-large, var(--scene-canvas-height-large, min(72vh, 660px, 100%))));
   position: relative;
   align-self: stretch;
   flex: 1 1 auto;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
   margin-left: 0;
   width: 100%;
   max-width: 100%;
@@ -2110,12 +2132,12 @@ button:disabled {
 
 .scene-canvas-edge-controls__zone--top {
   top: calc(50% - var(--scene-canvas-active-render-height) / 2);
-  transform: translateY(-50%);
+  transform: translateY(-100%);
 }
 
 .scene-canvas-edge-controls__zone--bottom {
   top: calc(50% + var(--scene-canvas-active-render-height) / 2);
-  transform: translateY(-50%);
+  transform: none;
 }
 
 .scene-canvas-edge-controls__zone--left,
@@ -2128,12 +2150,12 @@ button:disabled {
 
 .scene-canvas-edge-controls__zone--left {
   left: calc(50% - var(--scene-canvas-active-render-width) / 2);
-  transform: translateX(-50%);
+  transform: translateX(-100%);
 }
 
 .scene-canvas-edge-controls__zone--right {
   left: calc(50% + var(--scene-canvas-active-render-width) / 2);
-  transform: translateX(-50%);
+  transform: none;
 }
 
 .scene-canvas-edge-controls__button {
@@ -2202,7 +2224,23 @@ button:disabled {
 .scene-canvas-viewport > .scene-canvas {
   flex: 0 0 auto;
   transform: translate3d(var(--scene-canvas-pan-x, 0), var(--scene-canvas-pan-y, 0), 0);
-  will-change: transform;
+  will-change: width, height, transform;
+}
+
+.scene-canvas-viewport[data-viewport-motion="smooth"] > .scene-canvas {
+  transition:
+    width 500ms cubic-bezier(0.42, 0, 0.58, 1),
+    height 500ms cubic-bezier(0.42, 0, 0.58, 1),
+    transform 500ms cubic-bezier(0.42, 0, 0.58, 1);
+}
+
+.scene-canvas-viewport[data-viewport-motion="smooth"] .scene-canvas-edge-controls__zone {
+  transition:
+    opacity 120ms ease,
+    top 500ms cubic-bezier(0.42, 0, 0.58, 1),
+    left 500ms cubic-bezier(0.42, 0, 0.58, 1),
+    width 500ms cubic-bezier(0.42, 0, 0.58, 1),
+    height 500ms cubic-bezier(0.42, 0, 0.58, 1);
 }
 
 .scene-canvas[data-canvas-density="compact"] {
@@ -2897,7 +2935,7 @@ button:disabled {
 .canvas-bottom-panels {
   --canvas-bottom-panel-max-height: 14rem;
   grid-column: 2;
-  grid-row: 3;
+  grid-row: 2;
   align-self: end;
   display: block;
   width: 100%;
@@ -3715,7 +3753,7 @@ button:disabled {
 
 .asset-sidebar {
   grid-column: 3;
-  grid-row: 1 / span 3;
+  grid-row: 1 / span 2;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
@@ -4258,7 +4296,7 @@ button:disabled {
   font-size: 12px;
 }
 
-@media (max-width: 1279px) {
+  @media (max-width: 1279px) {
   .app-shell {
     display: block;
     min-height: 100vh;
@@ -4295,10 +4333,11 @@ button:disabled {
   }
 
   .scene-canvas-viewport {
-    --scene-canvas-active-render-width: var(--scene-canvas-render-width-medium, var(--scene-canvas-width-medium, min(100%, 620px)));
-    --scene-canvas-active-render-height: var(--scene-canvas-render-height-medium, var(--scene-canvas-height-medium, min(100%, 620px)));
+    --scene-canvas-active-render-width: var(--scene-canvas-measured-render-width, var(--scene-canvas-render-width-medium, var(--scene-canvas-width-medium, min(100%, 620px))));
+    --scene-canvas-active-render-height: var(--scene-canvas-measured-render-height, var(--scene-canvas-render-height-medium, var(--scene-canvas-height-medium, min(100%, 620px))));
     align-self: stretch;
     margin-left: 0;
+    padding-block: 32px;
     width: 100%;
     container-type: normal;
   }
@@ -4476,11 +4515,12 @@ button:disabled {
   }
 
   .scene-canvas-viewport {
-    --scene-canvas-active-render-width: var(--scene-canvas-render-width-mobile, var(--scene-canvas-width-mobile, min(100%, 92vw)));
-    --scene-canvas-active-render-height: var(--scene-canvas-render-height-mobile, var(--scene-canvas-height-mobile, min(100%, 92vw)));
+    --scene-canvas-active-render-width: var(--scene-canvas-measured-render-width, var(--scene-canvas-render-width-mobile, var(--scene-canvas-width-mobile, min(100%, 92vw))));
+    --scene-canvas-active-render-height: var(--scene-canvas-measured-render-height, var(--scene-canvas-render-height-mobile, var(--scene-canvas-height-mobile, min(100%, 92vw))));
     align-self: center;
     flex: 0 0 auto;
     margin-left: 0;
+    padding-block: 0;
     width: var(--scene-canvas-width-mobile, min(100%, 92vw));
     aspect-ratio: var(--scene-canvas-aspect-ratio, 1 / 1);
   }
@@ -4509,6 +4549,11 @@ button:disabled {
 
 @media (prefers-reduced-motion: reduce) {
   .app-shell {
+    transition: none;
+  }
+
+  .scene-canvas-viewport[data-viewport-motion="smooth"] > .scene-canvas,
+  .scene-canvas-viewport[data-viewport-motion="smooth"] .scene-canvas-edge-controls__zone {
     transition: none;
   }
 }
