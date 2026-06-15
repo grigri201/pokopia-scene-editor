@@ -149,6 +149,7 @@ const assetFootprintOverridesByAssetId: Readonly<Record<string, AssetFootprint>>
   'weather-vane': { length: 1, width: 1, height: 2 },
   'large-ventilation-fan': { length: 2, width: 2, height: 1 },
   'grubby-rags': { length: 2, width: 2, height: 1 },
+  'arch-bridge': { length: 1, width: 2, height: 2 },
   'workbench': { length: 1, width: 2, height: 1 },
   'bread-oven': { length: 1, width: 1, height: 2 },
   'mushroom-streetlight': { length: 1, width: 1, height: 3 },
