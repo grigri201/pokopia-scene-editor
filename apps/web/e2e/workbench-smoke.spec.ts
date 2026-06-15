@@ -137,9 +137,10 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await expect(page.getByLabel('高度')).toHaveValue('17');
   await expect(page.getByRole('complementary', { name: 'Asset picker' })).toBeVisible();
   await expect.poll(() => getDesktopWorkbenchColumnAlignment(page)).toMatchObject({
+    canvasStageAlignedWithHeader: true,
     assetSidebarAlignedWithHeader: true,
     assetStagingAlignedWithHeader: true,
-    workbenchContentStartsBelowHeader: true,
+    leftColumnStartsBelowHeader: true,
     noVerticalOverflow: true,
   });
   await expect(page.locator('.asset-row')).toHaveCount(10);
@@ -1759,9 +1760,10 @@ async function expectSceneCanvasZoomViewportAtMax(page: Page): Promise<void> {
 }
 
 async function getDesktopWorkbenchColumnAlignment(page: Page): Promise<{
+  canvasStageAlignedWithHeader: boolean;
   assetSidebarAlignedWithHeader: boolean;
   assetStagingAlignedWithHeader: boolean;
-  workbenchContentStartsBelowHeader: boolean;
+  leftColumnStartsBelowHeader: boolean;
   noVerticalOverflow: boolean;
 }> {
   return page.evaluate(() => {
@@ -1782,9 +1784,10 @@ async function getDesktopWorkbenchColumnAlignment(page: Page): Promise<{
     const isAligned = (a: number, b: number): boolean => Math.abs(a - b) <= 1;
 
     return {
+      canvasStageAlignedWithHeader: isAligned(canvasStageRect.top, headerRect.top),
       assetSidebarAlignedWithHeader: isAligned(assetSidebarRect.top, headerRect.top),
       assetStagingAlignedWithHeader: isAligned(assetStagingRect.top, headerRect.top),
-      workbenchContentStartsBelowHeader: leftColumnRect.top > headerRect.top && canvasStageRect.top > headerRect.top,
+      leftColumnStartsBelowHeader: leftColumnRect.top > headerRect.top,
       noVerticalOverflow: document.documentElement.scrollHeight <= window.innerHeight + 1,
     };
   });
