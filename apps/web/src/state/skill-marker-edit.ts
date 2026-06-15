@@ -64,7 +64,7 @@ export function saveCellSkillMarker(
   }
 
   if (!isConcreteSkillType(input.skillType)) {
-    return failure('invalid-skill-type', 'Invalid skill type', 'Choose 树叶, 耕地, or 储水.');
+    return failure('invalid-skill-type', 'Invalid skill type', 'Choose 树叶, 耕地, 储水, or 缠绕蔓藤.');
   }
 
   const nextMarker = createSkillMarker({

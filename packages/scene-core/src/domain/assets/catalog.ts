@@ -22,7 +22,7 @@ export const assetCategories = [
   'other',
 ] as const;
 export type AssetCategory = (typeof assetCategories)[number];
-export const assetSkillTypes = ['树叶', '耕地', '储水'] as const;
+export const assetSkillTypes = ['树叶', '耕地', '储水', '缠绕蔓藤'] as const;
 export type ConcreteAssetSkillType = (typeof assetSkillTypes)[number];
 export type AssetSkillType = ConcreteAssetSkillType | null;
 
@@ -62,12 +62,14 @@ export const assetSkillMarkerLabels: Record<ConcreteAssetSkillType, string> = {
   树叶: '树',
   耕地: '耕',
   储水: '水',
+  缠绕蔓藤: '藤',
 };
 
 const assetSkillMarkerIconPaths: Record<ConcreteAssetSkillType, string> = {
   树叶: 'assets/pokopia_image_sources/item_portraits/0050-leaf.png',
   耕地: 'assets/pokopia_image_sources/ability_icons/rototiller.png',
   储水: 'assets/pokopia_image_sources/specialty_icons/water.png',
+  缠绕蔓藤: 'assets/pokopia_image_sources/item_portraits/0126-dense-vines.png',
 };
 
 const sourceAssetTagLabels: Record<string, string> = {
@@ -108,6 +110,8 @@ const legacyAssetSkillTypeMap: Record<string, ConcreteAssetSkillType> = {
   leaf: '树叶',
   soil: '耕地',
   water: '储水',
+  vine: '缠绕蔓藤',
+  vines: '缠绕蔓藤',
 };
 
 interface AssetCatalogOverride {

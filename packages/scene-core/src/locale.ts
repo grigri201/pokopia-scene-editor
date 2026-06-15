@@ -48,11 +48,13 @@ const skillLabelsByLocale: Record<Locale, Record<ConcreteAssetSkillType, { name:
     树叶: { name: '树叶', marker: '树' },
     耕地: { name: '耕地', marker: '耕' },
     储水: { name: '储水', marker: '水' },
+    缠绕蔓藤: { name: '缠绕蔓藤', marker: '藤' },
   },
   'en-US': {
     树叶: { name: 'Leaf', marker: 'Leaf' },
     耕地: { name: 'Tilled Soil', marker: 'Soil' },
     储水: { name: 'Water Storage', marker: 'Water' },
+    缠绕蔓藤: { name: 'Entangling Vine', marker: 'Vine' },
   },
 };
 

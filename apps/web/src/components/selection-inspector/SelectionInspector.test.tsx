@@ -399,6 +399,12 @@ describe('SelectionInspector', () => {
       expect.stringContaining('/assets/pokopia_image_sources/ability_icons/rototiller.png'),
     );
     expect(screen.getByRole('button', { name: '设置技能标记：蓄水' })).toHaveAttribute('data-tooltip', '储水');
+    const vineSkillButton = screen.getByRole('button', { name: '设置技能标记：缠绕蔓藤' });
+    expect(vineSkillButton).toHaveAttribute('data-tooltip', '缠绕蔓藤');
+    expect(vineSkillButton.querySelector('img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/assets/pokopia_image_sources/item_portraits/0126-dense-vines.png'),
+    );
     expect(screen.getByRole('button', { name: '设置技能标记：树叶' })).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(screen.getByRole('button', { name: '设置技能标记：树叶' }));
 
@@ -708,6 +714,31 @@ describe('SelectionInspector', () => {
     fireEvent.click(waterSkillButton);
 
     expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-edit', true, '储水', '');
+  });
+
+  it('uses the vine skill icon button to save the canonical 缠绕蔓藤 skill type', () => {
+    const onSaveInstanceSkill = vi.fn();
+
+    render(
+      <SelectionInspector
+        {...defaultInspectorProps}
+        selectedContext={selectedContext}
+        selectedInstance={selectedInstance}
+        selectedInstanceId="tile-edit"
+        readOnly={false}
+        onSaveInstanceSkill={onSaveInstanceSkill}
+      />,
+    );
+
+    const vineSkillButton = screen.getByRole('button', { name: '设置技能标记：缠绕蔓藤' });
+    expect(vineSkillButton.querySelector('img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/assets/pokopia_image_sources/item_portraits/0126-dense-vines.png'),
+    );
+
+    fireEvent.click(vineSkillButton);
+
+    expect(onSaveInstanceSkill).toHaveBeenCalledWith('tile-edit', true, '缠绕蔓藤', '');
   });
 });
 

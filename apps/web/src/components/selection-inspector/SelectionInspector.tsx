@@ -324,6 +324,11 @@ const selectionSkillActions: {
     tooltipLabel: '储水',
     iconUrl: getAssetSkillMarkerIconUrl('储水') ?? '',
   },
+  {
+    skillType: '缠绕蔓藤',
+    label: '缠绕蔓藤',
+    iconUrl: getAssetSkillMarkerIconUrl('缠绕蔓藤') ?? '',
+  },
 ];
 
 function getSelectedStackingRelation(

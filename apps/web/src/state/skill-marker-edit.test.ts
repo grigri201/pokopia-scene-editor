@@ -15,7 +15,7 @@ describe('cell skill marker command', () => {
       coordinate: { x: 3, y: 3 },
       buildingLevelId: 'level-0',
       requiresSkill: true,
-      skillType: '耕地',
+      skillType: '缠绕蔓藤',
       skillNote: '',
       interactionMode: 'edit',
       now,
@@ -31,7 +31,7 @@ describe('cell skill marker command', () => {
         coordinate: { x: 3, y: 3 },
         areaType: 'main',
         buildingLevelId: 'level-0',
-        skillType: '耕地',
+        skillType: '缠绕蔓藤',
         skillNote: '',
       }),
     ]);

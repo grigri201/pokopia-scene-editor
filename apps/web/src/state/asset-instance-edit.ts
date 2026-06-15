@@ -236,7 +236,7 @@ function updateSkill(
   }
 
   if (!isValidSkillType(skillType)) {
-    return failure('invalid-skill-type', 'Invalid skill type', 'Choose 树叶, 耕地, 储水, or no skill type.');
+    return failure('invalid-skill-type', 'Invalid skill type', 'Choose 树叶, 耕地, 储水, 缠绕蔓藤, or no skill type.');
   }
 
   return updateInstance(scene, instance, now, 'Skill fields saved', (current) => ({

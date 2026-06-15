@@ -1104,7 +1104,7 @@ describe('SceneCanvas', () => {
         createSkillMarker({
           coordinate: { x: 3, y: 3 },
           buildingLevelId: 'level-0',
-          skillType: '耕地',
+          skillType: '缠绕蔓藤',
         }),
       ],
     };
@@ -1116,15 +1116,15 @@ describe('SceneCanvas', () => {
       />,
     );
 
-    const cell = screen.getByLabelText('Cell 3,3, main area, level-0, placeable, Skill marker 耕');
+    const cell = screen.getByLabelText('Cell 3,3, main area, level-0, placeable, Skill marker 藤');
     expect(cell).toHaveAttribute('data-has-instance', 'false');
     expect(cell).toHaveAttribute('data-requires-skill', 'true');
-    expect(cell).toHaveAttribute('data-skill-marker-label', '耕');
-    const skillMarker = screen.getByLabelText('Skill marker 耕');
-    expect(skillMarker).toHaveAttribute('data-tooltip', '耕地');
+    expect(cell).toHaveAttribute('data-skill-marker-label', '藤');
+    const skillMarker = screen.getByLabelText('Skill marker 藤');
+    expect(skillMarker).toHaveAttribute('data-tooltip', '缠绕蔓藤');
     expect(skillMarker.querySelector('img')).toHaveAttribute(
       'src',
-      expect.stringContaining('/assets/pokopia_image_sources/ability_icons/rototiller.png'),
+      expect.stringContaining('/assets/pokopia_image_sources/item_portraits/0126-dense-vines.png'),
     );
   });
 

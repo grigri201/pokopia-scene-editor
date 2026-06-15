@@ -53,9 +53,9 @@ describe('ExportPreview', () => {
     expect(overallMaterialItem).not.toBeNull();
     expect(overallMaterialItem?.style.getPropertyValue('--export-material-color')).toBe('');
     expect(overallMaterialItem?.querySelector('.export-material-list__color')).toBeNull();
-    expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('树叶');
+    expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('缠绕蔓藤');
     expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('储水');
-    expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('树叶技能图标')).toBeVisible();
+    expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('缠绕蔓藤技能图标')).toBeVisible();
     expect(within(screen.getByLabelText('整体使用素材清单')).getByAltText('储水技能图标')).toBeVisible();
     expect(screen.queryByLabelText('整体技能数量')).not.toBeInTheDocument();
     expect(within(screen.getByLabelText('逐层图形和素材清单')).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
@@ -75,17 +75,28 @@ describe('ExportPreview', () => {
     expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--origin')).toHaveAttribute('aria-hidden', 'true');
     expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--max')).toHaveTextContent(getMaxCoordinateText(scene.canvasSize));
     expect(layerGraphicFrame?.querySelector('.export-layer-coordinate-label--max')).toHaveAttribute('aria-hidden', 'true');
-    const previewCell = screen.getByLabelText('3,3: 大叶子的植栽');
+    const previewCell = screen.getByLabelText('3,3: 大叶子的植栽, 缠绕蔓藤技能');
     expect(previewCell).toHaveTextContent('');
-    expect(previewCell.querySelector('img')).toHaveAttribute('src', expect.stringContaining('leafy-plant'));
+    expect(previewCell.querySelector('img[title="大叶子的植栽"]')).toHaveAttribute('src', expect.stringContaining('leafy-plant'));
+    expect(previewCell).toHaveAttribute('data-skill-marker-type', '缠绕蔓藤');
+    expect(previewCell).toHaveAttribute('data-skill-marker-label', '藤');
+    const previewSkillMarker = previewCell.querySelector('.export-layer-cell__skill-marker');
+    expect(previewSkillMarker).toHaveAttribute('title', '缠绕蔓藤技能');
+    expect(previewSkillMarker?.querySelector('img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/assets/pokopia_image_sources/item_portraits/0126-dense-vines.png'),
+    );
     const skillCell = screen.getByLabelText('4,4: 储水技能');
-    expect(skillCell.querySelector('img')).toHaveAttribute('src', expect.stringContaining('specialty_icons/water.png'));
+    expect(skillCell.querySelector('.export-layer-cell__skill-marker img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('specialty_icons/water.png'),
+    );
     expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('大叶子的植栽');
     expect(within(screen.getByLabelText('L2 使用素材清单')).getByAltText('大叶子的植栽缩略图')).toBeVisible();
     expect(screen.getByLabelText('L2 使用素材清单')).not.toHaveTextContent('No. 336');
     expect(screen.getByLabelText('L2 使用素材清单')).not.toHaveTextContent('(3, 3)');
     expect(screen.getByLabelText('L2 使用素材清单')).not.toHaveTextContent(unsafeAngleText);
-    expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('树叶');
+    expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('缠绕蔓藤');
     expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('储水');
     const leafyMaterialItem = within(screen.getByLabelText('L2 使用素材清单')).getByText('大叶子的植栽').closest('li');
     expect(leafyMaterialItem).not.toBeNull();
@@ -518,7 +529,7 @@ function createPreviewScene() {
         rotationDegrees: 90,
         dyeColor: '#88cc44',
         requiresSkill: true,
-        skillType: '树叶',
+        skillType: '缠绕蔓藤',
         skillNote: unsafeAngleText,
       }),
     ],
@@ -607,12 +618,12 @@ function collectSharedExportContentSnapshot(scene: SceneDocument): Record<string
   expect(screen.getByLabelText('百变怪导出预览宝可梦图片')).toBeVisible();
   expect(screen.getByText(dimensions)).toBeVisible();
   expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('大叶子的植栽');
-  expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('树叶');
+  expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('缠绕蔓藤');
   expect(screen.getByLabelText('整体使用素材清单')).toHaveTextContent('储水');
   expect(screen.getByLabelText('逐层图形和素材清单')).toBeVisible();
   expect(screen.getByLabelText('L2 17x17 图形')).toBeVisible();
   expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('大叶子的植栽');
-  expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('树叶');
+  expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('缠绕蔓藤');
   expect(screen.getByLabelText('L2 使用素材清单')).toHaveTextContent('储水');
   expect(screen.getByLabelText('L2 层备注')).toHaveTextContent(unsafeAngleText);
   expect(screen.getByLabelText('L2 层备注')).toHaveTextContent(unsafeImageText);

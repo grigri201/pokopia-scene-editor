@@ -1,12 +1,13 @@
 import { forwardRef, useEffect, useRef, type ComponentPropsWithoutRef, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
-import { getAssetById, getPokemonThemeDefinition } from '@pokopia-scene-editor/scene-core';
-import { defaultLocale, getPokemonDisplay, t, type Locale } from '../../i18n';
+import { getAssetById, getAssetSkillMarkerIconUrl, getPokemonThemeDefinition } from '@pokopia-scene-editor/scene-core';
+import { defaultLocale, getPokemonDisplay, getSkillDisplay, t, type Locale } from '../../i18n';
 import type {
   ExportLayerMaterialSummary,
   ExportStackingRelationSummary,
   ExportTileInstanceSummary,
   ExportLayerSkillSummary,
   ExportMaterialSummary,
+  ExportSkillMarkerSummary,
   ExportSkillSummary,
   GridSize,
   ImageExportCellSummary,
@@ -451,6 +452,7 @@ function ExportCell({
 }) {
   const firstInstance = cell.tileInstances[0] ?? null;
   const firstSkillMarker = cell.skillMarkers[0] ?? null;
+  const skillMarkerOverlay = getExportCellSkillMarkerOverlay(cell.tileInstances, firstSkillMarker, locale);
   const stackingRelation = cell.stackingRelations[0] ?? null;
   const stackingBaseFootprint = stackingRelation
     ? getExportStackingFootprint(stackingRelation.baseAssetId, instanceById.get(stackingRelation.baseInstanceId))
@@ -466,15 +468,16 @@ function ExportCell({
   const stackingTopUsesOverlay = Boolean(stackingRelation && footprintOverlayInstanceIds.has(stackingRelation.topInstanceId));
   const shouldRenderInlineInstance = Boolean(firstInstance && !footprintOverlayInstanceIds.has(firstInstance.instanceId) && !stackingRelation);
   const materialColor = firstInstance ? materialColorByAssetId.get(firstInstance.assetId) ?? null : null;
-  const label = stackingRelation
+  const baseLabel = stackingRelation
     ? `${cell.coordinate.x},${cell.coordinate.y}: ${stackingRelation.topAssetName} stacked on ${stackingRelation.baseAssetName}`
     : firstInstance
     ? `${cell.coordinate.x},${cell.coordinate.y}: ${cell.tileInstances.map((instance) => instance.assetName).join(', ')}`
-    : firstSkillMarker
-      ? locale === 'zh-CN'
-        ? `${cell.coordinate.x},${cell.coordinate.y}: ${firstSkillMarker.skillType}技能`
-        : `${cell.coordinate.x},${cell.coordinate.y}: ${firstSkillMarker.skillLabel} ${t(locale, 'skillSuffix')}`
+    : skillMarkerOverlay
+      ? `${cell.coordinate.x},${cell.coordinate.y}: ${skillMarkerOverlay.title}`
     : `${cell.coordinate.x},${cell.coordinate.y}: ${t(locale, 'emptyLayer')}`;
+  const label = skillMarkerOverlay && (stackingRelation || firstInstance)
+    ? `${baseLabel}, ${skillMarkerOverlay.title}`
+    : baseLabel;
 
   return (
     <div
@@ -498,6 +501,8 @@ function ExportCell({
       data-stacking-top-render={stackingTopUsesOverlay ? 'overlay' : stackingRelation ? 'cell' : ''}
       data-stacking-split-axis={stackingRelation ? stackingDisplay.splitAxis : ''}
       data-stacking-surface-kind={stackingRelation?.surfaceKind ?? ''}
+      data-skill-marker-type={skillMarkerOverlay?.skillType ?? ''}
+      data-skill-marker-label={skillMarkerOverlay?.skillLabel ?? ''}
       style={getExportMaterialColorStyle(materialColor)}
       aria-label={label}
     >
@@ -515,17 +520,54 @@ function ExportCell({
         <img src={firstInstance.thumbnailUrl} alt="" title={firstInstance.assetName} />
       ) : shouldRenderInlineInstance && firstInstance ? (
         <span>{firstInstance.assetName.slice(0, 1)}</span>
-      ) : firstSkillMarker?.iconUrl ? (
-        <img
-          src={firstSkillMarker.iconUrl}
-          alt=""
-          title={locale === 'zh-CN' ? `${firstSkillMarker.skillType}技能` : `${firstSkillMarker.skillLabel} ${t(locale, 'skillSuffix')}`}
-        />
-      ) : firstSkillMarker ? (
-        <span>{firstSkillMarker.skillLabel}</span>
+      ) : null}
+      {skillMarkerOverlay ? (
+        <span
+          className="export-layer-cell__skill-marker"
+          title={skillMarkerOverlay.title}
+          aria-hidden="true"
+        >
+          {skillMarkerOverlay.iconUrl ? (
+            <img src={skillMarkerOverlay.iconUrl} alt="" />
+          ) : (
+            <span className="export-layer-cell__skill-marker-label">{skillMarkerOverlay.skillLabel}</span>
+          )}
+        </span>
       ) : null}
     </div>
   );
+}
+
+interface ExportCellSkillMarkerOverlay {
+  skillType: ExportSkillMarkerSummary['skillType'];
+  skillLabel: string;
+  iconUrl: string | null;
+  title: string;
+}
+
+function getExportCellSkillMarkerOverlay(
+  instances: readonly ExportTileInstanceSummary[],
+  firstSkillMarker: ExportSkillMarkerSummary | null,
+  locale: Locale,
+): ExportCellSkillMarkerOverlay | null {
+  const skillInstance = instances.find((instance) => instance.requiresSkill && instance.skillType);
+  const skillType = skillInstance?.skillType ?? firstSkillMarker?.skillType ?? null;
+
+  if (!skillType) {
+    return null;
+  }
+
+  const skillDisplay = getSkillDisplay(skillType, locale);
+  const usesStandaloneMarker = firstSkillMarker?.skillType === skillType;
+  const skillLabel = usesStandaloneMarker ? firstSkillMarker.skillLabel : skillDisplay.marker;
+  const titleLabel = usesStandaloneMarker ? firstSkillMarker.skillLabel : skillDisplay.name;
+
+  return {
+    skillType,
+    skillLabel,
+    iconUrl: usesStandaloneMarker ? firstSkillMarker.iconUrl : getAssetSkillMarkerIconUrl(skillType),
+    title: locale === 'en-US' ? `${titleLabel} ${t(locale, 'skillSuffix')}` : `${skillType}技能`,
+  };
 }
 
 function ExportStackingSplit({

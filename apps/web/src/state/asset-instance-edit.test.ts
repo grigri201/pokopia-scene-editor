@@ -191,7 +191,7 @@ describe('asset instance edit command', () => {
       type: 'skill',
       instanceId: 'tile-plant',
       requiresSkill: true,
-      skillType: '储水',
+      skillType: '缠绕蔓藤',
       skillNote: '<b>plain text only</b>',
       interactionMode: 'edit',
       now,
@@ -209,7 +209,7 @@ describe('asset instance edit command', () => {
     if (skill.ok) {
       expect(skill.instance).toMatchObject({
         requiresSkill: true,
-        skillType: '储水',
+        skillType: '缠绕蔓藤',
         skillNote: '<b>plain text only</b>',
       });
     }
