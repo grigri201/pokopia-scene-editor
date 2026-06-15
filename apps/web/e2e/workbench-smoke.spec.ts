@@ -112,14 +112,14 @@ test('renders the Open Design workbench as the first screen', async ({ page }) =
   await page.goto('/');
 
   await expect(page.getByRole('dialog', { name: '快速说明' })).toBeVisible();
-  await expect(page.locator('.help-guide-spotlight')).toHaveCount(3);
-  await expect(page.locator('.help-guide-arrow')).toHaveCount(3);
-  await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('这里可以新增层和选中层');
-  await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('单击选中素材');
-  await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('这里可以修改布景和选择当前宝可梦');
-  await expect(page.getByRole('button', { name: '下一步' })).toHaveCount(0);
+  await expect(page.locator('.help-guide-spotlight')).toHaveCount(5);
+  await expect(page.locator('.help-guide-arrow')).toHaveCount(5);
+  await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('这里可以修改布景画布的尺寸');
+  await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('新增建筑层');
+  await expect(page.getByRole('dialog', { name: '快速说明' })).toContainText('单击选中建筑层，拖动可以排序');
+  await expect(page.getByRole('button', { name: '下一步' })).toBeVisible();
   await expect(page.getByRole('button', { name: '关闭说明' })).toHaveCount(0);
-  await page.getByRole('button', { name: '明白了！' }).click();
+  await dismissHelpOverlayIfVisible(page);
   await expect(page.getByRole('dialog', { name: '快速说明' })).toHaveCount(0);
   expect(JSON.parse((await page.evaluate((key) => window.localStorage.getItem(key), uiPreferencesStorageKey)) ?? '{}')).toMatchObject({
     helpOverlayDismissed: true,
@@ -251,6 +251,46 @@ test('resizes the editable canvas from scene controls', async ({ page }) => {
     canvasSize: { width: 6, height: 17 },
     outerPadding: 1,
   });
+});
+
+test('resizes the editable canvas from hover edge controls with destructive confirmation', async ({ page }) => {
+  const dialogs: string[] = [];
+
+  await startWithHelpOverlayDismissed(page);
+  await page.addInitScript(({ key, scene }) => {
+    window.localStorage.setItem(key, JSON.stringify(scene));
+  }, { key: autosavedSceneStorageKey, scene: createEdgeResizeSmokeScene() });
+  page.on('dialog', async (dialog) => {
+    dialogs.push(dialog.message());
+    await dialog.accept();
+  });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+
+  const edgeCell = page.locator('[data-testid="scene-cell"][data-coordinate="0,4"]');
+  await edgeCell.click();
+  await expect(edgeCell).toHaveAttribute('aria-selected', 'true');
+
+  const leftControls = page.getByTestId('scene-canvas-edge-controls-left');
+  await expect(leftControls).toHaveAttribute('data-visible', 'false');
+  await leftControls.hover();
+  await expect(leftControls).toHaveAttribute('data-visible', 'true');
+
+  await page.getByRole('button', { name: '删除左侧一列' }).click();
+
+  expect(dialogs[0]).toContain('1层：素材 1，技能标记 0');
+  await expect(page.getByLabel('宽度')).toHaveValue('16');
+  await expect(page.getByTestId('scene-cell')).toHaveCount(272);
+  await expect.poll(() => readSceneSnapshot(page)).toMatchObject({
+    canvasSize: { width: 16, height: 17 },
+    tileInstances: [
+      expect.objectContaining({
+        instanceId: 'edge-resize-kept',
+        coordinate: { x: 1, y: 4 },
+      }),
+    ],
+  });
+  expect(((await readSceneSnapshot(page)).tileInstances as unknown[])).toHaveLength(1);
 });
 
 test('switches the workbench to English without writing locale into SceneDocument', async ({ page }) => {
@@ -1379,8 +1419,27 @@ test('shows invalid stored scene state in Mobile Preview Mode', async ({ page })
 async function dismissHelpOverlayIfVisible(page: Page): Promise<void> {
   const helpDialog = page.getByRole('dialog', { name: '快速说明' });
   if (await helpDialog.isVisible().catch(() => false)) {
+    for (let stepIndex = 0; stepIndex < 8; stepIndex += 1) {
+      const doneButton = page.getByRole('button', { name: '明白了！' });
+      if (await doneButton.isVisible().catch(() => false)) {
+        await doneButton.click();
+        await expect(helpDialog).toHaveCount(0);
+        await page.evaluate(() => window.scrollTo(0, 0));
+        return;
+      }
+
+      const nextButton = page.getByRole('button', { name: '下一步' });
+      if (await nextButton.isVisible().catch(() => false)) {
+        await nextButton.click();
+        continue;
+      }
+
+      break;
+    }
+
     await page.getByRole('button', { name: '明白了！' }).click();
     await expect(helpDialog).toHaveCount(0);
+    await page.evaluate(() => window.scrollTo(0, 0));
   }
 }
 
@@ -2362,6 +2421,45 @@ function createRestoredScene() {
       updatedAt: '2026-05-16T10:45:00.000Z',
       lastSavedAt: null,
       lastAutosavedAt: '2026-05-16T10:45:00.000Z',
+    },
+  };
+}
+
+function createEdgeResizeSmokeScene() {
+  return {
+    ...createEditableScene(),
+    sceneId: 'scene-edge-resize-smoke',
+    sceneName: 'Edge Resize Smoke',
+    tileInstances: [
+      {
+        instanceId: 'edge-resize-deleted',
+        assetId: 'leafy-plant',
+        coordinate: { x: 0, y: 4 },
+        areaType: 'outer',
+        buildingLevelId: 'level-0',
+        rotationDegrees: 0,
+        dyeColor: null,
+        requiresSkill: false,
+        skillType: null,
+        skillNote: '',
+      },
+      {
+        instanceId: 'edge-resize-kept',
+        assetId: 'leafy-plant',
+        coordinate: { x: 2, y: 4 },
+        areaType: 'main',
+        buildingLevelId: 'level-0',
+        rotationDegrees: 0,
+        dyeColor: null,
+        requiresSkill: false,
+        skillType: null,
+        skillNote: '',
+      },
+    ],
+    workspaceState: {
+      currentBuildingLevelId: 'level-0',
+      selectedAssetId: null,
+      selectedCoordinate: { x: 2, y: 4 },
     },
   };
 }

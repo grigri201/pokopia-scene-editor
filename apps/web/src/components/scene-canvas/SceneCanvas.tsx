@@ -14,6 +14,8 @@ import {
   getEffectiveAssetFootprint,
   getAssetById,
   getAssetSkillMarkerIconUrl,
+  maxEditableCanvasSize,
+  minEditableCanvasSize,
   toAssetSkillType,
 } from '@pokopia-scene-editor/scene-core';
 import type {
@@ -26,8 +28,8 @@ import type {
   StackingRelation,
 } from '@pokopia-scene-editor/scene-core';
 import { moveCoordinate } from '../../state';
-import type { AssetPlacementPreview } from '../../state';
-import { defaultLocale, getAssetDisplay, getSkillDisplay, t, type Locale } from '../../i18n';
+import type { AssetPlacementPreview, SceneEdgeResizeRequest, SceneResizeEdge, SceneResizeEdgeDelta } from '../../state';
+import { defaultLocale, getAssetDisplay, getSkillDisplay, t, type Locale, type MessageKey } from '../../i18n';
 import { formatStackingFootprint, getStackingShortSideSplitAxis, getStackingSplitDisplay } from '../stacking-display';
 
 interface SceneCanvasProps {
@@ -49,7 +51,19 @@ interface SceneCanvasProps {
   onClearRectangle?: (start: GridCoordinate, end: GridCoordinate) => void;
   onHoverCoordinate: (coordinate: GridCoordinate | null) => void;
   onFocusCoordinate: (coordinate: GridCoordinate | null) => void;
+  onResizeEdge?: (request: SceneEdgeResizeRequest) => void;
 }
+
+const sceneCanvasEdgeControlConfigs: Array<{
+  edge: SceneResizeEdge;
+  addLabelKey: MessageKey;
+  removeLabelKey: MessageKey;
+}> = [
+  { edge: 'top', addLabelKey: 'sceneCanvasEdgeAddTop', removeLabelKey: 'sceneCanvasEdgeRemoveTop' },
+  { edge: 'right', addLabelKey: 'sceneCanvasEdgeAddRight', removeLabelKey: 'sceneCanvasEdgeRemoveRight' },
+  { edge: 'bottom', addLabelKey: 'sceneCanvasEdgeAddBottom', removeLabelKey: 'sceneCanvasEdgeRemoveBottom' },
+  { edge: 'left', addLabelKey: 'sceneCanvasEdgeAddLeft', removeLabelKey: 'sceneCanvasEdgeRemoveLeft' },
+];
 
 export function SceneCanvas({
   locale = defaultLocale,
@@ -70,16 +84,19 @@ export function SceneCanvas({
   onClearRectangle,
   onHoverCoordinate,
   onFocusCoordinate,
+  onResizeEdge,
 }: SceneCanvasProps) {
   const maxCanvasSide = Math.max(canvasSize.width, canvasSize.height);
   const canvasAspectScale = canvasSize.width / canvasSize.height;
   const canvasInlineScale = canvasSize.width / maxCanvasSide;
+  const canvasBlockScale = canvasSize.height / maxCanvasSide;
   const maxZoomScale = getMaxSceneCanvasZoomScale(canvasSize);
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomOrigin, setZoomOrigin] = useState<SceneCanvasZoomOrigin>({ x: 50, y: 50 });
   const [canvasPan, setCanvasPan] = useState<SceneCanvasPan>({ x: 0, y: 0 });
   const [draggingCanvas, setDraggingCanvas] = useState(false);
   const [rectanglePreview, setRectanglePreview] = useState<SceneCanvasRectanglePreview | null>(null);
+  const [activeResizeEdge, setActiveResizeEdge] = useState<SceneResizeEdge | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const zoomScaleRef = useRef(1);
   const gestureStartZoomRef = useRef(1);
@@ -97,11 +114,15 @@ export function SceneCanvas({
     '--scene-canvas-width-large': createViewportContainedCanvasWidth(canvasAspectScale, 1),
     '--scene-canvas-height-large': createViewportContainedCanvasHeight(canvasAspectScale, 1),
     '--scene-canvas-width-medium': createScaledCanvasWidth(canvasInlineScale, 100, '%', 620, 'px'),
+    '--scene-canvas-height-medium': createScaledCanvasWidth(canvasBlockScale, 100, '%', 620, 'px'),
     '--scene-canvas-width-mobile': createScaledCanvasWidth(canvasInlineScale, 100, '%', 92, 'vw'),
+    '--scene-canvas-height-mobile': createScaledCanvasWidth(canvasBlockScale, 100, '%', 92, 'vw'),
     '--scene-canvas-render-width-large': createViewportContainedCanvasWidth(canvasAspectScale, zoomScale),
     '--scene-canvas-render-height-large': createViewportContainedCanvasHeight(canvasAspectScale, zoomScale),
     '--scene-canvas-render-width-medium': createScaledCanvasWidth(canvasInlineScale * zoomScale, 100, '%', 620, 'px'),
+    '--scene-canvas-render-height-medium': createScaledCanvasWidth(canvasBlockScale * zoomScale, 100, '%', 620, 'px'),
     '--scene-canvas-render-width-mobile': createScaledCanvasWidth(canvasInlineScale * zoomScale, 100, '%', 92, 'vw'),
+    '--scene-canvas-render-height-mobile': createScaledCanvasWidth(canvasBlockScale * zoomScale, 100, '%', 92, 'vw'),
     '--scene-canvas-zoom-scale': formatSceneCanvasZoomScale(zoomScale),
     '--scene-canvas-zoom-max-scale': formatSceneCanvasZoomScale(maxZoomScale),
     '--scene-canvas-zoom-origin-x': `${formatSceneCanvasZoomPercent(zoomOrigin.x)}%`,
@@ -180,6 +201,33 @@ export function SceneCanvas({
     setCanvasPan({ x: 0, y: 0 });
     setZoomScale(1);
   }, []);
+
+  const handleResizeEdgeZoneEnter = useCallback((edge: SceneResizeEdge) => {
+    setActiveResizeEdge(edge);
+  }, []);
+
+  const handleResizeEdgeZoneLeave = useCallback((edge: SceneResizeEdge) => {
+    setActiveResizeEdge((currentEdge) => (currentEdge === edge ? null : currentEdge));
+  }, []);
+
+  const handleResizeEdgeZoneBlur = useCallback((event: FocusEvent<HTMLDivElement>, edge: SceneResizeEdge) => {
+    const nextTarget = event.relatedTarget;
+
+    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+      return;
+    }
+
+    setActiveResizeEdge((currentEdge) => (currentEdge === edge ? null : currentEdge));
+  }, []);
+
+  const handleResizeEdgeClick = useCallback((
+    event: MouseEvent<HTMLButtonElement>,
+    request: SceneEdgeResizeRequest,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onResizeEdge?.(request);
+  }, [onResizeEdge]);
 
   const handleViewportPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -380,6 +428,48 @@ export function SceneCanvas({
       >
         <FitViewportIcon />
       </button>
+      {!readOnly && onResizeEdge ? (
+        <div
+          className="scene-canvas-edge-controls"
+          role="toolbar"
+          aria-label={t(locale, 'sceneCanvasEdgeControls')}
+          data-testid="scene-canvas-edge-controls"
+        >
+          {sceneCanvasEdgeControlConfigs.map((config) => (
+            <div
+              key={config.edge}
+              className={`scene-canvas-edge-controls__zone scene-canvas-edge-controls__zone--${config.edge}`}
+              data-visible={activeResizeEdge === config.edge}
+              data-testid={`scene-canvas-edge-controls-${config.edge}`}
+              onMouseEnter={() => handleResizeEdgeZoneEnter(config.edge)}
+              onMouseLeave={() => handleResizeEdgeZoneLeave(config.edge)}
+              onFocus={() => handleResizeEdgeZoneEnter(config.edge)}
+              onBlur={(event) => handleResizeEdgeZoneBlur(event, config.edge)}
+            >
+              <button
+                type="button"
+                className="scene-canvas-edge-controls__button"
+                aria-label={t(locale, config.addLabelKey)}
+                title={t(locale, config.addLabelKey)}
+                disabled={isSceneResizeEdgeControlDisabled(canvasSize, config.edge, 1)}
+                onClick={(event) => handleResizeEdgeClick(event, { edge: config.edge, delta: 1 })}
+              >
+                +
+              </button>
+              <button
+                type="button"
+                className="scene-canvas-edge-controls__button"
+                aria-label={t(locale, config.removeLabelKey)}
+                title={t(locale, config.removeLabelKey)}
+                disabled={isSceneResizeEdgeControlDisabled(canvasSize, config.edge, -1)}
+                onClick={(event) => handleResizeEdgeClick(event, { edge: config.edge, delta: -1 })}
+              >
+                -
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div
         className="scene-canvas"
         role="grid"
@@ -842,6 +932,26 @@ function getMaxSceneCanvasZoomScale(canvasSize: GridSize): number {
   return Math.max(1, Math.max(canvasSize.width, canvasSize.height) / 6);
 }
 
+function isSceneResizeEdgeControlDisabled(
+  canvasSize: GridSize,
+  edge: SceneResizeEdge,
+  delta: SceneResizeEdgeDelta,
+): boolean {
+  const nextWidth = edge === 'left' || edge === 'right'
+    ? canvasSize.width + delta
+    : canvasSize.width;
+  const nextHeight = edge === 'top' || edge === 'bottom'
+    ? canvasSize.height + delta
+    : canvasSize.height;
+
+  return (
+    nextWidth < minEditableCanvasSize ||
+    nextWidth > maxEditableCanvasSize ||
+    nextHeight < minEditableCanvasSize ||
+    nextHeight > maxEditableCanvasSize
+  );
+}
+
 function clampSceneCanvasZoomScale(scale: number, maxZoomScale: number): number {
   if (scale === Infinity) {
     return maxZoomScale;
@@ -923,7 +1033,7 @@ function formatSceneCanvasPan(value: number): string {
 }
 
 function isViewportControlTarget(target: EventTarget): boolean {
-  return target instanceof Element && Boolean(target.closest('.scene-canvas-fit-button'));
+  return target instanceof Element && Boolean(target.closest('.scene-canvas-fit-button, .scene-canvas-edge-controls'));
 }
 
 function startRectangleDrag(

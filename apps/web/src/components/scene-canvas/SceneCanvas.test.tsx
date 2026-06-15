@@ -78,6 +78,56 @@ describe('SceneCanvas', () => {
     expect(cells[0].querySelector('.cell-coordinate-watermark')).toHaveAttribute('aria-hidden', 'true');
   }, 15_000);
 
+  it('reveals directional edge resize controls on hover and emits explicit edge requests', () => {
+    const onResizeEdge = vi.fn();
+
+    render(<SceneCanvas {...defaultProps} readOnly={false} onResizeEdge={onResizeEdge} />);
+
+    const topControls = screen.getByTestId('scene-canvas-edge-controls-top');
+    const rightControls = screen.getByTestId('scene-canvas-edge-controls-right');
+
+    expect(topControls).toHaveAttribute('data-visible', 'false');
+    expect(rightControls).toHaveAttribute('data-visible', 'false');
+
+    fireEvent.mouseEnter(topControls);
+
+    expect(topControls).toHaveAttribute('data-visible', 'true');
+    expect(rightControls).toHaveAttribute('data-visible', 'false');
+
+    fireEvent.click(screen.getByRole('button', { name: '在上方增加一行' }));
+    fireEvent.click(screen.getByRole('button', { name: '删除右侧一列' }));
+
+    expect(onResizeEdge).toHaveBeenNthCalledWith(1, { edge: 'top', delta: 1 });
+    expect(onResizeEdge).toHaveBeenNthCalledWith(2, { edge: 'right', delta: -1 });
+
+    fireEvent.mouseLeave(topControls);
+
+    expect(topControls).toHaveAttribute('data-visible', 'false');
+  });
+
+  it('disables edge resize controls at the editable canvas bounds', () => {
+    const boundedScene = createSceneWithCanvasSize({ width: 6, height: 20 });
+
+    render(
+      <SceneCanvas
+        {...createSceneCanvasProps(boundedScene)}
+        readOnly={false}
+        onResizeEdge={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: '删除左侧一列' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '在上方增加一行' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '在右侧增加一列' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '删除下方一行' })).toBeEnabled();
+  });
+
+  it('does not render edge resize controls in read-only mode', () => {
+    render(<SceneCanvas {...defaultProps} readOnly onResizeEdge={() => undefined} />);
+
+    expect(screen.queryByTestId('scene-canvas-edge-controls')).not.toBeInTheDocument();
+  });
+
   it('marks main, outer, main-boundary, and placeable states for tests and styling', () => {
     render(<SceneCanvas {...defaultProps} readOnly={false} />);
 

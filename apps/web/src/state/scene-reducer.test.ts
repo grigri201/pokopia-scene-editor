@@ -6,9 +6,14 @@ import {
   legacySceneDimensions,
   type SceneDocument,
 } from '@pokopia-scene-editor/scene-core';
-import { createSceneResizePlan, summarizeSceneResizeDeletion } from './scene-resize';
+import {
+  createSceneEdgeResizePlan,
+  createSceneResizePlan,
+  summarizeSceneResizeDeletion,
+} from './scene-resize';
 import {
   moveCoordinate,
+  resizeSceneCanvasFromEdge,
   resizeSceneCanvas,
   saveScene,
   sceneReducer,
@@ -208,6 +213,116 @@ describe('scene reducer selection rules', () => {
     });
   });
 
+  it('creates explicit edge resize plans for one-cell directional changes', () => {
+    expect(createSceneEdgeResizePlan({ width: 8, height: 8 }, { edge: 'left', delta: 1 })).toMatchObject({
+      nextCanvasSize: { width: 9, height: 8 },
+      xOffset: 1,
+      yOffset: 0,
+      leftAdded: 1,
+      rightAdded: 0,
+      survivor: { minX: 0, maxXExclusive: 8, minY: 0, maxYExclusive: 8 },
+    });
+    expect(createSceneEdgeResizePlan({ width: 8, height: 8 }, { edge: 'right', delta: 1 })).toMatchObject({
+      nextCanvasSize: { width: 9, height: 8 },
+      xOffset: 0,
+      rightAdded: 1,
+      survivor: { minX: 0, maxXExclusive: 8, minY: 0, maxYExclusive: 8 },
+    });
+    expect(createSceneEdgeResizePlan({ width: 8, height: 8 }, { edge: 'top', delta: 1 })).toMatchObject({
+      nextCanvasSize: { width: 8, height: 9 },
+      yOffset: 1,
+      topAdded: 1,
+      survivor: { minX: 0, maxXExclusive: 8, minY: 0, maxYExclusive: 8 },
+    });
+    expect(createSceneEdgeResizePlan({ width: 8, height: 8 }, { edge: 'bottom', delta: 1 })).toMatchObject({
+      nextCanvasSize: { width: 8, height: 9 },
+      yOffset: 0,
+      bottomAdded: 1,
+      survivor: { minX: 0, maxXExclusive: 8, minY: 0, maxYExclusive: 8 },
+    });
+
+    expect(createSceneEdgeResizePlan({ width: 8, height: 8 }, { edge: 'left', delta: -1 })).toMatchObject({
+      nextCanvasSize: { width: 7, height: 8 },
+      xOffset: -1,
+      leftRemoved: 1,
+      survivor: { minX: 1, maxXExclusive: 8, minY: 0, maxYExclusive: 8 },
+    });
+    expect(createSceneEdgeResizePlan({ width: 8, height: 8 }, { edge: 'right', delta: -1 })).toMatchObject({
+      nextCanvasSize: { width: 7, height: 8 },
+      xOffset: 0,
+      rightRemoved: 1,
+      survivor: { minX: 0, maxXExclusive: 7, minY: 0, maxYExclusive: 8 },
+    });
+    expect(createSceneEdgeResizePlan({ width: 8, height: 8 }, { edge: 'top', delta: -1 })).toMatchObject({
+      nextCanvasSize: { width: 8, height: 7 },
+      yOffset: -1,
+      topRemoved: 1,
+      survivor: { minX: 0, maxXExclusive: 8, minY: 1, maxYExclusive: 8 },
+    });
+    expect(createSceneEdgeResizePlan({ width: 8, height: 8 }, { edge: 'bottom', delta: -1 })).toMatchObject({
+      nextCanvasSize: { width: 8, height: 7 },
+      yOffset: 0,
+      bottomRemoved: 1,
+      survivor: { minX: 0, maxXExclusive: 8, minY: 0, maxYExclusive: 7 },
+    });
+  });
+
+  it('returns no edge resize plan outside the editable 6..20 bounds', () => {
+    expect(createSceneEdgeResizePlan({ width: 20, height: 8 }, { edge: 'left', delta: 1 })).toBeNull();
+    expect(createSceneEdgeResizePlan({ width: 20, height: 8 }, { edge: 'right', delta: 1 })).toBeNull();
+    expect(createSceneEdgeResizePlan({ width: 8, height: 20 }, { edge: 'top', delta: 1 })).toBeNull();
+    expect(createSceneEdgeResizePlan({ width: 8, height: 20 }, { edge: 'bottom', delta: 1 })).toBeNull();
+    expect(createSceneEdgeResizePlan({ width: 6, height: 8 }, { edge: 'left', delta: -1 })).toBeNull();
+    expect(createSceneEdgeResizePlan({ width: 6, height: 8 }, { edge: 'right', delta: -1 })).toBeNull();
+    expect(createSceneEdgeResizePlan({ width: 8, height: 6 }, { edge: 'top', delta: -1 })).toBeNull();
+    expect(createSceneEdgeResizePlan({ width: 8, height: 6 }, { edge: 'bottom', delta: -1 })).toBeNull();
+  });
+
+  it('resizes from an explicit edge while migrating survivors and selected coordinate', () => {
+    const scene = createSceneWithCanvasSize({
+      canvasSize: { width: 8, height: 8 },
+      selectedCoordinate: { x: 2, y: 4 },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'edge-kept',
+          assetId: 'leafy-plant',
+          coordinate: { x: 1, y: 4 },
+          buildingLevelId: 'level-0',
+          dimensions: createSceneDimensionsForCanvasSize({ width: 8, height: 8 }),
+        }),
+        createTileInstance({
+          instanceId: 'edge-deleted',
+          assetId: 'leafy-plant',
+          coordinate: { x: 0, y: 4 },
+          buildingLevelId: 'level-0',
+          dimensions: createSceneDimensionsForCanvasSize({ width: 8, height: 8 }),
+        }),
+      ],
+    });
+
+    const resized = resizeSceneCanvasFromEdge(
+      scene,
+      { edge: 'left', delta: -1 },
+      'edit',
+      '2026-05-16T08:00:00.000Z',
+    );
+
+    expect(resized.canvasSize).toEqual({ width: 7, height: 8 });
+    expect(resized.tileInstances).toHaveLength(1);
+    expect(resized.tileInstances[0]).toMatchObject({
+      instanceId: 'edge-kept',
+      coordinate: { x: 0, y: 4 },
+    });
+    expect(resized.workspaceState.selectedCoordinate).toEqual({ x: 1, y: 4 });
+    expect(resized.metadata.updatedAt).toBe('2026-05-16T08:00:00.000Z');
+
+    expect(resizeSceneCanvasFromEdge(scene, { edge: 'left', delta: -1 }, 'readOnly', '2026-05-16T08:00:00.000Z')).toBe(scene);
+    expect(resizeSceneCanvasFromEdge(scene, { edge: 'left', delta: 1 }, 'edit', '2026-05-16T08:00:00.000Z').canvasSize).toEqual({
+      width: 9,
+      height: 8,
+    });
+  });
+
   it('grows the editable canvas by migrating content with alternating-edge offsets', () => {
     const scene = createSceneWithCanvasSize({
       canvasSize: { width: 7, height: 7 },
@@ -390,6 +505,80 @@ describe('scene reducer selection rules', () => {
     expect(summary.skillMarkerKeys).toEqual([
       'level-0:0,5:耕地',
       'level-1:5,10:储水',
+    ]);
+    expect(summary.affectedBuildingLevels).toEqual([
+      {
+        buildingLevelId: 'level-0',
+        buildingLevelName: '1层',
+        buildingLevelNumber: 0,
+        tileInstanceCount: 2,
+        skillMarkerCount: 1,
+      },
+      {
+        buildingLevelId: 'level-1',
+        buildingLevelName: 'Level 1',
+        buildingLevelNumber: 1,
+        tileInstanceCount: 1,
+        skillMarkerCount: 1,
+      },
+    ]);
+  });
+
+  it('summarizes edge resize deletion by affected building level', () => {
+    const scene = createSceneWithCanvasSize({
+      canvasSize: { width: 8, height: 8 },
+      tileInstances: [
+        createTileInstance({
+          instanceId: 'left-ground',
+          assetId: 'leafy-plant',
+          coordinate: { x: 0, y: 3 },
+          buildingLevelId: 'level-0',
+          dimensions: createSceneDimensionsForCanvasSize({ width: 8, height: 8 }),
+        }),
+        createTileInstance({
+          instanceId: 'left-upper',
+          assetId: 'leafy-plant',
+          coordinate: { x: 0, y: 4 },
+          buildingLevelId: 'level-1',
+          dimensions: createSceneDimensionsForCanvasSize({ width: 8, height: 8 }),
+        }),
+      ],
+      skillMarkers: [
+        {
+          coordinate: { x: 0, y: 5 },
+          areaType: 'main',
+          buildingLevelId: 'level-1',
+          skillType: '储水',
+          skillNote: '',
+        },
+      ],
+    });
+    const plan = createSceneEdgeResizePlan(scene.canvasSize, { edge: 'left', delta: -1 });
+
+    expect(plan).not.toBeNull();
+    const summary = summarizeSceneResizeDeletion(scene, plan!);
+
+    expect(summary).toMatchObject({
+      tileInstanceCount: 2,
+      skillMarkerCount: 1,
+      tileInstanceIds: ['left-ground', 'left-upper'],
+      skillMarkerKeys: ['level-1:0,5:储水'],
+    });
+    expect(summary.affectedBuildingLevels).toEqual([
+      {
+        buildingLevelId: 'level-0',
+        buildingLevelName: '1层',
+        buildingLevelNumber: 0,
+        tileInstanceCount: 1,
+        skillMarkerCount: 0,
+      },
+      {
+        buildingLevelId: 'level-1',
+        buildingLevelName: 'Level 1',
+        buildingLevelNumber: 1,
+        tileInstanceCount: 1,
+        skillMarkerCount: 1,
+      },
     ]);
   });
 

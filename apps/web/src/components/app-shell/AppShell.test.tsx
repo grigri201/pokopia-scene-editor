@@ -665,6 +665,41 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
   });
 
+  it('confirms destructive edge column removal with affected building layers', async () => {
+    writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
+    writeSceneDocumentToStorage(window.localStorage, createEdgeResizeConfirmationScene(), 'autosave');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<AppShell />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('宽度')).toHaveValue('10');
+      expect(screen.getByTestId('scene-canvas-edge-controls-left')).toBeInTheDocument();
+    });
+
+    const leftControls = screen.getByTestId('scene-canvas-edge-controls-left');
+    fireEvent.mouseEnter(leftControls);
+    fireEvent.click(screen.getByRole('button', { name: '删除左侧一列' }));
+
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('1层：素材 1，技能标记 0'));
+    await waitFor(() => {
+      expect(screen.getByLabelText('9x12 scene canvas workspace')).toBeVisible();
+    });
+    await waitFor(() => {
+      const autosavePayload = JSON.parse(window.localStorage.getItem(autosavedSceneStorageKey) ?? '{}');
+      expect(autosavePayload).toMatchObject({
+        canvasSize: { width: 9, height: 12 },
+        tileInstances: [
+          expect.objectContaining({
+            instanceId: 'edge-resize-kept',
+            coordinate: { x: 1, y: 4 },
+          }),
+        ],
+      });
+      expect(autosavePayload.tileInstances).toHaveLength(1);
+    });
+  });
+
   it('shrinks directly without confirmation when no scene content is deleted', async () => {
     writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
     writeSceneDocumentToStorage(
@@ -3346,7 +3381,7 @@ describe('AppShell scene storage integration', () => {
   });
 
   it('creates a Gallery scene from the current SceneDocument without persisting cloud metadata locally', async () => {
-    createSupabaseClientMock.mockReturnValue(createAppShellAuthClient({
+    configureSupabaseAuthClient(createAppShellAuthClient({
       session: createAppShellSession('owner-1', 'owner@example.com'),
     }));
     const saveRequests: Array<{
@@ -3424,7 +3459,7 @@ describe('AppShell scene storage integration', () => {
   });
 
   it('disables Save to Gallery create when the current non-VIP quota is full', async () => {
-    createSupabaseClientMock.mockReturnValue(createAppShellAuthClient({
+    configureSupabaseAuthClient(createAppShellAuthClient({
       session: createAppShellSession('owner-1', 'owner@example.com'),
     }));
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
@@ -3460,7 +3495,7 @@ describe('AppShell scene storage integration', () => {
   });
 
   it('refreshes stale Gallery quota when opening the file actions menu', async () => {
-    createSupabaseClientMock.mockReturnValue(createAppShellAuthClient({
+    configureSupabaseAuthClient(createAppShellAuthClient({
       session: createAppShellSession('owner-1', 'owner@example.com'),
     }));
     let quotaRequestCount = 0;
@@ -3507,7 +3542,7 @@ describe('AppShell scene storage integration', () => {
       now: '2026-06-08T00:00:00.000Z',
     });
     const remotePse = encodeSceneDocumentString(remoteScene);
-    createSupabaseClientMock.mockReturnValue(createAppShellAuthClient({
+    configureSupabaseAuthClient(createAppShellAuthClient({
       session: createAppShellSession('owner-1', 'owner@example.com'),
     }));
     window.history.replaceState(null, '', '/?scene_id=cloud-owner');
@@ -3973,6 +4008,35 @@ function createResizeConfirmationScene() {
       }),
     ],
     skillMarkers: [],
+  };
+}
+
+function createEdgeResizeConfirmationScene() {
+  const scene = createResizeConfirmationScene();
+  const dimensions = {
+    sceneSize: scene.sceneSize,
+    canvasSize: scene.canvasSize,
+    outerPadding: scene.outerPadding,
+  };
+
+  return {
+    ...scene,
+    tileInstances: [
+      createTileInstance({
+        instanceId: 'edge-resize-deleted',
+        assetId: 'leafy-plant',
+        coordinate: { x: 0, y: 4 },
+        buildingLevelId: 'level-0',
+        dimensions,
+      }),
+      createTileInstance({
+        instanceId: 'edge-resize-kept',
+        assetId: 'leafy-plant',
+        coordinate: { x: 2, y: 4 },
+        buildingLevelId: 'level-0',
+        dimensions,
+      }),
+    ],
   };
 }
 

@@ -24,6 +24,7 @@ import {
   fillSceneRectangleWithSelectedAsset,
   getAssetPlacementPreview,
   getInteractionMode,
+  createSceneEdgeResizePlan,
   createSceneResizePlan,
   hasSceneResizeDeletion,
   placeSelectedAsset,
@@ -35,6 +36,8 @@ import {
   type BuildingLayerEditResult,
   type InteractionMode,
   type SceneAction,
+  type SceneEdgeResizeRequest,
+  type SceneResizeAffectedBuildingLevel,
   type SkillMarkerEditResult,
 } from '../../state';
 import {
@@ -704,13 +707,7 @@ export function AppShell() {
     const resizePlan = createSceneResizePlan(scene.canvasSize, canvasSize);
     const deletionSummary = summarizeSceneResizeDeletion(scene, resizePlan);
 
-    if (
-      hasSceneResizeDeletion(deletionSummary) &&
-      !window.confirm(t(locale, 'sceneResizeDeletionConfirm', {
-        skillCount: deletionSummary.skillMarkerCount,
-        tileCount: deletionSummary.tileInstanceCount,
-      }))
-    ) {
+    if (!confirmSceneResizeDeletion(deletionSummary)) {
       return;
     }
 
@@ -723,6 +720,42 @@ export function AppShell() {
       interactionMode,
       now: getCurrentIsoTimestamp(),
     });
+  };
+
+  const resizeCanvasEdge = (request: SceneEdgeResizeRequest) => {
+    const resizePlan = createSceneEdgeResizePlan(scene.canvasSize, request);
+
+    if (!resizePlan) {
+      return;
+    }
+
+    const deletionSummary = summarizeSceneResizeDeletion(scene, resizePlan);
+
+    if (!confirmSceneResizeDeletion(deletionSummary)) {
+      return;
+    }
+
+    setHoveredCoordinate(null);
+    setFocusedCoordinate(null);
+    setReadOnlySelectedCoordinate(null);
+    dispatch({
+      type: 'resize-scene-canvas-edge',
+      request,
+      interactionMode,
+      now: getCurrentIsoTimestamp(),
+    });
+  };
+
+  const confirmSceneResizeDeletion = (deletionSummary: ReturnType<typeof summarizeSceneResizeDeletion>) => {
+    if (!hasSceneResizeDeletion(deletionSummary)) {
+      return true;
+    }
+
+    return window.confirm(t(locale, 'sceneResizeDeletionConfirm', {
+      skillCount: deletionSummary.skillMarkerCount,
+      tileCount: deletionSummary.tileInstanceCount,
+      levels: formatSceneResizeAffectedLevels(deletionSummary.affectedBuildingLevels, locale),
+    }));
   };
 
   const showSceneNameValidationError = (message: string) => {
@@ -2598,6 +2631,7 @@ export function AppShell() {
             onClearRectangle={clearRectangleMaterial}
             onHoverCoordinate={setHoveredCoordinate}
             onFocusCoordinate={setFocusedCoordinate}
+            onResizeEdge={resizeCanvasEdge}
           />
         </section>
         <div className="canvas-bottom-panels" aria-label="Canvas lower inspectors">
@@ -2648,6 +2682,23 @@ export function AppShell() {
       </main>
     </AuthProvider>
   );
+}
+
+function formatSceneResizeAffectedLevels(
+  levels: SceneResizeAffectedBuildingLevel[],
+  locale: Locale,
+): string {
+  if (levels.length === 0) {
+    return t(locale, 'sceneResizeAffectedLayerNone');
+  }
+
+  const separator = locale === 'zh-CN' ? '、' : ', ';
+
+  return levels.map((level) => t(locale, 'sceneResizeAffectedLayerSummary', {
+    name: level.buildingLevelName,
+    tileCount: level.tileInstanceCount,
+    skillCount: level.skillMarkerCount,
+  })).join(separator);
 }
 
 function AuthStateBridge({ onChange }: { onChange: (state: AuthState) => void }) {

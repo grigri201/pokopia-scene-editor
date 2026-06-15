@@ -8,7 +8,12 @@ import {
 } from '@pokopia-scene-editor/scene-core';
 import { assertKnownAssetId, assertKnownPokemonKey, type PokemonKey } from '@pokopia-scene-editor/scene-core';
 import type { InteractionMode } from './interaction-mode';
-import { createSceneResizePlan, resizeSceneDocumentWithPlan } from './scene-resize';
+import {
+  createSceneEdgeResizePlan,
+  createSceneResizePlan,
+  resizeSceneDocumentWithPlan,
+  type SceneEdgeResizeRequest,
+} from './scene-resize';
 
 export type SceneAction =
   | {
@@ -47,6 +52,12 @@ export type SceneAction =
       now: string;
     }
   | {
+      type: 'resize-scene-canvas-edge';
+      request: SceneEdgeResizeRequest;
+      interactionMode: InteractionMode;
+      now: string;
+    }
+  | {
       type: 'select-asset';
       assetId: string;
       interactionMode: InteractionMode;
@@ -78,6 +89,8 @@ export function sceneReducer(scene: SceneDocument, action: SceneAction): SceneDo
       return selectPokemon(scene, action.pokemonKey, action.interactionMode, action.now);
     case 'resize-scene-canvas':
       return resizeSceneCanvas(scene, action.canvasSize, action.interactionMode, action.now);
+    case 'resize-scene-canvas-edge':
+      return resizeSceneCanvasFromEdge(scene, action.request, action.interactionMode, action.now);
     case 'select-asset':
       return selectAsset(scene, action.assetId, action.interactionMode, action.now);
     case 'set-selected-asset':
@@ -216,6 +229,24 @@ export function resizeSceneCanvas(
 
   const plan = createSceneResizePlan(scene.canvasSize, canvasSize);
   if (scene.canvasSize.width === plan.nextCanvasSize.width && scene.canvasSize.height === plan.nextCanvasSize.height) {
+    return scene;
+  }
+
+  return markSceneDirty(resizeSceneDocumentWithPlan(scene, plan), now);
+}
+
+export function resizeSceneCanvasFromEdge(
+  scene: SceneDocument,
+  request: SceneEdgeResizeRequest,
+  interactionMode: InteractionMode,
+  now: string,
+): SceneDocument {
+  if (interactionMode === 'readOnly') {
+    return scene;
+  }
+
+  const plan = createSceneEdgeResizePlan(scene.canvasSize, request);
+  if (!plan) {
     return scene;
   }
 

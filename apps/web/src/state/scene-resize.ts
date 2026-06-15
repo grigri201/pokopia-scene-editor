@@ -4,6 +4,8 @@ import {
   getAssetById,
   getEffectiveAssetFootprint,
   getFootprintCells,
+  maxEditableCanvasSize,
+  minEditableCanvasSize,
   type GridCoordinate,
   type GridSize,
   type SceneDocument,
@@ -36,6 +38,23 @@ export interface SceneResizeDeletionSummary {
   skillMarkerCount: number;
   tileInstanceIds: string[];
   skillMarkerKeys: string[];
+  affectedBuildingLevels: SceneResizeAffectedBuildingLevel[];
+}
+
+export interface SceneResizeAffectedBuildingLevel {
+  buildingLevelId: string;
+  buildingLevelName: string;
+  buildingLevelNumber: number;
+  tileInstanceCount: number;
+  skillMarkerCount: number;
+}
+
+export type SceneResizeEdge = 'top' | 'right' | 'bottom' | 'left';
+export type SceneResizeEdgeDelta = -1 | 1;
+
+export interface SceneEdgeResizeRequest {
+  edge: SceneResizeEdge;
+  delta: SceneResizeEdgeDelta;
 }
 
 interface AxisResizePlan {
@@ -76,22 +95,82 @@ export function createSceneResizePlan(currentCanvasSize: GridSize, nextCanvasSiz
   };
 }
 
+export function createSceneEdgeResizePlan(
+  currentCanvasSize: GridSize,
+  request: SceneEdgeResizeRequest,
+): SceneResizePlan | null {
+  const currentDimensions = createSceneDimensionsForCanvasSize(currentCanvasSize);
+  const currentSize = currentDimensions.canvasSize;
+  const nextCanvasSize = getNextEdgeCanvasSize(currentSize, request);
+
+  if (!isEditableCanvasSize(nextCanvasSize)) {
+    return null;
+  }
+
+  const nextDimensions = createSceneDimensionsForCanvasSize(nextCanvasSize);
+  const plan = createEmptyResizePlan(currentSize, nextDimensions.canvasSize);
+
+  switch (request.edge) {
+    case 'left':
+      if (request.delta > 0) {
+        plan.leftAdded = 1;
+        plan.xOffset = 1;
+      } else {
+        plan.leftRemoved = 1;
+        plan.xOffset = -1;
+        plan.survivor.minX = 1;
+      }
+      break;
+    case 'right':
+      if (request.delta > 0) {
+        plan.rightAdded = 1;
+      } else {
+        plan.rightRemoved = 1;
+        plan.survivor.maxXExclusive = currentSize.width - 1;
+      }
+      break;
+    case 'top':
+      if (request.delta > 0) {
+        plan.topAdded = 1;
+        plan.yOffset = 1;
+      } else {
+        plan.topRemoved = 1;
+        plan.yOffset = -1;
+        plan.survivor.minY = 1;
+      }
+      break;
+    case 'bottom':
+      if (request.delta > 0) {
+        plan.bottomAdded = 1;
+      } else {
+        plan.bottomRemoved = 1;
+        plan.survivor.maxYExclusive = currentSize.height - 1;
+      }
+      break;
+  }
+
+  return plan;
+}
+
 export function summarizeSceneResizeDeletion(
   scene: SceneDocument,
   plan: SceneResizePlan,
 ): SceneResizeDeletionSummary {
-  const tileInstanceIds = scene.tileInstances
-    .filter((instance) => !doesTileInstanceSurviveResize(instance, plan))
-    .map((instance) => instance.instanceId);
-  const skillMarkerKeys = scene.skillMarkers
-    .filter((marker) => !isSceneResizeSurvivorCoordinate(marker.coordinate, plan))
-    .map((marker) => `${marker.buildingLevelId}:${marker.coordinate.x},${marker.coordinate.y}:${marker.skillType}`);
+  const deletedTileInstances = scene.tileInstances.filter((instance) => !doesTileInstanceSurviveResize(instance, plan));
+  const deletedSkillMarkers = scene.skillMarkers.filter((marker) =>
+    !isSceneResizeSurvivorCoordinate(marker.coordinate, plan),
+  );
+  const tileInstanceIds = deletedTileInstances.map((instance) => instance.instanceId);
+  const skillMarkerKeys = deletedSkillMarkers.map((marker) =>
+    `${marker.buildingLevelId}:${marker.coordinate.x},${marker.coordinate.y}:${marker.skillType}`,
+  );
 
   return {
     tileInstanceCount: tileInstanceIds.length,
     skillMarkerCount: skillMarkerKeys.length,
     tileInstanceIds,
     skillMarkerKeys,
+    affectedBuildingLevels: summarizeAffectedBuildingLevels(scene, deletedTileInstances, deletedSkillMarkers),
   };
 }
 
@@ -202,6 +281,55 @@ function createAxisResizePlan(currentSize: number, nextSize: number): AxisResize
   };
 }
 
+function createEmptyResizePlan(currentCanvasSize: GridSize, nextCanvasSize: GridSize): SceneResizePlan {
+  return {
+    currentCanvasSize: { ...currentCanvasSize },
+    nextCanvasSize: { ...nextCanvasSize },
+    xOffset: 0,
+    yOffset: 0,
+    leftAdded: 0,
+    rightAdded: 0,
+    topAdded: 0,
+    bottomAdded: 0,
+    leftRemoved: 0,
+    rightRemoved: 0,
+    topRemoved: 0,
+    bottomRemoved: 0,
+    survivor: {
+      minX: 0,
+      maxXExclusive: currentCanvasSize.width,
+      minY: 0,
+      maxYExclusive: currentCanvasSize.height,
+    },
+  };
+}
+
+function getNextEdgeCanvasSize(currentCanvasSize: GridSize, request: SceneEdgeResizeRequest): GridSize {
+  switch (request.edge) {
+    case 'left':
+    case 'right':
+      return {
+        ...currentCanvasSize,
+        width: currentCanvasSize.width + request.delta,
+      };
+    case 'top':
+    case 'bottom':
+      return {
+        ...currentCanvasSize,
+        height: currentCanvasSize.height + request.delta,
+      };
+  }
+}
+
+function isEditableCanvasSize(canvasSize: GridSize): boolean {
+  return (
+    canvasSize.width >= minEditableCanvasSize &&
+    canvasSize.width <= maxEditableCanvasSize &&
+    canvasSize.height >= minEditableCanvasSize &&
+    canvasSize.height <= maxEditableCanvasSize
+  );
+}
+
 function shouldGrowLeadingEdge(sizeBeforeStep: number): boolean {
   return sizeBeforeStep % 2 === 1;
 }
@@ -227,4 +355,39 @@ function getTileInstanceFootprintCells(instance: TileInstance): GridCoordinate[]
     instance.coordinate,
     getEffectiveAssetFootprint(asset.footprint, instance.rotationDegrees),
   );
+}
+
+function summarizeAffectedBuildingLevels(
+  scene: SceneDocument,
+  deletedTileInstances: TileInstance[],
+  deletedSkillMarkers: SceneDocument['skillMarkers'],
+): SceneResizeAffectedBuildingLevel[] {
+  const countsByLevelId = new Map<string, { tileInstanceCount: number; skillMarkerCount: number }>();
+
+  for (const instance of deletedTileInstances) {
+    const current = countsByLevelId.get(instance.buildingLevelId) ?? { tileInstanceCount: 0, skillMarkerCount: 0 };
+    current.tileInstanceCount += 1;
+    countsByLevelId.set(instance.buildingLevelId, current);
+  }
+
+  for (const marker of deletedSkillMarkers) {
+    const current = countsByLevelId.get(marker.buildingLevelId) ?? { tileInstanceCount: 0, skillMarkerCount: 0 };
+    current.skillMarkerCount += 1;
+    countsByLevelId.set(marker.buildingLevelId, current);
+  }
+
+  const levelById = new Map(scene.buildingLevels.map((level) => [level.id, level]));
+
+  return Array.from(countsByLevelId.entries())
+    .map(([buildingLevelId, counts]) => {
+      const buildingLevel = levelById.get(buildingLevelId);
+
+      return {
+        buildingLevelId,
+        buildingLevelName: buildingLevel?.name ?? buildingLevelId,
+        buildingLevelNumber: buildingLevel?.levelNumber ?? Number.MAX_SAFE_INTEGER,
+        ...counts,
+      };
+    })
+    .sort((a, b) => a.buildingLevelNumber - b.buildingLevelNumber || a.buildingLevelId.localeCompare(b.buildingLevelId));
 }
