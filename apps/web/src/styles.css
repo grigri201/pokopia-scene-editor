@@ -1273,7 +1273,6 @@ button:disabled {
 
 .scene-string-import-modal {
   display: grid;
-  grid-template-rows: auto minmax(0, auto) auto auto auto;
   gap: 14px;
   width: min(560px, 100%);
   max-height: min(780px, calc(100vh - 48px));
@@ -1313,25 +1312,29 @@ button:disabled {
   line-height: 1;
 }
 
-.scene-string-import-modal__field {
+.scene-string-import-modal__file {
   display: grid;
-  gap: 8px;
-  min-width: 0;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 12px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.scene-string-import-modal__file dt {
+  margin: 0;
+  color: var(--ink-muted);
   font-weight: 850;
 }
 
-.scene-string-import-modal__field textarea {
-  min-height: 168px;
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 12px;
-  color: var(--ink);
-  background: #fff;
-  font: inherit;
-  font-weight: 650;
-  line-height: 1.45;
-  resize: vertical;
+.scene-string-import-modal__file dd {
+  min-width: 0;
+  margin: 0;
+  font-weight: 800;
   overflow-wrap: anywhere;
 }
 
@@ -4462,10 +4465,6 @@ button:disabled {
 
   .scene-string-import-modal {
     padding: 14px;
-  }
-
-  .scene-string-import-modal__field textarea {
-    min-height: 148px;
   }
 
   .scene-string-import-modal__actions,

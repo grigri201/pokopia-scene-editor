@@ -402,7 +402,7 @@ describe('AppShell scene storage integration', () => {
     expect(exportButton).toBeVisible();
     expect(fileActionsButton).toBeVisible();
     expect(fileActionsButton).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByRole('button', { name: '导出字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导出文件' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '重置' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save scene' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save scene from scene controls' })).not.toBeInTheDocument();
@@ -507,26 +507,26 @@ describe('AppShell scene storage integration', () => {
     expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('menu', { name: '文件操作' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '导出字符串' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '导入字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导出文件' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导入文件' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '重置' })).not.toBeInTheDocument();
 
     fireEvent.click(trigger);
 
     const menu = screen.getByRole('menu', { name: '文件操作' });
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    expect(within(menu).getByRole('menuitem', { name: '导出字符串' })).toBeVisible();
-    expect(within(menu).getByRole('menuitem', { name: '导入字符串' })).toBeVisible();
+    expect(within(menu).getByRole('menuitem', { name: '导出文件' })).toBeVisible();
+    expect(within(menu).getByRole('menuitem', { name: '导入文件' })).toBeVisible();
     expect(within(menu).getByRole('group', { name: '危险操作' })).toBeVisible();
     expect(within(menu).getByRole('menuitem', { name: '重置' })).toHaveClass(
       'app-action-button--danger',
     );
     await waitFor(() => {
-      expect(within(menu).getByRole('menuitem', { name: '导出字符串' })).toHaveFocus();
+      expect(within(menu).getByRole('menuitem', { name: '导出文件' })).toHaveFocus();
     });
 
     fireEvent.keyDown(menu, { key: 'ArrowDown' });
-    expect(within(menu).getByRole('menuitem', { name: '导入字符串' })).toHaveFocus();
+    expect(within(menu).getByRole('menuitem', { name: '导入文件' })).toHaveFocus();
 
     fireEvent.click(within(menu).getByRole('menuitem', { name: '重置' }));
     expect(confirmReset).toHaveBeenCalledWith('Reset the current scene and workbench?');
@@ -739,18 +739,41 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
-  it('exports the current scene as a short restorable string without writing storage', () => {
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(null);
+  it('exports the current scene as a short restorable file without writing storage', async () => {
+    const promptSpy = vi.spyOn(window, 'prompt');
+    const createObjectURL = vi.fn((blob: Blob) => {
+      void blob;
+      return 'blob:scene-string-export';
+    });
+    const revokeObjectURL = vi.fn();
+    const downloadLinks: Array<{ href: string; download: string }> = [];
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function clickAnchor(this: HTMLAnchorElement) {
+      downloadLinks.push({
+        href: this.href,
+        download: this.download,
+      });
+    });
 
     render(<AppShell />);
-    clickFileActionMenuItem('导出字符串');
+    clickFileActionMenuItem('导出文件');
 
-    const exportedString = promptSpy.mock.calls[0]?.[1];
+    const exportedBlob = createObjectURL.mock.calls[0]?.[0] as Blob;
+    const exportedString = await exportedBlob.text();
     expect(exportedString).toMatch(/^PSE3~/);
     expect(exportedString).not.toContain('{');
     expect(exportedString).not.toContain('schemaVersion');
+    expect(exportedBlob.type).toBe('text/plain;charset=utf-8');
+    expect(downloadLinks).toEqual([
+      {
+        href: 'blob:scene-string-export',
+        download: '15x15-布景.pokopia-scene.pse',
+      },
+    ]);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:scene-string-export');
+    expect(promptSpy).not.toHaveBeenCalled();
     expect(screen.getByRole('status', { name: '字符串提示' })).toHaveTextContent(
-      '已生成布景字符串',
+      '已下载布景文件',
     );
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
@@ -782,7 +805,14 @@ describe('AppShell scene storage integration', () => {
   });
 
   it('keeps SceneCanvas zoom out of scene storage, UI preferences, and exported scene strings', async () => {
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(null);
+    const promptSpy = vi.spyOn(window, 'prompt');
+    const createObjectURL = vi.fn((blob: Blob) => {
+      void blob;
+      return 'blob:zoom-scene-string-export';
+    });
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     setViewportWidth(1279);
 
     render(<AppShell />);
@@ -813,10 +843,13 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
 
-    clickFileActionMenuItem('导出字符串');
+    clickFileActionMenuItem('导出文件');
 
-    const exportedString = promptSpy.mock.calls[0]?.[1] ?? '';
+    const exportedBlob = createObjectURL.mock.calls[0]?.[0] as Blob;
+    const exportedString = await exportedBlob.text();
     expect(exportedString).toMatch(/^PSE3~/);
+    expect(promptSpy).not.toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:zoom-scene-string-export');
     const decodedExport = decodeSceneDocumentString(exportedString, '2026-06-06T08:00:00.000Z');
     expect(decodedExport.ok).toBe(true);
     if (!decodedExport.ok) {
@@ -851,13 +884,13 @@ describe('AppShell scene storage integration', () => {
     const confirmSpy = vi.spyOn(window, 'confirm');
 
     render(<AppShell />);
-    submitSceneStringImport(sceneString);
+    await submitSceneStringImport(sceneString);
 
     await waitFor(() => {
       expect(screen.getByLabelText('布景')).toHaveValue('导入庭院');
       expect(screen.getByLabelText('Current Pokemon')).toHaveValue('伊布');
       expect(screen.getByRole('status', { name: '字符串提示' })).toHaveTextContent(
-        '已导入布景字符串',
+        '已导入布景文件',
       );
     });
     expect(JSON.parse(readSceneSnapshot())).toMatchObject({
@@ -937,7 +970,7 @@ describe('AppShell scene storage integration', () => {
 
     const alert = await screen.findByRole('alert', { name: '远程布景无法导入' });
     expect(alert).toHaveTextContent('没有找到远程布景 missing');
-    expect(screen.getByRole('button', { name: '手动导入字符串' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '导入本地文件' })).toBeVisible();
     expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
@@ -954,7 +987,7 @@ describe('AppShell scene storage integration', () => {
 
     const alert = await screen.findByRole('alert', { name: '远程布景无法导入' });
     expect(alert).toHaveTextContent('远程布景加载失败');
-    expect(screen.getByRole('button', { name: '手动导入字符串' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '导入本地文件' })).toBeVisible();
     expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
@@ -974,7 +1007,7 @@ describe('AppShell scene storage integration', () => {
     render(<AppShell />);
 
     await screen.findByRole('alert', { name: '远程布景无法导入' });
-    submitSceneStringImport(encodeSceneDocumentString(manualScene));
+    await submitSceneStringImport(encodeSceneDocumentString(manualScene));
 
     await waitFor(() => {
       expect(screen.queryByRole('alert', { name: '远程布景无法导入' })).not.toBeInTheDocument();
@@ -998,7 +1031,7 @@ describe('AppShell scene storage integration', () => {
 
     await screen.findByRole('alert', { name: '远程布景导入' });
     await screen.findByRole('alert', { name: '远程布景无法导入' });
-    submitSceneStringImport(encodeSceneDocumentString(manualScene));
+    await submitSceneStringImport(encodeSceneDocumentString(manualScene));
 
     await waitFor(() => {
       expect(screen.queryByRole('alert', { name: '远程布景导入' })).not.toBeInTheDocument();
@@ -1024,7 +1057,7 @@ describe('AppShell scene storage integration', () => {
 
     const remoteAlert = await screen.findByRole('alert', { name: '远程布景无法导入' });
     expect(remoteAlert).toHaveTextContent('没有找到远程布景 missing');
-    const dialog = submitSceneStringImport(lossySceneString);
+    const dialog = await submitSceneStringImport(lossySceneString);
 
     expect(within(dialog).getByText(/丢弃 1 个不兼容素材/)).toBeVisible();
     expect(screen.getByRole('alert', { name: '远程布景无法导入' })).toBeVisible();
@@ -1032,7 +1065,7 @@ describe('AppShell scene storage integration', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: '取消' }));
 
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: '导入布景字符串' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: '导入布景文件' })).not.toBeInTheDocument();
     });
     expect(screen.getByRole('alert', { name: '远程布景无法导入' })).toBeVisible();
     expect(screen.getByLabelText('布景')).toHaveValue('15x15 布景');
@@ -1065,7 +1098,7 @@ describe('AppShell scene storage integration', () => {
     const confirmSpy = vi.spyOn(window, 'confirm');
 
     render(<AppShell />);
-    const dialog = submitSceneStringImport(lossySceneString);
+    const dialog = await submitSceneStringImport(lossySceneString);
 
     expect(within(dialog).getByText(/丢弃 1 个不兼容素材/)).toBeVisible();
     expect(within(dialog).getByText(/地基（7,2）木地板/)).toBeVisible();
@@ -1090,30 +1123,30 @@ describe('AppShell scene storage integration', () => {
     ]);
   });
 
-  it('keeps the current scene when importing an invalid scene string', () => {
+  it('keeps the current scene when importing an invalid scene string', async () => {
     const promptSpy = vi.spyOn(window, 'prompt');
     const confirmSpy = vi.spyOn(window, 'confirm');
 
     render(<AppShell />);
     const beforeSnapshot = readSceneSnapshot();
-    const dialog = submitSceneStringImport('bad-code');
+    const dialog = await submitSceneStringImport('bad-code');
 
     expect(readSceneSnapshot()).toBe(beforeSnapshot);
     expect(promptSpy).not.toHaveBeenCalled();
     expect(confirmSpy).not.toHaveBeenCalled();
     expect(dialog).toBeVisible();
-    expect(within(dialog).getByRole('alert')).toHaveTextContent('导入字符串无效');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('导入文件无效');
     expect(screen.getByRole('alert', { name: '字符串提示' })).toHaveTextContent(
-      '导入字符串无效',
+      '导入文件无效',
     );
     expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'error');
   });
 
-  it('auto-dismisses recovery toast after three seconds', () => {
+  it('auto-dismisses recovery toast after three seconds', async () => {
     vi.useFakeTimers();
 
     render(<AppShell />);
-    submitSceneStringImport('bad-code');
+    await submitSceneStringImport('bad-code');
 
     expect(screen.getByLabelText('Recovery toast')).toHaveAttribute('data-recovery-status', 'error');
 
@@ -1124,11 +1157,11 @@ describe('AppShell scene storage integration', () => {
     expect(screen.queryByLabelText('Recovery toast')).not.toBeInTheDocument();
   });
 
-  it('pauses recovery toast auto-dismiss while hovered', () => {
+  it('pauses recovery toast auto-dismiss while hovered', async () => {
     vi.useFakeTimers();
 
     render(<AppShell />);
-    submitSceneStringImport('bad-code');
+    await submitSceneStringImport('bad-code');
     const toast = screen.getByLabelText('Recovery toast');
 
     fireEvent.mouseEnter(toast);
@@ -1149,9 +1182,9 @@ describe('AppShell scene storage integration', () => {
     expect(screen.queryByLabelText('Recovery toast')).not.toBeInTheDocument();
   });
 
-  it('closes recovery toast immediately from the close button', () => {
+  it('closes recovery toast immediately from the close button', async () => {
     render(<AppShell />);
-    submitSceneStringImport('bad-code');
+    await submitSceneStringImport('bad-code');
     const toast = screen.getByLabelText('Recovery toast');
 
     fireEvent.click(within(toast).getByRole('button', { name: '关闭' }));
@@ -1556,6 +1589,7 @@ describe('AppShell scene storage integration', () => {
     setViewportWidth(390);
     const promptSpy = vi.spyOn(window, 'prompt');
     const confirmSpy = vi.spyOn(window, 'confirm');
+    const inputClickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
 
     render(<AppShell />);
     const beforeSnapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
@@ -1566,10 +1600,10 @@ describe('AppShell scene storage integration', () => {
     );
     expect(screen.getByLabelText('Interaction mode')).toHaveTextContent('Mobile Preview Mode');
     expect(screen.queryByText('还没有本地保存的布景。')).not.toBeInTheDocument();
-    expect(screen.queryByText('可以导入一个布景字符串来恢复说明预览。')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '导入字符串' })).toBeVisible();
+    expect(screen.queryByText('可以导入一个布景文件来恢复说明预览。')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '导入文件' })).toBeVisible();
     expect(screen.queryByRole('button', { name: '下载预览' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '导出字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导出文件' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '重置' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Open Design editing workbench')).not.toBeInTheDocument();
     expect(screen.queryByTestId('scene-canvas')).not.toBeInTheDocument();
@@ -1577,11 +1611,10 @@ describe('AppShell scene storage integration', () => {
     expect(screen.queryByLabelText('Building level panel')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Selection context')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+    fireEvent.click(screen.getByRole('button', { name: '导入文件' }));
 
-    const dialog = screen.getByRole('dialog', { name: '导入布景字符串' });
-    expect(dialog).toBeVisible();
-    expect(within(dialog).getByLabelText('布景字符串')).toBeVisible();
+    expect(inputClickSpy).toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: '导入布景文件' })).not.toBeInTheDocument();
     expect(promptSpy).not.toHaveBeenCalled();
     expect(confirmSpy).not.toHaveBeenCalled();
     expect((window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.()).toBe(beforeSnapshot);
@@ -1602,7 +1635,7 @@ describe('AppShell scene storage integration', () => {
     const confirmSpy = vi.spyOn(window, 'confirm');
 
     render(<AppShell />);
-    submitSceneStringImport(encodeSceneDocumentString(importedScene));
+    await submitSceneStringImport(encodeSceneDocumentString(importedScene));
 
     await waitFor(() => {
       expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
@@ -1616,7 +1649,7 @@ describe('AppShell scene storage integration', () => {
     expect(screen.getByLabelText('L1 17x17 图形')).toBeVisible();
     expect(screen.getByRole('button', { name: '下载图片' })).toBeVisible();
     expect(screen.getByRole('button', { name: '按层下载图片' })).toBeVisible();
-    expect(screen.queryByRole('dialog', { name: '导入布景字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '导入布景文件' })).not.toBeInTheDocument();
     expect(promptSpy).not.toHaveBeenCalled();
     expect(confirmSpy).not.toHaveBeenCalled();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
@@ -1652,7 +1685,7 @@ describe('AppShell scene storage integration', () => {
     expect(screen.getByLabelText('皮卡丘导出预览宝可梦图片')).toBeVisible();
     expect(screen.queryByLabelText('Open Design editing workbench')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '下载预览' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '导出字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导出文件' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '重置' })).not.toBeInTheDocument();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
@@ -1677,7 +1710,7 @@ describe('AppShell scene storage integration', () => {
       );
     });
     expect(screen.getByRole('alert')).toHaveTextContent('没有找到远程布景 missing');
-    expect(screen.getByRole('button', { name: '导入字符串' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '导入文件' })).toBeVisible();
     expect(screen.queryByRole('heading', { name: '布景说明预览' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Open Design editing workbench')).not.toBeInTheDocument();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
@@ -1704,7 +1737,7 @@ describe('AppShell scene storage integration', () => {
         'remote-error',
       );
     });
-    submitSceneStringImport(encodeSceneDocumentString(manualScene));
+    await submitSceneStringImport(encodeSceneDocumentString(manualScene));
 
     await waitFor(() => {
       expect(screen.getByRole('region', { name: 'Mobile Preview Mode' })).toHaveAttribute(
@@ -1759,7 +1792,7 @@ describe('AppShell scene storage integration', () => {
         'remote-loading',
       );
     });
-    submitSceneStringImport(encodeSceneDocumentString(manualScene));
+    await submitSceneStringImport(encodeSceneDocumentString(manualScene));
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Mobile Manual Before Remote' })).toBeVisible();
@@ -1941,7 +1974,7 @@ describe('AppShell scene storage integration', () => {
     });
 
     render(<AppShell />);
-    submitSceneStringImport(encodeSceneDocumentString(importedScene));
+    await submitSceneStringImport(encodeSceneDocumentString(importedScene));
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Mobile Download Garden' })).toBeVisible();
@@ -1976,17 +2009,17 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
   }, 20_000);
 
-  it('keeps mobile invalid imports in the modal without storage or scene changes', () => {
+  it('keeps mobile invalid imports in the modal without storage or scene changes', async () => {
     setViewportWidth(390);
     const promptSpy = vi.spyOn(window, 'prompt');
     const confirmSpy = vi.spyOn(window, 'confirm');
 
     render(<AppShell />);
     const beforeSnapshot = readSceneSnapshot();
-    const dialog = submitSceneStringImport('bad-code');
+    const dialog = await submitSceneStringImport('bad-code');
 
     expect(dialog).toBeVisible();
-    expect(within(dialog).getByRole('alert')).toHaveTextContent('导入字符串无效');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('导入文件无效');
     expect(readSceneSnapshot()).toBe(beforeSnapshot);
     expect(promptSpy).not.toHaveBeenCalled();
     expect(confirmSpy).not.toHaveBeenCalled();
@@ -2007,7 +2040,7 @@ describe('AppShell scene storage integration', () => {
     ].join('~');
 
     render(<AppShell />);
-    let dialog = submitSceneStringImport(lossySceneString);
+    let dialog = await submitSceneStringImport(lossySceneString);
 
     expect(within(dialog).getByText(/丢弃 1 个不兼容素材/)).toBeVisible();
     expect(within(dialog).getByText(/地基（7,2）木地板/)).toBeVisible();
@@ -2015,12 +2048,12 @@ describe('AppShell scene storage integration', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: '取消' }));
 
-    expect(screen.queryByRole('dialog', { name: '导入布景字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '导入布景文件' })).not.toBeInTheDocument();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
 
-    dialog = submitSceneStringImport(lossySceneString);
+    dialog = await submitSceneStringImport(lossySceneString);
     fireEvent.click(within(dialog).getByRole('button', { name: '继续导入剩余部分' }));
 
     await waitFor(() => {
@@ -2039,7 +2072,7 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
   });
 
-  it('clears stale lossy confirmation when the import textarea changes', async () => {
+  it('replaces stale lossy confirmation when another import file is selected', async () => {
     setViewportWidth(390);
     const initialLossySceneString = [
       'PSE2',
@@ -2059,21 +2092,16 @@ describe('AppShell scene storage integration', () => {
     ].join('~');
 
     render(<AppShell />);
-    const dialog = submitSceneStringImport(initialLossySceneString);
+    let dialog = await submitSceneStringImport(initialLossySceneString, 'initial-lossy.pokopia-scene.pse');
 
     expect(within(dialog).getByText(/丢弃 1 个不兼容素材/)).toBeVisible();
     expect(within(dialog).getByRole('button', { name: '继续导入剩余部分' })).toBeVisible();
+    expect(within(dialog).getByText('initial-lossy.pokopia-scene.pse')).toBeVisible();
 
-    fireEvent.change(within(dialog).getByLabelText('布景字符串'), {
-      target: { value: editedLossySceneString },
-    });
-
-    expect(within(dialog).queryByText(/丢弃 1 个不兼容素材/)).not.toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: '导入' })).toBeVisible();
-
-    fireEvent.click(within(dialog).getByRole('button', { name: '导入' }));
+    dialog = await selectSceneStringImportFile(editedLossySceneString, 'edited-lossy.pokopia-scene.pse');
 
     expect(within(dialog).getByText(/丢弃 1 个不兼容素材/)).toBeVisible();
+    expect(within(dialog).getByText('edited-lossy.pokopia-scene.pse')).toBeVisible();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
 
     fireEvent.click(within(dialog).getByRole('button', { name: '继续导入剩余部分' }));
@@ -2086,7 +2114,7 @@ describe('AppShell scene storage integration', () => {
     });
   });
 
-  it('keeps mobile import modal open when autosave storage writes fail', () => {
+  it('keeps mobile import modal open when autosave storage writes fail', async () => {
     setViewportWidth(390);
     const originalSetItem = Storage.prototype.setItem;
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function setItemDouble(
@@ -2108,7 +2136,7 @@ describe('AppShell scene storage integration', () => {
     });
 
     render(<AppShell />);
-    const dialog = submitSceneStringImport(encodeSceneDocumentString(importedScene));
+    const dialog = await submitSceneStringImport(encodeSceneDocumentString(importedScene));
 
     expect(dialog).toBeVisible();
     expect(within(dialog).getByRole('alert')).toHaveTextContent('写入本地自动保存失败');
@@ -2125,56 +2153,55 @@ describe('AppShell scene storage integration', () => {
     setViewportWidth(390);
 
     render(<AppShell />);
-    const dialog = openSceneStringImportModal();
+    const dialog = await submitSceneStringImport('bad-code', 'invalid-scene.pokopia-scene.pse');
     const closeButton = within(dialog).getByRole('button', { name: '关闭' });
-    const importButton = within(dialog).getByRole('button', { name: '导入' });
+    const chooseFileButton = within(dialog).getByRole('button', { name: '选择文件' });
 
     await waitFor(() => {
       expect(closeButton).toHaveFocus();
     });
 
     fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
-    expect(importButton).toHaveFocus();
+    expect(chooseFileButton).toHaveFocus();
 
     fireEvent.keyDown(dialog, { key: 'Tab' });
     expect(closeButton).toHaveFocus();
 
-    fireEvent.change(within(dialog).getByLabelText('布景字符串'), {
-      target: { value: encodeSceneDocumentString(createDefaultSceneDocument({ sceneName: 'Escape Import' })) },
-    });
     fireEvent.keyDown(dialog, { key: 'Escape' });
 
-    expect(screen.queryByRole('dialog', { name: '导入布景字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '导入布景文件' })).not.toBeInTheDocument();
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
   });
 
-  it('keeps mobile cancel and close side-effect free', () => {
+  it('keeps mobile cancel and close side-effect free', async () => {
     setViewportWidth(390);
+    const lossySceneString = [
+      'PSE2',
+      'F.F.1',
+      'Canceled Lossy Mobile.0.0._._',
+      '0.%E7%B4%A0%E6%9D%90%E5%B1%82;1.%E5%9C%B0%E5%9F%BA',
+      '0.f.C0.0._._._;1.f.6L.0._._._',
+      '_',
+    ].join('~');
 
     render(<AppShell />);
     const beforeSnapshot = readSceneSnapshot();
 
-    let dialog = openSceneStringImportModal();
-    fireEvent.change(within(dialog).getByLabelText('布景字符串'), {
-      target: { value: encodeSceneDocumentString(createDefaultSceneDocument({ sceneName: 'Canceled Mobile Import' })) },
-    });
+    let dialog = await submitSceneStringImport(lossySceneString, 'canceled-lossy.pokopia-scene.pse');
     fireEvent.click(within(dialog).getByRole('button', { name: '取消' }));
 
-    expect(screen.queryByRole('dialog', { name: '导入布景字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '导入布景文件' })).not.toBeInTheDocument();
     expect(readSceneSnapshot()).toBe(beforeSnapshot);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
 
-    dialog = openSceneStringImportModal();
-    fireEvent.change(within(dialog).getByLabelText('布景字符串'), {
-      target: { value: encodeSceneDocumentString(createDefaultSceneDocument({ sceneName: 'Closed Mobile Import' })) },
-    });
+    dialog = await submitSceneStringImport(lossySceneString, 'closed-lossy.pokopia-scene.pse');
     fireEvent.click(within(dialog).getByRole('button', { name: '关闭' }));
 
-    expect(screen.queryByRole('dialog', { name: '导入布景字符串' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '导入布景文件' })).not.toBeInTheDocument();
     expect(readSceneSnapshot()).toBe(beforeSnapshot);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBeNull();
@@ -3667,7 +3694,7 @@ describe('AppShell scene storage integration', () => {
     const globalKeyHandler = vi.fn();
     window.addEventListener('keydown', globalKeyHandler);
 
-    const importButton = screen.getByRole('button', { name: '导入字符串' });
+    const importButton = screen.getByRole('button', { name: '导入文件' });
 
     try {
       for (const target of [importButton, document]) {
@@ -3894,7 +3921,7 @@ describe('AppShell scene storage integration', () => {
     );
     expect(screen.queryByLabelText('Recovery toast')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Mobile preview recovery errors')).toHaveTextContent('schemaVersion');
-    expect(screen.getByRole('button', { name: '导入字符串' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '导入文件' })).toBeVisible();
     expect(screen.queryByText('15x15 布景')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('布景')).not.toBeInTheDocument();
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(beforePayload);
@@ -4404,26 +4431,43 @@ function openDesktopExportPreview(): void {
   fireEvent.click(screen.getByRole('button', { name: /预览\/导出|Preview \/ export/ }));
 }
 
-function openSceneStringImportModal(): HTMLElement {
+function openSceneStringImportFilePicker(): HTMLInputElement {
   const fileActionsTrigger = screen.queryByRole('button', { name: /文件操作|File actions/ });
   if (fileActionsTrigger) {
-    clickFileActionMenuItem(/导入字符串|Import String/);
+    clickFileActionMenuItem(/导入文件|Import file/);
   } else {
-    const directImportButton = screen.getByRole('button', { name: /导入字符串|Import String/ });
+    const directImportButton = screen.getByRole('button', { name: /导入文件|Import file/ });
     fireEvent.click(directImportButton);
   }
 
-  return screen.getByRole('dialog', { name: '导入布景字符串' });
+  return screen.getByLabelText('选择布景文件') as HTMLInputElement;
 }
 
-function submitSceneStringImport(sceneString: string): HTMLElement {
-  const dialog = openSceneStringImportModal();
-  fireEvent.change(within(dialog).getByLabelText('布景字符串'), {
-    target: { value: sceneString },
+async function selectSceneStringImportFile(
+  sceneString: string,
+  fileName = 'scene.pokopia-scene.pse',
+): Promise<HTMLElement> {
+  const input = screen.getByLabelText('选择布景文件') as HTMLInputElement;
+  fireEvent.change(input, {
+    target: {
+      files: [
+        new File([sceneString], fileName, {
+          type: 'text/plain',
+        }),
+      ],
+    },
   });
-  fireEvent.click(within(dialog).getByRole('button', { name: '导入' }));
 
-  return dialog;
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  return screen.queryByRole('dialog', { name: '导入布景文件' }) as HTMLElement;
+}
+
+async function submitSceneStringImport(sceneString: string, fileName = 'scene.pokopia-scene.pse'): Promise<HTMLElement> {
+  openSceneStringImportFilePicker();
+  return selectSceneStringImportFile(sceneString, fileName);
 }
 
 function remoteSceneResponse(sceneId: string, sceneString: string): Response {

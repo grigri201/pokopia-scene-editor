@@ -103,10 +103,7 @@ import {
 } from './help-guide';
 import { MobilePreviewMode } from './mobile-preview-mode';
 import { resolveMobilePreviewState, type MobilePreviewState } from './mobile-preview-state';
-import {
-  SceneStringImportModal,
-  type SceneStringImportSubmitResult,
-} from '../scene-string-import-modal/scene-string-import-modal';
+import { SceneStringImportModal } from '../scene-string-import-modal/scene-string-import-modal';
 import { AuthProvider, useAuth } from '../../auth/AuthProvider';
 import { AuthStatusControl } from '../../auth/AuthStatusControl';
 import { authReturnPathRestoredEvent } from '../../auth/auth-return-path';
@@ -169,6 +166,21 @@ interface SceneStringImportContext {
   scene: SceneDocument;
 }
 
+interface SceneStringImportDialogState {
+  droppedTileDetails: string[];
+  emptyInput: boolean;
+  errors: RecoveryError[];
+  fileName: string;
+  sceneString: string;
+  storageError: string | null;
+}
+
+type SceneStringImportSubmitResult =
+  | { status: 'success' }
+  | { status: 'invalid'; errors: RecoveryError[] }
+  | { status: 'lossy'; droppedTileDetails: string[] }
+  | { status: 'storage-error'; message: string };
+
 export function AppShell() {
   const [initialUiPreferences] = useState(() =>
     readUiPreferencesFromStorage(getUiPreferencesStorage(), { persistNormalized: false }),
@@ -210,7 +222,7 @@ export function AppShell() {
   const [imageDownloadPending, setImageDownloadPending] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(initialViewportWidth);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(initialInteractionMode);
-  const [sceneStringImportModalOpen, setSceneStringImportModalOpen] = useState(false);
+  const [sceneStringImportDialog, setSceneStringImportDialog] = useState<SceneStringImportDialogState | null>(null);
   const [fileActionsMenuOpen, setFileActionsMenuOpen] = useState(false);
   const [saveToGalleryDialogOpen, setSaveToGalleryDialogOpen] = useState(false);
   const [cloudSceneSavePending, setCloudSceneSavePending] = useState(false);
@@ -226,6 +238,7 @@ export function AppShell() {
   const hasEnteredEditModeRef = useRef(initialInteractionMode === 'edit');
   const fileActionsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const fileActionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const sceneStringFileInputRef = useRef<HTMLInputElement | null>(null);
   const [helpOverlayOpen, setHelpOverlayOpen] = useState(
     initialInteractionMode === 'edit' &&
       initialViewportWidth >= helpOverlayMinimumWidth &&
@@ -238,6 +251,7 @@ export function AppShell() {
       (initialInteractionMode === 'edit' && initialViewportWidth >= helpOverlayMinimumWidth),
   );
   const isReadOnly = interactionMode === 'readOnly';
+  const sceneStringImportModalOpen = sceneStringImportDialog !== null;
   const exportPreviewOpen = exportPreviewSummary !== null;
   const helpOverlayAvailable = !isReadOnly && viewportWidth >= helpOverlayMinimumWidth;
   const helpOverlayVisible = helpOverlayOpen && helpOverlayAvailable;
@@ -1292,10 +1306,19 @@ export function AppShell() {
   };
 
   const exportSceneString = () => {
+    let objectUrl: string | null = null;
+    let downloadLink: HTMLAnchorElement | null = null;
+
     try {
       const sceneString = encodeSceneDocumentString(scene);
-      navigator.clipboard?.writeText(sceneString).catch(() => undefined);
-      window.prompt(t(locale, 'sceneStringExportPrompt'), sceneString);
+      const exportFile = createSceneStringExportFile(scene.sceneName, sceneString);
+      objectUrl = URL.createObjectURL(exportFile.blob);
+      downloadLink = document.createElement('a');
+      downloadLink.href = objectUrl;
+      downloadLink.download = exportFile.fileName;
+      downloadLink.rel = 'noopener';
+      document.body.append(downloadLink);
+      downloadLink.click();
       showNotificationToast({
         id: 'scene-string',
         tone: 'success',
@@ -1309,11 +1332,22 @@ export function AppShell() {
         title: t(locale, 'sceneStringToastTitle'),
         message: t(locale, 'sceneStringExportFailed'),
       });
+    } finally {
+      downloadLink?.remove();
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     }
   };
 
-  const openSceneStringImportModal = () => {
-    setSceneStringImportModalOpen(true);
+  const openSceneStringImportFilePicker = () => {
+    const input = sceneStringFileInputRef.current;
+    if (!input) {
+      return;
+    }
+
+    input.value = '';
+    input.click();
   };
 
   const openSaveToGalleryDialog = () => {
@@ -1404,7 +1438,7 @@ export function AppShell() {
   };
 
   const closeSceneStringImportModal = () => {
-    setSceneStringImportModalOpen(false);
+    setSceneStringImportDialog(null);
   };
 
   const closeFileActionsMenu = (restoreFocus = false) => {
@@ -1492,7 +1526,7 @@ export function AppShell() {
   };
 
   const cancelSceneStringImportModal = () => {
-    setSceneStringImportModalOpen(false);
+    setSceneStringImportDialog(null);
     if (!isReadOnly) {
       showNotificationToast({
         id: 'scene-string',
@@ -1667,6 +1701,77 @@ export function AppShell() {
     }
 
     return result;
+  };
+
+  const setSceneStringImportDialogFromResult = (
+    fileName: string,
+    sceneString: string,
+    result: SceneStringImportSubmitResult,
+  ) => {
+    if (result.status === 'success') {
+      setSceneStringImportDialog(null);
+      return;
+    }
+
+    setSceneStringImportDialog({
+      droppedTileDetails: result.status === 'lossy' ? result.droppedTileDetails : [],
+      emptyInput: false,
+      errors: result.status === 'invalid' ? result.errors : [],
+      fileName,
+      sceneString,
+      storageError: result.status === 'storage-error' ? result.message : null,
+    });
+  };
+
+  const importSceneStringFromFileText = (fileName: string, sceneString: string) => {
+    if (!sceneString.trim()) {
+      setSceneStringImportDialog({
+        droppedTileDetails: [],
+        emptyInput: true,
+        errors: [],
+        fileName,
+        sceneString,
+        storageError: null,
+      });
+      return;
+    }
+
+    const result = submitSceneStringImport(sceneString, { allowLossy: false });
+    setSceneStringImportDialogFromResult(fileName, sceneString, result);
+  };
+
+  const confirmSceneStringImportLossyFile = () => {
+    if (!sceneStringImportDialog) {
+      return;
+    }
+
+    const result = submitSceneStringImport(sceneStringImportDialog.sceneString, { allowLossy: true });
+    setSceneStringImportDialogFromResult(
+      sceneStringImportDialog.fileName,
+      sceneStringImportDialog.sceneString,
+      result,
+    );
+  };
+
+  const handleSceneStringFileInputChange = (event: FormEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    void file.text()
+      .then((sceneString) => importSceneStringFromFileText(file.name, sceneString))
+      .catch(() => {
+        showNotificationToast({
+          id: 'scene-string',
+          tone: 'error',
+          title: t(locale, 'sceneStringToastTitle'),
+          message: t(locale, 'sceneStringImportFileReadFailed'),
+        });
+      });
   };
 
   const handleRemoteSceneString = (
@@ -1967,7 +2072,7 @@ export function AppShell() {
   };
 
   const requestMobileImport = () => {
-    setSceneStringImportModalOpen(true);
+    openSceneStringImportFilePicker();
   };
 
   const downloadExportImage = async (
@@ -2220,7 +2325,7 @@ export function AppShell() {
                       type="button"
                       role="menuitem"
                       className="file-actions-menu__item"
-                      onClick={() => runFileAction(openSceneStringImportModal, { restoreFocus: false })}
+                      onClick={() => runFileAction(openSceneStringImportFilePicker, { restoreFocus: false })}
                     >
                       {t(locale, 'importSceneString')}
                     </button>
@@ -2306,7 +2411,7 @@ export function AppShell() {
         <RemoteSceneImportStatus
           locale={locale}
           state={remoteSceneImportState}
-          onImportRequest={openSceneStringImportModal}
+          onImportRequest={openSceneStringImportFilePicker}
           onLossyCancel={cancelRemoteLossyImport}
           onLossyConfirm={confirmRemoteLossyImport}
           onRetry={runRemoteSceneImport}
@@ -2531,12 +2636,27 @@ export function AppShell() {
           onDownloadLayerImages={downloadLayeredExportImages}
         />
       ) : null}
+      <input
+        ref={sceneStringFileInputRef}
+        className="sr-only"
+        type="file"
+        accept=".pse,.txt,text/plain"
+        aria-label={t(locale, 'sceneStringImportFileInputLabel')}
+        tabIndex={-1}
+        onChange={handleSceneStringFileInputChange}
+      />
       <SceneStringImportModal
+        droppedTileDetails={sceneStringImportDialog?.droppedTileDetails ?? []}
+        emptyInput={sceneStringImportDialog?.emptyInput ?? false}
+        errors={sceneStringImportDialog?.errors ?? []}
+        fileName={sceneStringImportDialog?.fileName ?? ''}
         locale={locale}
         open={sceneStringImportModalOpen}
+        storageError={sceneStringImportDialog?.storageError ?? null}
         onCancel={cancelSceneStringImportModal}
+        onChooseFile={openSceneStringImportFilePicker}
         onClose={closeSceneStringImportModal}
-        onSubmit={submitSceneStringImport}
+        onConfirmLossy={confirmSceneStringImportLossyFile}
       />
       <SaveToGalleryDialog
         cloudSceneContext={cloudSceneContext}
@@ -2678,6 +2798,22 @@ export function AppShell() {
       </main>
     </AuthProvider>
   );
+}
+
+function createSceneStringExportFile(sceneName: string, sceneString: string): { blob: Blob; fileName: string } {
+  return {
+    blob: new Blob([sceneString], { type: 'text/plain;charset=utf-8' }),
+    fileName: `${toSceneStringExportFileBaseName(sceneName)}.pokopia-scene.pse`,
+  };
+}
+
+function toSceneStringExportFileBaseName(sceneName: string): string {
+  const normalizedName = sceneName
+    .trim()
+    .replace(/[\\/:*?"<>|\s]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return normalizedName || 'pokopia-scene';
 }
 
 function formatSceneResizeAffectedLevels(

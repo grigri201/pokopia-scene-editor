@@ -62,7 +62,7 @@ describe('MobilePreviewMode', () => {
 
     fireEvent.click(within(preview as HTMLElement).getByRole('button', { name: '下载图片' }));
     fireEvent.click(within(preview as HTMLElement).getByRole('button', { name: '按层下载图片' }));
-    fireEvent.click(screen.getByRole('button', { name: '导入字符串' }));
+    fireEvent.click(screen.getByRole('button', { name: '导入文件' }));
 
     expect(onDownloadImage).toHaveBeenCalledWith(preview);
     expect(onDownloadLayerImages).toHaveBeenCalledWith(preview);

@@ -1,49 +1,42 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, type KeyboardEvent } from 'react';
 import { t, type Locale } from '../../i18n';
 import type { RecoveryError } from '../../io';
 
-export type SceneStringImportSubmitResult =
-  | { status: 'success' }
-  | { status: 'invalid'; errors: RecoveryError[] }
-  | { status: 'lossy'; droppedTileDetails: string[] }
-  | { status: 'storage-error'; message: string };
-
 interface SceneStringImportModalProps {
+  droppedTileDetails: string[];
+  emptyInput: boolean;
+  errors: RecoveryError[];
+  fileName: string;
   locale: Locale;
   open: boolean;
+  storageError: string | null;
   onCancel: () => void;
+  onChooseFile: () => void;
   onClose: () => void;
-  onSubmit: (
-    sceneString: string,
-    options: { allowLossy: boolean },
-  ) => SceneStringImportSubmitResult;
+  onConfirmLossy: () => void;
 }
 
 export function SceneStringImportModal({
+  droppedTileDetails,
+  emptyInput,
+  errors,
+  fileName,
   locale,
   open,
+  storageError,
   onCancel,
+  onChooseFile,
   onClose,
-  onSubmit,
+  onConfirmLossy,
 }: SceneStringImportModalProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [sceneString, setSceneString] = useState('');
-  const [errors, setErrors] = useState<RecoveryError[]>([]);
-  const [droppedTileDetails, setDroppedTileDetails] = useState<string[]>([]);
-  const [emptyInput, setEmptyInput] = useState(false);
-  const [storageError, setStorageError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
       return;
     }
 
-    setSceneString('');
-    setErrors([]);
-    setDroppedTileDetails([]);
-    setEmptyInput(false);
-    setStorageError(null);
     window.setTimeout(() => closeButtonRef.current?.focus(), 0);
   }, [open]);
 
@@ -51,54 +44,10 @@ export function SceneStringImportModal({
     return null;
   }
 
-  const resetAndClose = (close: () => void) => {
-    setSceneString('');
-    setErrors([]);
-    setDroppedTileDetails([]);
-    setEmptyInput(false);
-    setStorageError(null);
-    close();
-  };
-
-  const handleSubmit = (allowLossy: boolean) => {
-    if (!sceneString.trim()) {
-      setEmptyInput(true);
-      setErrors([]);
-      setDroppedTileDetails([]);
-      setStorageError(null);
-      return;
-    }
-
-    const result = onSubmit(sceneString, { allowLossy });
-    setEmptyInput(false);
-
-    if (result.status === 'success') {
-      resetAndClose(onClose);
-      return;
-    }
-
-    if (result.status === 'lossy') {
-      setDroppedTileDetails(result.droppedTileDetails);
-      setErrors([]);
-      setStorageError(null);
-      return;
-    }
-
-    if (result.status === 'storage-error') {
-      setStorageError(result.message);
-      setErrors([]);
-      return;
-    }
-
-    setErrors(result.errors);
-    setDroppedTileDetails([]);
-    setStorageError(null);
-  };
-
   const handleDialogKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
       event.preventDefault();
-      resetAndClose(onClose);
+      onClose();
       return;
     }
 
@@ -130,6 +79,9 @@ export function SceneStringImportModal({
   };
 
   const showLossyConfirmation = droppedTileDetails.length > 0;
+  const primaryActionLabel = showLossyConfirmation
+    ? t(locale, 'sceneStringImportLossyConfirmAction')
+    : t(locale, 'sceneStringImportChooseFileAction');
 
   return (
     <div
@@ -144,7 +96,12 @@ export function SceneStringImportModal({
         className="scene-string-import-modal"
         onSubmit={(event) => {
           event.preventDefault();
-          handleSubmit(showLossyConfirmation);
+          if (showLossyConfirmation) {
+            onConfirmLossy();
+            return;
+          }
+
+          onChooseFile();
         }}
       >
         <div className="scene-string-import-modal__header">
@@ -153,28 +110,19 @@ export function SceneStringImportModal({
             type="button"
             className="scene-string-import-modal__close"
             aria-label={t(locale, 'close')}
-            onClick={() => resetAndClose(onClose)}
+            onClick={onClose}
             ref={closeButtonRef}
           >
             ×
           </button>
         </div>
 
-        <label className="scene-string-import-modal__field">
-          <span>{t(locale, 'sceneStringImportTextareaLabel')}</span>
-          <textarea
-            value={sceneString}
-            onChange={(event) => {
-              setSceneString(event.currentTarget.value);
-              setEmptyInput(false);
-              setErrors([]);
-              setDroppedTileDetails([]);
-              setStorageError(null);
-            }}
-            placeholder={t(locale, 'sceneStringImportTextareaPlaceholder')}
-            rows={8}
-          />
-        </label>
+        {fileName ? (
+          <dl className="scene-string-import-modal__file">
+            <dt>{t(locale, 'sceneStringImportFileNameLabel')}</dt>
+            <dd>{fileName}</dd>
+          </dl>
+        ) : null}
 
         {emptyInput ? (
           <p className="scene-string-import-modal__error" role="alert">
@@ -224,14 +172,12 @@ export function SceneStringImportModal({
           <button
             type="button"
             className="scene-string-import-modal__secondary"
-            onClick={() => resetAndClose(onCancel)}
+            onClick={onCancel}
           >
             {t(locale, 'sceneStringImportCancelAction')}
           </button>
           <button type="submit" className="scene-string-import-modal__primary">
-            {showLossyConfirmation
-              ? t(locale, 'sceneStringImportLossyConfirmAction')
-              : t(locale, 'sceneStringImportConfirmAction')}
+            {primaryActionLabel}
           </button>
         </div>
       </form>
@@ -246,7 +192,7 @@ function getFocusableElements(root: HTMLElement | null): HTMLElement[] {
 
   return Array.from(
     root.querySelectorAll<HTMLElement>(
-      'button, textarea, input, select, a[href], [tabindex]:not([tabindex="-1"])',
+      'button, input, select, a[href], [tabindex]:not([tabindex="-1"])',
     ),
   ).filter((element) => !element.hasAttribute('disabled') && element.tabIndex !== -1);
 }
