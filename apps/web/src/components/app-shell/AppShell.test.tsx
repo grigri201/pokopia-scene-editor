@@ -1438,7 +1438,7 @@ describe('AppShell scene storage integration', () => {
     expect(window.localStorage.getItem(uiPreferencesStorageKey)).toBeNull();
   }, 20_000);
 
-  it('downloads one overall image and one image per building layer', async () => {
+  it('downloads one ZIP archive containing one overall image and all building layers', async () => {
     let objectUrlIndex = 0;
     const createObjectURL = vi.fn((blob: Blob) => {
       void blob;
@@ -1472,35 +1472,33 @@ describe('AppShell scene storage integration', () => {
     });
 
     writeHelpOverlayDismissedPreferenceToStorage(window.localStorage);
+    writeSceneDocumentToStorage(window.localStorage, createManyBuildingLayerScene(15), 'autosave');
     render(<AppShell />);
-    fireEvent.click(screen.getByRole('button', { name: '新建层' }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('status', { name: '建筑层提示' })).toHaveTextContent('Created 2层');
-    });
 
     const beforeSnapshot = (window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.();
     const beforeSaved = window.localStorage.getItem(savedSceneStorageKey);
     const beforeAutosave = window.localStorage.getItem(autosavedSceneStorageKey);
     const beforeUiPreferences = window.localStorage.getItem(uiPreferencesStorageKey);
     openDesktopExportPreview();
+    expect(screen.getByText('17x17 画布 · 15 个建筑层')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: '按层下载图片' }));
 
     await waitFor(() => {
-      expect(downloadLinks).toHaveLength(3);
+      expect(downloadLinks).toHaveLength(1);
     });
 
     expect(downloadLinks).toEqual([
-      { href: 'blob:layer-export-1', download: '15x15-布景.overall.pokopia-scene.png' },
-      { href: 'blob:layer-export-2', download: '15x15-布景.L1.pokopia-scene.png' },
-      { href: 'blob:layer-export-3', download: '15x15-布景.L2.pokopia-scene.png' },
+      { href: 'blob:layer-export-1', download: 'Layered-15-Floor-Export.pokopia-scene-layers.zip' },
     ]);
-    expect(toBlobMock).toHaveBeenCalledTimes(3);
-    expect(createObjectURL).toHaveBeenCalledTimes(3);
+    expect(toBlobMock).toHaveBeenCalledTimes(16);
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    const archiveBlob = createObjectURL.mock.calls[0]?.[0] as Blob;
+    expect(archiveBlob.type).toBe('application/zip');
+    await expect(readZipCentralDirectoryFileNames(archiveBlob)).resolves.toEqual(
+      createLayeredExportFileNames('Layered-15-Floor-Export', 15),
+    );
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:layer-export-1');
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:layer-export-2');
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:layer-export-3');
-    expect(screen.getByRole('status', { name: '图片导出提示' })).toHaveTextContent('分层图片已准备下载');
+    expect(screen.getByRole('status', { name: '图片导出提示' })).toHaveTextContent('分层图片 ZIP 已准备下载');
     expect((window as unknown as { __pokopiaSceneSnapshot?: () => string }).__pokopiaSceneSnapshot?.()).toBe(beforeSnapshot);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBe(beforeSaved);
     expect(window.localStorage.getItem(autosavedSceneStorageKey)).toBe(beforeAutosave);
@@ -1965,10 +1963,14 @@ describe('AppShell scene storage integration', () => {
     await waitFor(() => {
       expect(downloadLinks).toEqual([
         { href: 'blob:mobile-export-1', download: 'Mobile-Download-Garden.pokopia-scene.png' },
-        { href: 'blob:mobile-export-2', download: 'Mobile-Download-Garden.overall.pokopia-scene.png' },
-        { href: 'blob:mobile-export-3', download: 'Mobile-Download-Garden.L1.pokopia-scene.png' },
+        { href: 'blob:mobile-export-2', download: 'Mobile-Download-Garden.pokopia-scene-layers.zip' },
       ]);
     });
+    const archiveBlob = createObjectURL.mock.calls[1]?.[0] as Blob;
+    expect(archiveBlob.type).toBe('application/zip');
+    await expect(readZipCentralDirectoryFileNames(archiveBlob)).resolves.toEqual(
+      createLayeredExportFileNames('Mobile-Download-Garden', 1),
+    );
     expect(screen.queryByRole('dialog', { name: '下载预览' })).not.toBeInTheDocument();
     expect(toBlobMock).toHaveBeenCalledTimes(3);
     expect(window.localStorage.getItem(savedSceneStorageKey)).toBeNull();
@@ -4205,6 +4207,63 @@ function readSceneSnapshot(): string {
   }
 
   return snapshot;
+}
+
+function createManyBuildingLayerScene(layerCount: number) {
+  const baseScene = createDefaultSceneDocument({
+    sceneId: 'scene-layered-export-15',
+    sceneName: 'Layered 15 Floor Export',
+    now: '2026-06-16T00:00:00.000Z',
+  });
+
+  return {
+    ...baseScene,
+    buildingLevels: Array.from({ length: layerCount }, (_value, index) => createBuildingLevel(index)),
+    workspaceState: {
+      ...baseScene.workspaceState,
+      currentBuildingLevelId: 'level-0',
+    },
+  };
+}
+
+function createLayeredExportFileNames(sceneBaseName: string, layerCount: number): string[] {
+  return [
+    `${sceneBaseName}.overall.pokopia-scene.png`,
+    ...Array.from({ length: layerCount }, (_value, index) =>
+      `${sceneBaseName}.L${index + 1}.pokopia-scene.png`),
+  ];
+}
+
+async function readZipCentralDirectoryFileNames(blob: Blob): Promise<string[]> {
+  const data = new Uint8Array(await blob.arrayBuffer());
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const decoder = new TextDecoder();
+  let endOfCentralDirectoryOffset = -1;
+
+  for (let offset = data.byteLength - 22; offset >= 0; offset -= 1) {
+    if (view.getUint32(offset, true) === 0x06054b50) {
+      endOfCentralDirectoryOffset = offset;
+      break;
+    }
+  }
+
+  expect(endOfCentralDirectoryOffset).toBeGreaterThanOrEqual(0);
+  const entryCount = view.getUint16(endOfCentralDirectoryOffset + 10, true);
+  let centralDirectoryOffset = view.getUint32(endOfCentralDirectoryOffset + 16, true);
+  const fileNames: string[] = [];
+
+  for (let index = 0; index < entryCount; index += 1) {
+    expect(view.getUint32(centralDirectoryOffset, true)).toBe(0x02014b50);
+    const fileNameLength = view.getUint16(centralDirectoryOffset + 28, true);
+    const extraLength = view.getUint16(centralDirectoryOffset + 30, true);
+    const commentLength = view.getUint16(centralDirectoryOffset + 32, true);
+    const fileNameStart = centralDirectoryOffset + 46;
+    const fileNameEnd = fileNameStart + fileNameLength;
+    fileNames.push(decoder.decode(data.slice(fileNameStart, fileNameEnd)));
+    centralDirectoryOffset = fileNameEnd + extraLength + commentLength;
+  }
+
+  return fileNames;
 }
 
 function createDataTransfer() {

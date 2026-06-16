@@ -2,8 +2,10 @@ import { toBlob } from 'html-to-image';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createImageExportFile,
+  createLayeredImageExportArchiveFile,
   createLayeredImageExportFiles,
   getImageExportFileName,
+  getLayeredImageExportArchiveFileName,
   getPreviewExportSize,
 } from './image-export';
 
@@ -173,6 +175,40 @@ describe('image export file generation', () => {
     expect(layerTwo.style.display).toBe('grid');
   });
 
+  it('packages layered image exports into one ZIP archive', async () => {
+    const previewElement = createPreviewElement({ height: 420, width: 590 });
+    const previewBody = previewElement.querySelector<HTMLElement>('.export-preview__body');
+    const overallPage = document.createElement('section');
+    const layerContainer = document.createElement('section');
+    const layerOne = document.createElement('article');
+    const layerTwo = document.createElement('article');
+
+    overallPage.dataset.imageExportPage = 'overall';
+    overallPage.dataset.imageExportFilePart = 'overall';
+    layerContainer.dataset.imageExportLayerContainer = 'true';
+    layerOne.dataset.imageExportPage = 'layer';
+    layerOne.dataset.imageExportFilePart = 'L1';
+    layerTwo.dataset.imageExportPage = 'layer';
+    layerTwo.dataset.imageExportFilePart = 'L2';
+    layerContainer.append(layerOne, layerTwo);
+    previewBody?.append(overallPage, layerContainer);
+
+    const archive = await createLayeredImageExportArchiveFile({
+      previewElement,
+      sceneName: 'Layered Export',
+    });
+
+    expect(getLayeredImageExportArchiveFileName('Layered Export')).toBe('Layered-Export.pokopia-scene-layers.zip');
+    expect(archive.fileName).toBe('Layered-Export.pokopia-scene-layers.zip');
+    expect(archive.fileCount).toBe(3);
+    expect(archive.blob.type).toBe('application/zip');
+    await expect(readZipCentralDirectoryFileNames(archive.blob)).resolves.toEqual([
+      'Layered-Export.overall.pokopia-scene.png',
+      'Layered-Export.L1.pokopia-scene.png',
+      'Layered-Export.L2.pokopia-scene.png',
+    ]);
+  });
+
   it('rejects hidden previews without a rendered size', () => {
     const previewElement = createPreviewElement({ height: 0, width: 590 });
 
@@ -232,4 +268,36 @@ function createPreviewElement({
   });
 
   return previewElement;
+}
+
+async function readZipCentralDirectoryFileNames(blob: Blob): Promise<string[]> {
+  const data = new Uint8Array(await blob.arrayBuffer());
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const decoder = new TextDecoder();
+  let endOfCentralDirectoryOffset = -1;
+
+  for (let offset = data.byteLength - 22; offset >= 0; offset -= 1) {
+    if (view.getUint32(offset, true) === 0x06054b50) {
+      endOfCentralDirectoryOffset = offset;
+      break;
+    }
+  }
+
+  expect(endOfCentralDirectoryOffset).toBeGreaterThanOrEqual(0);
+  const entryCount = view.getUint16(endOfCentralDirectoryOffset + 10, true);
+  let centralDirectoryOffset = view.getUint32(endOfCentralDirectoryOffset + 16, true);
+  const fileNames: string[] = [];
+
+  for (let index = 0; index < entryCount; index += 1) {
+    expect(view.getUint32(centralDirectoryOffset, true)).toBe(0x02014b50);
+    const fileNameLength = view.getUint16(centralDirectoryOffset + 28, true);
+    const extraLength = view.getUint16(centralDirectoryOffset + 30, true);
+    const commentLength = view.getUint16(centralDirectoryOffset + 32, true);
+    const fileNameStart = centralDirectoryOffset + 46;
+    const fileNameEnd = fileNameStart + fileNameLength;
+    fileNames.push(decoder.decode(data.slice(fileNameStart, fileNameEnd)));
+    centralDirectoryOffset = fileNameEnd + extraLength + commentLength;
+  }
+
+  return fileNames;
 }

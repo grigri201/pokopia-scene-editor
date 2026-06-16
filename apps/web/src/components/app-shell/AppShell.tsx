@@ -47,7 +47,7 @@ import {
   type CloudSceneRecord,
   type CloudSceneVisibility,
   createImageExportFile,
-  createLayeredImageExportFiles,
+  createLayeredImageExportArchiveFile,
   decodeSceneDocumentStringWithLossyRecovery,
   encodeSceneDocumentString,
   fetchRemoteSceneString,
@@ -2034,7 +2034,7 @@ export function AppShell() {
       return;
     }
 
-    const objectUrls: string[] = [];
+    let objectUrl: string | null = null;
     let downloadLink: HTMLAnchorElement | null = null;
 
     try {
@@ -2046,21 +2046,17 @@ export function AppShell() {
         message: t(locale, 'layerImagesPreparing'),
       });
       await waitForPlaywrightImageExportDelay();
-      const exportFiles = await createLayeredImageExportFiles({
+      const exportFile = await createLayeredImageExportArchiveFile({
         previewElement,
         sceneName: targetSummary.sceneName,
       });
+      objectUrl = URL.createObjectURL(exportFile.blob);
       downloadLink = document.createElement('a');
+      downloadLink.href = objectUrl;
+      downloadLink.download = exportFile.fileName;
       downloadLink.rel = 'noopener';
       document.body.append(downloadLink);
-
-      for (const exportFile of exportFiles) {
-        const objectUrl = URL.createObjectURL(exportFile.blob);
-        objectUrls.push(objectUrl);
-        downloadLink.href = objectUrl;
-        downloadLink.download = exportFile.fileName;
-        downloadLink.click();
-      }
+      downloadLink.click();
 
       showNotificationToast({
         id: 'image-download',
@@ -2079,7 +2075,7 @@ export function AppShell() {
     } finally {
       setImageDownloadPending(false);
       downloadLink?.remove();
-      for (const objectUrl of objectUrls) {
+      if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
       }
     }
