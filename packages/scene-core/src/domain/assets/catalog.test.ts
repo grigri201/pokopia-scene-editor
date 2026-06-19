@@ -173,7 +173,7 @@ describe('asset catalog', () => {
     expect(getAssetById('large-round-rug')?.footprint).toEqual({ length: 2, width: 2, height: 1 });
     expect(getAssetById('ratan-rug')?.footprint).toEqual({ length: 3, width: 2, height: 1 });
     expect(getAssetById('large-square-rug')?.footprint).toEqual({ length: 4, width: 4, height: 1 });
-    expect(getAssetById('picnic-blanket')?.footprint).toEqual({ length: 4, width: 4, height: 1 });
+    expect(getAssetById('picnic-blanket')?.footprint).toEqual({ length: 3, width: 4, height: 1 });
     expect(getAssetById('lace-rug')?.footprint).toEqual({ length: 3, width: 3, height: 1 });
   });
 
@@ -234,7 +234,7 @@ describe('asset catalog', () => {
       ['large-boulder', { length: 2, width: 2, height: 1 }],
       ['ratan-rug', { length: 3, width: 2, height: 1 }],
       ['large-square-rug', { length: 4, width: 4, height: 1 }],
-      ['picnic-blanket', { length: 4, width: 4, height: 1 }],
+      ['picnic-blanket', { length: 3, width: 4, height: 1 }],
       ['chansey-plant', { length: 2, width: 2, height: 3 }],
       ['lift-platform', { length: 2, width: 2, height: 2 }],
       ['vending-machine', { length: 2, width: 1, height: 2 }],
